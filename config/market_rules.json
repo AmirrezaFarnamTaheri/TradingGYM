@@ -1,0 +1,13 @@
+{
+  "leverage_symbols": [
+    "BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "AVAX", "TRX", "SHIB", "DOT",
+    "LINK", "MATIC", "LTC", "BCH", "UNI", "ATOM", "XLM", "ETC", "FIL", "HBAR",
+    "APT", "LDO", "ARB", "OP", "NEAR", "GRT", "RNDR", "INJ", "STX", "IMX",
+    "FTM", "SAND", "MANA", "AAVE", "EOS", "CAKE", "XTZ", "MKR", "NEO", "GALA",
+    "USDT", "USDC"
+  ],
+  "short_caps": {
+    "BTC": 0.5,
+    "ETH": 10.0
+  }
+}

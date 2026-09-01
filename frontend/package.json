@@ -1,0 +1,39 @@
+{
+  "name": "trading-gym-gui",
+  "version": "31.7.0+reconstructed.1",
+  "description": "Trading Gym Web GUI",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "axios": "^1.6.0",
+    "@tanstack/react-query": "^5.0.0",
+    "zustand": "^4.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "jsdom": "^24.1.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.6.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ci": "vitest run"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

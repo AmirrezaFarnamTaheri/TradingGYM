@@ -1,0 +1,2 @@
+donor,path,sha256,size_bytes,file_type,language,classification,authority_status,semantic_record_ids,notes
+Pasted markdown(35).md,Pasted markdown(35).md,1e52b8bde2adc064925245239d11ac14ae5180bc5d71e4add7bed11c421a834d,299566,markdown,English/code excerpts,documentation;concepts;unsafe sample code,non-authoritative donor evidence,TG231-001;TG231-002;TG231-003;TG231-004;TG231-005;TG231-006;TG231-007;TG231-008;TG231-009,"Fully read (4,690 lines); concepts mined, unsafe code rejected."

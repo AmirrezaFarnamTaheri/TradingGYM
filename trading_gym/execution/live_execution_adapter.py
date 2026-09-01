@@ -1,0 +1,664 @@
+"""
+Live Execution Adapter
+======================
+Translates RL 'Target Position' into specific Orders.
+Handles state reconciliation and EMERGENCY FLATTENING.
+"""
+
+import logging
+import asyncio
+import json
+from decimal import Decimal, ROUND_DOWN
+from pathlib import Path
+from typing import Dict, Any
+
+from trading_gym.common.config import AppConfig
+from trading_gym.adapters.enhanced_aban_client import (
+    EnhancedAbanClient,
+    OrderStatus,
+)
+from trading_gym.adapters.aban_transport import AbanTransport
+from trading_gym.production.mutation_retry import (
+    MutationOutcomeUnknown,
+    MutationOutbox,
+    MutationRetryPolicy,
+    execute_mutation_with_retry,
+    new_mutation_idempotency_key,
+)
+from trading_gym.production.pre_trade_gate import evaluate_pre_trade_gate
+from trading_gym.production.runtime import (
+    LiveExecutionCoordinator,
+    intent_sha256,
+)
+from trading_gym.production.emergency import EmergencyController
+from trading_gym.production.venues import AbanTetherVenue, VenueOrderIntent
+from trading_gym.treasury.reservations import ReservationError, ReservationLedger
+from trading_gym.venue.asset_registry import is_shortable
+from axiomforge.live_trading import LiveConsent
+
+logger = logging.getLogger(__name__)
+
+#: Failures that may be retried automatically under a stable idempotency key:
+#: provably pre-send network errors, plus unknown-outcome errors whose replay
+#: safety is then arbitrated by the coordinator (venue replay capability).
+#: Anything else (validation, auth, consent, emergency halt) aborts.
+DEFAULT_RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    MutationOutcomeUnknown,
+    TimeoutError,
+    ConnectionError,
+)
+try:  # pragma: no cover - exercised only where requests is installed
+    from requests import exceptions as _requests_exceptions
+
+    DEFAULT_RETRYABLE_EXCEPTIONS = (
+        MutationOutcomeUnknown,
+        _requests_exceptions.ConnectionError,
+        _requests_exceptions.ConnectTimeout,
+        TimeoutError,
+        ConnectionError,
+    )
+except Exception:  # pragma: no cover - requests is a hard dependency anyway
+    pass
+
+
+class LiveExecutionAdapter:
+    """Translate target positions while delegating every mutation to production authority."""
+
+    def __init__(
+        self,
+        config: AppConfig,
+        api_token: str,
+        *,
+        live_consent: LiveConsent | None = None,
+        proposal_id: str | None = None,
+        mutation_policy: MutationRetryPolicy | None = None,
+        mutation_outbox: MutationOutbox | None = None,
+    ):
+        self.cfg = config
+        policy_path = Path(__file__).resolve().parents[1] / "adapters" / "aban_tether_policy.json"
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        self.api = EnhancedAbanClient(
+            api_token,
+            rate_limit_per_minute=int(policy["request_rate_per_minute"]),
+        )
+        self._live_consent = live_consent
+        self._proposal_id = proposal_id
+        self._mutation_policy = mutation_policy or MutationRetryPolicy(
+            max_attempts=3,
+            retryable_exceptions=DEFAULT_RETRYABLE_EXCEPTIONS,
+        )
+        self._mutation_outbox = mutation_outbox or MutationOutbox()
+        self._coordinator = LiveExecutionCoordinator(
+            {"abantether": AbanTetherVenue(AbanTransport(self.api))},
+            emergency_controller=EmergencyController(),
+        )
+        self.symbol = config.env.symbol
+        # Base asset e.g. "BTC", "ETH"
+        self.base_asset = self.symbol.replace(config.env.quote_ccy, "")
+        # Quote asset e.g. "IRT", "USDT"
+        self.quote_asset = config.env.quote_ccy
+
+        # Cache decimals for rounding
+        # Use Decimal for all internal constants
+        self.qty_decimals = self.cfg.env.decimals.qty_for(self.symbol)
+        self.price_decimals = self.cfg.env.decimals.price_for(self.symbol)
+        self.min_qty = Decimal(str(self.cfg.env.decimals.min_qty_for(self.symbol)))
+
+        # Concurrency Lock to prevent race conditions during rapid reconcile calls
+        self._reconcile_lock = asyncio.Lock()
+
+        # Kraken-style balance reservations: spending mutations lock
+        # cost×(1+fee) up front so pending/ambiguous orders cannot
+        # double-commit the same funds across reconciles.  Built lazily from
+        # live balances on first use.
+        self._reservations: ReservationLedger | None = None
+
+        logger.info(
+            f"LiveAdapter Initialized: {self.symbol} (Base: {self.base_asset}, Quote: {self.quote_asset})"
+        )
+
+    def _ensure_reservation_ledger(self) -> ReservationLedger:
+        if self._reservations is None:
+            opening: dict[str, Decimal] = {}
+            for b in self.api.get_balance():
+                total = b.balance + b.blocked
+                if total > 0:
+                    opening[b.symbol.upper()] = total
+            self._reservations = ReservationLedger(
+                opening or {self.quote_asset.upper(): Decimal("0")}
+            )
+        return self._reservations
+
+    def _taker_fee_rate(self) -> Decimal:
+        """Taker fee as a fraction; best-effort so exotic configs degrade to 0."""
+        try:
+            bps = float(self.cfg.env.cost.taker_fee_bps)
+        except Exception:  # noqa: BLE001 - missing cost config must not block
+            return Decimal("0")
+        return Decimal(str(max(0.0, bps))) / Decimal("10000")
+
+    def _quote_cost(self, quantity: Decimal, reference_price: float) -> Decimal:
+        """Estimated quote spend incl. taker fee, quantized for reservations."""
+        rate = Decimal("1") + self._taker_fee_rate()
+        return (
+            Decimal(str(quantity))
+            * Decimal(str(reference_price))
+            * rate
+        ).quantize(Decimal("1e-8"), rounding=ROUND_DOWN)
+
+    async def _call_api(self, func, *args, **kwargs):
+        """Run read-only SDK calls in a thread to avoid blocking the event loop."""
+        return await asyncio.to_thread(func, *args, **kwargs)
+
+    async def _mutate(
+        self,
+        operation: str,
+        *,
+        side: str,
+        quantity: Decimal,
+        reference_id: str = "",
+        reserve_currency: str | None = None,
+        reserve_amount: Decimal | None = None,
+    ):
+        """Submit one payload-bound mutation through the sole production coordinator.
+
+        The mutation is retried automatically on transient network failures.
+        Every attempt reuses ONE idempotency key, so a retry after an
+        ambiguous failure observes the original receipt from the coordinator
+        instead of duplicating the venue order.  Each attempt is journalled to
+        the durable mutation outbox for post-hoc reconciliation.
+
+        When ``reserve_currency``/``reserve_amount`` are supplied (spending
+        mutations), the funds are locked in the reservation ledger before any
+        journal write or venue contact; an over-committed request aborts
+        locally with :class:`ReservationError`.  On a committed outcome the
+        reservation is settled, on a terminal failure it is released, and on
+        an ambiguous outcome it stays held until reconciliation resolves the
+        order's fate — mirroring the coordinator's ambiguous-key hold.
+        """
+        if self._live_consent is None or not self._proposal_id:
+            raise PermissionError("governed_live_consent_required")
+
+        idempotency_key = new_mutation_idempotency_key()
+        proposal_id = self._proposal_id
+
+        # Advisory pre-trade gate: cheap local checks run before any journal
+        # write or venue contact. A denial never reaches the coordinator.
+        gate = evaluate_pre_trade_gate(
+            operation=operation,
+            quantity=Decimal(str(quantity)),
+            idempotency_key=idempotency_key,
+            reference_id=reference_id,
+        )
+        if not gate.allowed:
+            raise PermissionError(
+                f"pre_trade_gate_denied:{','.join(gate.denial_reasons)}"
+            )
+
+        # Kraken lib.rs:585-592: lock the spendable cost before mutating.
+        did_reserve = False
+        if reserve_currency is not None and reserve_amount is not None:
+            self._ensure_reservation_ledger().reserve(
+                order_id=idempotency_key,
+                currency=reserve_currency,
+                amount=Decimal(str(reserve_amount)),
+            )
+            did_reserve = True
+
+        def build_intent() -> VenueOrderIntent:
+            return VenueOrderIntent(
+                venue="abantether",
+                operation=operation,
+                base_symbol=self.base_asset,
+                quote_symbol=self.quote_asset,
+                side=side,
+                quantity=Decimal(str(quantity)),
+                reference_id=reference_id,
+                idempotency_key=idempotency_key,
+            )
+
+        payload_digest = intent_sha256(build_intent())
+        outbox = self._mutation_outbox
+
+        def submit():
+            intent = build_intent()
+            authorization = self._coordinator.bind_authorization(
+                intent,
+                consent=self._live_consent,
+                proposal_id=proposal_id,
+            )
+            return self._coordinator.execute(
+                intent,
+                authorization,
+                consent=self._live_consent,
+            )
+
+        def journal_pending() -> None:
+            outbox.record_pending(
+                idempotency_key=idempotency_key,
+                proposal_id=proposal_id,
+                operation=operation,
+                payload_sha256=payload_digest,
+            )
+
+        def journal_outcome(outcome: str, exc: BaseException | None) -> None:
+            try:
+                outbox.record_outcome(
+                    idempotency_key=idempotency_key,
+                    proposal_id=proposal_id,
+                    operation=operation,
+                    payload_sha256=payload_digest,
+                    outcome=outcome,
+                    detail="" if exc is None else type(exc).__name__,
+                )
+            except Exception:  # noqa: BLE001 - journaling must never mask trading
+                logger.warning("mutation outbox write failed error_type=%s", "journal_error")
+
+        def on_committed(receipt: object) -> None:
+            journal_outcome("committed", None)
+            if did_reserve:
+                try:
+                    self._ensure_reservation_ledger().commit_settlement(
+                        order_id=idempotency_key,
+                        currency=reserve_currency,  # type: ignore[arg-type]
+                        settled_amount=Decimal(str(reserve_amount)),
+                    )
+                except Exception:  # noqa: BLE001 - bookkeeping never masks trading
+                    logger.warning(
+                        "reservation settlement failed error_type=%s", "ledger_error"
+                    )
+
+        def on_ambiguous(exc: BaseException) -> None:
+            journal_outcome("ambiguous", exc)
+            # Reservation intentionally held: the order may exist venue-side.
+
+        def on_terminal(exc: BaseException) -> None:
+            journal_outcome("terminal", exc)
+            if did_reserve:
+                try:
+                    self._ensure_reservation_ledger().release(
+                        order_id=idempotency_key
+                    )
+                except Exception:  # noqa: BLE001 - bookkeeping never masks trading
+                    logger.warning(
+                        "reservation release failed error_type=%s", "ledger_error"
+                    )
+
+        policy = self._mutation_policy
+        outcome = await asyncio.to_thread(
+            execute_mutation_with_retry,
+            submit,
+            policy=policy,
+            on_pending=journal_pending,
+            on_committed=on_committed,
+            on_ambiguous=on_ambiguous,
+            on_terminal=on_terminal,
+        )
+        return outcome.receipt["result"]
+
+    async def reconcile(
+        self, target_position: float, current_price: float
+    ) -> Dict[str, Any]:
+        """
+        The Core Logic:
+        1. Fetch current Real Position (Net of Spot and Short)
+        2. Calculate Delta (Target - Current)
+        3. Execute Order (Spot Buy/Sell, Short Create/Close)
+        """
+        if self._reconcile_lock.locked():
+            logger.warning(
+                "Reconcile called while locked! Skipping to prevent race condition."
+            )
+            return {"status": "skipped", "reason": "locked"}
+
+        async with self._reconcile_lock:
+            try:
+                # 1. Get Current Real Position (Decimal)
+                current_pos = await asyncio.to_thread(self._get_net_position)
+                target_dec = Decimal(str(target_position))
+
+                delta = target_dec - current_pos
+
+                # Round delta to allowed precision to avoid API errors
+                delta = delta.quantize(
+                    Decimal(f"1e-{self.qty_decimals}"), rounding=ROUND_DOWN
+                )
+
+                if abs(delta) < self.min_qty:
+                    return {
+                        "status": "skipped",
+                        "reason": "dust",
+                        "delta": float(delta),
+                    }
+
+                side = "buy" if delta > 0 else "sell"
+                qty = abs(delta)
+
+                logger.info(
+                    f"LIVE EXECUTION: {side.upper()} {qty} {self.symbol} @ {current_price}"
+                )
+
+                # 2. Determine Execution Strategy
+                order_id = None
+
+                if side == "buy":
+                    # Buying:
+                    # If we have short position (negative net pos), we must close it first.
+                    if current_pos < 0:
+                        # We are closing a short position
+                        short_positions = await self._call_api(
+                            self.api.get_short_positions
+                        )
+                        # Filter for current symbol
+                        my_shorts = [
+                            p for p in short_positions if p.get("symbol") == self.symbol
+                        ]
+
+                        # Logic: cover min(buy_qty, abs(current_short_pos))
+                        abs_current_pos = abs(current_pos)
+                        qty_to_cover = min(qty, abs_current_pos)
+                        remaining_buy = qty - qty_to_cover
+
+                        # CRITICAL FIX: Handle multiple short positions properly
+                        # Close positions in FIFO order until qty_to_cover is satisfied
+                        if my_shorts and qty_to_cover > Decimal("0"):
+                            remaining_to_cover = qty_to_cover
+                            for short_pos in my_shorts:
+                                if remaining_to_cover <= Decimal("0"):
+                                    break
+
+                                pid = str(short_pos["id"])
+                                short_amount = Decimal(str(short_pos.get("amount", 0)))
+
+                                # Close either the full position or remaining amount needed
+                                close_amount = min(short_amount, remaining_to_cover)
+                                await self._mutate(
+                                    "short.close",
+                                    side="buy",
+                                    quantity=close_amount,
+                                    reference_id=pid,
+                                    reserve_currency=self.quote_asset,
+                                    reserve_amount=self._quote_cost(
+                                        close_amount, current_price
+                                    ),
+                                )
+                                logger.info(f"Closed Short {pid} amount {close_amount}")
+                                remaining_to_cover -= close_amount
+                                order_id = f"close_short_{pid}"
+
+                            if remaining_to_cover > Decimal("0"):
+                                logger.warning(
+                                    f"Could not cover full amount. Remaining: {remaining_to_cover}"
+                                )
+
+                        if remaining_buy > self.min_qty:
+                            # Buy remaining on spot
+                            resp = await self._mutate(
+                                "spot.market",
+                                side="buy",
+                                quantity=remaining_buy,
+                                reserve_currency=self.quote_asset,
+                                reserve_amount=self._quote_cost(
+                                    remaining_buy, current_price
+                                ),
+                            )
+                            order_id = resp.id
+                    else:
+                        # Pure Spot Buy
+                        resp = await self._mutate(
+                            "spot.market",
+                            side="buy",
+                            quantity=qty,
+                            reserve_currency=self.quote_asset,
+                            reserve_amount=self._quote_cost(qty, current_price),
+                        )
+                        order_id = resp.id
+
+                else:
+                    # Selling:
+                    # If current_pos > 0, we are selling spot.
+                    if current_pos > 0:
+                        qty_to_sell = min(qty, current_pos)
+                        remaining_short = qty - qty_to_sell
+
+                        if qty_to_sell > self.min_qty:
+                            resp = await self._mutate(
+                                "spot.market",
+                                side="sell",
+                                quantity=qty_to_sell,
+                                reserve_currency=self.base_asset,
+                                reserve_amount=qty_to_sell,
+                            )
+                            order_id = resp.id
+
+                        if remaining_short > self.min_qty:
+                            # Enter Short
+                            if not is_shortable(self.symbol):
+                                logger.warning(
+                                    f"Short selling not allowed for {self.symbol}. Skipping short leg."
+                                )
+                            else:
+                                resp = await self._mutate(
+                                    "short.open",
+                                    side="sell",
+                                    quantity=remaining_short,
+                                    reserve_currency=self.base_asset,
+                                    reserve_amount=remaining_short,
+                                )
+                                order_id = resp.id
+                    else:
+                        # Pure Short Sell
+                        if not is_shortable(self.symbol):
+                            logger.warning(
+                                f"Short selling not allowed for {self.symbol}. Skipping."
+                            )
+                            return {"status": "skipped", "reason": "short_not_allowed"}
+
+                        resp = await self._mutate(
+                            "short.open",
+                            side="sell",
+                            quantity=qty,
+                            reserve_currency=self.base_asset,
+                            reserve_amount=qty,
+                        )
+                        order_id = resp.id
+
+                return {
+                    "status": "executed",
+                    "order_id": order_id,
+                    "side": side,
+                    "qty": float(qty),
+                }
+            except ValueError as exc:
+                logger.error("Reconciliation validation failed error_type=%s", type(exc).__name__)
+                return {"status": "failed", "error_type": type(exc).__name__}
+            except Exception as exc:
+                logger.error("Reconciliation failed error_type=%s", type(exc).__name__)
+                return {"status": "failed", "error_type": type(exc).__name__}
+
+    async def flatten(self) -> bool:
+        """
+        EMERGENCY: Close all positions immediately.
+        """
+        logger.critical("🚨 EXECUTING EMERGENCY FLATTEN PROTOCOL")
+        try:
+            # 1. Cancel open orders first
+            open_orders_resp = await self._call_api(
+                self.api.get_orders,
+                base_symbol=self.base_asset,
+                quote_symbol=self.quote_asset,
+                status=[
+                    OrderStatus.NEW,
+                    OrderStatus.OPEN,
+                    OrderStatus.PROCESSING,
+                ],  # type: ignore
+            )
+            # get_orders returns Dict, keys: total, data (list)
+            open_orders = open_orders_resp.get("data", [])
+
+            for order in open_orders:
+                await self._mutate(
+                    "order.cancel",
+                    side="none",
+                    quantity=Decimal("0"),
+                    reference_id=str(order["id"]),
+                )
+
+            # 2. Get current net position
+            current_pos = await asyncio.to_thread(self._get_net_position)
+
+            if abs(current_pos) < self.min_qty:
+                logger.info("Position is already flat.")
+                return True
+
+            # 3. Market close
+            if current_pos > 0:
+                # Sell Spot
+                await self._mutate(
+                    "spot.market",
+                    side="sell",
+                    quantity=current_pos,
+                    reserve_currency=self.base_asset,
+                    reserve_amount=current_pos,
+                )
+            else:
+                # Close Short
+                short_positions = await self._call_api(self.api.get_short_positions)
+                my_shorts = [
+                    p for p in short_positions if p.get("symbol") == self.symbol
+                ]
+                for s in my_shorts:
+                    await self._mutate(
+                        "short.close",
+                        side="buy",
+                        quantity=Decimal("0"),
+                        reference_id=str(s["id"]),
+                    )
+
+            logger.critical(f"🚨 FLATTEN EXECUTED. Closed {current_pos} {self.symbol}")
+            return True
+
+        except Exception as exc:
+            logger.critical("Emergency flatten failed error_type=%s", type(exc).__name__)
+            return False
+
+    def get_live_equity(self) -> float:
+        """Calculate Total Equity (Collateral + PnL)."""
+        try:
+            # Sum of all balances in Quote Currency (approx)
+            balances = self.api.get_balance()
+            total_equity = Decimal("0.0")
+
+            # Get all Tickers for conversion
+            tickers_data = self.api.get_ticker()
+            if not isinstance(tickers_data, dict):
+                # Should theoretically be Dict[str, TickerData] if symbol=None
+                logger.warning(
+                    "get_ticker did not return a dict of tickers. Assuming empty."
+                )
+                tickers_data = {}
+
+            # Helper to find ticker
+            def get_mid_price(symbol: str) -> Decimal:
+                # Logic update: Match against constructed pair (e.g. BTC -> BTCUSDT)
+                pair = f"{symbol}{self.quote_asset}"
+
+                # Access by key directly if possible, or search
+                # EnhancedAbanClient returns dict keyed by market name (usually pair)
+                if pair in tickers_data:
+                    return tickers_data[pair].mid_price
+
+                # Fallback search
+                for ticker in tickers_data.values():
+                    if ticker.symbol == pair:
+                        return ticker.mid_price
+                return Decimal("0.0")
+
+            # 1. Spot Assets Equity
+            for b in balances:
+                symbol = b.symbol
+                amount = b.balance + b.blocked
+
+                if amount <= 0:
+                    continue
+
+                if symbol == self.quote_asset:
+                    total_equity += amount
+                else:
+                    # Convert to Quote
+                    mid = get_mid_price(symbol)
+                    if mid > 0:
+                        total_equity += amount * mid
+
+            # 2. Short Positions PnL
+            shorts = self.api.get_short_positions()
+            for s in shorts:
+                if s.get("symbol") == self.symbol:
+                    # Ensure we handle potential string/float types from raw API dict
+                    amt = Decimal(str(s.get("amount", 0)))
+                    entry = Decimal(str(s.get("entry_price", 0)))
+
+                    # Get current price for this symbol
+                    current_mid = get_mid_price(self.base_asset)
+
+                    if current_mid > 0:
+                        # PnL = Amount * (Entry Price - Current Price)
+                        # If price drops (Entry > Current), PnL is positive.
+                        pnl = amt * (entry - current_mid)
+                        total_equity += pnl
+
+            if not total_equity.is_finite() or total_equity <= 0:
+                raise RuntimeError("live equity is unavailable or non-positive")
+            return float(total_equity)
+        except Exception as exc:
+            logger.error("Error calculating live equity error_type=%s", type(exc).__name__)
+            raise RuntimeError("unable to determine live equity") from exc
+
+    def _get_net_position(self) -> Decimal:
+        """
+        Calculate net position: Spot Balance - Short Obligations
+        Returns: Decimal
+        """
+        # 1. Spot Balance
+        balances = self.api.get_balance()
+        spot_bal = Decimal("0.0")
+        for b in balances:
+            if b.symbol == self.base_asset:
+                spot_bal = b.balance + b.blocked
+                break
+
+        # 2. Short Position
+        short_bal = Decimal("0.0")
+        shorts = self.api.get_short_positions()
+        for s in shorts:
+            if s.get("symbol") == self.symbol:
+                short_bal += Decimal(str(s.get("amount", 0)))
+
+        return spot_bal - short_bal
+
+
+class DryRunLiveExecutionAdapter(LiveExecutionAdapter):
+    """Read live state but never submit, cancel, close, or create orders."""
+
+    async def reconcile(
+        self, target_position: float, current_price: float
+    ) -> Dict[str, Any]:
+        current = await asyncio.to_thread(self._get_net_position)
+        logger.info(
+            "DRY RUN: target=%s current=%s price=%s; no order submitted",
+            target_position,
+            current,
+            current_price,
+        )
+        return {
+            "status": "simulated",
+            "target_position": float(target_position),
+            "current_position": float(current),
+            "current_price": float(current_price),
+        }
+
+    async def flatten(self) -> bool:
+        logger.critical("DRY RUN: panic flatten requested; no live order submitted")
+        return True
+
+

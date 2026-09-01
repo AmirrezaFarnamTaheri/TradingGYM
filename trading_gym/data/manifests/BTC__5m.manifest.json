@@ -1,0 +1,10 @@
+{
+  "files": {
+    "part_2020-09-13.parquet": {
+      "sha256": "c2075fd3a22cd4ba052edfa6650cb7b363fa8fee678deaafd4378a2ebec20267",
+      "size_bytes": 4583
+    }
+  },
+  "partition": "BTC/5m",
+  "schema_version": 2
+}

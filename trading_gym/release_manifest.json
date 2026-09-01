@@ -1,0 +1,329 @@
+{
+  "baseline": {
+    "archive_sha256": "7a3e110e6e046376eb9866ccc4397ada282473ba66f29bb56ec01fd6ae251bb8",
+    "declared_version": "11.0.0"
+  },
+  "capabilities": [
+    {
+      "acceptance_evidence": [
+        "tests/platform/test_release_identity.py",
+        "tests/platform/test_source_release.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-001",
+      "recovered_validation_status": "verified",
+      "slug": "release.truth.manifest",
+      "source_nodes": [
+        "trading_gym/release_manifest.json",
+        "scripts/verify_release_manifest.py",
+        "scripts/build_source_release.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/execution/test_live_execution_adapter.py",
+        "tests/convergence/test_fifteenth_pass_production_runtime.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-002",
+      "recovered_validation_status": "verified",
+      "slug": "execution.single_live_authority",
+      "source_nodes": [
+        "trading_gym/production/runtime.py",
+        "trading_gym/production/venues.py",
+        "trading_gym/execution/live_execution_adapter.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/contracts/test_openapi_contract.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-003",
+      "recovered_validation_status": "verified",
+      "slug": "contracts.openapi",
+      "source_nodes": [
+        "docs/contracts/openapi.json",
+        "scripts/export_openapi.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/platform/test_next_level_suite.py",
+        "tests/platform/test_regime_ensemble_branches.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-004",
+      "recovered_validation_status": "verified",
+      "slug": "agent.regime.ensemble",
+      "source_nodes": [
+        "axiomforge/next_level/agent_lab.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/execution/test_decimal_precision.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-005",
+      "recovered_validation_status": "verified",
+      "slug": "execution.exact_flat",
+      "source_nodes": [
+        "trading_gym/execution/execution_engine.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/adapters/test_aban_convergence.py",
+        "tests/config/test_config_registry.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-006",
+      "recovered_validation_status": "verified",
+      "slug": "configuration.identity",
+      "source_nodes": [
+        "trading_gym/adapters/aban_tether_policy.json",
+        "trading_gym/venue/asset_registry.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/rate_limit/test_global_limiter.py",
+        "tests/adapters/test_aban_convergence.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-007",
+      "recovered_validation_status": "verified",
+      "slug": "venue.aban_tether",
+      "source_nodes": [
+        "trading_gym/adapters/aban_transport.py",
+        "apps/common/trade_loop.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/adapters/test_aban_convergence.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-008",
+      "recovered_validation_status": "verified",
+      "slug": "venue.aban_tether",
+      "source_nodes": [
+        "trading_gym/adapters/__init__.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/adapters/test_enhanced_aban_client.py",
+        "tests/adapters/test_aban_convergence.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-009",
+      "recovered_validation_status": "verified",
+      "slug": "venue.aban_tether",
+      "source_nodes": [
+        "trading_gym/adapters/enhanced_aban_client.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/platform/test_live_admission_runtime.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-010",
+      "recovered_validation_status": "verified",
+      "slug": "governance.live_consent",
+      "source_nodes": [
+        "axiomforge/live_trading.py",
+        "trading_gym/production/runtime.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/production/test_wallet_integration.py",
+        "frontend/src/wallets/trustWallet.node.test.js"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-011",
+      "recovered_validation_status": "verified",
+      "slug": "wallet.trust_wallet",
+      "source_nodes": [
+        "trading_gym/production/wallets.py",
+        "trading_gym/production/chain.py",
+        "frontend/src/wallets/trustWallet.js"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/platform/test_decision_lifecycle.py",
+        "tests/platform/test_next_level_suite.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-012",
+      "recovered_validation_status": "verified",
+      "slug": "decision.lifecycle",
+      "source_nodes": [
+        "axiomforge/decision_lifecycle.py",
+        "apps/api/next_level.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/convergence/test_release_operability.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-013",
+      "recovered_validation_status": "verified",
+      "slug": "release.truth.manifest",
+      "source_nodes": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml",
+        "Makefile",
+        "Invoke-Project.ps1",
+        ".pre-commit-config.yaml",
+        "scripts/run_full_suite.sh"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/production/test_emergency_control.py",
+        "tests/api/test_api.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-014",
+      "recovered_validation_status": "verified",
+      "slug": "operations.emergency_control",
+      "source_nodes": [
+        "trading_gym/production/emergency.py",
+        "apps/api/production.py",
+        "apps/api/main.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/models/test_governed_promotion.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-015",
+      "recovered_validation_status": "verified",
+      "slug": "models.governed_promotion",
+      "source_nodes": [
+        "trading_gym/models/promotion.py",
+        "apps/api/main.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/config/test_config_registry.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-016",
+      "recovered_validation_status": "verified",
+      "slug": "configuration.identity",
+      "source_nodes": [
+        "trading_gym/common/config_registry.py",
+        "scripts/export_config_projection.py"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/convergence/test_seventeenth_pass_production_authority.py",
+        "frontend/src/components/__tests__/ProductionPanel.test.jsx"
+      ],
+      "reconstruction_validation_status": "statically-validated",
+      "record_id": "F-017",
+      "recovered_validation_status": "statically-validated",
+      "slug": "operator.lifecycle_workspace",
+      "source_nodes": [
+        "frontend/src/components/ProductionPanel.jsx",
+        "frontend/src/components/ModelsPanel.jsx",
+        "frontend/src/api.js"
+      ]
+    },
+    {
+      "acceptance_evidence": [
+        "tests/contracts/test_module_accountability.py"
+      ],
+      "reconstruction_validation_status": "verified",
+      "record_id": "F-018",
+      "recovered_validation_status": "verified",
+      "slug": "modules.accountability",
+      "source_nodes": [
+        "scripts/audit_module_accountability.py",
+        "docs/contracts/module_accountability.json"
+      ]
+    }
+  ],
+  "evidence_gap": {
+    "Trading_Gym_30.0.0_SURFACES.csv": "not recovered; full 13,238-surface re-verification intentionally not claimed"
+  },
+  "lineage": [
+    "23.1.0",
+    "24.0.0",
+    "25.0.0",
+    "26.0.0",
+    "27.0.0",
+    "28.0.0",
+    "29.0.0",
+    "30.0.0",
+    "31.7.0"
+  ],
+  "product": "Trading Gym / AxiomForge",
+  "reconstruction": true,
+  "reconstruction_evidence": {
+    "dependency_available_regression": {
+      "duration_seconds": 23.36,
+      "environment": "Python 3.13.5 container; dependency-gated files excluded because locked optional/test dependencies are unavailable in this runtime",
+      "result": "767 passed, 11 skipped, 4 subtests passed, 0 failures",
+      "status": "verified"
+    },
+    "interrupted_validation_attempt": {
+      "note": "one composite final-validation command hit its 120-second command timeout after emitting a progress failure marker without traceback; the immediately isolated full broad rerun completed cleanly at 767 passed, 11 skipped",
+      "status": "not_reproduced"
+    },
+    "late_wave_assurance_registry": {
+      "authority": "advisory-only",
+      "registered_assurances": 25,
+      "status": "verified",
+      "test": "tests/convergence/test_late_wave_registry.py"
+    },
+    "manifest_acceptance_suite": {
+      "duration_seconds": 4.32,
+      "result": "76 passed, 2 skipped, 4 subtests passed, 0 failures",
+      "skip_reason": "two API authentication-isolation cases require process-level isolation",
+      "status": "verified"
+    },
+    "openapi": {
+      "contract": "docs/contracts/openapi.json",
+      "paths": 193,
+      "status": "verified"
+    },
+    "release_permissions": {
+      "policy": "every shebang-bearing release file is executable",
+      "status": "verified"
+    },
+    "target_node_accountability": {
+      "ledger_rows": 288,
+      "present_target_paths": 135,
+      "report": "docs/contracts/recovered_target_coverage.json",
+      "status": "verified",
+      "unique_target_paths": 135
+    },
+    "trust_wallet_node_test": {
+      "path": "frontend/src/wallets/trustWallet.node.test.js",
+      "status": "verified"
+    },
+    "workflow_pins": {
+      "policy": "all uses entries pinned to 40-character commit SHAs",
+      "status": "verified"
+    }
+  },
+  "validation_limitations": [
+    "Trading_Gym_30.0.0_SURFACES.csv was not recovered; wave-18 13,238-surface saturation remains fail-closed and is not fabricated.",
+    "The current validation container runs Python 3.13.5 while the project declares Python >=3.10,<3.13; hypothesis 6.147.0, gymnasium 0.29.1, and pyarrow 15.0.2 are unavailable here and network installation is blocked.",
+    "Frontend node_modules are absent and network installation is blocked, so the full Vitest/Vite frontend suite was not executed locally; F-017 remains statically validated. The dependency-free Trust Wallet Node test passed.",
+    "The original gm-crypto-rs donor source bytes were not recovered; third_party/gm-crypto-rs is intentionally inert and must not be treated as recovered executable donor code.",
+    "No credential-dependent external venue, wallet, chain, payment, or deployment operation was exercised."
+  ],
+  "version": "31.7.0+reconstructed.1"
+}

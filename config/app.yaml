@@ -1,0 +1,219 @@
+env:
+  symbol: "BTCUSDT"
+  quote_ccy: "USDT"
+  decimals:
+    price:
+      BTCUSDT: 2
+      ETHUSDT: 2
+    qty:
+      BTCUSDT: 6
+      ETHUSDT: 6
+  leverage:
+    # ABANTETHER CONFIRMED LIMITS (from platform screenshots):
+    # Credit Trading (Long): 1.5x - 20x leverage
+    # Short Selling: 1.5x - 5x leverage (BTC/ETH only)
+    # THIS IS ASYMMETRIC LEVERAGE
+    min_leverage: 1.5    # Minimum leverage on platform slider
+    max_leverage: 20.0   # Maximum leverage for LONG positions (Credit Trading)
+    max_short_leverage: 5.0  # Maximum leverage for SHORT positions (lower due to squeeze risk)
+
+    # Liquidation Logic for 20x Leverage (5% Initial Margin)
+    # Warning at 10% margin, liquidation at 3% remaining margin
+    liquidation_margin_ratio: 0.03
+    warning_margin_ratio: 0.10
+
+    financing:
+      daily_pct: 0.05       # 0.05% Daily Interest Fee (Standard Industry Rate, Subject to Verification)
+      periods_per_day: 288  # 5-minute bars (1440 / 5)
+
+  shorts:
+    enabled: true
+    # ABANTETHER CONFIRMED: Shorting is ONLY available for BTC and ETH
+    # Volume Caps (per position):
+    #   - Bitcoin: Maximum 0.5 BTC
+    #   - Ethereum: Maximum 10 ETH
+    allowed_symbols:
+      - BTC
+      - ETH
+    borrow_caps:
+      BTC: 0.5   # Max 0.5 BTC per short position
+      ETH: 10.0  # Max 10 ETH per short position
+
+  costs:
+    taker_fee_bps: 7.5    # 0.075%
+    dead_zone_equity_frac: 0.001
+    max_spread_bps: 50.0
+    max_valid_spread_bps: 100.0
+    maker_fee_bps: 0
+    train_cost_multiplier: 1.0
+
+  slippage:
+    volatility_lambda: 0.1
+    liquidity_lambda: 0.1
+    stress_multiplier: 2.0
+    volume_reference_fraction: 0.1
+
+  liquidity:
+    default_quote_cap: 100000.0  # Max single trade size
+    per_symbol_quote_cap: {}
+
+  capacity:
+    conservative_default: 0.1
+
+  breaker:
+    max_loss_pct: 10.0
+    max_loss_window_minutes: 60
+    max_loss_velocity_pct_per_hour: 5.0
+    max_single_trade_loss_pct: 2.0
+    max_slippage_breach_count: 5
+    slippage_breach_window_minutes: 10
+    max_api_error_count: 10
+    api_error_window_minutes: 5
+    max_rejection_rate_pct: 20.0
+    margin_ratio_floor: 0.05  # Trips before liquidation_margin_ratio (0.03)
+    margin_check_enabled: true
+    max_no_fill_minutes: 30
+    stall_check_enabled: true
+    auto_reset: false
+    cooldown_minutes: 30
+    state_file: null
+
+  rewards:
+    scaling: 100.0
+    death_penalty: -100.0
+    clip_min: -100.0
+    clip_max: 100.0
+
+data:
+  # =============================================================================
+  # CURATED 14-SYMBOL UNIVERSE FOR LEVERAGED TRADING
+  # =============================================================================
+  # CRITICAL: Only tokens that support Credit Trading (leverage) are included.
+  # Tokenized stocks/ETFs (QQQX, GLDX, etc.) do NOT support leverage!
+  #
+  # Leverage Rules (Abantether - Verified Nov 2025):
+  # - Short Selling: 1.5x - 5x on BTC/ETH ONLY
+  # - Credit Trading (Long): 1.5x - 20x on ~60 specific tokens
+  # - Spot Only (1x): All other tokens including tokenized assets
+  # =============================================================================
+  symbols:
+    # --- Shortable Assets (BTC & ETH only, max 5x short, max 0.5 BTC / 10 ETH) ---
+    - BTCUSDT       # Bitcoin - Primary, shortable
+    - ETHUSDT       # Ethereum - Secondary, shortable
+
+    # --- Major Layer 1 (Long up to 20x) ---
+    - SOLUSDT       # Solana - High performance
+    - BNBUSDT       # Binance Coin - Exchange token
+    - AVAXUSDT      # Avalanche - DeFi L1
+    - TONUSDT       # Toncoin - Telegram ecosystem
+    - ADAUSDT       # Cardano - Interoperability
+    - FTMUSDT       # Fantom - Fast L1
+
+    # --- Payment (Long up to 20x) ---
+    - XRPUSDT       # Ripple - Payment network
+    - TRXUSDT       # Tron - High throughput
+
+    # --- Meme Coins (Long up to 20x, high volatility) ---
+    - DOGEUSDT      # Dogecoin - Most liquid meme
+    - PEPEUSDT      # Pepe - Popular meme coin
+
+    # --- DeFi (Long up to 20x) ---
+    - ARBUSDT       # Arbitrum - L2 scaling
+    - NEARUSDT      # NEAR - DeFi friendly L1
+
+  timeframes:
+    - "5m"
+  raw_dir: "data/raw"
+  lake_dir: "data/lake"
+  features_dir: "data/features"
+  manifests_dir: ""
+  cache_dir: null
+  start_date: null
+  end_date: null
+
+features:
+  timeframes:
+    - name: "tf_5m"
+      bar_minutes: 5
+      roll_fill_cap: 0
+    - name: "tf_1h"
+      bar_minutes: 60
+      roll_fill_cap: 0
+    - name: "tf_4h"
+      bar_minutes: 240
+      roll_fill_cap: 0
+
+  bar_minutes: 5
+  roll_fill_cap: 0
+  standardization:
+    method: "robust"
+    fit_window_bars: 10080
+  attention:
+    enabled: true
+    l2_logit: 0.0
+    mask_missing: true
+  rolling_window: 100
+
+training:
+  algo: "PPO"
+  device: "auto"
+  total_timesteps: 1000000
+  eval_freq: 10000
+  n_envs: 1
+  initial_equity: 10000.0
+  log_dir: "/tmp/logs"
+  checkpoint_dir: "/tmp/checkpoints"
+  tensorboard_dir: "/tmp/tensorboard"
+  curriculum: []
+  ppo:
+    n_steps: 2048
+    batch_size: 64
+    learning_rate: 0.0003
+    gamma: 0.99
+    gae_lambda: 0.95
+    ent_coef: 0.01
+    vf_coef: 0.5
+    clip_range: 0.2
+    max_grad_norm: 0.5
+    gradient_accumulation: 1
+    use_amp: true
+  early_stop:
+    liquidation_rate: 0.5
+    check_freq: 1000
+
+evaluation:
+  walkforward:
+    n_splits: 5
+    min_train_fraction: 0.8
+    lookahead_bars: 1
+    stress_cost_multiplier: 1.5
+
+portfolio:
+  risk_parity:
+    target_vol_ann: 0.2
+    weight_cap: 0.5
+    stablecoin_min: 0.1
+    window_days: 90
+    shrinkage: "ledoit-wolf"
+    turnover_penalty: 0.01
+  corr_brake:
+    warn: 0.8
+    crit: 0.9
+    release: 0.7
+    cut_warn: 0.5
+    cut_crit: 0.8
+
+monitoring:
+  metrics_port: 8000
+  alerts: {}
+
+paper_trader:
+  trade_size_pct_equity: 0.1
+  loop_interval_seconds: 60
+
+simulator:
+  steps: 1000
+
+mlflow: null
+optuna: null
+seed: 42

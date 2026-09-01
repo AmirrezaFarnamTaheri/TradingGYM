@@ -1,0 +1,358 @@
+"""Automatic mutation retry: replay-safety, classification and journal tests."""
+
+import json
+from decimal import Decimal
+
+import pytest
+
+from trading_gym.production.emergency import EmergencyController
+from trading_gym.production.mutation_retry import (
+    MutationOutcomeUnknown,
+    MutationOutbox,
+    MutationRetryPolicy,
+    delay_for_attempt,
+    execute_mutation_with_retry,
+    scan_outbox,
+)
+from trading_gym.production.runtime import LiveExecutionCoordinator
+from axiomforge.live_trading import LiveConsent
+from trading_gym.production.venues import VenueAdapter, VenueOrderIntent
+
+
+class TransientNetworkError(RuntimeError):
+    pass
+
+
+class TerminalValidationError(ValueError):
+    pass
+
+
+def _policy(max_attempts: int = 3) -> MutationRetryPolicy:
+    return MutationRetryPolicy(
+        max_attempts=max_attempts,
+        base_delay_s=0.01,
+        max_delay_s=0.05,
+        jitter_fraction=0.0,
+        retryable_exceptions=(
+            TransientNetworkError,
+            MutationOutcomeUnknown,
+            ConnectionError,
+            TimeoutError,
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Policy validation and backoff
+# ---------------------------------------------------------------------------
+
+
+def test_policy_rejects_out_of_range_attempts():
+    with pytest.raises(ValueError):
+        MutationRetryPolicy(max_attempts=0)
+    with pytest.raises(ValueError):
+        MutationRetryPolicy(max_attempts=6)
+    with pytest.raises(ValueError):
+        MutationRetryPolicy(max_attempts=True)
+
+
+def test_backoff_is_exponential_capped_and_deterministic_with_rng():
+    policy = _policy()
+    delays = [delay_for_attempt(policy, attempt, rng=__import__("random").Random(7)) for attempt in (1, 2, 3, 4)]
+    assert delays[1] >= delays[0]
+    assert all(delay <= policy.max_delay_s + 1e-9 for delay in delays)
+
+
+# ---------------------------------------------------------------------------
+# Retry loop
+# ---------------------------------------------------------------------------
+
+
+def test_retry_succeeds_after_transient_failures_and_records_delays():
+    attempts = {"n": 0}
+
+    def submit():
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise TransientNetworkError("connection reset")
+        return "receipt"
+
+    sleeps: list[float] = []
+    outcome = execute_mutation_with_retry(submit, policy=_policy(), sleep=sleeps.append)
+    assert outcome.receipt == "receipt"
+    assert outcome.attempts == 3
+    assert outcome.succeeded_on_retry is True
+    assert len(outcome.delays) == 2 and len(sleeps) == 2
+
+
+def test_terminal_error_aborts_without_retry():
+    calls = {"n": 0}
+
+    def submit():
+        calls["n"] += 1
+        raise TerminalValidationError("bad quantity")
+
+    terminal = []
+    with pytest.raises(TerminalValidationError):
+        execute_mutation_with_retry(
+            submit,
+            policy=_policy(),
+            on_terminal=lambda exc: terminal.append(exc),
+            sleep=lambda _: None,
+        )
+    assert calls == {"n": 1}
+    assert len(terminal) == 1
+
+
+def test_unknown_exception_class_is_not_retried():
+    calls = {"n": 0}
+
+    def submit():
+        calls["n"] += 1
+        raise RuntimeError("unclassified failure")
+
+    with pytest.raises(RuntimeError):
+        execute_mutation_with_retry(submit, policy=_policy(), sleep=lambda _: None)
+    assert calls == {"n": 1}
+
+
+def test_budget_exhaustion_marks_outcome_ambiguous():
+    def submit():
+        raise TransientNetworkError("still down")
+
+    ambiguous = []
+    with pytest.raises(TransientNetworkError):
+        execute_mutation_with_retry(
+            submit,
+            policy=_policy(max_attempts=2),
+            on_ambiguous=ambiguous.append,
+            sleep=lambda _: None,
+        )
+    assert len(ambiguous) == 1
+
+
+# ---------------------------------------------------------------------------
+# Coordinator integration: replay safety under a stable idempotency key
+# ---------------------------------------------------------------------------
+
+
+class CountingVenue(VenueAdapter):
+    """Venue double that records submissions and can simulate failure modes."""
+
+    name = "counting"
+
+    def __init__(self, *, replay_capable: bool = False):
+        self.calls: list[VenueOrderIntent] = []
+        self.script: list[object] = []
+        if replay_capable:
+            self.supports_idempotent_replay = True
+
+    def submit(self, intent: VenueOrderIntent):
+        self.calls.append(intent)
+        action = self.script.pop(0) if self.script else {"order_id": f"venue-{len(self.calls)}"}
+        if isinstance(action, BaseException):
+            raise action
+        return action
+
+
+def _consent() -> "LiveConsent":
+    return LiveConsent(
+        actor="operator",
+        scope="live.execute",
+        expires_at="2099-01-01T00:00:00+00:00",
+        nonce=f"mutation-retry-{next(_nonce_counter)}",
+    )
+
+
+import itertools  # noqa: E402
+
+_nonce_counter = itertools.count(1)
+
+
+def _coordinator_intent(key: str) -> VenueOrderIntent:
+    return VenueOrderIntent(
+        venue="counting",
+        operation="spot.market",
+        base_symbol="BTC",
+        quote_symbol="USDT",
+        side="buy",
+        quantity=Decimal("0.5"),
+        idempotency_key=key,
+        reference_id="",
+    )
+
+
+def _bound_submit(coordinator: LiveExecutionCoordinator, intent: VenueOrderIntent, consent):
+    def submit():
+        authorization = coordinator.bind_authorization(intent, consent=consent, proposal_id="p-1")
+        return coordinator.execute(intent, authorization, consent=consent)
+
+    return submit
+
+
+def test_presend_failure_is_retried_and_does_not_taint_the_key():
+    consent = _consent()
+    venue = CountingVenue()
+    venue.script = [ConnectionError("connection refused before send")]
+    coordinator = LiveExecutionCoordinator({"counting": venue})
+    intent = _coordinator_intent("presend-key-1")
+
+    outcome = execute_mutation_with_retry(
+        _bound_submit(coordinator, intent, consent),
+        policy=_policy(),
+        sleep=lambda _: None,
+    )
+
+    assert outcome.attempts == 2 and outcome.succeeded_on_retry is True
+    assert len(venue.calls) == 2
+    assert outcome.receipt["result"]["order_id"] == "venue-2"
+
+
+def test_unknown_outcome_on_replay_capable_venue_is_auto_retried():
+    consent = _consent()
+    # Replay-capable venue: the first POST landed but the response was lost;
+    # the venue deduplicates the retried key and returns the original order.
+    venue = CountingVenue(replay_capable=True)
+    venue.script = [
+        MutationOutcomeUnknown("read timeout after send"),
+        {"order_id": "venue-dedup-1"},
+    ]
+    coordinator = LiveExecutionCoordinator({"counting": venue})
+    intent = _coordinator_intent("replay-key-1")
+
+    outcome = execute_mutation_with_retry(
+        _bound_submit(coordinator, intent, consent),
+        policy=_policy(),
+        sleep=lambda _: None,
+    )
+
+    assert len(venue.calls) == 2  # two HTTP attempts...
+    assert outcome.receipt["result"]["order_id"] == "venue-dedup-1"  # ...one order.
+
+
+def test_unknown_outcome_without_replay_support_escalates_fail_closed():
+    consent = _consent()
+    venue = CountingVenue()  # no supports_idempotent_replay
+    venue.script = [MutationOutcomeUnknown("read timeout after send")]
+    coordinator = LiveExecutionCoordinator({"counting": venue})
+    intent = _coordinator_intent("escalate-key-1")
+
+    terminal: list[BaseException] = []
+    with pytest.raises(PermissionError) as excinfo:
+        execute_mutation_with_retry(
+            _bound_submit(coordinator, intent, consent),
+            policy=_policy(max_attempts=3),
+            on_terminal=terminal.append,
+            sleep=lambda _: None,
+        )
+
+    # Exactly one venue attempt: the retry was refused by the coordinator.
+    assert len(venue.calls) == 1
+    assert "ambiguous_mutation_requires_reconciliation" in str(excinfo.value)
+    assert terminal and isinstance(terminal[0], PermissionError)
+
+
+def test_emergency_halt_is_never_retried():
+    controller = EmergencyController(path=None)
+    coordinator = LiveExecutionCoordinator({"counting": CountingVenue()}, emergency_controller=controller)
+
+    class HaltedController(EmergencyController):
+        def snapshot(self):  # noqa: D102 - test double
+            from trading_gym.production.emergency import EmergencyState
+
+            return EmergencyState(halted=True, revision=1, reason="test", actor="a", approver="b")
+
+    coordinator.emergency_controller = HaltedController()
+
+    intent = _coordinator_intent("halted-key-1")
+    consent = _consent()
+
+    with pytest.raises(PermissionError):
+        execute_mutation_with_retry(
+            _bound_submit(coordinator, intent, consent),
+            policy=_policy(),
+            sleep=lambda _: None,
+        )
+
+
+def test_ambiguous_key_requires_human_reconciliation_before_reuse():
+    consent = _consent()
+    venue = CountingVenue()
+    venue.script = [MutationOutcomeUnknown("read timeout after send")]
+    coordinator = LiveExecutionCoordinator({"counting": venue})
+    intent = _coordinator_intent("reconcile-key-1")
+
+    submit = _bound_submit(coordinator, intent, consent)
+    with pytest.raises(MutationOutcomeUnknown):
+        submit()
+
+    assert coordinator.ambiguous_keys() == ("reconcile-key-1",)
+    with pytest.raises(PermissionError):
+        submit()
+
+    assert coordinator.mark_reconciled("reconcile-key-1") is True
+    assert coordinator.mark_reconciled("reconcile-key-1") is False
+    assert coordinator.ambiguous_keys() == ()
+
+
+# ---------------------------------------------------------------------------
+# Outbox journal
+# ---------------------------------------------------------------------------
+
+
+def test_outbox_journal_lifecycle(tmp_path):
+    outbox = MutationOutbox(path=tmp_path / "outbox.jsonl")
+    outbox.record_pending(
+        idempotency_key="key-a",
+        proposal_id="p-1",
+        operation="spot.market",
+        payload_sha256="deadbeef",
+    )
+    outbox.record_pending(
+        idempotency_key="key-b",
+        proposal_id="p-1",
+        operation="short.open",
+        payload_sha256="feedface",
+    )
+    outbox.record_outcome(
+        idempotency_key="key-b",
+        proposal_id="p-1",
+        operation="short.open",
+        payload_sha256="feedface",
+        outcome="committed",
+    )
+    unresolved = scan_outbox(outbox)
+    keys = {entry["idempotency_key"] for entry in unresolved}
+    assert keys == {"key-a"}
+    latest = outbox.latest_by_key()
+    assert latest["key-b"]["status"] == "committed"
+
+
+def test_outbox_rejects_invalid_outcome(tmp_path):
+    outbox = MutationOutbox(path=tmp_path / "outbox.jsonl")
+    with pytest.raises(ValueError):
+        outbox.record_outcome(
+            idempotency_key="k",
+            proposal_id="p",
+            operation="spot.market",
+            payload_sha256="x",
+            outcome="pending",
+        )
+
+
+def test_outbox_scan_survives_corrupt_line(tmp_path):
+    path = tmp_path / "outbox.jsonl"
+    good = json.dumps(
+        {
+            "schema_version": 1,
+            "status": "pending",
+            "idempotency_key": "k-ok",
+            "proposal_id": "p",
+            "operation": "spot.market",
+            "payload_sha256": "x",
+            "recorded_at": "2026-08-24T00:00:00+00:00",
+        }
+    )
+    path.write_text("{broken json\n" + good + "\n", encoding="utf-8")
+    unresolved = scan_outbox(MutationOutbox(path=path))
+    assert [entry["idempotency_key"] for entry in unresolved] == ["k-ok"]

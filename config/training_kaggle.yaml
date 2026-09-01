@@ -1,0 +1,57 @@
+# --- PRODUCTION PROFILE (KAGGLE T4) ---
+# Optimized for high throughput and stable convergence.
+
+training:
+  algo: "PPO"
+  device: "cuda"
+  total_timesteps: 10000000  # 10 Million steps
+  eval_freq: 50000
+  n_envs: 16                 # Massively parallel simulation
+  initial_equity: 10000.0
+
+  # Kaggle specific paths (guaranteed writable)
+  log_dir: "/kaggle/working/logs"
+  checkpoint_dir: "/kaggle/working/checkpoints"
+  tensorboard_dir: "/kaggle/working/tensorboard"
+
+  ppo:
+    n_steps: 8192      # Long horizon for better advantage estimation
+    batch_size: 4096   # Massive batch for low-variance gradients
+    learning_rate: 0.0003
+    gamma: 0.995       # Long-term reward focus
+    gae_lambda: 0.95
+    ent_coef: 0.01
+    vf_coef: 0.5
+    clip_range: 0.2
+    max_grad_norm: 0.5
+
+    use_amp: true      # Speed optimization
+
+  early_stop:
+    liquidation_rate: 0.8
+    check_freq: 5000
+
+# Curated 14-Symbol Universe (only leverage-supported tokens)
+data:
+  symbols:
+    # Shortable (5x max)
+    - BTCUSDT
+    - ETHUSDT
+    # Major L1s (20x max)
+    - SOLUSDT
+    - BNBUSDT
+    - AVAXUSDT
+    - TONUSDT
+    - DOTUSDT
+    - FTMUSDT
+    # Payment (20x max)
+    - XRPUSDT
+    - TRXUSDT
+    # Meme (20x max)
+    - DOGEUSDT
+    - PEPEUSDT
+    # DeFi (20x max)
+    - ARBUSDT
+    - PENDLEUSDT
+  timeframes:
+    - "5m"

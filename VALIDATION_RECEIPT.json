@@ -1,0 +1,58 @@
+{
+  "artifact_kind": "reconstructed-converged-source",
+  "baseline": {
+    "declared_version": "11.0.0",
+    "uploaded_archive_sha256": "7a3e110e6e046376eb9866ccc4397ada282473ba66f29bb56ec01fd6ae251bb8"
+  },
+  "claim_boundary": "Target-native reconstruction of the latest recovered Trading Gym/AxiomForge lineage. It is not the byte-identical historical 31.7.0 source tree.",
+  "dependency_available_regression": {
+    "result": "767 passed, 11 skipped, 4 subtests passed, 0 failures",
+    "status": "verified"
+  },
+  "manifest_acceptance_suite": {
+    "result": "76 passed, 2 skipped, 4 subtests passed, 0 failures",
+    "skip_reason": "Two API authentication-isolation cases explicitly require process-level isolation.",
+    "status": "verified"
+  },
+  "machine_contracts": {
+    "late_wave_assurances_registered": 25,
+    "module_accountability_modules": 273,
+    "openapi_paths": 193,
+    "recovered_ledger_rows": 288,
+    "recovered_target_paths_present": 135,
+    "recovered_target_paths_total": 135,
+    "workflow_pins": "verified-immutable-sha"
+  },
+  "runtime_environment": {
+    "missing_modules": ["gymnasium", "hypothesis", "pyarrow"],
+    "python": "3.13.5",
+    "project_python_constraint": ">=3.10,<3.13",
+    "locked_versions": {
+      "gymnasium": "0.29.1",
+      "hypothesis": "6.147.0",
+      "pyarrow": "15.0.2"
+    },
+    "network_installation": "blocked in validation container"
+  },
+  "dependency_gated_files_not_collected_in_broad_available_suite": [
+    "tests/apps/test_trade_loop.py",
+    "tests/execution/test_execution_engine.py",
+    "tests/integration/test_system_sanity.py",
+    "tests/lake/test_manifest.py",
+    "tests/pipelines/test_env_creation.py",
+    "tests/pipelines/test_evaluation.py",
+    "tests/rl/test_borrow_cap_wrapper.py",
+    "tests/rl/test_borrow_cap_wrapper_comprehensive.py",
+    "tests/rl/test_environment_logic.py",
+    "tests/rl/test_normalized_env.py"
+  ],
+  "limitations": [
+    "Trading_Gym_30.0.0_SURFACES.csv was not recovered. Wave-18 13,238-surface saturation intentionally fails closed and is not fabricated.",
+    "Frontend node_modules were absent and network installation was blocked; the full Vitest/Vite frontend suite was not executed locally. F-017 remains statically validated. The dependency-free Trust Wallet Node test passed.",
+    "The original gm-crypto-rs donor source bytes were not recovered. third_party/gm-crypto-rs remains intentionally inert evidence, not executable recovered donor code.",
+    "No credential-dependent external venue, wallet, chain, payment, deployment, or production side effect was exercised."
+  ],
+  "non_reproduced_interrupted_attempt": "One composite final-validation command hit its 120-second command timeout after emitting a progress failure marker without a traceback. The immediately isolated full broad rerun completed cleanly at 767 passed, 11 skipped.",
+  "trust_wallet_node_test": "verified",
+  "version": "31.7.0+reconstructed.1"
+}

@@ -1,0 +1,105 @@
+# ==============================================================================
+# RTX 3050 / Low VRAM GPU Profile (4GB-8GB VRAM)
+# ==============================================================================
+# This profile is optimized for consumer GPUs like RTX 3050 (4GB), RTX 3060 (6GB),
+# or similar cards with limited VRAM. It uses aggressive memory optimization while
+# maintaining training stability.
+#
+# Usage:
+#   python -m apps.trainer.main train --config config/training_rtx3050.yaml
+#
+# Memory Budget (RTX 3050 4GB):
+#   - PyTorch overhead: ~500MB
+#   - Model (256x256 MLP): ~50MB
+#   - Batch (64 samples): ~100MB
+#   - Gradient cache: ~100MB
+#   - Safety margin: ~500MB
+#   - Available for data: ~2.7GB
+# ==============================================================================
+
+training:
+  algo: "PPO"
+  device: "cuda"              # Use GPU (set to "cpu" if CUDA issues)
+  total_timesteps: 500000     # 500K steps - good for initial training
+  eval_freq: 10000            # Evaluate every 10K steps
+  n_envs: 2                   # 2 parallel envs (fits in 4GB VRAM)
+  initial_equity: 10000.0
+
+  # Local paths (Windows compatible)
+  log_dir: "./logs/rtx3050"
+  checkpoint_dir: "./checkpoints/rtx3050"
+  tensorboard_dir: "./tensorboard/rtx3050"
+
+  ppo:
+    # Memory-efficient settings
+    n_steps: 1024             # Shorter rollout to save memory (default 2048)
+    batch_size: 64            # Small batch for low VRAM
+    learning_rate: 0.0003     # Standard PPO learning rate
+    gamma: 0.99               # Discount factor
+    gae_lambda: 0.95          # GAE lambda
+    ent_coef: 0.01            # Entropy coefficient
+    vf_coef: 0.5              # Value function coefficient
+    clip_range: 0.2           # PPO clip range
+    max_grad_norm: 0.5        # Gradient clipping
+
+    # Critical memory optimizations
+    gradient_accumulation: 2  # Accumulate gradients over 2 steps (effectively 128 batch)
+    use_amp: true             # Mixed precision (CRITICAL for 3050)
+
+  early_stop:
+    liquidation_rate: 0.5     # Stop if >50% episodes end in liquidation
+    check_freq: 2000          # Check every 2K steps
+
+# Reduced 4-symbol set for faster iteration (subset of main 10)
+# IMPORTANT: For production training, use the full 10-symbol set
+data:
+  symbols:
+    - BTCUSDT                 # Primary - shortable
+    - ETHUSDT                 # Secondary - shortable  
+    - SOLUSDT                 # High performance L1
+    - DOGEUSDT                # Meme coin dynamics
+  timeframes:
+    - "5m"
+  raw_dir: "data/raw"
+  lake_dir: "data/lake"
+  features_dir: "data/features"
+
+# Simplified features for faster processing
+features:
+  timeframes:
+    - name: "tf_5m"
+      bar_minutes: 5
+      roll_fill_cap: 0
+    - name: "tf_1h"
+      bar_minutes: 60
+      roll_fill_cap: 0
+  bar_minutes: 5
+  roll_fill_cap: 0
+  rolling_window: 50          # Reduced window for less memory
+  standardization:
+    method: "robust"
+    fit_window_bars: 5040     # 1 week of 5m bars (reduced from 2 weeks)
+  attention:
+    enabled: false            # Disable attention for lower memory
+
+# Faster evaluation
+evaluation:
+  walkforward:
+    n_splits: 3               # Fewer splits for faster validation
+    min_train_fraction: 0.8
+    lookahead_bars: 1
+    stress_cost_multiplier: 1.5
+
+# Reproducibility
+seed: 42
+
+# ==============================================================================
+# Tips for RTX 3050 Users:
+# ==============================================================================
+# 1. Close other GPU applications (browsers, games) before training
+# 2. Monitor GPU memory with: nvidia-smi -l 1
+# 3. If OOM errors occur, reduce n_envs to 1 or batch_size to 32
+# 4. Training ~500K steps takes approximately 2-4 hours on RTX 3050
+# 5. Use tensorboard to monitor: tensorboard --logdir ./tensorboard/rtx3050
+# ==============================================================================
+

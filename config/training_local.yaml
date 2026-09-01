@@ -1,0 +1,43 @@
+# --- LOCAL DEBUGGING PROFILE (RTX 3050) ---
+# Inherits defaults from app.yaml, overrides for low VRAM.
+
+training:
+  algo: "PPO"
+  device: "cuda"      # Use local GPU
+  total_timesteps: 100000  # Short run for debugging
+  eval_freq: 10000    # Evaluate less often to save time
+  n_envs: 1           # Single environment to save RAM/VRAM
+  initial_equity: 10000.0
+
+  # Local paths
+  log_dir: "./logs/local"
+  checkpoint_dir: "./checkpoints/local"
+  tensorboard_dir: "./tensorboard/local"
+
+  ppo:
+    n_steps: 2048     # Standard short horizon
+    batch_size: 64    # Small batch to fit 4GB VRAM
+    learning_rate: 0.0003
+    gamma: 0.99
+    gae_lambda: 0.95
+    ent_coef: 0.01
+    vf_coef: 0.5
+    clip_range: 0.2
+    max_grad_norm: 0.5
+
+    # Optimizations
+    use_amp: true     # Mixed Precision (Crucial for 3050)
+
+  early_stop:
+    liquidation_rate: 0.5
+    check_freq: 1000
+
+# Use a small subset of assets for faster startup/debugging
+data:
+  symbols:
+    - BTCUSDT
+    - ETHUSDT
+    - SOLUSDT
+    - DOGEUSDT
+  timeframes:
+    - "5m"

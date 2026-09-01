@@ -1,0 +1,15 @@
+{
+  "max_credit_leverage": "20",
+  "max_short_leverage": "5",
+  "request_rate_per_minute": 50,
+  "short_borrow_caps": {
+    "BTC": "0.5",
+    "ETH": "10"
+  },
+  "shortable": [
+    "BTC",
+    "ETH"
+  ],
+  "source": "recovered F-006/F-007 authority synthesis",
+  "version": "31.7.0-reconstructed.1"
+}
