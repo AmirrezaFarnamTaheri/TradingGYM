@@ -86,7 +86,9 @@ class MetricsHandler(BaseHTTPRequestHandler):
                 output = generate_latest(get_metrics_instance().registry)
                 if len(output) > _MAX_METRICS_BYTES:
                     logger.error("Metrics payload exceeds configured byte limit")
-                    self._send(503, b"Metrics unavailable\n", "text/plain; charset=utf-8")
+                    self._send(
+                        503, b"Metrics unavailable\n", "text/plain; charset=utf-8"
+                    )
                     return
                 self._send(200, output, CONTENT_TYPE_LATEST)
                 return
@@ -122,7 +124,9 @@ def _is_loopback_host(host: str) -> bool:
     try:
         import ipaddress
 
-        return bool(addresses) and all(ipaddress.ip_address(address).is_loopback for address in addresses)
+        return bool(addresses) and all(
+            ipaddress.ip_address(address).is_loopback for address in addresses
+        )
     except ValueError:
         return False
 

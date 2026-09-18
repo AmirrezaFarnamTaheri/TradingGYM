@@ -6,7 +6,10 @@ from pathlib import Path
 import typer
 from stable_baselines3 import PPO
 from trading_gym.common.config import load_app_config
-from trading_gym.common.security import validate_regular_file, verified_regular_file_snapshot
+from trading_gym.common.security import (
+    validate_regular_file,
+    verified_regular_file_snapshot,
+)
 from trading_gym.execution.live_execution_adapter import DryRunLiveExecutionAdapter
 from trading_gym.pipelines.environment import (
     create_environment,
@@ -22,14 +25,19 @@ logger = logging.getLogger(__name__)
 def run(
     config_path: str = typer.Option("config/app.yaml", "--config", "-c"),
     model_path: Path = typer.Option(
-        None, "--model-path", "-m", help="Path to the trained model (required unless intelligence mode is llm/rules)"
+        None,
+        "--model-path",
+        "-m",
+        help="Path to the trained model (required unless intelligence mode is llm/rules)",
     ),
     model_sha256: str = typer.Option(
         None, "--model-sha256", help="Expected SHA-256 of the admitted model artifact"
     ),
     intelligence_mode: str = typer.Option(
-        None, "--intelligence-mode", "-i",
-        help="Override brain: auto|rl|llm|fusion|rules (config default: rl)"
+        None,
+        "--intelligence-mode",
+        "-i",
+        help="Override brain: auto|rl|llm|fusion|rules (config default: rl)",
     ),
     timeframe: str = typer.Option(
         "5m", "--timeframe", "-t", help="The timeframe to use for trading"
@@ -53,13 +61,11 @@ def run(
             from trading_gym.common.intelligence_config import IntelligenceConfig
 
             base_icfg = getattr(cfg, "intelligence", None) or IntelligenceConfig()
-            cfg.intelligence = base_icfg.model_copy(
-                update={"mode": intelligence_mode}
-            )
-        needs_model_early = (
-            cfg.intelligence is None
-            or cfg.intelligence.mode.value in {"rl", "fusion"}
-        )
+            cfg.intelligence = base_icfg.model_copy(update={"mode": intelligence_mode})
+        needs_model_early = cfg.intelligence is None or cfg.intelligence.mode.value in {
+            "rl",
+            "fusion",
+        }
         model_artifact = (
             validate_regular_file(
                 model_path, label="model", max_bytes=8 * 1024 * 1024 * 1024
@@ -71,13 +77,15 @@ def run(
             logger.error("--model-path failed validation for RL-backed mode.")
             raise typer.Exit(code=1)
     except Exception as exc:
-        logger.error("Paper-trader input validation failed error_type=%s", type(exc).__name__)
+        logger.error(
+            "Paper-trader input validation failed error_type=%s", type(exc).__name__
+        )
         raise typer.Exit(code=1) from exc
 
-    needs_model = (
-        cfg.intelligence is None
-        or cfg.intelligence.mode.value in {"rl", "fusion"}
-    )
+    needs_model = cfg.intelligence is None or cfg.intelligence.mode.value in {
+        "rl",
+        "fusion",
+    }
     if needs_model and (model_path is None or model_sha256 is None):
         logger.error(
             "--model-path/--model-sha256 are required for this intelligence mode."
@@ -105,10 +113,13 @@ def run(
             logger.info("Loaded hash-pinned paper-trading model")
         else:
             model = None
-            logger.info("Intelligence mode %s requires no RL artifact",
-                        cfg.intelligence.mode.value)
+            logger.info(
+                "Intelligence mode %s requires no RL artifact",
+                cfg.intelligence.mode.value,
+            )
 
         from trading_gym.intelligence.wiring import build_trading_policy
+
         policy = build_trading_policy(cfg, model, env)
         if policy is not None:
             logger.info("Intelligence backend active: %s", policy.backend.name)
@@ -126,7 +137,9 @@ def run(
     except KeyboardInterrupt:
         logger.info("Paper trader stopped by user.")
     except Exception as exc:
-        logger.critical("Unhandled paper-trader failure error_type=%s", type(exc).__name__)
+        logger.critical(
+            "Unhandled paper-trader failure error_type=%s", type(exc).__name__
+        )
         raise typer.Exit(code=1) from exc
     finally:
         if env:

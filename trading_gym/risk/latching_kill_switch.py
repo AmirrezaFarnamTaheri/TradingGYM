@@ -106,7 +106,10 @@ class LatchingKillSwitch:
             if (peak_nav - nav) / peak_nav >= cfg.max_drawdown_pct:
                 self._latched_reason = REASON_DRAWDOWN
 
-        if not self._latched_reason and consecutive_losses >= cfg.max_consecutive_losses:
+        if (
+            not self._latched_reason
+            and consecutive_losses >= cfg.max_consecutive_losses
+        ):
             self._latched_reason = REASON_CONSECUTIVE_LOSSES
 
         reason = self._latched_reason or REASON_NONE

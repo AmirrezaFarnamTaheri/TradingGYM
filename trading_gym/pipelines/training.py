@@ -25,7 +25,9 @@ def _atomic_model_save(model, destination: str | Path) -> Path:
     """Save one authoritative SB3 model through same-filesystem atomic replace."""
 
     requested = Path(destination).expanduser()
-    final_path = requested if requested.suffix == ".zip" else Path(str(requested) + ".zip")
+    final_path = (
+        requested if requested.suffix == ".zip" else Path(str(requested) + ".zip")
+    )
     final_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     if final_path.exists() and final_path.is_symlink():
         raise ValueError("model destination must not be a symbolic link")
@@ -39,7 +41,9 @@ def _atomic_model_save(model, destination: str | Path) -> Path:
             candidates = [stage_target, Path(str(stage_target) + ".zip")]
             generated = [candidate for candidate in candidates if candidate.is_file()]
             if len(generated) != 1 or generated[0].is_symlink():
-                raise RuntimeError("model save did not produce exactly one regular artifact")
+                raise RuntimeError(
+                    "model save did not produce exactly one regular artifact"
+                )
             artifact = generated[0]
             size = artifact.stat().st_size
             if size <= 0 or size > 8 * 1024 * 1024 * 1024:
@@ -214,7 +218,9 @@ def train(
         artifact = _atomic_model_save(
             model, Path(cfg.training.checkpoint_dir) / "final_model.zip"
         )
-        logger.info("Training complete; authoritative model artifact published atomically")
+        logger.info(
+            "Training complete; authoritative model artifact published atomically"
+        )
         if model_version:
             registry = ModelRegistry(registry_dir or cfg.training.checkpoint_dir)
             registry.register(

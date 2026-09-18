@@ -17,7 +17,11 @@ from uuid import uuid4
 from filelock import FileLock
 
 from trading_gym.common.audit_outbox import stamp_outbox_digest, verify_outbox_digest
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.common.security import bounded_json_dumps, redact_secrets
 from trading_gym.governance.ledger import AuditLedger
 from trading_gym.governance.models import (
@@ -41,7 +45,9 @@ class GovernanceAuditPending(RuntimeError):
 
 
 class GovernanceService:
-    def __init__(self, path: Path | None = None, ledger: AuditLedger | None = None) -> None:
+    def __init__(
+        self, path: Path | None = None, ledger: AuditLedger | None = None
+    ) -> None:
         self.path = path or resolve_data_home() / "proposals.json"
         self.ledger = ledger or AuditLedger()
         self.lock = FileLock(str(self.path) + ".service.lock")
@@ -59,7 +65,12 @@ class GovernanceService:
         )
         if not isinstance(document, dict) or document.get("schema_version") != 1:
             raise ValueError("unsupported proposal store schema")
-        for key in ("proposals", "idempotency", "idempotency_fingerprints", "audit_outbox"):
+        for key in (
+            "proposals",
+            "idempotency",
+            "idempotency_fingerprints",
+            "audit_outbox",
+        ):
             document.setdefault(key, {})
             if not isinstance(document[key], dict):
                 raise ValueError(f"proposal store field {key!r} must be an object")
@@ -198,7 +209,9 @@ class GovernanceService:
                         raise GovernanceConflict(
                             "legacy idempotency key maps to a different proposal request"
                         )
-                    document["idempotency_fingerprints"][request.idempotency_key] = fingerprint
+                    document["idempotency_fingerprints"][
+                        request.idempotency_key
+                    ] = fingerprint
                     atomic_write_json(self.path, document)
             else:
                 now = self._now()
@@ -213,9 +226,13 @@ class GovernanceService:
                     expires_at=now + timedelta(seconds=request.expires_in_seconds),
                     idempotency_key=request.idempotency_key,
                 )
-                document["proposals"][proposal.proposal_id] = proposal.model_dump(mode="json")
+                document["proposals"][proposal.proposal_id] = proposal.model_dump(
+                    mode="json"
+                )
                 document["idempotency"][request.idempotency_key] = proposal.proposal_id
-                document["idempotency_fingerprints"][request.idempotency_key] = fingerprint
+                document["idempotency_fingerprints"][
+                    request.idempotency_key
+                ] = fingerprint
                 self._queue_audit(
                     document,
                     event_id=f"proposal:{proposal.proposal_id}:created",
@@ -291,7 +308,9 @@ class GovernanceService:
                         f"expected revision {request.expected_revision}, found {proposal.revision}"
                     )
             elif proposal.state is not ProposalState.PENDING:
-                raise GovernanceConflict(f"proposal is {proposal.state.value}, not pending")
+                raise GovernanceConflict(
+                    f"proposal is {proposal.state.value}, not pending"
+                )
             else:
                 if (
                     request.decision == "approve"
@@ -353,7 +372,9 @@ class GovernanceService:
                         f"expected revision {request.expected_revision}, found {proposal.revision}"
                     )
             elif proposal.state is not ProposalState.APPROVED:
-                raise GovernanceConflict(f"proposal is {proposal.state.value}, not approved")
+                raise GovernanceConflict(
+                    f"proposal is {proposal.state.value}, not approved"
+                )
             elif proposal.expires_at <= self._now():
                 now = self._now()
                 proposal.state = ProposalState.EXPIRED
@@ -370,7 +391,9 @@ class GovernanceService:
                     details={"revision": proposal.revision, "phase": "consumption"},
                 )
                 atomic_write_json(self.path, document)
-                conflict = GovernanceConflict("proposal approval expired before consumption")
+                conflict = GovernanceConflict(
+                    "proposal approval expired before consumption"
+                )
             else:
                 now = self._now()
                 proposal.state = ProposalState.CONSUMED
@@ -384,7 +407,10 @@ class GovernanceService:
                     event="proposal.consumed",
                     actor=actor,
                     subject=proposal_id,
-                    details={"operation": proposal.operation, "revision": proposal.revision},
+                    details={
+                        "operation": proposal.operation,
+                        "revision": proposal.revision,
+                    },
                 )
                 atomic_write_json(self.path, document)
         self.reconcile_audit()
@@ -392,7 +418,9 @@ class GovernanceService:
             raise conflict
         return proposal
 
-    def reserve(self, proposal_id: str, request: ReservationRequest) -> OperationProposal:
+    def reserve(
+        self, proposal_id: str, request: ReservationRequest
+    ) -> OperationProposal:
         """Reserve an approval before starting an external side effect.
 
         Reservation prevents concurrent consumers while still allowing a failed
@@ -420,7 +448,9 @@ class GovernanceService:
                         f"expected revision {request.expected_revision}, found {proposal.revision}"
                     )
             elif proposal.state is not ProposalState.APPROVED:
-                raise GovernanceConflict(f"proposal is {proposal.state.value}, not approved")
+                raise GovernanceConflict(
+                    f"proposal is {proposal.state.value}, not approved"
+                )
             elif proposal.expires_at <= self._now():
                 now = self._now()
                 proposal.state = ProposalState.EXPIRED
@@ -436,7 +466,9 @@ class GovernanceService:
                     details={"revision": proposal.revision, "phase": "reservation"},
                 )
                 atomic_write_json(self.path, document)
-                conflict = GovernanceConflict("proposal approval expired before reservation")
+                conflict = GovernanceConflict(
+                    "proposal approval expired before reservation"
+                )
             else:
                 now = self._now()
                 proposal.state = ProposalState.RESERVED
@@ -539,7 +571,8 @@ class GovernanceService:
             if proposal.revision != request.expected_revision:
                 idempotent_retry = (
                     proposal.revision == request.expected_revision + 1
-                    and proposal.state in {ProposalState.APPROVED, ProposalState.EXPIRED}
+                    and proposal.state
+                    in {ProposalState.APPROVED, ProposalState.EXPIRED}
                     and proposal.reservation_id is None
                 )
                 if not idempotent_retry:

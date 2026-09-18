@@ -24,9 +24,7 @@ from typing import Iterable, Sequence
 _SEGMENT_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 
 #: First segments that may never appear in a *grantable* pattern.
-RESERVED_FIRST_SEGMENTS = frozenset(
-    {"emergency", "governance", "wallet", "authz"}
-)
+RESERVED_FIRST_SEGMENTS = frozenset({"emergency", "governance", "wallet", "authz"})
 
 #: Fully-qualified scopes that are reserved regardless of namespace rules.
 RESERVED_SCOPES = frozenset({"audit.seal"})
@@ -104,9 +102,7 @@ class ScopePattern:
             prefix, tail = p[:head], p[head + 1 :]
             if len(t) < len(prefix) + len(tail):
                 return False
-            return all(
-                seg_eq(p[i], t[i]) for i in range(len(prefix))
-            ) and all(
+            return all(seg_eq(p[i], t[i]) for i in range(len(prefix))) and all(
                 seg_eq(p[-(i + 1)], t[-(i + 1)]) for i in range(len(tail))
             )
         if len(p) != len(t):

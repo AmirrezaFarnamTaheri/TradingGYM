@@ -42,7 +42,12 @@ def test_richest_first_ordering_honored() -> None:
 
     ladder = DegradationLadder[str](
         [
-            CapabilityMode("rich_structured", rich, lambda v: v.startswith("rich:"), "schema decode"),
+            CapabilityMode(
+                "rich_structured",
+                rich,
+                lambda v: v.startswith("rich:"),
+                "schema decode",
+            ),
             CapabilityMode("mid_text", mid, lambda v: bool(v), "plain text"),
             CapabilityMode("poor_hold", poor, lambda v: bool(v), "hold-all"),
         ]
@@ -155,7 +160,11 @@ def test_all_modes_fail_returns_unsuccessful_with_complete_records_in_order() ->
     assert outcome.value is None
     assert outcome.mode_used is None
     assert [r.mode for r in outcome.records] == ["a_raise", "b_none", "c_invalid"]
-    assert [r.outcome for r in outcome.records] == ["error", "invalid_output", "invalid_output"]
+    assert [r.outcome for r in outcome.records] == [
+        "error",
+        "invalid_output",
+        "invalid_output",
+    ]
     assert outcome.records[0].detail == "ValueError"
     assert attempted == ["a_raise", "b_none", "c_invalid"]
 
@@ -171,7 +180,9 @@ def test_empty_mode_name_raises_value_error() -> None:
 
 
 def test_single_mode_success_has_empty_records() -> None:
-    ladder = DegradationLadder[int]([CapabilityMode("only", lambda c: 3, lambda v: v % 2 == 1)])
+    ladder = DegradationLadder[int](
+        [CapabilityMode("only", lambda c: 3, lambda v: v % 2 == 1)]
+    )
 
     outcome = ladder.run({"x": 1})
 

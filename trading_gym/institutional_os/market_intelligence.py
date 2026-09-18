@@ -1,4 +1,5 @@
 """Deterministic market-regime and strategy-suitability evidence."""
+
 from __future__ import annotations
 
 import math
@@ -48,7 +49,9 @@ class RegimePolicy(BaseModel):
         if self.extreme_volatility <= self.high_volatility:
             raise ValueError("extreme volatility threshold must exceed high volatility")
         if self.stressed_spread_bps <= self.thin_spread_bps:
-            raise ValueError("stressed spread threshold must exceed thin spread threshold")
+            raise ValueError(
+                "stressed spread threshold must exceed thin spread threshold"
+            )
         return self
 
 
@@ -66,7 +69,11 @@ class MarketRegimeRequest(BaseModel):
         lengths = {len(self.returns), len(self.spread_bps), len(self.volume)}
         if len(lengths) != 1:
             raise ValueError("market regime series must be aligned")
-        for name, values in (("returns", self.returns), ("spread_bps", self.spread_bps), ("volume", self.volume)):
+        for name, values in (
+            ("returns", self.returns),
+            ("spread_bps", self.spread_bps),
+            ("volume", self.volume),
+        ):
             if any(not math.isfinite(item) for item in values):
                 raise ValueError(f"{name} contains non-finite values")
         if any(item <= -1.0 or item > 10.0 for item in self.returns):
@@ -102,7 +109,9 @@ def classify_market_regime(request: MarketRegimeRequest) -> MarketRegimeReport:
     warnings: list[str] = []
     count = len(request.returns)
     if count < request.policy.minimum_observations:
-        blockers.append(f"insufficient_observations:{count}/{request.policy.minimum_observations}")
+        blockers.append(
+            f"insufficient_observations:{count}/{request.policy.minimum_observations}"
+        )
     log_return = sum(math.log1p(value) for value in request.returns)
     if log_return > 700:
         blockers.append("cumulative_return_exceeds_numeric_range")
@@ -143,10 +152,21 @@ def classify_market_regime(request: MarketRegimeRequest) -> MarketRegimeReport:
     if zscore < -3:
         warnings.append("volume_collapse")
     scores = {
-        "trend_following": 0.9 if trend in {TrendRegime.BULL, TrendRegime.BEAR} else 0.3,
+        "trend_following": (
+            0.9 if trend in {TrendRegime.BULL, TrendRegime.BEAR} else 0.3
+        ),
         "mean_reversion": 0.8 if trend == TrendRegime.RANGE else 0.35,
-        "market_making": 0.8 if liquidity in {LiquidityRegime.DEEP, LiquidityRegime.NORMAL} and vol_regime != VolatilityRegime.EXTREME else 0.1,
-        "breakout": 0.8 if vol_regime in {VolatilityRegime.NORMAL, VolatilityRegime.HIGH} else 0.3,
+        "market_making": (
+            0.8
+            if liquidity in {LiquidityRegime.DEEP, LiquidityRegime.NORMAL}
+            and vol_regime != VolatilityRegime.EXTREME
+            else 0.1
+        ),
+        "breakout": (
+            0.8
+            if vol_regime in {VolatilityRegime.NORMAL, VolatilityRegime.HIGH}
+            else 0.3
+        ),
     }
     if blockers or liquidity == LiquidityRegime.STRESSED:
         scores = {key: min(value, 0.2) for key, value in scores.items()}

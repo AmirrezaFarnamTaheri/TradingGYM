@@ -9,7 +9,11 @@ from trading_gym.governance.policy_change import (
     PolicyVersion,
     evaluate_policy_change,
 )
-from trading_gym.operations.capacity import CapacityClass, CapacityPlanRequest, evaluate_capacity
+from trading_gym.operations.capacity import (
+    CapacityClass,
+    CapacityPlanRequest,
+    evaluate_capacity,
+)
 from trading_gym.treasury import (
     CapitalRequirement,
     CollateralAllocationRequest,
@@ -50,7 +54,10 @@ def test_collateral_allocation_applies_haircuts_liquidity_and_concentration():
     report = allocate_collateral(request)
     assert report.allocated_value == Decimal("1200")
     assert report.shortfall == 0
-    assert [line.allocated_value for line in report.lines] == [Decimal("720.0"), Decimal("480.0")]
+    assert [line.allocated_value for line in report.lines] == [
+        Decimal("720.0"),
+        Decimal("480.0"),
+    ]
     assert not report.blockers
     assert not report.transfer_authority_granted
 
@@ -79,7 +86,12 @@ def test_collateral_shortfall_is_explicit():
 
 
 def _policies():
-    current = PolicyVersion(policy_id="risk-policy", version=1, rules={"max_leverage": 2}, created_by="risk-owner")
+    current = PolicyVersion(
+        policy_id="risk-policy",
+        version=1,
+        rules={"max_leverage": 2},
+        created_by="risk-owner",
+    )
     candidate = PolicyVersion(
         policy_id="risk-policy",
         version=2,
@@ -125,7 +137,13 @@ def test_policy_lineage_is_hash_bound():
         PolicyImpactRequest(
             current=current,
             candidate=candidate.model_copy(update={"parent_sha256": "0" * 64}),
-            samples=[PolicyDecisionSample(sample_id="case-1", current_decision="deny", candidate_decision="deny")],
+            samples=[
+                PolicyDecisionSample(
+                    sample_id="case-1",
+                    current_decision="deny",
+                    candidate_decision="deny",
+                )
+            ],
         )
 
 
@@ -155,15 +173,38 @@ def test_capacity_requires_backpressure_before_overload():
         )
     )
     assert report.required_workers == 8
-    assert any(item.startswith("capacity_utilisation_exceeded") for item in report.blockers)
+    assert any(
+        item.startswith("capacity_utilisation_exceeded") for item in report.blockers
+    )
     assert "backpressure_required:market-data" in report.warnings
     assert not report.scaling_authority_granted
 
+
 def test_policy_change_detects_version_only_noop():
-    current = PolicyVersion(policy_id="risk-policy", version=1, rules={"max_leverage": 2}, created_by="owner")
-    candidate = PolicyVersion(policy_id="risk-policy", version=2, rules={"max_leverage": 2}, created_by="owner", parent_sha256=current.sha256)
-    report = evaluate_policy_change(PolicyImpactRequest(
-        current=current, candidate=candidate,
-        samples=[PolicyDecisionSample(sample_id="unchanged-case", current_decision="deny", candidate_decision="deny")],
-    ))
+    current = PolicyVersion(
+        policy_id="risk-policy",
+        version=1,
+        rules={"max_leverage": 2},
+        created_by="owner",
+    )
+    candidate = PolicyVersion(
+        policy_id="risk-policy",
+        version=2,
+        rules={"max_leverage": 2},
+        created_by="owner",
+        parent_sha256=current.sha256,
+    )
+    report = evaluate_policy_change(
+        PolicyImpactRequest(
+            current=current,
+            candidate=candidate,
+            samples=[
+                PolicyDecisionSample(
+                    sample_id="unchanged-case",
+                    current_decision="deny",
+                    candidate_decision="deny",
+                )
+            ],
+        )
+    )
     assert "policy_candidate_has_no_effective_change" in report.blockers

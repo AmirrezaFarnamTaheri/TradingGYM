@@ -11,7 +11,10 @@ from trading_gym.strategy_lab.overfitting import (
     probabilistic_sharpe_ratio,
     purged_walk_forward,
 )
-from trading_gym.strategy_lab.repository import StrategyConflictError, StrategyRepository
+from trading_gym.strategy_lab.repository import (
+    StrategyConflictError,
+    StrategyRepository,
+)
 from trading_gym.strategy_lab.templates import template_catalogue
 
 
@@ -32,7 +35,9 @@ def test_templates_are_valid_and_evaluable() -> None:
     for spec in template_catalogue().values():
         validated = StrategySpec.model_validate(spec.model_dump())
         result = evaluate_strategy(market_frame(), validated)
-        assert {"entry_signal", "exit_signal", "position_intent"}.issubset(result.columns)
+        assert {"entry_signal", "exit_signal", "position_intent"}.issubset(
+            result.columns
+        )
         assert set(result["position_intent"].unique()).issubset({-1, 0, 1})
 
 
@@ -47,14 +52,20 @@ def test_strategy_repository_uses_revision_cas(tmp_path: Path) -> None:
     repository = StrategyRepository(tmp_path / "strategies.json")
     spec = template_catalogue()["sma_crossover"]
     first = repository.save(spec, actor="test")
-    second = repository.save(spec, strategy_id=first["strategy_id"], expected_revision=1, actor="test")
+    second = repository.save(
+        spec, strategy_id=first["strategy_id"], expected_revision=1, actor="test"
+    )
     assert second["revision"] == 2
     with pytest.raises(StrategyConflictError):
-        repository.save(spec, strategy_id=first["strategy_id"], expected_revision=1, actor="stale")
+        repository.save(
+            spec, strategy_id=first["strategy_id"], expected_revision=1, actor="stale"
+        )
 
 
 def test_overfitting_controls_are_deterministic_and_purged() -> None:
-    folds = purged_walk_forward(200, train_size=60, test_size=20, purge_size=5, embargo_size=2)
+    folds = purged_walk_forward(
+        200, train_size=60, test_size=20, purge_size=5, embargo_size=2
+    )
     assert folds
     assert all(fold.train_end + 5 == fold.test_start for fold in folds)
     returns = np.array([0.01, -0.004, 0.006, 0.002, -0.001] * 20)

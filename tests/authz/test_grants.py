@@ -27,7 +27,6 @@ from trading_gym.authz.grants import (
 )
 from trading_gym.authz.scopes import ScopeError
 
-
 TEST_WINDOW = "2026-09-01T00:00:00Z"
 
 
@@ -54,9 +53,7 @@ class TestGrantLifecycle:
 
     def test_ttl_hours_must_be_positive(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError):
-            GrantLedger.open(tmp_path / "grants.jsonl").issue(
-                make_request(ttl_hours=0)
-            )
+            GrantLedger.open(tmp_path / "grants.jsonl").issue(make_request(ttl_hours=0))
 
     def test_revoke_is_terminal(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
@@ -161,9 +158,7 @@ class TestEvaluation:
 
     def test_breach_latches_revoked_breach(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
-        grant = ledger.issue(
-            make_request(constraints=(("max_notional_quote", 500),))
-        )
+        grant = ledger.issue(make_request(constraints=(("max_notional_quote", 500),)))
         breach = grant.evaluate(
             "trade.paper.order.submit",
             constraints={"max_notional_quote": 1000},
@@ -175,9 +170,7 @@ class TestEvaluation:
 
     def test_non_numeric_constraint_value_rejected(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
-        grant = ledger.issue(
-            make_request(constraints=(("max_notional_quote", "500"),))
-        )
+        grant = ledger.issue(make_request(constraints=(("max_notional_quote", "500"),)))
         with pytest.raises(ConstraintViolation):
             grant.evaluate(
                 "trade.paper.order.submit",

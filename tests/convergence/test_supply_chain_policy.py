@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from trading_gym.common.supply_chain import build_dependency_inventory, verify_dependency_policy
+from trading_gym.common.supply_chain import (
+    build_dependency_inventory,
+    verify_dependency_policy,
+)
 
 
 def test_project_dependency_inventory_is_hash_backed_and_policy_clean():
@@ -19,7 +22,8 @@ def test_inventory_includes_all_poetry_locked_packages():
     project_root = Path(__file__).resolve().parents[2]
     inventory = build_dependency_inventory(project_root)
     locked = [
-        item for item in inventory["components"]
+        item
+        for item in inventory["components"]
         if item.get("ecosystem") == "pypi" and item.get("direct") is False
     ]
     assert len(locked) == inventory["summary"]["python_locked"]
@@ -27,5 +31,6 @@ def test_inventory_includes_all_poetry_locked_packages():
     assert all(item["artifact_hashes"] for item in locked)
     assert all(
         digest.startswith("sha256:") and len(digest) == 71
-        for item in locked for digest in item["artifact_hashes"]
+        for item in locked
+        for digest in item["artifact_hashes"]
     )

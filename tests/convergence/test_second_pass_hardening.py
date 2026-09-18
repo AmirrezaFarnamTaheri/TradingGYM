@@ -37,7 +37,11 @@ from trading_gym.governance.service import (
     GovernanceConflict,
     GovernanceService,
 )
-from trading_gym.governance.triggers import TriggerCreate, TriggerKind, TriggerRepository
+from trading_gym.governance.triggers import (
+    TriggerCreate,
+    TriggerKind,
+    TriggerRepository,
+)
 from trading_gym.models.versioning import ModelRegistry
 from trading_gym.risk.circuit_breakers import BreakerState, CircuitBreaker
 
@@ -144,7 +148,9 @@ def test_model_registry_rebuilds_index_and_rejects_tampering(tmp_path: Path) -> 
         rebuilt.get_active()
 
 
-def test_model_registry_rejects_unsafe_versions_and_duplicate_writes(tmp_path: Path) -> None:
+def test_model_registry_rejects_unsafe_versions_and_duplicate_writes(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "model.zip"
     source.write_bytes(b"model")
     registry = ModelRegistry(tmp_path / "registry")
@@ -161,7 +167,9 @@ def test_corrupt_circuit_breaker_state_fails_closed(tmp_path: Path) -> None:
     breaker = CircuitBreaker(BreakerConfig(state_file=state))
     assert breaker.state is BreakerState.TRIPPED
     assert breaker.persistence_degraded is True
-    assert breaker.trip_reason and breaker.trip_reason.startswith("persisted_state_invalid")
+    assert breaker.trip_reason and breaker.trip_reason.startswith(
+        "persisted_state_invalid"
+    )
 
 
 def test_governance_outbox_recovers_exactly_once(tmp_path: Path) -> None:
@@ -242,9 +250,7 @@ def test_websocket_protocol_and_log_cursor_are_bounded() -> None:
     import base64
 
     token = base64.urlsafe_b64encode(b"secret-key").decode().rstrip("=")
-    decoded, selected = decode_websocket_auth_protocol(
-        f"trading-gym.v1, auth.{token}"
-    )
+    decoded, selected = decode_websocket_auth_protocol(f"trading-gym.v1, auth.{token}")
     assert decoded == "secret-key"
     assert selected == "trading-gym.v1"
 
@@ -261,7 +267,10 @@ def test_child_environment_does_not_leak_control_plane_secrets(monkeypatch) -> N
     monkeypatch.setenv("WORKER_API_KEY", "worker")
     monkeypatch.setenv("APPROVAL_API_KEY", "approval")
     monkeypatch.setenv("AUDIT_HMAC_KEY", "audit")
-    monkeypatch.setenv("ACTOR_CREDENTIALS_JSON", '{"alice":{"secret":"principal-secret-000000000000000001","roles":["proposer"]}}')
+    monkeypatch.setenv(
+        "ACTOR_CREDENTIALS_JSON",
+        '{"alice":{"secret":"principal-secret-000000000000000001","roles":["proposer"]}}',
+    )
     monkeypatch.setenv("ABAN_API_KEY", "broker")
     monkeypatch.setenv("GITHUB_TOKEN", "github")
     monkeypatch.setenv("TOKENIZERS_PARALLELISM", "false")

@@ -1,4 +1,5 @@
 """Dry-run schema migration planning and component version-skew analysis."""
+
 from __future__ import annotations
 
 import hashlib
@@ -100,13 +101,26 @@ class VersionSkewReport(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
 
 
 def plan_migration(request: MigrationPlanRequest) -> MigrationPlan:
     if request.current_schema == request.target_schema:
-        payload = {"store": request.store, "current_schema": request.current_schema, "target_schema": request.target_schema, "steps": []}
-        return MigrationPlan(**payload, complete=True, reversible=True, backup_required=False, plan_sha256=hashlib.sha256(_canonical(payload)).hexdigest())
+        payload = {
+            "store": request.store,
+            "current_schema": request.current_schema,
+            "target_schema": request.target_schema,
+            "steps": [],
+        }
+        return MigrationPlan(
+            **payload,
+            complete=True,
+            reversible=True,
+            backup_required=False,
+            plan_sha256=hashlib.sha256(_canonical(payload)).hexdigest(),
+        )
     steps = [step for step in request.available_steps if step.store == request.store]
     if len({step.step_id for step in steps}) != len(steps):
         raise ValueError("migration step identifiers must be unique")
@@ -148,7 +162,11 @@ def evaluate_version_skew(request: VersionSkewRequest) -> VersionSkewReport:
     warnings: list[str] = []
     components = request.components
     for item in components:
-        if not item.supported_schema_min <= item.schema_version <= item.supported_schema_max:
+        if (
+            not item.supported_schema_min
+            <= item.schema_version
+            <= item.supported_schema_max
+        ):
             violations.append(f"schema_unsupported:{item.component}")
     major_values = [item.release_major for item in components]
     minor_values = [item.release_minor for item in components]

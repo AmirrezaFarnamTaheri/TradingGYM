@@ -1,4 +1,5 @@
 """Evidence-only privacy minimisation and data-subject request planning."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -6,7 +7,9 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-Classification = Literal["public", "internal", "confidential", "personal", "sensitive_personal", "secret"]
+Classification = Literal[
+    "public", "internal", "confidential", "personal", "sensitive_personal", "secret"
+]
 
 
 class DataFieldRecord(BaseModel):
@@ -20,7 +23,9 @@ class DataFieldRecord(BaseModel):
     collected_at: datetime
     last_accessed_at: datetime | None = None
     encrypted_at_rest: bool = False
-    access_roles: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(max_length=100)
+    access_roles: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(
+        max_length=100
+    )
     subject_linkable: bool = False
     legal_hold: bool = False
     required_for_operation: bool = True
@@ -29,9 +34,14 @@ class DataFieldRecord(BaseModel):
     def validate_times(self) -> "DataFieldRecord":
         for name in ("collected_at", "last_accessed_at"):
             value = getattr(self, name)
-            if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            if value is not None and (
+                value.tzinfo is None or value.utcoffset() is None
+            ):
                 raise ValueError(f"{name} must be timezone-aware")
-        if self.last_accessed_at is not None and self.last_accessed_at < self.collected_at:
+        if (
+            self.last_accessed_at is not None
+            and self.last_accessed_at < self.collected_at
+        ):
             raise ValueError("last_accessed_at precedes collected_at")
         if len(set(self.access_roles)) != len(self.access_roles):
             raise ValueError("access_roles contains duplicates")
@@ -109,12 +119,21 @@ def evaluate_privacy(request: PrivacyAssessmentRequest) -> PrivacyAssessmentRepo
                 deletable.append(item.field_id)
         if not item.required_for_operation:
             minimise.append(item.field_id)
-        if item.classification in {"personal", "sensitive_personal", "secret"} and not item.encrypted_at_rest:
+        if (
+            item.classification in {"personal", "sensitive_personal", "secret"}
+            and not item.encrypted_at_rest
+        ):
             encryption.append(item.field_id)
             blockers.append(f"encryption_required:{item.field_id}")
-        if item.classification == "sensitive_personal" and item.retention_days > request.maximum_sensitive_retention_days:
+        if (
+            item.classification == "sensitive_personal"
+            and item.retention_days > request.maximum_sensitive_retention_days
+        ):
             blockers.append(f"sensitive_retention_exceeded:{item.field_id}")
-        if item.classification in {"personal", "sensitive_personal", "secret"} and len(item.access_roles) > 10:
+        if (
+            item.classification in {"personal", "sensitive_personal", "secret"}
+            and len(item.access_roles) > 10
+        ):
             excessive_access.append(item.field_id)
         if item.subject_linkable:
             searchable.append(item.field_id)

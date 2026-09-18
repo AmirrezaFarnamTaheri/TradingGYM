@@ -59,9 +59,13 @@ def test_overweight_position_gets_zero_not_negative():
 
 def test_fraction_validation():
     with pytest.raises(RiskGateError):
-        evaluate_position_limits(cash=D("1"), positions_value={}, max_position_fraction=D("0"))
+        evaluate_position_limits(
+            cash=D("1"), positions_value={}, max_position_fraction=D("0")
+        )
     with pytest.raises(RiskGateError):
-        evaluate_position_limits(cash=D("1"), positions_value={}, max_position_fraction=D("1.5"))
+        evaluate_position_limits(
+            cash=D("1"), positions_value={}, max_position_fraction=D("1.5")
+        )
     with pytest.raises(RiskGateError):
         evaluate_position_limits(cash=D("-1"), positions_value={})
     with pytest.raises(RiskGateError):

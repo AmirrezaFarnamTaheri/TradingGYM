@@ -1,4 +1,5 @@
 """Terminal workspace, marketplace admission, and collaboration review evidence."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -43,7 +44,9 @@ class MarketplacePackage(BaseModel):
     archive_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     signature_verified: bool
     license_id: Annotated[str, Field(min_length=2, max_length=120)]
-    requested_permissions: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(max_length=1000)
+    requested_permissions: list[Annotated[str, Field(min_length=2, max_length=120)]] = (
+        Field(max_length=1000)
+    )
     executable_code: bool = False
 
     @model_validator(mode="after")
@@ -67,9 +70,15 @@ class CollaborationReview(BaseModel):
     review_id: Annotated[str, Field(min_length=2, max_length=128)]
     subject_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     author: Annotated[str, Field(min_length=2, max_length=120)]
-    reviewers: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(min_length=1, max_length=100)
-    approvals: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(default_factory=list, max_length=100)
-    unresolved_comment_ids: list[Annotated[str, Field(min_length=2, max_length=128)]] = Field(default_factory=list, max_length=10_000)
+    reviewers: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(
+        min_length=1, max_length=100
+    )
+    approvals: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(
+        default_factory=list, max_length=100
+    )
+    unresolved_comment_ids: list[
+        Annotated[str, Field(min_length=2, max_length=128)]
+    ] = Field(default_factory=list, max_length=10_000)
     state: ReviewState
     updated_at: datetime
 
@@ -95,23 +104,42 @@ class ProductCollaborationRequest(BaseModel):
     widgets: list[TerminalWidget] = Field(max_length=10_000)
     packages: list[MarketplacePackage] = Field(max_length=10_000)
     reviews: list[CollaborationReview] = Field(max_length=100_000)
-    allowed_marketplace_permissions: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(max_length=1000)
+    allowed_marketplace_permissions: list[
+        Annotated[str, Field(min_length=2, max_length=120)]
+    ] = Field(max_length=1000)
     required_review_approvals: Annotated[int, Field(ge=1, le=100)] = 2
-    maximum_review_age_seconds: Annotated[int, Field(ge=60, le=10 * 365 * 86400)] = 30 * 86400
+    maximum_review_age_seconds: Annotated[int, Field(ge=60, le=10 * 365 * 86400)] = (
+        30 * 86400
+    )
     evaluated_at: datetime
 
     @model_validator(mode="after")
     def validate_request(self) -> "ProductCollaborationRequest":
         require_aware(self.evaluated_at, "evaluated_at")
-        for values, label in (([item.widget_id for item in self.widgets], "widget"), ([f"{item.package_id}:{item.version}" for item in self.packages], "package"), ([item.review_id for item in self.reviews], "review")):
+        for values, label in (
+            ([item.widget_id for item in self.widgets], "widget"),
+            (
+                [f"{item.package_id}:{item.version}" for item in self.packages],
+                "package",
+            ),
+            ([item.review_id for item in self.reviews], "review"),
+        ):
             if len(values) != len(set(values)):
                 raise ValueError(f"{label} IDs must be unique")
-        if len(self.allowed_marketplace_permissions) != len(set(self.allowed_marketplace_permissions)):
+        if len(self.allowed_marketplace_permissions) != len(
+            set(self.allowed_marketplace_permissions)
+        ):
             raise ValueError("allowed marketplace permissions must be unique")
-        review_links = sum(len(item.reviewers) + len(item.approvals) + len(item.unresolved_comment_ids) for item in self.reviews)
+        review_links = sum(
+            len(item.reviewers) + len(item.approvals) + len(item.unresolved_comment_ids)
+            for item in self.reviews
+        )
         if review_links > MAX_REVIEW_RELATIONSHIPS:
             raise ValueError("collaboration review relationship budget exceeded")
-        if sum(len(item.requested_permissions) for item in self.packages) > MAX_MARKETPLACE_PERMISSION_LINKS:
+        if (
+            sum(len(item.requested_permissions) for item in self.packages)
+            > MAX_MARKETPLACE_PERMISSION_LINKS
+        ):
             raise ValueError("marketplace permission-link budget exceeded")
         return self
 
@@ -133,7 +161,9 @@ class ProductCollaborationReport(BaseModel):
     ui_authority_granted: bool = False
 
 
-def evaluate_product_collaboration(request: ProductCollaborationRequest) -> ProductCollaborationReport:
+def evaluate_product_collaboration(
+    request: ProductCollaborationRequest,
+) -> ProductCollaborationReport:
     counts: dict[str, int] = {}
     stale: list[str] = []
     blockers: list[str] = []
@@ -147,7 +177,14 @@ def evaluate_product_collaboration(request: ProductCollaborationRequest) -> Prod
     admissible: list[str] = []
     rejected: dict[str, list[str]] = {}
     allowed = set(request.allowed_marketplace_permissions)
-    forbidden = {"submit_order", "withdraw", "deploy", "shell", "arbitrary_code", "activate_model"}
+    forbidden = {
+        "submit_order",
+        "withdraw",
+        "deploy",
+        "shell",
+        "arbitrary_code",
+        "activate_model",
+    }
     for package in request.packages:
         key = f"{package.package_id}:{package.version}"
         reasons = []

@@ -1,4 +1,5 @@
 """Forensic evidence readiness and chain-of-custody validation."""
+
 from __future__ import annotations
 
 import hashlib
@@ -21,7 +22,9 @@ class ForensicEvidence(BaseModel):
     classification: EvidenceClassification
     immutable: bool
     redacted: bool
-    previous_receipt_sha256: Annotated[str | None, Field(default=None, pattern=r"^[0-9a-f]{64}$")]
+    previous_receipt_sha256: Annotated[
+        str | None, Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    ]
     receipt_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 
     @model_validator(mode="after")
@@ -51,7 +54,9 @@ class ForensicReadinessRequest(BaseModel):
     incident_id: Annotated[str, Field(min_length=1, max_length=160)]
     evaluated_at: datetime
     evidence: list[ForensicEvidence] = Field(min_length=1, max_length=100_000)
-    timeline: list[ForensicTimelineEvent] = Field(default_factory=list, max_length=100_000)
+    timeline: list[ForensicTimelineEvent] = Field(
+        default_factory=list, max_length=100_000
+    )
     required_source_ids: tuple[str, ...] = Field(default_factory=tuple, max_length=1000)
     maximum_collection_age_seconds: int = Field(default=86_400, ge=1, le=31_536_000)
 
@@ -96,10 +101,14 @@ def _expected_receipt(item: ForensicEvidence) -> str:
         "redacted": item.redacted,
         "previous_receipt_sha256": item.previous_receipt_sha256,
     }
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
-def evaluate_forensic_readiness(request: ForensicReadinessRequest) -> ForensicReadinessReport:
+def evaluate_forensic_readiness(
+    request: ForensicReadinessRequest,
+) -> ForensicReadinessReport:
     blockers: list[str] = []
     warnings: list[str] = []
     known = {item.evidence_id for item in request.evidence}
@@ -136,7 +145,9 @@ def evaluate_forensic_readiness(request: ForensicReadinessRequest) -> ForensicRe
         if event.occurred_at > request.evaluated_at + timedelta(seconds=30):
             blockers.append(f"timeline_event_in_future:{event.event_id}")
     payload = request.model_dump(mode="json")
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return ForensicReadinessReport(
         incident_id=request.incident_id,
         evidence_count=len(request.evidence),

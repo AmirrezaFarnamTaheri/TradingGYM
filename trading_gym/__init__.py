@@ -18,7 +18,10 @@ def make(
 ):
     """Create a margin-trading environment from a config or config path."""
 
-    from trading_gym.pipelines.environment import create_environment, load_environment_inputs
+    from trading_gym.pipelines.environment import (
+        create_environment,
+        load_environment_inputs,
+    )
 
     cfg = load_app_config(config) if not isinstance(config, AppConfig) else config
     inputs = load_environment_inputs(cfg, timeframe)

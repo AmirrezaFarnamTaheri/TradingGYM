@@ -192,7 +192,10 @@ class EnhancedAbanClient:
         """
         if not isinstance(api_key, str) or not api_key.strip():
             raise ValueError("api_key must be a non-empty string")
-        if isinstance(rate_limit_per_minute, bool) or not 1 <= rate_limit_per_minute <= 600:
+        if (
+            isinstance(rate_limit_per_minute, bool)
+            or not 1 <= rate_limit_per_minute <= 600
+        ):
             raise ValueError("rate_limit_per_minute must be between 1 and 600")
         if isinstance(retry_attempts, bool) or not 1 <= retry_attempts <= 5:
             raise ValueError("retry_attempts must be between 1 and 5")
@@ -309,7 +312,9 @@ class EnhancedAbanClient:
                 return candidate(**(params or body or {}))
             fallback = getattr(self._client, "_make_request", None)
             if not callable(fallback):
-                raise RuntimeError("SDK exposes neither a matching method nor a request fallback")
+                raise RuntimeError(
+                    "SDK exposes neither a matching method nor a request fallback"
+                )
             return fallback(
                 method=method,
                 endpoint=endpoint,
@@ -786,11 +791,15 @@ class EnhancedAbanClient:
         if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", network):
             raise ValueError("network must be a safe 1-64 character identifier")
         if not re.fullmatch(r"[!-~]{4,256}", wallet_address):
-            raise ValueError("wallet address must be 4-256 printable non-space characters")
+            raise ValueError(
+                "wallet address must be 4-256 printable non-space characters"
+            )
         if memo is not None:
             memo = str(memo).strip()
             if not memo or len(memo) > 256 or any(ord(char) < 32 for char in memo):
-                raise ValueError("memo must be 1-256 printable characters when supplied")
+                raise ValueError(
+                    "memo must be 1-256 printable characters when supplied"
+                )
 
         amt_dec = Decimal(str(amount))
         if not amt_dec.is_finite() or amt_dec <= 0:
@@ -968,9 +977,7 @@ class EnhancedAbanClient:
         """Get shortable coins with per-coin limits (BTC up to 0.5, ETH up to 10)."""
         logger.info("Fetching shortable coins")
         response = self._make_request("GET", "short/available-coins")
-        coins = (
-            self._payload_of(response) if isinstance(response, dict) else response
-        )
+        coins = self._payload_of(response) if isinstance(response, dict) else response
         logger.info("Retrieved shortable coins")
         return cast(List[Dict[str, Any]], coins)
 

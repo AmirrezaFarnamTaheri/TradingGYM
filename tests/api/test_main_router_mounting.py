@@ -26,13 +26,12 @@ def test_main_app_mounts_authz_and_playground_routers(
         ),
     )
     from apps.api.main import app
+
     # apps.api.main captures API_KEY at import time; earlier tests may
     # have imported it first without API_KEY set, so refresh module state
     import apps.api.main as api_main
 
-    monkeypatch.setattr(
-        api_main, "API_KEY", "test-gateway-key-0123456789abcdef"
-    )
+    monkeypatch.setattr(api_main, "API_KEY", "test-gateway-key-0123456789abcdef")
     monkeypatch.setattr(api_main, "API_KEY_CONFIGURED", True)
 
     with TestClient(
@@ -49,7 +48,10 @@ def test_main_app_mounts_authz_and_playground_routers(
         # scope check without any grants denies (principal from X-Actor default)
         check = client.post(
             "/api/v1/authz/check",
-            headers={"X-Actor": "operator-1", "X-Actor-Key": "operator-secret-0123456789abcdef0123"},
+            headers={
+                "X-Actor": "operator-1",
+                "X-Actor-Key": "operator-secret-0123456789abcdef0123",
+            },
             json={"scope": "playground.run"},
         )
         assert check.status_code == 200
@@ -99,13 +101,12 @@ def test_main_app_grant_lifecycle_end_to_end(
         ),
     )
     from apps.api.main import app
+
     # apps.api.main captures API_KEY at import time; earlier tests may
     # have imported it first without API_KEY set, so refresh module state
     import apps.api.main as api_main
 
-    monkeypatch.setattr(
-        api_main, "API_KEY", "test-gateway-key-0123456789abcdef"
-    )
+    monkeypatch.setattr(api_main, "API_KEY", "test-gateway-key-0123456789abcdef")
     monkeypatch.setattr(api_main, "API_KEY_CONFIGURED", True)
 
     with TestClient(

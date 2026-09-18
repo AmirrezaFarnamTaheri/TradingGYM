@@ -6,7 +6,7 @@ from trading_gym.common.logging import (
     configure_logging_from_env,
     log_execution_time,
     log_function_call,
-    LogContext
+    LogContext,
 )
 
 
@@ -58,7 +58,10 @@ def test_log_function_call(caplog):
         return a + b
 
     assert my_func(1, 2) == 3
-    assert "Calling test_log_function_call.<locals>.my_func with args=(1, 2)" in caplog.text
+    assert (
+        "Calling test_log_function_call.<locals>.my_func with args=(1, 2)"
+        in caplog.text
+    )
     assert "my_func returned 3" in caplog.text
 
 

@@ -34,7 +34,9 @@ def intent_payload(intent: VenueOrderIntent) -> dict[str, str]:
 
 
 def intent_sha256(intent: VenueOrderIntent) -> str:
-    raw = json.dumps(intent_payload(intent), sort_keys=True, separators=(",", ":")).encode()
+    raw = json.dumps(
+        intent_payload(intent), sort_keys=True, separators=(",", ":")
+    ).encode()
     return hashlib.sha256(raw).hexdigest()
 
 
@@ -45,7 +47,9 @@ class LiveExecutionCoordinator:
     each operation.  Venue adapters never receive an unapproved mutation.
     """
 
-    def __init__(self, venues, *, emergency_controller: EmergencyController | None = None):
+    def __init__(
+        self, venues, *, emergency_controller: EmergencyController | None = None
+    ):
         self.venues = dict(venues)
         self.emergency_controller = emergency_controller
         self._receipts: dict[str, dict[str, object]] = {}
@@ -88,7 +92,10 @@ class LiveExecutionCoordinator:
             actor=authorization.actor,
             scope="live.execute",
         )
-        if self.emergency_controller is not None and self.emergency_controller.snapshot().halted:
+        if (
+            self.emergency_controller is not None
+            and self.emergency_controller.snapshot().halted
+        ):
             raise PermissionError("emergency_halt")
         if authorization.operation != intent.operation:
             raise PermissionError("operation_mismatch")

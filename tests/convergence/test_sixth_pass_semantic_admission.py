@@ -10,7 +10,9 @@ NOW = datetime(2026, 7, 27, tzinfo=timezone.utc)
 H = "a" * 64
 
 
-def test_alpha_factory_rejects_duplicate_evidence_markets_and_infeasible_policy() -> None:
+def test_alpha_factory_rejects_duplicate_evidence_markets_and_infeasible_policy() -> (
+    None
+):
     from trading_gym.institutional_os.alpha_factory import (
         AlphaEvidence,
         AlphaFactoryPolicy,
@@ -18,7 +20,11 @@ def test_alpha_factory_rejects_duplicate_evidence_markets_and_infeasible_policy(
     )
 
     evidence = AlphaEvidence(
-        evidence_id="e1", kind="backtest", sha256=H, observed_at=NOW, supports_hypothesis=True
+        evidence_id="e1",
+        kind="backtest",
+        sha256=H,
+        observed_at=NOW,
+        supports_hypothesis=True,
     )
     common = dict(
         hypothesis_id="hypothesis",
@@ -31,9 +37,13 @@ def test_alpha_factory_rejects_duplicate_evidence_markets_and_infeasible_policy(
     with pytest.raises(ValueError, match="evidence IDs must be unique"):
         AlphaHypothesis(**common, evidence=[evidence, evidence])
     with pytest.raises(ValueError, match="target markets must be unique"):
-        AlphaHypothesis(**{**common, "target_markets": ["BTC-USD", "BTC-USD"]}, evidence=[evidence])
+        AlphaHypothesis(
+            **{**common, "target_markets": ["BTC-USD", "BTC-USD"]}, evidence=[evidence]
+        )
     with pytest.raises(ValueError, match="independent evidence requirement"):
-        AlphaFactoryPolicy(minimum_supporting_evidence=1, minimum_independent_evidence=2)
+        AlphaFactoryPolicy(
+            minimum_supporting_evidence=1, minimum_independent_evidence=2
+        )
 
 
 def test_model_lifecycle_rejects_duplicate_requirements_and_evidence() -> None:
@@ -43,8 +53,12 @@ def test_model_lifecycle_rejects_duplicate_requirements_and_evidence() -> None:
         LifecycleTransitionRequest,
     )
 
-    evidence = LifecycleEvidence(evidence_type="validation", sha256=H, observed_at=NOW, passed=True)
-    with pytest.raises(ValueError, match="required lifecycle evidence types must be unique"):
+    evidence = LifecycleEvidence(
+        evidence_type="validation", sha256=H, observed_at=NOW, passed=True
+    )
+    with pytest.raises(
+        ValueError, match="required lifecycle evidence types must be unique"
+    ):
         LifecycleTransitionRequest(
             model_id="model",
             current_state=LifecycleState.TRAINED,
@@ -64,7 +78,11 @@ def test_model_lifecycle_rejects_duplicate_requirements_and_evidence() -> None:
 
 
 def test_microstructure_rejects_duplicate_price_levels() -> None:
-    from trading_gym.institutional_os.microstructure import BookLevel, BookSide, MicrostructureRequest
+    from trading_gym.institutional_os.microstructure import (
+        BookLevel,
+        BookSide,
+        MicrostructureRequest,
+    )
 
     level = BookLevel(price=Decimal("100"), visible_quantity=Decimal("1"))
     with pytest.raises(ValueError, match="prices must be unique"):
@@ -76,7 +94,9 @@ def test_microstructure_rejects_duplicate_price_levels() -> None:
         )
 
 
-def test_explainability_rejects_numeric_amplification_and_uses_stable_uncertainty() -> None:
+def test_explainability_rejects_numeric_amplification_and_uses_stable_uncertainty() -> (
+    None
+):
     from trading_gym.institutional_os.explainability import (
         ExplainabilityRequest,
         FeatureContribution,
@@ -86,20 +106,28 @@ def test_explainability_rejects_numeric_amplification_and_uses_stable_uncertaint
     with pytest.raises(ValueError, match="numeric magnitude"):
         ExplainabilityRequest(
             model_id="model",
-            features=[FeatureContribution(feature="feature", value=1e101, coefficient=1.0)],
+            features=[
+                FeatureContribution(feature="feature", value=1e101, coefficient=1.0)
+            ],
         )
-    report = explain_prediction(ExplainabilityRequest(
-        model_id="model",
-        features=[FeatureContribution(feature="feature", value=1e100, coefficient=1.0)],
-        predictive_samples=[1e100, -1e100],
-    ))
+    report = explain_prediction(
+        ExplainabilityRequest(
+            model_id="model",
+            features=[
+                FeatureContribution(feature="feature", value=1e100, coefficient=1.0)
+            ],
+            predictive_samples=[1e100, -1e100],
+        )
+    )
     assert math.isfinite(report.raw_score)
     assert report.predictive_mean == 0.0
     assert report.predictive_stddev == pytest.approx(1e100)
     assert not report.decision_authority_granted
 
 
-def test_policy_compliance_rejects_secret_values_and_duplicate_governance_evidence() -> None:
+def test_policy_compliance_rejects_secret_values_and_duplicate_governance_evidence() -> (
+    None
+):
     from trading_gym.institutional_os.policy_compliance import (
         ComplianceControlMapping,
         PolicyComplianceRequest,
@@ -147,6 +175,8 @@ def test_policy_compliance_rejects_secret_values_and_duplicate_governance_eviden
         evaluated_at=NOW,
     )
     with pytest.raises(ValueError, match="required RFC artifact types must be unique"):
-        PolicyComplianceRequest(**{**base, "required_rfc_artifacts": ["design", "design"]})
+        PolicyComplianceRequest(
+            **{**base, "required_rfc_artifacts": ["design", "design"]}
+        )
     with pytest.raises(ValueError, match="control mappings must be unique"):
         PolicyComplianceRequest(**{**base, "control_mappings": [control, control]})

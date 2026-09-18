@@ -47,7 +47,12 @@ def test_http_tenant_boundary_is_enforced(monkeypatch) -> None:
     from apps.api.main import app
 
     with TestClient(app) as client:
-        assert client.get("/api/v1/health", headers={"X-Tenant-ID": "desk-alpha"}).status_code == 200
+        assert (
+            client.get(
+                "/api/v1/health", headers={"X-Tenant-ID": "desk-alpha"}
+            ).status_code
+            == 200
+        )
         mismatch = client.get("/api/v1/health", headers={"X-Tenant-ID": "desk-beta"})
         assert mismatch.status_code == 400
         assert mismatch.json() == {"detail": "Tenant boundary mismatch"}

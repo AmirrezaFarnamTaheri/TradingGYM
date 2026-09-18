@@ -19,7 +19,6 @@ from filelock import FileLock
 
 from trading_gym.common.exceptions import StoreLimitExceeded
 
-
 MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
 MAX_JSONL_RECORD_BYTES = 1024 * 1024
 
@@ -86,10 +85,18 @@ def read_json(path: Path, default: Any, *, max_bytes: int = MAX_DOCUMENT_BYTES) 
         try:
             size = path.stat().st_size
             if size > max_bytes:
-                raise StoreLimitExceeded(f"JSON document exceeds {max_bytes} byte limit: {path}", limit=max_bytes, attempted=size)
+                raise StoreLimitExceeded(
+                    f"JSON document exceeds {max_bytes} byte limit: {path}",
+                    limit=max_bytes,
+                    attempted=size,
+                )
             raw = path.read_bytes()
             if len(raw) > max_bytes:
-                raise StoreLimitExceeded(f"JSON document exceeds {max_bytes} byte limit: {path}", limit=max_bytes, attempted=size)
+                raise StoreLimitExceeded(
+                    f"JSON document exceeds {max_bytes} byte limit: {path}",
+                    limit=max_bytes,
+                    attempted=size,
+                )
         except OSError as exc:
             raise ValueError(f"Unable to read valid JSON from {path}") from exc
         try:
@@ -127,12 +134,16 @@ def atomic_write_text(
 
     encoded = value.encode("utf-8")
     if len(encoded) > max_bytes:
-        raise StoreLimitExceeded("Text document exceeds byte limit", limit=max_bytes, attempted=len(encoded))
+        raise StoreLimitExceeded(
+            "Text document exceeds byte limit", limit=max_bytes, attempted=len(encoded)
+        )
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with FileLock(str(path) + ".lock"):
         if path.exists():
             _reject_symlink(path)
-        descriptor, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+        descriptor, temp_name = tempfile.mkstemp(
+            prefix=f".{path.name}.", dir=str(path.parent)
+        )
         temp_path = Path(temp_name)
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
@@ -158,9 +169,16 @@ def append_jsonl(path: Path, value: Any) -> None:
     """Append one durable JSON line under an inter-process lock."""
 
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    line = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    line = (
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n"
+    )
     if len(line.encode("utf-8")) > MAX_JSONL_RECORD_BYTES:
-        raise StoreLimitExceeded("JSONL record exceeds byte limit", limit=MAX_JSONL_RECORD_BYTES, attempted=len(line.encode("utf-8")))
+        raise StoreLimitExceeded(
+            "JSONL record exceeds byte limit",
+            limit=MAX_JSONL_RECORD_BYTES,
+            attempted=len(line.encode("utf-8")),
+        )
     with FileLock(str(path) + ".lock"):
         if path.exists():
             _reject_symlink(path)

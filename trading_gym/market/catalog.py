@@ -16,7 +16,11 @@ from trading_gym.common.audit_outbox import (
     ensure_audit_outbox,
     queue_audit_event,
 )
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.common.security import bounded_json_dumps
 from trading_gym.governance.ledger import AuditLedger
 
@@ -43,7 +47,9 @@ class DatasetRegistration(BaseModel):
     storage_ref: Annotated[str, Field(min_length=1, max_length=500)]
     warnings: Annotated[list[str], Field(max_length=100)] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    supersedes_dataset_id: Annotated[str | None, Field(pattern=r"^[0-9a-f]{64}$")] = None
+    supersedes_dataset_id: Annotated[str | None, Field(pattern=r"^[0-9a-f]{64}$")] = (
+        None
+    )
 
     @field_validator("storage_ref")
     @classmethod
@@ -61,7 +67,9 @@ class DatasetRegistration(BaseModel):
         if self.expected_rows is not None:
             observed_ratio = min(1.0, self.row_count / self.expected_rows)
             if abs(observed_ratio - self.completeness) > 0.02:
-                raise ValueError("completeness is inconsistent with row_count/expected_rows")
+                raise ValueError(
+                    "completeness is inconsistent with row_count/expected_rows"
+                )
         bounded_json_dumps(self.metadata, max_bytes=64 * 1024)
         return self
 
@@ -159,8 +167,7 @@ class DatasetCatalog:
         with self.lock:
             document = self._load()
         records = [
-            DatasetRecord.model_validate(item)
-            for item in document["datasets"].values()
+            DatasetRecord.model_validate(item) for item in document["datasets"].values()
         ]
         if instrument_id is not None:
             records = [item for item in records if item.instrument_id == instrument_id]
@@ -184,7 +191,6 @@ class DatasetCatalog:
         expected_catalog_revision: int | None = None,
         actor: str = "api-operator",
     ) -> dict[str, Any]:
-        mutated = False
         with self.lock:
             document = self._load()
             catalog_revision = int(document["revision"])
@@ -197,7 +203,9 @@ class DatasetCatalog:
                 )
             existing_id = document["by_content"].get(request.content_sha256)
             if existing_id is not None:
-                existing = DatasetRecord.model_validate(document["datasets"][existing_id])
+                existing = DatasetRecord.model_validate(
+                    document["datasets"][existing_id]
+                )
                 if (
                     existing.instrument_id != request.instrument_id
                     or existing.timeframe != request.timeframe
@@ -228,7 +236,9 @@ class DatasetCatalog:
                     )
                     next_catalog_revision = catalog_revision + 1
                     if request.supersedes_dataset_id is not None:
-                        raw_previous = document["datasets"].get(request.supersedes_dataset_id)
+                        raw_previous = document["datasets"].get(
+                            request.supersedes_dataset_id
+                        )
                         if raw_previous is None:
                             raise KeyError(request.supersedes_dataset_id)
                         previous = DatasetRecord.model_validate(raw_previous)
@@ -244,7 +254,9 @@ class DatasetCatalog:
                         previous.state = DatasetState.SUPERSEDED
                         previous.revision += 1
                         previous.updated_at = now
-                        document["datasets"][previous.dataset_id] = previous.model_dump(mode="json")
+                        document["datasets"][previous.dataset_id] = previous.model_dump(
+                            mode="json"
+                        )
                         queue_audit_event(
                             document,
                             event_id=(
@@ -276,7 +288,6 @@ class DatasetCatalog:
                         },
                     )
                     atomic_write_json(self.path, document)
-                    mutated = True
                     result = {
                         "catalog_revision": document["revision"],
                         "dataset": record.model_dump(mode="json"),

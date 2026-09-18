@@ -40,7 +40,9 @@ class CanonicalOrderStatus(str, Enum):
     CANCELLED = "cancelled"
     REJECTED = "rejected"
     EXPIRED = "expired"
-    UNKNOWN = "unknown"  # unresolved raw status; adapters must persist this, never raise
+    UNKNOWN = (
+        "unknown"  # unresolved raw status; adapters must persist this, never raise
+    )
 
 
 #: Per-venue lookup tables mapping lowercase raw venue status strings onto
@@ -98,6 +100,7 @@ STATUS_ALIASES: dict[str, dict[str, CanonicalOrderStatus]] = {
         "rejected_by_exchange": CanonicalOrderStatus.REJECTED,
     },
 }
+
 
 def _fold_key(value: str) -> str:
     """Fold a status token to its lookup form.

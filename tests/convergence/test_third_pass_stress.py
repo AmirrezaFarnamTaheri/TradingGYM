@@ -119,7 +119,10 @@ def test_execution_simulation_randomised_bounds_and_determinism():
         second = simulate_execution(request, policy)
         assert first == second
         assert 0.0 <= first.filled_quantity <= request.quantity
-        assert abs(first.filled_quantity + first.unfilled_quantity - request.quantity) < 1e-8
+        assert (
+            abs(first.filled_quantity + first.unfilled_quantity - request.quantity)
+            < 1e-8
+        )
         assert first.total_cost >= 0.0
         assert not first.execution_authority_granted
         if first.execution_price is not None:

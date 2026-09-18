@@ -1,4 +1,5 @@
 """Sequential and multiple-testing evidence for experiment review."""
+
 from __future__ import annotations
 
 import math
@@ -18,7 +19,9 @@ class SequentialLook(BaseModel):
 
     @model_validator(mode="after")
     def finite(self) -> "SequentialLook":
-        if not math.isfinite(self.information_fraction) or not math.isfinite(self.z_score):
+        if not math.isfinite(self.information_fraction) or not math.isfinite(
+            self.z_score
+        ):
             raise ValueError("sequential look values must be finite")
         return self
 
@@ -56,7 +59,9 @@ class SequentialEvidenceReport(BaseModel):
     mutation_performed: bool = False
 
 
-def evaluate_sequential_evidence(request: SequentialEvidenceRequest) -> SequentialEvidenceReport:
+def evaluate_sequential_evidence(
+    request: SequentialEvidenceRequest,
+) -> SequentialEvidenceReport:
     blockers: list[str] = []
     warnings: list[str] = []
     looks = sorted(request.looks, key=lambda x: x.look)
@@ -110,5 +115,6 @@ def evaluate_sequential_evidence(request: SequentialEvidenceRequest) -> Sequenti
         rejected_hypotheses=sorted(rejected),
         blockers=sorted(set(blockers)),
         warnings=sorted(set(warnings)),
-        ready_for_human_review=not blockers and (crossed or current.information_fraction >= 1.0),
+        ready_for_human_review=not blockers
+        and (crossed or current.information_fraction >= 1.0),
     )

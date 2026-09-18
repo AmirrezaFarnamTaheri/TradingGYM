@@ -214,9 +214,7 @@ class CautionPolicy:
         if self.window < 1:
             raise ValueError("window must be >= 1")
         if not 1 <= self.loss_streak_elevated < self.loss_streak_high:
-            raise ValueError(
-                "loss streak thresholds must satisfy 1 <= elevated < high"
-            )
+            raise ValueError("loss streak thresholds must satisfy 1 <= elevated < high")
         if not 0.0 < self.escalation_rate_elevated <= 1.0:
             raise ValueError("escalation_rate_elevated must be within (0, 1]")
         for name in (

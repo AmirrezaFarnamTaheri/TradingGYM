@@ -1,4 +1,5 @@
 """Capacity and backpressure analysis for bounded worker pools."""
+
 from __future__ import annotations
 
 import math
@@ -91,7 +92,9 @@ def evaluate_capacity(request: CapacityPlanRequest) -> CapacityPlanReport:
         )
         offered_total += offered
         total_queue += item.queue_limit
-    required_total = math.ceil(offered_total / request.target_utilisation) if offered_total else 0
+    required_total = (
+        math.ceil(offered_total / request.target_utilisation) if offered_total else 0
+    )
     utilisation = offered_total / request.workers
     if utilisation > request.target_utilisation:
         blockers.append(f"capacity_utilisation_exceeded:{utilisation:.6f}")

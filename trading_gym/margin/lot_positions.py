@@ -89,7 +89,9 @@ class LotLedger:
                 quantity=close_qty,
                 exit_price=price,
             )
-            remaining = remaining + close_qty if remaining < ZERO else remaining - close_qty
+            remaining = (
+                remaining + close_qty if remaining < ZERO else remaining - close_qty
+            )
         if remaining != ZERO:
             direction = 1 if remaining > ZERO else -1
             lot = Lot(
@@ -101,7 +103,9 @@ class LotLedger:
             self._next_lot_id += 1
             self._lots[lot.lot_id] = lot
 
-    def close(self, *, lot_id: int, quantity: Decimal, exit_price: Decimal) -> ClosureRecord:
+    def close(
+        self, *, lot_id: int, quantity: Decimal, exit_price: Decimal
+    ) -> ClosureRecord:
         """Close ``quantity`` (or all) of lot ``lot_id`` at ``exit_price``."""
         lot = self._lots.get(lot_id)
         if lot is None:

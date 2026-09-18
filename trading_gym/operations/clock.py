@@ -81,7 +81,9 @@ class ClockHealthReport(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str).encode()
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str
+    ).encode()
 
 
 def evaluate_clock_health(request: ClockHealthRequest) -> ClockHealthReport:
@@ -96,19 +98,26 @@ def evaluate_clock_health(request: ClockHealthRequest) -> ClockHealthReport:
     stale = sum(
         1
         for sample in request.samples
-        if (request.evaluated_at - sample.captured_at).total_seconds() > policy.maximum_sample_age_seconds
+        if (request.evaluated_at - sample.captured_at).total_seconds()
+        > policy.maximum_sample_age_seconds
         or sample.captured_at > request.evaluated_at
     )
-    unauthenticated = sum(1 for sample in request.samples if not sample.authenticated_source)
+    unauthenticated = sum(
+        1 for sample in request.samples if not sample.authenticated_source
+    )
     midpoint = float(median(offsets))
     maximum_offset = max(abs(value) for value in offsets)
     jitter = max(offsets) - min(offsets)
     maximum_rtt = max(sample.round_trip_ms for sample in request.samples)
 
     if len(request.samples) < policy.minimum_samples:
-        blockers.append(f"insufficient_clock_samples:{len(request.samples)}/{policy.minimum_samples}")
+        blockers.append(
+            f"insufficient_clock_samples:{len(request.samples)}/{policy.minimum_samples}"
+        )
     if source_count < policy.minimum_sources:
-        blockers.append(f"insufficient_clock_sources:{source_count}/{policy.minimum_sources}")
+        blockers.append(
+            f"insufficient_clock_sources:{source_count}/{policy.minimum_sources}"
+        )
     if maximum_offset > policy.maximum_absolute_offset_ms:
         blockers.append(f"clock_offset_exceeded:{maximum_offset:.3f}")
     if jitter > policy.maximum_jitter_ms:

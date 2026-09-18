@@ -150,7 +150,9 @@ class CircuitBreaker:
         if not description or len(description) > 500:
             raise ValueError("rule description must be 1-500 characters")
         if not isinstance(priority, int) or not -10_000 <= priority <= 10_000:
-            raise ValueError("rule priority must be an integer between -10000 and 10000")
+            raise ValueError(
+                "rule priority must be an integer between -10000 and 10000"
+            )
         rule = BreakerRule(
             name=name,
             check_func=check_func,
@@ -179,7 +181,11 @@ class CircuitBreaker:
             raise TypeError("circuit-breaker context must be a dictionary")
         now = float(current_time if current_time is not None else time.time())
         if not math.isfinite(now):
-            self._trip("invalid_context", "Current time is not finite", current_time=time.time())
+            self._trip(
+                "invalid_context",
+                "Current time is not finite",
+                current_time=time.time(),
+            )
             return True
 
         if self.state == BreakerState.DISABLED:
@@ -663,7 +669,9 @@ class CircuitBreaker:
             )
         except Exception as exc:
             self.alert_delivery_degraded = True
-            logger.error("Circuit breaker alert failed error_type=%s", type(exc).__name__)
+            logger.error(
+                "Circuit breaker alert failed error_type=%s", type(exc).__name__
+            )
 
     def _save_state(self) -> bool:
         """Persist breaker state to disk atomically."""
@@ -687,7 +695,9 @@ class CircuitBreaker:
             return True
         except Exception as exc:
             self.persistence_degraded = True
-            logger.critical("Failed to save breaker state error_type=%s", type(exc).__name__)
+            logger.critical(
+                "Failed to save breaker state error_type=%s", type(exc).__name__
+            )
             return False
 
     def _load_state(self) -> None:
@@ -708,7 +718,9 @@ class CircuitBreaker:
 
             self.state = BreakerState(state.get("state", "closed"))
             self.trip_time = (
-                float(state["trip_time"]) if state.get("trip_time") is not None else None
+                float(state["trip_time"])
+                if state.get("trip_time") is not None
+                else None
             )
             self.trip_reason = (
                 str(state["trip_reason"])[:1000]
@@ -753,9 +765,17 @@ class CircuitBreaker:
         candidates = [
             self.metrics.last_fill_time,
             self.metrics.api_errors[-1] if self.metrics.api_errors else None,
-            self.metrics.slippage_breaches[-1] if self.metrics.slippage_breaches else None,
+            (
+                self.metrics.slippage_breaches[-1]
+                if self.metrics.slippage_breaches
+                else None
+            ),
             self.metrics.order_attempts[-1] if self.metrics.order_attempts else None,
-            self.metrics.order_rejections[-1] if self.metrics.order_rejections else None,
+            (
+                self.metrics.order_rejections[-1]
+                if self.metrics.order_rejections
+                else None
+            ),
             self.metrics.trade_losses[-1][0] if self.metrics.trade_losses else None,
             self.metrics.nav_history[-1][0] if self.metrics.nav_history else None,
         ]

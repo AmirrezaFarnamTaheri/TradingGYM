@@ -115,7 +115,11 @@ def _validated_frame(
         open_f, high_f, low_f, close_f, volume_f = values
         if min(open_f, high_f, low_f, close_f) <= 0 or volume_f < 0:
             raise ValueError("OHLC must be positive and volume non-negative")
-        if high_f < max(open_f, close_f) or low_f > min(open_f, close_f) or low_f > high_f:
+        if (
+            high_f < max(open_f, close_f)
+            or low_f > min(open_f, close_f)
+            or low_f > high_f
+        ):
             raise ValueError("candle violates OHLC envelope invariants")
         parsed.append(
             {
@@ -138,14 +142,19 @@ def _validated_frame(
     # Use only fully closed candles. Exchange APIs commonly include the current
     # forming candle, which would leak future/incomplete information into policy input.
     cutoff = now - 2
-    completed = [item for item in parsed if int(item["timestamp"]) + bar_seconds <= cutoff]
+    completed = [
+        item for item in parsed if int(item["timestamp"]) + bar_seconds <= cutoff
+    ]
     if len(completed) < min_rows:
         raise ValueError(
             f"insufficient completed candles: {len(completed)} < {min_rows}"
         )
     completed = completed[-MAX_LIVE_CANDLES:]
     completed_ts = [int(item["timestamp"]) for item in completed]
-    if any((right - left) > bar_seconds * 3 for left, right in zip(completed_ts, completed_ts[1:])):
+    if any(
+        (right - left) > bar_seconds * 3
+        for left, right in zip(completed_ts, completed_ts[1:])
+    ):
         raise ValueError("live candle history contains an excessive gap")
     latest_age = now - (completed_ts[-1] + bar_seconds)
     if latest_age > max(bar_seconds * 3, 300):

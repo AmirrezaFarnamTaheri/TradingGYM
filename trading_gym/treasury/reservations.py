@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
@@ -59,8 +59,13 @@ class ReservationLedger:
     def _append(self, kind: str, order_id: str, currency: str, amount: Decimal) -> None:
         self._sequence += 1
         self._events.append(
-            LedgerEvent(kind=kind, order_id=order_id, currency=currency,
-                        amount=amount, sequence=self._sequence)
+            LedgerEvent(
+                kind=kind,
+                order_id=order_id,
+                currency=currency,
+                amount=amount,
+                sequence=self._sequence,
+            )
         )
 
     def _active_reserved(self, currency: str) -> Decimal:
@@ -117,7 +122,9 @@ class ReservationLedger:
         currency_u = self._require_currency(currency)
         per_order = self._reserved_by_order.get(order_id)
         if per_order is None or per_order.get(currency_u, ZERO) <= ZERO:
-            raise ReservationError(f"order {order_id} holds no {currency_u} reservation")
+            raise ReservationError(
+                f"order {order_id} holds no {currency_u} reservation"
+            )
         if settled_amount <= ZERO:
             raise ValueError("settled_amount must be positive")
         reserved = per_order[currency_u]
@@ -128,7 +135,9 @@ class ReservationLedger:
                 f"plus available {self.available_balance(currency_u)}"
             )
         self.release(order_id=order_id)
-        self._committed[currency_u] = self._committed.get(currency_u, ZERO) + settled_amount
+        self._committed[currency_u] = (
+            self._committed.get(currency_u, ZERO) + settled_amount
+        )
         self._append("commit", order_id, currency_u, settled_amount)
         return extra_needed
 

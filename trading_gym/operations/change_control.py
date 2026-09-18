@@ -1,4 +1,5 @@
 """Dry-run deployment change control and canary readiness analysis."""
+
 from __future__ import annotations
 
 import hashlib
@@ -37,12 +38,18 @@ class ChangeControlRequest(BaseModel):
     starts_at: datetime
     ends_at: datetime
     risk: ChangeRisk
-    affected_components: list[Annotated[str, Field(min_length=1, max_length=160)]] = Field(min_length=1, max_length=1000)
-    rollback_steps: list[Annotated[str, Field(min_length=1, max_length=500)]] = Field(max_length=1000)
+    affected_components: list[Annotated[str, Field(min_length=1, max_length=160)]] = (
+        Field(min_length=1, max_length=1000)
+    )
+    rollback_steps: list[Annotated[str, Field(min_length=1, max_length=500)]] = Field(
+        max_length=1000
+    )
     canary_fraction: float = Field(default=0.05, gt=0.0, le=1.0)
     observations: list[ChangeObservation] = Field(max_length=10_000)
     freeze_active: bool = False
-    approved_proposal_id: Annotated[str | None, Field(min_length=8, max_length=200)] = None
+    approved_proposal_id: Annotated[str | None, Field(min_length=8, max_length=200)] = (
+        None
+    )
     tested_rollback: bool = False
 
     @model_validator(mode="after")
@@ -110,7 +117,9 @@ def evaluate_change_control(request: ChangeControlRequest) -> ChangeControlRepor
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
     }
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return ChangeControlReport(
         change_id=request.change_id,
         ready_for_governance_review=not blockers,

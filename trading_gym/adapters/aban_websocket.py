@@ -102,7 +102,9 @@ class WebSocketConfig:
         if self.api_key is not None:
             self.api_key = self.api_key.strip() or None
         if not 0.05 <= float(self.reconnect_delay_base) <= 300.0:
-            raise ValueError("reconnect_delay_base must be between 0.05 and 300 seconds")
+            raise ValueError(
+                "reconnect_delay_base must be between 0.05 and 300 seconds"
+            )
         if not self.reconnect_delay_base <= float(self.reconnect_delay_max) <= 600.0:
             raise ValueError("reconnect_delay_max must be >= base and <= 600 seconds")
         if not 0.0 <= float(self.reconnect_jitter) <= 1.0:
@@ -110,16 +112,30 @@ class WebSocketConfig:
         if not 0.05 <= float(self.heartbeat_interval) <= 300.0:
             raise ValueError("heartbeat_interval must be between 0.05 and 300 seconds")
         if not self.heartbeat_interval < float(self.heartbeat_timeout) <= 900.0:
-            raise ValueError("heartbeat_timeout must exceed heartbeat_interval and be <= 900")
-        if isinstance(self.message_queue_maxlen, bool) or not 1 <= self.message_queue_maxlen <= 100_000:
+            raise ValueError(
+                "heartbeat_timeout must exceed heartbeat_interval and be <= 900"
+            )
+        if (
+            isinstance(self.message_queue_maxlen, bool)
+            or not 1 <= self.message_queue_maxlen <= 100_000
+        ):
             raise ValueError("message_queue_maxlen must be between 1 and 100000")
-        if isinstance(self.max_message_bytes, bool) or not 1_024 <= self.max_message_bytes <= 16 * 1024 * 1024:
+        if (
+            isinstance(self.max_message_bytes, bool)
+            or not 1_024 <= self.max_message_bytes <= 16 * 1024 * 1024
+        ):
             raise ValueError("max_message_bytes must be between 1024 and 16777216")
         if not 0.05 <= float(self.callback_timeout) <= 60.0:
             raise ValueError("callback_timeout must be between 0.05 and 60 seconds")
-        if isinstance(self.max_subscriptions, bool) or not 1 <= self.max_subscriptions <= 1_000:
+        if (
+            isinstance(self.max_subscriptions, bool)
+            or not 1 <= self.max_subscriptions <= 1_000
+        ):
             raise ValueError("max_subscriptions must be between 1 and 1000")
-        if isinstance(self.max_reconnect_attempts, bool) or not 0 <= self.max_reconnect_attempts <= 100_000:
+        if (
+            isinstance(self.max_reconnect_attempts, bool)
+            or not 0 <= self.max_reconnect_attempts <= 100_000
+        ):
             raise ValueError("max_reconnect_attempts must be between 0 and 100000")
 
 
@@ -188,7 +204,10 @@ class WebSocketClient:
         if channel is ChannelType.USER_DATA and not self.config.api_key:
             raise ValueError("USER_DATA subscriptions require an API key")
         key = self._make_key(channel, symbol)
-        if key not in self._subscriptions and len(self._subscriptions) >= self.config.max_subscriptions:
+        if (
+            key not in self._subscriptions
+            and len(self._subscriptions) >= self.config.max_subscriptions
+        ):
             raise ValueError("subscription limit exceeded")
         self._subscriptions[key] = (channel, symbol, callback)
         self._queues.setdefault(key, deque(maxlen=self.config.message_queue_maxlen))
@@ -258,7 +277,9 @@ class WebSocketClient:
                 # a socket that failed mid-handshake.
                 with suppress(Exception):
                     await ws.close()
-            logger.error("WebSocket connection failed error_type=%s", type(exc).__name__)
+            logger.error(
+                "WebSocket connection failed error_type=%s", type(exc).__name__
+            )
             raise
 
     async def disconnect(self) -> None:
@@ -270,7 +291,9 @@ class WebSocketClient:
             try:
                 await ws.close()
             except Exception as exc:
-                logger.warning("WebSocket close failed error_type=%s", type(exc).__name__)
+                logger.warning(
+                    "WebSocket close failed error_type=%s", type(exc).__name__
+                )
 
         current = asyncio.current_task()
         for task in (self._receive_task, self._heartbeat_task, self._dispatch_task):
@@ -298,11 +321,15 @@ class WebSocketClient:
 
                 tasks = [
                     asyncio.create_task(self._receive_loop(), name="aban-ws-receive"),
-                    asyncio.create_task(self._heartbeat_loop(), name="aban-ws-heartbeat"),
+                    asyncio.create_task(
+                        self._heartbeat_loop(), name="aban-ws-heartbeat"
+                    ),
                     asyncio.create_task(self._dispatch_loop(), name="aban-ws-dispatch"),
                 ]
                 self._receive_task, self._heartbeat_task, self._dispatch_task = tasks
-                done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                done, pending = await asyncio.wait(
+                    tasks, return_when=asyncio.FIRST_COMPLETED
+                )
                 for task in pending:
                     task.cancel()
                 await asyncio.gather(*pending, return_exceptions=True)
@@ -311,7 +338,9 @@ class WebSocketClient:
                         continue
                     exc = task.exception()
                     if exc is not None:
-                        logger.error("WebSocket task failed error_type=%s", type(exc).__name__)
+                        logger.error(
+                            "WebSocket task failed error_type=%s", type(exc).__name__
+                        )
                 if self._running:
                     self._connected = False
                     ws, self._ws = self._ws, None
@@ -355,7 +384,10 @@ class WebSocketClient:
             await self._ws.send(bounded_json_dumps(payload, max_bytes=4_096))
 
     async def _reconnect(self) -> bool:
-        if self.config.max_reconnect_attempts and self._reconnect_count >= self.config.max_reconnect_attempts:
+        if (
+            self.config.max_reconnect_attempts
+            and self._reconnect_count >= self.config.max_reconnect_attempts
+        ):
             logger.error("WebSocket reconnect budget exhausted")
             self._running = False
             return False
@@ -367,7 +399,9 @@ class WebSocketClient:
         )
         jitter_span = delay * self.config.reconnect_jitter
         delay = max(0.0, delay + random.uniform(-jitter_span, jitter_span))
-        logger.info("Reconnecting after %.2fs attempt=%d", delay, self._reconnect_count + 1)
+        logger.info(
+            "Reconnecting after %.2fs attempt=%d", delay, self._reconnect_count + 1
+        )
         await asyncio.sleep(delay)
         if not self._running:
             return False
@@ -400,7 +434,10 @@ class WebSocketClient:
                 except json.JSONDecodeError:
                     logger.warning("Discarded invalid WebSocket JSON")
                 except (TypeError, ValueError) as exc:
-                    logger.warning("Discarded invalid WebSocket message error_type=%s", type(exc).__name__)
+                    logger.warning(
+                        "Discarded invalid WebSocket message error_type=%s",
+                        type(exc).__name__,
+                    )
         except websockets.exceptions.ConnectionClosed:
             logger.warning("WebSocket connection closed")
         except asyncio.CancelledError:
@@ -443,8 +480,14 @@ class WebSocketClient:
         sequence: Optional[int]
         if sequence_raw is None:
             sequence = None
-        elif isinstance(sequence_raw, bool) or not isinstance(sequence_raw, int) or sequence_raw < 0:
-            logger.warning("Discarded WebSocket message with invalid sequence key=%s", key)
+        elif (
+            isinstance(sequence_raw, bool)
+            or not isinstance(sequence_raw, int)
+            or sequence_raw < 0
+        ):
+            logger.warning(
+                "Discarded WebSocket message with invalid sequence key=%s", key
+            )
             return
         else:
             sequence = sequence_raw
@@ -467,7 +510,9 @@ class WebSocketClient:
         if len(queue) >= self.config.message_queue_maxlen:
             self._dropped_messages[key] = self._dropped_messages.get(key, 0) + 1
             self._degraded_keys.add(key)
-            logger.warning("WebSocket queue overflow key=%s; oldest message dropped", key)
+            logger.warning(
+                "WebSocket queue overflow key=%s; oldest message dropped", key
+            )
         queue.append(
             Message(
                 channel=channel,
@@ -501,11 +546,15 @@ class WebSocketClient:
                     except asyncio.CancelledError:
                         raise
                     except Exception as exc:
-                        self._callback_failures[key] = self._callback_failures.get(key, 0) + 1
+                        self._callback_failures[key] = (
+                            self._callback_failures.get(key, 0) + 1
+                        )
                         # The message was already popped, so a callback that
                         # raises permanently loses it.  Account it as a drop so
                         # message-loss telemetry is not underreported.
-                        self._dropped_messages[key] = self._dropped_messages.get(key, 0) + 1
+                        self._dropped_messages[key] = (
+                            self._dropped_messages.get(key, 0) + 1
+                        )
                         self._degraded_keys.add(key)
                         logger.error(
                             "WebSocket callback failed key=%s error_type=%s; message dropped",
@@ -557,6 +606,9 @@ class WebSocketClient:
         }
 
     def get_latency_ms(self) -> float:
-        if self._last_heartbeat <= 0 or self._last_heartbeat_response < self._last_heartbeat:
+        if (
+            self._last_heartbeat <= 0
+            or self._last_heartbeat_response < self._last_heartbeat
+        ):
             return -1.0
         return (self._last_heartbeat_response - self._last_heartbeat) * 1000.0

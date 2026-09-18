@@ -178,7 +178,11 @@ class ExecutionEngine:
         )
         if not all(value.is_finite() for value in state_values):
             raise ValueError("execution state contains non-finite values")
-        if state.equity < ZERO or state.borrowed_base < ZERO or state.borrowed_quote < ZERO:
+        if (
+            state.equity < ZERO
+            or state.borrowed_base < ZERO
+            or state.borrowed_quote < ZERO
+        ):
             raise ValueError("execution state contains negative balances")
         market_core_values = (
             market.mid_price,
@@ -188,7 +192,9 @@ class ExecutionEngine:
         if not all(np.isfinite(float(value)) for value in market_core_values):
             raise ValueError("market snapshot contains non-finite values")
         # Liquidity caps may be +inf (unbounded venue liquidity); NaN is still invalid.
-        if np.isnan(float(market.buy_cap_quote)) or np.isnan(float(market.sell_cap_quote)):
+        if np.isnan(float(market.buy_cap_quote)) or np.isnan(
+            float(market.sell_cap_quote)
+        ):
             raise ValueError("market liquidity caps must not be NaN")
         if market.mid_price <= 0:
             raise ValueError("market mid price must be positive")
@@ -197,7 +203,9 @@ class ExecutionEngine:
         # volatility_hint is advisory: apply_trade clamps negatives to zero
         # below, so only non-finite hints are rejected outright.
         if market.volatility_hint < 0:
-            logger.debug("Negative volatility hint treated as zero: %s", market.volatility_hint)
+            logger.debug(
+                "Negative volatility hint treated as zero: %s", market.volatility_hint
+            )
         if market.buy_cap_quote < 0 or market.sell_cap_quote < 0:
             raise ValueError("market liquidity caps must be non-negative")
 
@@ -252,9 +260,7 @@ class ExecutionEngine:
             if book_fill is None:
                 return self._no_trade_result(state, mid_price, True)
             signed_fill = (
-                book_fill.filled_quantity
-                if delta > 0
-                else -book_fill.filled_quantity
+                book_fill.filled_quantity if delta > 0 else -book_fill.filled_quantity
             )
             delta = self._round_qty(signed_fill, qty_decimals)
             new_position = state.position + delta
@@ -454,9 +460,7 @@ class ExecutionEngine:
         levels = book.asks if side == "buy" else book.bids
         for level in levels:
             if level.price <= ZERO or level.quantity <= ZERO:
-                raise ValueError(
-                    "book levels must carry positive price and quantity"
-                )
+                raise ValueError("book levels must carry positive price and quantity")
         if book_total_liquidity(levels) <= ZERO:
             return None, True
         result = market_fill(book, side=side, quantity=abs(delta))

@@ -52,7 +52,9 @@ def test_sharpe_std_error_factor_rejects_degenerate_inputs():
 def test_psr_high_sharpe_scores_near_one():
     rets = _returns(504, mean_daily=0.002, seed=11)
     psr = probabilistic_sharpe_ratio(
-        _sharpe(rets), n_obs=len(rets), skew=float(_skew(rets)),
+        _sharpe(rets),
+        n_obs=len(rets),
+        skew=float(_skew(rets)),
         kurtosis=float(_excess_kurtosis(rets)),
     )
     assert psr > 0.99
@@ -72,16 +74,16 @@ def test_psr_accepts_fisher_excess_kurtosis_conversion():
 
 def _skew(returns: np.ndarray) -> float:
     centered = returns - returns.mean()
-    m2 = float((centered ** 2).mean())
-    m3 = float((centered ** 3).mean())
-    return m3 / m2 ** 1.5
+    m2 = float((centered**2).mean())
+    m3 = float((centered**3).mean())
+    return m3 / m2**1.5
 
 
 def _excess_kurtosis(returns: np.ndarray) -> float:
     centered = returns - returns.mean()
-    m2 = float((centered ** 2).mean())
-    m4 = float((centered ** 4).mean())
-    return m4 / m2 ** 2 - 3.0
+    m2 = float((centered**2).mean())
+    m4 = float((centered**4).mean())
+    return m4 / m2**2 - 3.0
 
 
 # ---------------------------------------------------------------------------
@@ -168,8 +170,7 @@ def test_full_report_flags_and_optional_dsr():
 def _noise_matrix(configs: int, partitions: int, seed: int) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
     return {
-        f"cfg_{i}": rng.normal(0.0005, 0.01, size=partitions)
-        for i in range(configs)
+        f"cfg_{i}": rng.normal(0.0005, 0.01, size=partitions) for i in range(configs)
     }
 
 
@@ -215,7 +216,6 @@ def test_cscv_pbo_zero_when_selection_persists_out_of_sample():
 
 
 def test_cscv_pbo_validates_inputs_and_supports_sampling():
-    good = _noise_matrix(4, 8, seed=3)
     with pytest.raises(ValueError):
         cscv_pbo_analysis({})
     bad = {"a": np.array([0.1, np.nan, 0.2, 0.1])}

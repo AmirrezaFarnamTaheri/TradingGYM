@@ -18,8 +18,6 @@ except ImportError:  # pragma: no cover - typer is a hard dependency in practice
     typer = None
     app = None
 
-from trading_gym.risk.analytics import tail_risk
-from trading_gym.production.status import build_status
 from trading_gym.institutional_os.finance_skill_chain_assurance import (
     evaluate_finance_skill_chain,
 )

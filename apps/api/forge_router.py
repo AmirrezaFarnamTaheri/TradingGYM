@@ -249,8 +249,7 @@ def create_forge_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         if detail:
             return {
                 "templates": {
-                    key: spec.model_dump(mode="json")
-                    for key, spec in catalogue.items()
+                    key: spec.model_dump(mode="json") for key, spec in catalogue.items()
                 }
             }
         return {

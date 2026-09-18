@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import copy
 import logging
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -99,10 +98,14 @@ def main() -> None:
             app_cfg,
             dry_run=args.dry_run,
             model_version=args.model_version,
-            registry_dir=Path(args.registry_dir).expanduser() if args.registry_dir else None,
+            registry_dir=(
+                Path(args.registry_dir).expanduser() if args.registry_dir else None
+            ),
         )
     except (FileNotFoundError, OSError, ValueError, ValidationError) as exc:
-        logger.critical("Training configuration failed error_type=%s", type(exc).__name__)
+        logger.critical(
+            "Training configuration failed error_type=%s", type(exc).__name__
+        )
         raise SystemExit(2) from exc
     except Exception as exc:
         logger.critical("Training failed error_type=%s", type(exc).__name__)

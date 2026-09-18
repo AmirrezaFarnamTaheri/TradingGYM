@@ -1,4 +1,5 @@
 """Deterministic, non-authoritative portfolio rebalancing plans."""
+
 from __future__ import annotations
 
 import hashlib
@@ -29,12 +30,23 @@ class RebalanceHolding(BaseModel):
 
     @model_validator(mode="after")
     def validate_holding(self) -> "RebalanceHolding":
-        for name in ("quantity", "price_base", "quantity_increment", "minimum_notional_base"):
+        for name in (
+            "quantity",
+            "price_base",
+            "quantity_increment",
+            "minimum_notional_base",
+        ):
             value = getattr(self, name)
             if not value.is_finite() or abs(value) > MAX_VALUE:
                 raise ValueError(f"{name} must be finite and bounded")
-        if self.price_base <= 0 or self.quantity_increment <= 0 or self.minimum_notional_base < 0:
-            raise ValueError("price and increment must be positive; minimum notional cannot be negative")
+        if (
+            self.price_base <= 0
+            or self.quantity_increment <= 0
+            or self.minimum_notional_base < 0
+        ):
+            raise ValueError(
+                "price and increment must be positive; minimum notional cannot be negative"
+            )
         if self.quantity < 0 and not self.short_allowed:
             raise ValueError("negative holding requires short_allowed")
         return self
@@ -69,11 +81,19 @@ class RebalancePolicy(BaseModel):
 
     @model_validator(mode="after")
     def validate_policy(self) -> "RebalancePolicy":
-        if not self.minimum_cash_weight.is_finite() or not Decimal("0") <= self.minimum_cash_weight < 1:
+        if (
+            not self.minimum_cash_weight.is_finite()
+            or not Decimal("0") <= self.minimum_cash_weight < 1
+        ):
             raise ValueError("minimum cash weight must be in [0, 1)")
-        if not self.maximum_turnover_fraction.is_finite() or not Decimal("0") <= self.maximum_turnover_fraction <= 10:
+        if (
+            not self.maximum_turnover_fraction.is_finite()
+            or not Decimal("0") <= self.maximum_turnover_fraction <= 10
+        ):
             raise ValueError("maximum turnover must be finite and bounded")
-        if not self.estimated_cost_bps.is_finite() or not Decimal("0") <= self.estimated_cost_bps <= Decimal("10000"):
+        if not self.estimated_cost_bps.is_finite() or not Decimal(
+            "0"
+        ) <= self.estimated_cost_bps <= Decimal("10000"):
             raise ValueError("estimated cost must be between zero and 10000 bps")
         return self
 
@@ -113,7 +133,9 @@ class RebalancePlan(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str
+    ).encode("utf-8")
 
 
 def _round_quantity(value: Decimal, increment: Decimal) -> Decimal:
@@ -138,8 +160,12 @@ def plan_rebalance(
         raise ValueError("rebalance input limit exceeded")
     holding_ids = [item.instrument_id for item in holdings]
     target_ids = [item.instrument_id for item in targets]
-    if len(holding_ids) != len(set(holding_ids)) or len(target_ids) != len(set(target_ids)):
-        raise ValueError("instrument identifiers must be unique within holdings and targets")
+    if len(holding_ids) != len(set(holding_ids)) or len(target_ids) != len(
+        set(target_ids)
+    ):
+        raise ValueError(
+            "instrument identifiers must be unique within holdings and targets"
+        )
     policy = policy or RebalancePolicy()
     target_map = {item.instrument_id: item for item in targets}
     holding_map = {item.instrument_id: item for item in holdings}
@@ -163,12 +189,19 @@ def plan_rebalance(
         target_weight = target.target_weight if target else Decimal("0")
         current_value = values[instrument_id]
         desired_value = equity * target_weight
-        delta_quantity = _round_quantity((desired_value - current_value) / holding.price_base, holding.quantity_increment)
+        delta_quantity = _round_quantity(
+            (desired_value - current_value) / holding.price_base,
+            holding.quantity_increment,
+        )
         if delta_quantity == 0:
             continue
         projected_quantity = holding.quantity + delta_quantity
-        if projected_quantity < 0 and not (holding.short_allowed and policy.permit_new_short_positions):
-            delta_quantity = _round_quantity(-holding.quantity, holding.quantity_increment)
+        if projected_quantity < 0 and not (
+            holding.short_allowed and policy.permit_new_short_positions
+        ):
+            delta_quantity = _round_quantity(
+                -holding.quantity, holding.quantity_increment
+            )
             projected_quantity = holding.quantity + delta_quantity
             warnings.append(f"short_clipped:{instrument_id}")
         if delta_quantity == 0:
@@ -205,17 +238,19 @@ def plan_rebalance(
         projected_value = projected_quantities[instrument_id] * holding.price_base
         before_weight = values[instrument_id] / equity
         projected_weight = projected_value / equity
-        trades.append(PlannedRebalanceTrade(
-            instrument_id=instrument_id,
-            side=side,
-            quantity=abs(delta_quantity),
-            price_base=holding.price_base,
-            notional_base=notional,
-            estimated_cost_base=cost,
-            before_weight=before_weight,
-            target_weight=target_weight,
-            projected_weight=projected_weight,
-        ))
+        trades.append(
+            PlannedRebalanceTrade(
+                instrument_id=instrument_id,
+                side=side,
+                quantity=abs(delta_quantity),
+                price_base=holding.price_base,
+                notional_base=notional,
+                estimated_cost_base=cost,
+                before_weight=before_weight,
+                target_weight=target_weight,
+                projected_weight=projected_weight,
+            )
+        )
         total_turnover += notional
 
     turnover = total_turnover / equity
@@ -230,7 +265,9 @@ def plan_rebalance(
     for instrument_id, holding in holding_map.items():
         target = target_map.get(instrument_id)
         target_weight = target.target_weight if target else Decimal("0")
-        projected_weight = projected_quantities[instrument_id] * holding.price_base / equity
+        projected_weight = (
+            projected_quantities[instrument_id] * holding.price_base / equity
+        )
         residual[instrument_id] = projected_weight - target_weight
         if target and abs(residual[instrument_id]) > target.tolerance_weight:
             warnings.append(f"target_residual:{instrument_id}")

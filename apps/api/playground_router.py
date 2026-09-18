@@ -100,9 +100,7 @@ class PlaygroundRunRequest(BaseModel):
     position_fraction: float = Field(default=1.0, gt=0, le=1)
 
 
-def _authenticate_actor(
-    actor: str, actor_key: str | None
-) -> str:
+def _authenticate_actor(actor: str, actor_key: str | None) -> str:
     from trading_gym.governance.identity import (
         ActorAuthenticationError,
         ActorIdentityConfigurationError,
@@ -142,11 +140,11 @@ def create_playground_router(auth_dependency: Callable[..., Any]) -> APIRouter:
 
         # scope gate: the playground's wildcard grant (ADR-028 chain)
         try:
-            ledger = GrantLedger.open(
-                resolve_data_home() / "authz" / "grants.jsonl"
-            )
+            ledger = GrantLedger.open(resolve_data_home() / "authz" / "grants.jsonl")
         except GrantLedgerIntegrityError as exc:
-            raise HTTPException(status_code=503, detail=f"grant ledger integrity failure: {exc}") from exc
+            raise HTTPException(
+                status_code=503, detail=f"grant ledger integrity failure: {exc}"
+            ) from exc
         try:
             decision = ledger.check(principal, "playground.run")
         except ScopeError:

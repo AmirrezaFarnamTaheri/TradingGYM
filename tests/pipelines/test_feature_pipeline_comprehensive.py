@@ -107,7 +107,9 @@ class TestRunFeaturePipeline:
     @patch("trading_gym.pipelines.feature_pipeline.FeatureAssembler")
     @patch("trading_gym.pipelines.feature_pipeline.load_raw_data")
     @patch("trading_gym.pipelines.feature_pipeline._publish_features")
-    def test_successful_run(self, mock_publish, mock_load, MockAssembler, mock_config, sample_ohlcv):
+    def test_successful_run(
+        self, mock_publish, mock_load, MockAssembler, mock_config, sample_ohlcv
+    ):
         mock_load.return_value = sample_ohlcv
         assembler_instance = MockAssembler.return_value
         assembler_instance.process.return_value = sample_ohlcv

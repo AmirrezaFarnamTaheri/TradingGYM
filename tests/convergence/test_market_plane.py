@@ -6,7 +6,10 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from trading_gym.market.backtest_policy import BacktestLimitError, validate_backtest_window
+from trading_gym.market.backtest_policy import (
+    BacktestLimitError,
+    validate_backtest_window,
+)
 from trading_gym.market.data_router import DataProviderRouter, MarketDataRequest
 from trading_gym.market.models import AssetClass, InstrumentSpec
 from trading_gym.market.registry import InstrumentConflict, InstrumentRegistry

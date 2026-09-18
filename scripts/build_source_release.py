@@ -1,4 +1,5 @@
 """Build the exact reconstructed source tree into a versioned ZIP release."""
+
 from __future__ import annotations
 
 import hashlib
@@ -8,11 +9,26 @@ import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = json.loads((ROOT / "trading_gym" / "release_manifest.json").read_text(encoding="utf-8"))
+MANIFEST = json.loads(
+    (ROOT / "trading_gym" / "release_manifest.json").read_text(encoding="utf-8")
+)
 VERSION = str(MANIFEST["version"])
 ARCHIVE_ROOT = f"trading-gym-{VERSION}"
-OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT.parent / f"{ARCHIVE_ROOT}-source.zip"
-EXCLUDED_DIRS = {".git", ".pytest_cache", ".mypy_cache", ".ruff_cache", "__pycache__", "node_modules", "dist", "build"}
+OUT = (
+    Path(sys.argv[1])
+    if len(sys.argv) > 1
+    else ROOT.parent / f"{ARCHIVE_ROOT}-source.zip"
+)
+EXCLUDED_DIRS = {
+    ".git",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+}
 EXCLUDED_SUFFIXES = {".pyc", ".pyo"}
 
 
@@ -44,4 +60,14 @@ with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as archive
         archive.write(path, name)
 
 sha256 = hashlib.sha256(OUT.read_bytes()).hexdigest()
-print(json.dumps({"archive": str(OUT), "sha256": sha256, "members": len(files), "root": ARCHIVE_ROOT}, sort_keys=True))
+print(
+    json.dumps(
+        {
+            "archive": str(OUT),
+            "sha256": sha256,
+            "members": len(files),
+            "root": ARCHIVE_ROOT,
+        },
+        sort_keys=True,
+    )
+)

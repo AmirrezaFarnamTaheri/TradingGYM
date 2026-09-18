@@ -39,4 +39,3 @@ class IntelligenceConfig(BaseModel):
     #: When True a backend failure falls down to the deterministic floor
     #: instead of propagating. Auto mode always degrades this way.
     allow_fallback_to_rules: bool = True
-

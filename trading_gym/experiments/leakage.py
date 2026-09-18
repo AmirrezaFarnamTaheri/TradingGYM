@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -13,7 +13,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class TemporalObservation(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    observation_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,199}$")]
+    observation_id: Annotated[
+        str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,199}$")
+    ]
     feature_name: Annotated[str, Field(min_length=1, max_length=200)]
     event_time: datetime
     available_at: datetime
@@ -46,15 +48,22 @@ class TemporalSplit(BaseModel):
     @model_validator(mode="after")
     def validate_ranges(self) -> "TemporalSplit":
         values = (
-            self.train_start, self.train_end, self.validation_start,
-            self.validation_end, self.test_start, self.test_end,
+            self.train_start,
+            self.train_end,
+            self.validation_start,
+            self.validation_end,
+            self.test_start,
+            self.test_end,
         )
         if any(value.tzinfo is None or value.utcoffset() is None for value in values):
             raise ValueError("split timestamps must be timezone-aware")
         if not (
-            self.train_start < self.train_end
-            <= self.validation_start < self.validation_end
-            <= self.test_start < self.test_end
+            self.train_start
+            < self.train_end
+            <= self.validation_start
+            < self.validation_end
+            <= self.test_start
+            < self.test_end
         ):
             raise ValueError("split ranges must be ordered and non-overlapping")
         return self
@@ -99,7 +108,9 @@ class TemporalLeakageReport(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str
+    ).encode("utf-8")
 
 
 def audit_temporal_leakage(request: TemporalLeakageRequest) -> TemporalLeakageReport:
@@ -117,7 +128,10 @@ def audit_temporal_leakage(request: TemporalLeakageRequest) -> TemporalLeakageRe
             late += 1
         if observation.event_time > observation.decision_time:
             future += 1
-        if request.policy.require_point_in_time_versions and not observation.source_version.strip():
+        if (
+            request.policy.require_point_in_time_versions
+            and not observation.source_version.strip()
+        ):
             blockers.append(f"source_version_missing:{observation.observation_id}")
 
     count = len(request.observations)
@@ -129,8 +143,12 @@ def audit_temporal_leakage(request: TemporalLeakageRequest) -> TemporalLeakageRe
         blockers.append(f"duplicate_observation_ids:{len(duplicates)}")
 
     split = request.split
-    required_gap = split.label_horizon_seconds + split.purge_seconds + split.embargo_seconds
-    train_validation_gap = int((split.validation_start - split.train_end).total_seconds())
+    required_gap = (
+        split.label_horizon_seconds + split.purge_seconds + split.embargo_seconds
+    )
+    train_validation_gap = int(
+        (split.validation_start - split.train_end).total_seconds()
+    )
     validation_test_gap = int((split.test_start - split.validation_end).total_seconds())
     if train_validation_gap < required_gap:
         blockers.append(f"train_validation_gap:{train_validation_gap}/{required_gap}")

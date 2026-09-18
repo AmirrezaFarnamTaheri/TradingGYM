@@ -13,9 +13,7 @@ from trading_gym.production.mutation_retry import (
 from trading_gym.production.pre_trade_gate import evaluate_pre_trade_gate
 from trading_gym.research.bootstrap_ci import (
     block_bootstrap_interval,
-    sharpe_ratio,
 )
-
 
 # ---------------------------------------------------------------------------
 # Lookahead-keyed cache (pybroker absorption)
@@ -105,7 +103,9 @@ def _policy():
 
 
 def test_backoff_escalates_then_resets_after_stability_threshold():
-    backoff = StabilityAwareBackoff(_policy(), stability_threshold=3, rng=__import__("random").Random(1))
+    backoff = StabilityAwareBackoff(
+        _policy(), stability_threshold=3, rng=__import__("random").Random(1)
+    )
     delays = [backoff.next_delay() for _ in range(4)]
     assert delays[0] < delays[1] < delays[2]  # escalation
     for _ in range(3):
@@ -117,11 +117,15 @@ def test_backoff_escalates_then_resets_after_stability_threshold():
 def test_backoff_failure_resets_success_streak():
     import random
 
-    backoff = StabilityAwareBackoff(_policy(), stability_threshold=2, rng=random.Random(2))
+    backoff = StabilityAwareBackoff(
+        _policy(), stability_threshold=2, rng=random.Random(2)
+    )
     for _ in range(2):
         backoff.record_success()
-    first = backoff.next_delay()  # still escalated attempt 3? threshold resets on next success boundary — verify monotonic behaviour instead:
-    backoff.record_failure()      # streak broken → no reset happened
+    first = (
+        backoff.next_delay()
+    )  # still escalated attempt 3? threshold resets on next success boundary — verify monotonic behaviour instead:
+    backoff.record_failure()  # streak broken → no reset happened
     second = backoff.next_delay()
     assert second >= first * 0.99  # continued escalation, not a silent reset
     assert second > 0
@@ -147,14 +151,21 @@ def test_block_bootstrap_covers_mean_on_ar_series():
         ar, np.mean, block_length=10, n_resamples=500, rng_seed=5
     )
     true_mean = float(np.mean(ar))
-    assert ci.lower - 1e-9 <= true_mean <= ci.upper + 1e-9 or abs(ci.estimate - true_mean) < 1e-12
+    assert (
+        ci.lower - 1e-9 <= true_mean <= ci.upper + 1e-9
+        or abs(ci.estimate - true_mean) < 1e-12
+    )
     assert ci.lower < ci.upper
 
 
 def test_block_bootstrap_deterministic_and_validates():
     data = np.arange(50, dtype=float)
-    ci1 = block_bootstrap_interval(data, np.mean, block_length=5, n_resamples=200, rng_seed=3)
-    ci2 = block_bootstrap_interval(data, np.mean, block_length=5, n_resamples=200, rng_seed=3)
+    ci1 = block_bootstrap_interval(
+        data, np.mean, block_length=5, n_resamples=200, rng_seed=3
+    )
+    ci2 = block_bootstrap_interval(
+        data, np.mean, block_length=5, n_resamples=200, rng_seed=3
+    )
     assert (ci1.lower, ci1.upper) == (ci2.lower, ci2.upper)
     with pytest.raises(ValueError):
         block_bootstrap_interval(data, np.mean, block_length=1)

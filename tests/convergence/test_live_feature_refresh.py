@@ -12,7 +12,9 @@ from trading_gym.common.config import load_app_config
 NOW = 2_000_000_000
 
 
-def _rows(bar_seconds: int, *, count: int = 40, forming_close: float = 999_999.0) -> list[list[float]]:
+def _rows(
+    bar_seconds: int, *, count: int = 40, forming_close: float = 999_999.0
+) -> list[list[float]]:
     start = NOW - bar_seconds * (count + 1)
     rows: list[list[float]] = []
     for index in range(count):
@@ -53,9 +55,7 @@ def _config():
     # Keep the real configured three-timeframe attention path, but use a bounded
     # feature window suitable for a focused deterministic test.
     return cfg.model_copy(
-        update={
-            "features": cfg.features.model_copy(update={"rolling_window": 100})
-        }
+        update={"features": cfg.features.model_copy(update={"rolling_window": 100})}
     )
 
 
@@ -109,9 +109,7 @@ def test_live_snapshot_rejects_excessive_history_and_rolling_window() -> None:
 
     cfg = _config()
     oversized = cfg.model_copy(
-        update={
-            "features": cfg.features.model_copy(update={"rolling_window": 20_000})
-        }
+        update={"features": cfg.features.model_copy(update={"rolling_window": 20_000})}
     )
     with pytest.raises(ValueError, match="rolling window"):
         build_live_feature_snapshot(Client(), oversized, now=NOW)

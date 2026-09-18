@@ -18,7 +18,11 @@ from trading_gym.operations.failover import (
     ReplicaObservation,
     evaluate_failover_readiness,
 )
-from trading_gym.privacy import DataFieldRecord, PrivacyAssessmentRequest, evaluate_privacy
+from trading_gym.privacy import (
+    DataFieldRecord,
+    PrivacyAssessmentRequest,
+    evaluate_privacy,
+)
 
 NOW = datetime(2026, 7, 27, 12, 0, tzinfo=timezone.utc)
 
@@ -64,7 +68,9 @@ def test_surveillance_reports_adverse_execution_and_potential_self_trade_without
     )
     assert report.adverse_execution_ids == ["exec-001"]
     assert report.potential_self_trade_pairs == ["trade-001:trade-002"]
-    assert any(item.startswith("weighted_adverse_bps_exceeded") for item in report.blockers)
+    assert any(
+        item.startswith("weighted_adverse_bps_exceeded") for item in report.blockers
+    )
     assert not report.legal_conclusion_reached
     assert not report.enforcement_authority_granted
 
@@ -105,7 +111,9 @@ def test_privacy_assessment_blocks_unencrypted_sensitive_data_and_plans_without_
     )
     assert "encryption_required:profile.tax_identifier" in report.blockers
     assert "sensitive_retention_exceeded:profile.tax_identifier" in report.blockers
-    assert report.subject_request_plan.deletable_candidates == ["analytics.legacy_segment"]
+    assert report.subject_request_plan.deletable_candidates == [
+        "analytics.legacy_segment"
+    ]
     assert not report.subject_request_plan.deletion_authority_granted
 
 
@@ -162,9 +170,39 @@ def test_failover_detects_split_brain_state_hashes():
         FailoverReadinessRequest(
             evaluated_at=NOW,
             replicas=[
-                ReplicaObservation(replica_id="primary-01", region="a", role="primary", healthy=False, writable=False, observed_at=NOW, replication_lag_seconds=0, last_sequence=10, state_sha256="a" * 64),
-                ReplicaObservation(replica_id="replica-01", region="b", role="replica", healthy=True, writable=True, observed_at=NOW, replication_lag_seconds=1, last_sequence=10, state_sha256="a" * 64),
-                ReplicaObservation(replica_id="replica-02", region="c", role="replica", healthy=True, writable=True, observed_at=NOW, replication_lag_seconds=1, last_sequence=10, state_sha256="b" * 64),
+                ReplicaObservation(
+                    replica_id="primary-01",
+                    region="a",
+                    role="primary",
+                    healthy=False,
+                    writable=False,
+                    observed_at=NOW,
+                    replication_lag_seconds=0,
+                    last_sequence=10,
+                    state_sha256="a" * 64,
+                ),
+                ReplicaObservation(
+                    replica_id="replica-01",
+                    region="b",
+                    role="replica",
+                    healthy=True,
+                    writable=True,
+                    observed_at=NOW,
+                    replication_lag_seconds=1,
+                    last_sequence=10,
+                    state_sha256="a" * 64,
+                ),
+                ReplicaObservation(
+                    replica_id="replica-02",
+                    region="c",
+                    role="replica",
+                    healthy=True,
+                    writable=True,
+                    observed_at=NOW,
+                    replication_lag_seconds=1,
+                    last_sequence=10,
+                    state_sha256="b" * 64,
+                ),
             ],
             required_healthy_regions=2,
         )
@@ -178,8 +216,12 @@ def test_sequential_evidence_requires_ordered_looks_and_fdr_support():
         SequentialEvidenceRequest(
             experiment_id="experiment-001",
             looks=[
-                SequentialLook(look=1, information_fraction=0.5, z_score=1.0, sample_size=100),
-                SequentialLook(look=2, information_fraction=1.0, z_score=3.0, sample_size=200),
+                SequentialLook(
+                    look=1, information_fraction=0.5, z_score=1.0, sample_size=100
+                ),
+                SequentialLook(
+                    look=2, information_fraction=1.0, z_score=3.0, sample_size=200
+                ),
             ],
             hypotheses=[
                 HypothesisResult(hypothesis_id="alpha", p_value=0.001),
@@ -193,30 +235,70 @@ def test_sequential_evidence_requires_ordered_looks_and_fdr_support():
     assert report.ready_for_human_review
     assert not report.promotion_authority_granted
 
+
 def test_failover_does_not_select_lower_sequence_replica_even_with_lower_lag():
-    report = evaluate_failover_readiness(FailoverReadinessRequest(
-        evaluated_at=NOW,
-        replicas=[
-            ReplicaObservation(replica_id="primary-latest-01", region="a", role="primary", healthy=False, writable=False, observed_at=NOW, replication_lag_seconds=0, last_sequence=20, state_sha256="a" * 64),
-            ReplicaObservation(replica_id="replica-stale-01", region="b", role="replica", healthy=True, writable=True, observed_at=NOW, replication_lag_seconds=0.1, last_sequence=19, state_sha256="a" * 64),
-            ReplicaObservation(replica_id="replica-latest-01", region="c", role="replica", healthy=True, writable=True, observed_at=NOW, replication_lag_seconds=1, last_sequence=20, state_sha256="a" * 64),
-        ],
-        required_healthy_regions=2,
-    ))
+    report = evaluate_failover_readiness(
+        FailoverReadinessRequest(
+            evaluated_at=NOW,
+            replicas=[
+                ReplicaObservation(
+                    replica_id="primary-latest-01",
+                    region="a",
+                    role="primary",
+                    healthy=False,
+                    writable=False,
+                    observed_at=NOW,
+                    replication_lag_seconds=0,
+                    last_sequence=20,
+                    state_sha256="a" * 64,
+                ),
+                ReplicaObservation(
+                    replica_id="replica-stale-01",
+                    region="b",
+                    role="replica",
+                    healthy=True,
+                    writable=True,
+                    observed_at=NOW,
+                    replication_lag_seconds=0.1,
+                    last_sequence=19,
+                    state_sha256="a" * 64,
+                ),
+                ReplicaObservation(
+                    replica_id="replica-latest-01",
+                    region="c",
+                    role="replica",
+                    healthy=True,
+                    writable=True,
+                    observed_at=NOW,
+                    replication_lag_seconds=1,
+                    last_sequence=20,
+                    state_sha256="a" * 64,
+                ),
+            ],
+            required_healthy_regions=2,
+        )
+    )
     assert report.selected_candidate == "replica-latest-01"
     assert "candidate_not_at_latest_sequence:replica-stale-01" in report.warnings
 
 
 def test_benjamini_hochberg_rejects_prefix_not_isolated_late_rank():
-    report = evaluate_sequential_evidence(SequentialEvidenceRequest(
-        experiment_id="experiment-bh-001",
-        looks=[SequentialLook(look=1, information_fraction=1.0, z_score=3.0, sample_size=100)],
-        hypotheses=[
-            HypothesisResult(hypothesis_id="first", p_value=0.03),
-            HypothesisResult(hypothesis_id="second", p_value=0.04),
-        ],
-        family_alpha=0.05, maximum_looks=1,
-    ))
+    report = evaluate_sequential_evidence(
+        SequentialEvidenceRequest(
+            experiment_id="experiment-bh-001",
+            looks=[
+                SequentialLook(
+                    look=1, information_fraction=1.0, z_score=3.0, sample_size=100
+                )
+            ],
+            hypotheses=[
+                HypothesisResult(hypothesis_id="first", p_value=0.03),
+                HypothesisResult(hypothesis_id="second", p_value=0.04),
+            ],
+            family_alpha=0.05,
+            maximum_looks=1,
+        )
+    )
     assert report.rejected_hypotheses == ["first", "second"]
 
 

@@ -1,4 +1,5 @@
 """Deterministic institutional portfolio-construction recommendations."""
+
 from __future__ import annotations
 
 import math
@@ -52,7 +53,9 @@ class PortfolioConstructionRequest(BaseModel):
         n = len(self.assets)
         if len({item.asset_id for item in self.assets}) != n:
             raise ValueError("asset IDs must be unique")
-        if len(self.correlation_matrix) != n or any(len(row) != n for row in self.correlation_matrix):
+        if len(self.correlation_matrix) != n or any(
+            len(row) != n for row in self.correlation_matrix
+        ):
             raise ValueError("correlation matrix dimension mismatch")
         matrix = np.asarray(self.correlation_matrix, dtype=float)
         if not np.isfinite(matrix).all():
@@ -69,7 +72,10 @@ class PortfolioConstructionRequest(BaseModel):
             raise ValueError("minimum weights exceed one")
         if sum(item.maximum_weight for item in self.assets) < 1 - 1e-12:
             raise ValueError("maximum weights cannot fund a complete portfolio")
-        if self.method in {ConstructionMethod.RISK_PARITY, ConstructionMethod.MAXIMUM_DIVERSIFICATION}:
+        if self.method in {
+            ConstructionMethod.RISK_PARITY,
+            ConstructionMethod.MAXIMUM_DIVERSIFICATION,
+        }:
             work_units = n * n * self.maximum_iterations
             if work_units > MAX_OPTIMIZATION_WORK_UNITS:
                 raise ValueError("portfolio optimization work budget exceeded")
@@ -115,7 +121,9 @@ def _project(weights: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> np.nd
     return result
 
 
-def construct_portfolio(request: PortfolioConstructionRequest) -> PortfolioConstructionReport:
+def construct_portfolio(
+    request: PortfolioConstructionRequest,
+) -> PortfolioConstructionReport:
     n = len(request.assets)
     vol = np.asarray([item.volatility for item in request.assets], dtype=float)
     returns = np.asarray([item.expected_return for item in request.assets], dtype=float)
@@ -153,7 +161,12 @@ def construct_portfolio(request: PortfolioConstructionRequest) -> PortfolioConst
                 gradient = contributions - target
             else:
                 diversification = float(weights @ vol) / portfolio_volatility
-                gradient = -(vol / portfolio_volatility - (weights @ vol) * (covariance @ weights) / (portfolio_volatility**3))
+                gradient = -(
+                    vol / portfolio_volatility
+                    - (weights @ vol)
+                    * (covariance @ weights)
+                    / (portfolio_volatility**3)
+                )
                 if not math.isfinite(diversification):
                     blockers.append("invalid_diversification_ratio")
                     break
@@ -169,18 +182,30 @@ def construct_portfolio(request: PortfolioConstructionRequest) -> PortfolioConst
     variance = float(weights @ covariance @ weights)
     portfolio_vol = math.sqrt(max(variance, 0.0))
     expected = float(weights @ returns)
-    sharpe = (expected - request.risk_free_rate) / portfolio_vol if portfolio_vol > 0 else 0.0
+    sharpe = (
+        (expected - request.risk_free_rate) / portfolio_vol
+        if portfolio_vol > 0
+        else 0.0
+    )
     diversification = float(weights @ vol) / portfolio_vol if portfolio_vol > 0 else 0.0
-    marginal = covariance @ weights / portfolio_vol if portfolio_vol > 0 else np.zeros(n)
+    marginal = (
+        covariance @ weights / portfolio_vol if portfolio_vol > 0 else np.zeros(n)
+    )
     contributions = weights * marginal
     payload = {
         "method": request.method.value,
-        "weights": {item.asset_id: float(weights[index]) for index, item in enumerate(request.assets)},
+        "weights": {
+            item.asset_id: float(weights[index])
+            for index, item in enumerate(request.assets)
+        },
         "expected_return": expected,
         "volatility": portfolio_vol,
         "sharpe_ratio": sharpe,
         "diversification_ratio": diversification,
-        "marginal_risk_contribution": {item.asset_id: float(contributions[index]) for index, item in enumerate(request.assets)},
+        "marginal_risk_contribution": {
+            item.asset_id: float(contributions[index])
+            for index, item in enumerate(request.assets)
+        },
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
         "converged": converged,

@@ -13,7 +13,9 @@ def create_mcp_server(registry: SafeToolRegistry | None = None):
     try:
         from mcp.server.fastmcp import FastMCP
     except ImportError as exc:  # pragma: no cover - optional integration
-        raise RuntimeError("Install the optional 'mcp' package to expose MCP tools") from exc
+        raise RuntimeError(
+            "Install the optional 'mcp' package to expose MCP tools"
+        ) from exc
 
     registry = registry or SafeToolRegistry()
     server = FastMCP("trading-gym-safe-tools")

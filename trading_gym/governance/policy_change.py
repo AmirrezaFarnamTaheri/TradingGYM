@@ -1,4 +1,5 @@
 """Versioned policy impact analysis without activation authority."""
+
 from __future__ import annotations
 
 import hashlib
@@ -11,7 +12,9 @@ Decision = Literal["allow", "deny", "review"]
 
 
 def _canonical_hash(value: Any) -> str:
-    raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    raw = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
     return hashlib.sha256(raw).hexdigest()
 
 
@@ -105,7 +108,10 @@ def evaluate_policy_change(request: PolicyImpactRequest) -> PolicyImpactReport:
                 relaxations.append(sample.sample_id)
             else:
                 tightenings.append(sample.sample_id)
-        if sample.expected_decision is not None and sample.candidate_decision != sample.expected_decision:
+        if (
+            sample.expected_decision is not None
+            and sample.candidate_decision != sample.expected_decision
+        ):
             mismatches.append(sample.sample_id)
             if sample.risk_tier in {"high", "critical"}:
                 blockers.append(f"high_risk_expectation_mismatch:{sample.sample_id}")
@@ -116,7 +122,9 @@ def evaluate_policy_change(request: PolicyImpactRequest) -> PolicyImpactReport:
         blockers.append(f"policy_relaxation_not_allowed:{len(relaxations)}")
     elif relaxations:
         warnings.append(f"policy_relaxations:{len(relaxations)}")
-    if _canonical_hash(request.current.rules) == _canonical_hash(request.candidate.rules):
+    if _canonical_hash(request.current.rules) == _canonical_hash(
+        request.candidate.rules
+    ):
         blockers.append("policy_candidate_has_no_effective_change")
     return PolicyImpactReport(
         policy_id=request.current.policy_id,

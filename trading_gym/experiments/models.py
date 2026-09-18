@@ -21,7 +21,9 @@ class ExperimentState(str, Enum):
 class ExperimentCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    experiment_type: Literal["backtest", "screening", "validation", "discovery", "research"]
+    experiment_type: Literal[
+        "backtest", "screening", "validation", "discovery", "research"
+    ]
     name: Annotated[str, Field(min_length=1, max_length=160)]
     configuration: dict[str, Any] = Field(default_factory=dict)
     idempotency_key: Annotated[str, Field(min_length=8, max_length=200)]

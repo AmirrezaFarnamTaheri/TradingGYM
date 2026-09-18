@@ -29,7 +29,9 @@ def test_lake_manifest_binds_names_sizes_and_content(tmp_path: Path) -> None:
     assert verify_lake(lake, manifests, merkle) is False
 
 
-def test_lake_manifest_rejects_unmanifested_and_traversal_entries(tmp_path: Path) -> None:
+def test_lake_manifest_rejects_unmanifested_and_traversal_entries(
+    tmp_path: Path,
+) -> None:
     lake, manifests, _, merkle = _build(tmp_path)
     extra = lake / "BTC_5m" / "extra.parquet"
     extra.write_bytes(b"PAR1 extra")

@@ -49,9 +49,7 @@ _DEFAULT_MAX_BARS = 200_000
 
 def _frame_sha256(frame: pd.DataFrame) -> str:
     digest = hashlib.sha256()
-    digest.update(
-        pd.util.hash_pandas_object(frame, index=True).to_numpy().tobytes()
-    )
+    digest.update(pd.util.hash_pandas_object(frame, index=True).to_numpy().tobytes())
     for column in frame.columns:
         digest.update(str(column).encode("utf-8"))
     return digest.hexdigest()
@@ -181,9 +179,7 @@ def run_playground(spec: PlaygroundRunSpec) -> PlaygroundRunResult:
         "n_trades": len(trades),
         "win_rate": float(wins / len(trades)) if trades else 0.0,
         "exposure": float(bars_in_position / n) if n else 0.0,
-        "total_costs_quote": float(
-            sum(trade["cost_quote"] for trade in trades)
-        ),
+        "total_costs_quote": float(sum(trade["cost_quote"] for trade in trades)),
         "returns_std": float(returns.std()) if len(returns) else 0.0,
     }
 
@@ -204,12 +200,15 @@ def _run_kernel(
     close: np.ndarray,
     spread: np.ndarray,
     index: pd.Index,
-) -> tuple[
-    np.ndarray,
-    list[dict[str, Any]],
-    list[tuple[pd.Timestamp, int]],
-    int,
-] | None:
+) -> (
+    tuple[
+        np.ndarray,
+        list[dict[str, Any]],
+        list[tuple[pd.Timestamp, int]],
+        int,
+    ]
+    | None
+):
     """Rust fast path; ``None`` when no kernel is loadable."""
 
     from trading_gym.playground import kernel as kernel_module

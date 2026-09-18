@@ -122,24 +122,36 @@ class DegradationLadder(Generic[T]):
         for mode in self._modes:
             try:
                 value = mode.handler(context)
-            except Exception as exc:  # noqa: BLE001 - degradation is the point; type name only
+            except (
+                Exception
+            ) as exc:  # noqa: BLE001 - degradation is the point; type name only
                 records.append(
-                    AttemptRecord(mode=mode.name, outcome=OUTCOME_ERROR, detail=type(exc).__name__)
+                    AttemptRecord(
+                        mode=mode.name, outcome=OUTCOME_ERROR, detail=type(exc).__name__
+                    )
                 )
                 continue
             if value is None:
                 records.append(
                     AttemptRecord(
-                        mode=mode.name, outcome=OUTCOME_INVALID_OUTPUT, detail="handler returned None"
+                        mode=mode.name,
+                        outcome=OUTCOME_INVALID_OUTPUT,
+                        detail="handler returned None",
                     )
                 )
                 continue
             if not mode.validator(value):
                 records.append(
                     AttemptRecord(
-                        mode=mode.name, outcome=OUTCOME_INVALID_OUTPUT, detail="validator returned False"
+                        mode=mode.name,
+                        outcome=OUTCOME_INVALID_OUTPUT,
+                        detail="validator returned False",
                     )
                 )
                 continue
-            return LadderOutcome(value=value, mode_used=mode.name, records=tuple(records), success=True)
-        return LadderOutcome(value=None, mode_used=None, records=tuple(records), success=False)
+            return LadderOutcome(
+                value=value, mode_used=mode.name, records=tuple(records), success=True
+            )
+        return LadderOutcome(
+            value=None, mode_used=None, records=tuple(records), success=False
+        )

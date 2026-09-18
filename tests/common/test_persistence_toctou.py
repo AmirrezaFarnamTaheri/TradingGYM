@@ -7,7 +7,9 @@ import pytest
 from trading_gym.common import persistence
 
 
-def test_read_json_rejects_symlinks_with_the_lock_held(tmp_path: Path, monkeypatch) -> None:
+def test_read_json_rejects_symlinks_with_the_lock_held(
+    tmp_path: Path, monkeypatch
+) -> None:
     """The symlink rejection must happen under the inter-process lock.
 
     Checking existence and rejecting symlinks *before* taking the lock leaves a
@@ -45,13 +47,15 @@ def test_read_json_rejects_symlinks_with_the_lock_held(tmp_path: Path, monkeypat
     with pytest.raises(ValueError, match="symlink"):
         persistence.read_json(link, {})
 
-    assert depth["reject_at"] == 1, (
-        "symlink rejection must happen with the inter-process lock held"
-    )
+    assert (
+        depth["reject_at"] == 1
+    ), "symlink rejection must happen with the inter-process lock held"
     assert persistence.read_json(victim, {}) == {"safe": True}
 
 
-def test_resolve_data_home_re_verifies_symlink_after_mkdir(tmp_path: Path, monkeypatch) -> None:
+def test_resolve_data_home_re_verifies_symlink_after_mkdir(
+    tmp_path: Path, monkeypatch
+) -> None:
     """``resolve_data_home`` must re-check for a symlink *after* ``mkdir``.
 
     The pre-existence check sees nothing while the directory does not yet

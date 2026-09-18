@@ -21,7 +21,10 @@ def test_portfolio_optimizer_enforces_cross_field_work_budget() -> None:
         PortfolioAssetInput(asset_id=f"A{index}", expected_return=0.01, volatility=0.2)
         for index in range(count)
     ]
-    matrix = [[1.0 if row == column else 0.0 for column in range(count)] for row in range(count)]
+    matrix = [
+        [1.0 if row == column else 0.0 for column in range(count)]
+        for row in range(count)
+    ]
     with pytest.raises(ValueError, match="optimization work budget"):
         PortfolioConstructionRequest(
             assets=assets,
@@ -31,9 +34,14 @@ def test_portfolio_optimizer_enforces_cross_field_work_budget() -> None:
         )
 
 
-def test_causal_research_rejects_duplicate_donors_and_aggregate_observations(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_causal_research_rejects_duplicate_donors_and_aggregate_observations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import trading_gym.institutional_os.causal_research as module
-    from trading_gym.institutional_os.causal_research import CausalResearchRequest, DonorSeries
+    from trading_gym.institutional_os.causal_research import (
+        CausalResearchRequest,
+        DonorSeries,
+    )
 
     donor = DonorSeries(series_id="donor", pre=[1.0, 2.0], post=[3.0])
     with pytest.raises(ValueError, match="donor IDs must be unique"):
@@ -59,7 +67,9 @@ def test_causal_research_rejects_duplicate_donors_and_aggregate_observations(mon
         )
 
 
-def test_agent_memory_enforces_aggregate_payload_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_memory_enforces_aggregate_payload_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import trading_gym.institutional_os.agent_memory as module
     from trading_gym.institutional_os.agent_memory import MemoryQuery, MemoryRecord
 
@@ -98,7 +108,9 @@ def test_agent_workforce_rejects_duplicate_and_self_dependencies() -> None:
         )
 
 
-def test_data_platform_rejects_aggregate_work_and_semantic_duplicates(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_data_platform_rejects_aggregate_work_and_semantic_duplicates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import trading_gym.institutional_os.data_platform as module
     from trading_gym.institutional_os.data_platform import (
         DataPlatformRequest,
@@ -108,9 +120,13 @@ def test_data_platform_rejects_aggregate_work_and_semantic_duplicates(monkeypatc
     )
 
     monkeypatch.setattr(module, "MAX_DATA_QUALITY_CELLS", 1)
-    observation = QualityObservation(dataset_id="dataset", timestamp=NOW, values={"a": 1.0, "b": 2.0})
+    observation = QualityObservation(
+        dataset_id="dataset", timestamp=NOW, values={"a": 1.0, "b": 2.0}
+    )
     with pytest.raises(ValueError, match="data-quality work budget"):
-        DataPlatformRequest(partitions=[], quality_observations=[observation], evaluated_at=NOW)
+        DataPlatformRequest(
+            partitions=[], quality_observations=[observation], evaluated_at=NOW
+        )
 
     feature = FeatureDefinition(
         feature_id="feature",
@@ -121,11 +137,15 @@ def test_data_platform_rejects_aggregate_work_and_semantic_duplicates(monkeypatc
         owner="owner",
     )
     with pytest.raises(ValueError, match="source dataset IDs must be unique"):
-        DataPlatformRequest(partitions=[], feature_definitions=[feature], evaluated_at=NOW)
+        DataPlatformRequest(
+            partitions=[], feature_definitions=[feature], evaluated_at=NOW
+        )
 
     comparison = VendorComparison(field="price", primary_value=1.0, peer_values=[1.0])
     with pytest.raises(ValueError, match="comparison fields must be unique"):
-        DataPlatformRequest(partitions=[], vendor_comparisons=[comparison, comparison], evaluated_at=NOW)
+        DataPlatformRequest(
+            partitions=[], vendor_comparisons=[comparison, comparison], evaluated_at=NOW
+        )
 
 
 def test_data_platform_surfaces_unknown_and_future_quality_evidence() -> None:
@@ -148,22 +168,41 @@ def test_data_platform_surfaces_unknown_and_future_quality_evidence() -> None:
         schema_version="1",
         provider_id="provider",
     )
-    report = evaluate_data_platform(DataPlatformRequest(
-        partitions=[partition],
-        quality_observations=[
-            QualityObservation(dataset_id="unknown", timestamp=NOW, values={"close": 1.0}),
-            QualityObservation(dataset_id="prices", timestamp=NOW + timedelta(seconds=1), values={"close": 1.0}),
-        ],
-        evaluated_at=NOW,
-    ))
-    assert any(item.startswith("unknown_quality_dataset:unknown") for item in report.quality_failures)
-    assert any(item.startswith("future_quality_observation:prices") for item in report.quality_failures)
+    report = evaluate_data_platform(
+        DataPlatformRequest(
+            partitions=[partition],
+            quality_observations=[
+                QualityObservation(
+                    dataset_id="unknown", timestamp=NOW, values={"close": 1.0}
+                ),
+                QualityObservation(
+                    dataset_id="prices",
+                    timestamp=NOW + timedelta(seconds=1),
+                    values={"close": 1.0},
+                ),
+            ],
+            evaluated_at=NOW,
+        )
+    )
+    assert any(
+        item.startswith("unknown_quality_dataset:unknown")
+        for item in report.quality_failures
+    )
+    assert any(
+        item.startswith("future_quality_observation:prices")
+        for item in report.quality_failures
+    )
     assert "data_quality_failed" in report.blockers
 
 
-def test_distributed_events_reject_secrets_duplicate_sequences_and_aggregate_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_distributed_events_reject_secrets_duplicate_sequences_and_aggregate_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import trading_gym.institutional_os.distributed_chaos as module
-    from trading_gym.institutional_os.distributed_chaos import DistributedChaosRequest, EventRecord
+    from trading_gym.institutional_os.distributed_chaos import (
+        DistributedChaosRequest,
+        EventRecord,
+    )
 
     with pytest.raises(ValueError, match="credential-like"):
         EventRecord(
@@ -191,7 +230,9 @@ def test_distributed_events_reject_secrets_duplicate_sequences_and_aggregate_pay
         DistributedChaosRequest(workers=[], work_units=[], events=[event])
 
 
-def test_product_collaboration_rejects_duplicate_principals_permissions_and_comments() -> None:
+def test_product_collaboration_rejects_duplicate_principals_permissions_and_comments() -> (
+    None
+):
     from trading_gym.institutional_os.product_collaboration import (
         CollaborationReview,
         MarketplacePackage,
@@ -218,13 +259,21 @@ def test_product_collaboration_rejects_duplicate_principals_permissions_and_comm
             license_id="MIT",
             requested_permissions=["read", "read"],
         )
-    with pytest.raises(ValueError, match="allowed marketplace permissions must be unique"):
+    with pytest.raises(
+        ValueError, match="allowed marketplace permissions must be unique"
+    ):
         ProductCollaborationRequest(
-            widgets=[], packages=[], reviews=[], allowed_marketplace_permissions=["read", "read"], evaluated_at=NOW
+            widgets=[],
+            packages=[],
+            reviews=[],
+            allowed_marketplace_permissions=["read", "read"],
+            evaluated_at=NOW,
         )
 
 
-def test_scientific_lab_rejects_secret_genomes_direction_drift_and_duplicate_baselines() -> None:
+def test_scientific_lab_rejects_secret_genomes_direction_drift_and_duplicate_baselines() -> (
+    None
+):
     from trading_gym.institutional_os.scientific_lab import (
         BenchmarkResult,
         ScientificLabRequest,
@@ -238,14 +287,28 @@ def test_scientific_lab_rejects_secret_genomes_direction_drift_and_duplicate_bas
             artifacts=[],
             required_artifact_types=[],
             benchmarks=[],
-            genome=[StrategyGene(gene_id="secret", category="parameter", value={"api_key": "value"})],
+            genome=[
+                StrategyGene(
+                    gene_id="secret", category="parameter", value={"api_key": "value"}
+                )
+            ],
             evaluated_at=NOW,
         )
     current = BenchmarkResult(
-        benchmark_id="score", metric="sharpe", value=1.0, higher_is_better=True, sample_count=10, uncertainty=0.1
+        benchmark_id="score",
+        metric="sharpe",
+        value=1.0,
+        higher_is_better=True,
+        sample_count=10,
+        uncertainty=0.1,
     )
     baseline = BenchmarkResult(
-        benchmark_id="score", metric="sharpe", value=0.8, higher_is_better=False, sample_count=10, uncertainty=0.1
+        benchmark_id="score",
+        metric="sharpe",
+        value=0.8,
+        higher_is_better=False,
+        sample_count=10,
+        uncertainty=0.1,
     )
     with pytest.raises(ValueError, match="direction must match"):
         ScientificLabRequest(
@@ -271,7 +334,9 @@ def test_scientific_lab_rejects_secret_genomes_direction_drift_and_duplicate_bas
         )
 
 
-def test_agent_workforce_bounds_role_matching_cross_product(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_workforce_bounds_role_matching_cross_product(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import trading_gym.institutional_os.agent_workforce as module
     from trading_gym.institutional_os.agent_workforce import (
         AgentDefinition,
@@ -283,16 +348,32 @@ def test_agent_workforce_bounds_role_matching_cross_product(monkeypatch: pytest.
     monkeypatch.setattr(module, "MAX_AGENT_TASK_MATCHES", 1)
     with pytest.raises(ValueError, match="agent-task matching"):
         WorkforcePlanRequest(
-            agents=[AgentDefinition(agent_id="a1", role=AgentRole.RESEARCH, requested_capabilities=["read"])],
+            agents=[
+                AgentDefinition(
+                    agent_id="a1",
+                    role=AgentRole.RESEARCH,
+                    requested_capabilities=["read"],
+                )
+            ],
             tasks=[
-                AgentTask(task_id="t1", role=AgentRole.RESEARCH, required_capabilities=["read"]),
-                AgentTask(task_id="t2", role=AgentRole.RESEARCH, required_capabilities=["read"]),
+                AgentTask(
+                    task_id="t1",
+                    role=AgentRole.RESEARCH,
+                    required_capabilities=["read"],
+                ),
+                AgentTask(
+                    task_id="t2",
+                    role=AgentRole.RESEARCH,
+                    required_capabilities=["read"],
+                ),
             ],
             globally_allowed_capabilities=["read"],
         )
 
 
-def test_distributed_scheduler_bounds_worker_work_cross_product(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_distributed_scheduler_bounds_worker_work_cross_product(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import trading_gym.institutional_os.distributed_chaos as module
     from trading_gym.institutional_os.distributed_chaos import (
         DistributedChaosRequest,
@@ -303,24 +384,42 @@ def test_distributed_scheduler_bounds_worker_work_cross_product(monkeypatch: pyt
 
     monkeypatch.setattr(module, "MAX_WORKER_WORK_MATCHES", 1)
     worker = WorkerNode(
-        worker_id="w1", zone="z", capabilities=["read"], capacity_units=2, fencing_token=1, health=WorkerHealth.HEALTHY
+        worker_id="w1",
+        zone="z",
+        capabilities=["read"],
+        capacity_units=2,
+        fencing_token=1,
+        health=WorkerHealth.HEALTHY,
     )
     with pytest.raises(ValueError, match="worker-work matching"):
         DistributedChaosRequest(
             workers=[worker],
             work_units=[
-                FederatedWorkUnit(work_id="x1", required_capabilities=["read"], required_units=1),
-                FederatedWorkUnit(work_id="x2", required_capabilities=["read"], required_units=1),
+                FederatedWorkUnit(
+                    work_id="x1", required_capabilities=["read"], required_units=1
+                ),
+                FederatedWorkUnit(
+                    work_id="x2", required_capabilities=["read"], required_units=1
+                ),
             ],
         )
 
 
-def test_portfolio_twin_bounds_cross_product_and_unknown_shock_references(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_portfolio_twin_bounds_cross_product_and_unknown_shock_references(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import trading_gym.institutional_os.portfolio_twin as module
-    from trading_gym.institutional_os.portfolio_twin import PortfolioTwinRequest, TwinPosition, TwinScenario
+    from trading_gym.institutional_os.portfolio_twin import (
+        PortfolioTwinRequest,
+        TwinPosition,
+        TwinScenario,
+    )
 
     position = TwinPosition(
-        instrument_id="AA", quantity=Decimal("1"), mark_price=Decimal("10"), currency="USD"
+        instrument_id="AA",
+        quantity=Decimal("1"),
+        mark_price=Decimal("10"),
+        currency="USD",
     )
     monkeypatch.setattr(module, "MAX_TWIN_SCENARIO_POSITION_EVALUATIONS", 1)
     with pytest.raises(ValueError, match="scenario work budget"):
@@ -328,7 +427,10 @@ def test_portfolio_twin_bounds_cross_product_and_unknown_shock_references(monkey
             base_currency="USD",
             cash_base=Decimal("0"),
             positions=[position],
-            scenarios=[TwinScenario(scenario_id="s1", price_shocks={}), TwinScenario(scenario_id="s2", price_shocks={})],
+            scenarios=[
+                TwinScenario(scenario_id="s1", price_shocks={}),
+                TwinScenario(scenario_id="s2", price_shocks={}),
+            ],
             fx_to_base={},
         )
     monkeypatch.setattr(module, "MAX_TWIN_SCENARIO_POSITION_EVALUATIONS", 10)
@@ -337,14 +439,22 @@ def test_portfolio_twin_bounds_cross_product_and_unknown_shock_references(monkey
             base_currency="USD",
             cash_base=Decimal("0"),
             positions=[position],
-            scenarios=[TwinScenario(scenario_id="s1", price_shocks={"ZZ": Decimal("-0.1")})],
+            scenarios=[
+                TwinScenario(scenario_id="s1", price_shocks={"ZZ": Decimal("-0.1")})
+            ],
             fx_to_base={},
         )
 
 
-def test_source_mining_bounds_aggregate_semantic_units(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_source_mining_bounds_aggregate_semantic_units(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import trading_gym.institutional_os.source_mining as module
-    from trading_gym.institutional_os.source_mining import HistoricalSurface, SourceMiningRequest, SurfaceDisposition
+    from trading_gym.institutional_os.source_mining import (
+        HistoricalSurface,
+        SourceMiningRequest,
+        SurfaceDisposition,
+    )
 
     monkeypatch.setattr(module, "MAX_SOURCE_MINING_SEMANTIC_UNITS", 1)
     surface = HistoricalSurface(
@@ -360,9 +470,15 @@ def test_source_mining_bounds_aggregate_semantic_units(monkeypatch: pytest.Monke
         SourceMiningRequest(expected_donors=["donor"], surfaces=[surface])
 
 
-def test_product_collaboration_bounds_aggregate_relationships(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_product_collaboration_bounds_aggregate_relationships(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import trading_gym.institutional_os.product_collaboration as module
-    from trading_gym.institutional_os.product_collaboration import CollaborationReview, ProductCollaborationRequest, ReviewState
+    from trading_gym.institutional_os.product_collaboration import (
+        CollaborationReview,
+        ProductCollaborationRequest,
+        ReviewState,
+    )
 
     monkeypatch.setattr(module, "MAX_REVIEW_RELATIONSHIPS", 2)
     review = CollaborationReview(
@@ -376,12 +492,21 @@ def test_product_collaboration_bounds_aggregate_relationships(monkeypatch: pytes
     )
     with pytest.raises(ValueError, match="relationship budget"):
         ProductCollaborationRequest(
-            widgets=[], packages=[], reviews=[review], allowed_marketplace_permissions=[], evaluated_at=NOW
+            widgets=[],
+            packages=[],
+            reviews=[review],
+            allowed_marketplace_permissions=[],
+            evaluated_at=NOW,
         )
 
 
 def test_data_platform_duplicate_content_detection_is_semantically_stable() -> None:
-    from trading_gym.institutional_os.data_platform import DataDomain, DataPartition, DataPlatformRequest, evaluate_data_platform
+    from trading_gym.institutional_os.data_platform import (
+        DataDomain,
+        DataPartition,
+        DataPlatformRequest,
+        evaluate_data_platform,
+    )
 
     partitions = [
         DataPartition(
@@ -397,5 +522,7 @@ def test_data_platform_duplicate_content_detection_is_semantically_stable() -> N
         )
         for index in range(3)
     ]
-    report = evaluate_data_platform(DataPlatformRequest(partitions=partitions, evaluated_at=NOW))
+    report = evaluate_data_platform(
+        DataPlatformRequest(partitions=partitions, evaluated_at=NOW)
+    )
     assert "duplicate_partition_content:prices" in report.warnings

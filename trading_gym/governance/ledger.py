@@ -57,7 +57,9 @@ def _coerce_secret(value: str | bytes, *, label: str) -> bytes:
 def _validate_key_id(value: str) -> str:
     value = value.strip()
     if not KEY_ID_RE.fullmatch(value):
-        raise ValueError("audit HMAC key IDs must match [A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+        raise ValueError(
+            "audit HMAC key IDs must match [A-Za-z0-9][A-Za-z0-9._-]{0,63}"
+        )
     return value
 
 
@@ -110,17 +112,23 @@ def _load_key_configuration(
         fingerprints: set[str] = set()
         for raw_id, raw_secret in ring_source.items():
             if not isinstance(raw_id, str) or not isinstance(raw_secret, (str, bytes)):
-                raise ValueError("audit HMAC keyring entries must map string IDs to string secrets")
+                raise ValueError(
+                    "audit HMAC keyring entries must map string IDs to string secrets"
+                )
             key_id = _validate_key_id(raw_id)
             secret = _coerce_secret(raw_secret, label=f"audit HMAC key {key_id}")
             fingerprint = hashlib.sha256(secret).hexdigest()
             if fingerprint in fingerprints:
-                raise ValueError("audit HMAC keyring must not reuse one secret under multiple IDs")
+                raise ValueError(
+                    "audit HMAC keyring must not reuse one secret under multiple IDs"
+                )
             fingerprints.add(fingerprint)
             keys[key_id] = secret
         active = hmac_key_id or os.getenv("AUDIT_HMAC_KEY_ID")
         if not active:
-            raise ValueError("AUDIT_HMAC_KEY_ID is required when an audit keyring is configured")
+            raise ValueError(
+                "AUDIT_HMAC_KEY_ID is required when an audit keyring is configured"
+            )
         active = _validate_key_id(active)
         if active not in keys:
             raise ValueError("active audit HMAC key ID is not present in the keyring")
@@ -143,7 +151,9 @@ class AuditLedger:
         anchor_path: Path | None = None,
     ) -> None:
         self.path = path or resolve_data_home() / "audit-ledger.jsonl"
-        self.anchor_path = anchor_path or self.path.with_suffix(self.path.suffix + ".anchor.json")
+        self.anchor_path = anchor_path or self.path.with_suffix(
+            self.path.suffix + ".anchor.json"
+        )
         self._keys, self._active_key_id = _load_key_configuration(
             hmac_key=hmac_key,
             hmac_key_id=hmac_key_id,
@@ -176,13 +186,17 @@ class AuditLedger:
         if self.path.stat().st_size > MAX_LEDGER_BYTES:
             raise ValueError("audit ledger exceeds its configured size limit")
         entries: list[dict[str, Any]] = []
-        for number, line in enumerate(self.path.read_text(encoding="utf-8").splitlines(), start=1):
+        for number, line in enumerate(
+            self.path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
             if not line.strip():
                 continue
             try:
                 parsed = json.loads(line)
             except json.JSONDecodeError as exc:
-                raise ValueError(f"audit ledger has invalid JSON at line {number}") from exc
+                raise ValueError(
+                    f"audit ledger has invalid JSON at line {number}"
+                ) from exc
             if not isinstance(parsed, dict):
                 raise ValueError(f"audit ledger line {number} is not an object")
             entries.append(parsed)
@@ -190,7 +204,9 @@ class AuditLedger:
                 raise ValueError("audit ledger exceeds its configured entry limit")
         return entries
 
-    def _mac(self, purpose: str, value: dict[str, Any], *, key_id: str | None = None) -> str:
+    def _mac(
+        self, purpose: str, value: dict[str, Any], *, key_id: str | None = None
+    ) -> str:
         selected = key_id or self._active_key_id
         if selected is None or selected not in self._keys:
             raise RuntimeError("audit sealing key is not configured")
@@ -211,7 +227,10 @@ class AuditLedger:
         if not isinstance(actual_mac, str):
             return None
         if declared_key_id is not None:
-            if not isinstance(declared_key_id, str) or declared_key_id not in self._keys:
+            if (
+                not isinstance(declared_key_id, str)
+                or declared_key_id not in self._keys
+            ):
                 return None
             candidates = (declared_key_id,)
         else:
@@ -246,15 +265,37 @@ class AuditLedger:
         key_ids_used: set[str] = set()
         for expected_sequence, entry in enumerate(entries, start=1):
             if entry.get("sequence") != expected_sequence:
-                return previous_hash, sealed_sequences, key_ids_used, f"sequence mismatch at {expected_sequence}", False
+                return (
+                    previous_hash,
+                    sealed_sequences,
+                    key_ids_used,
+                    f"sequence mismatch at {expected_sequence}",
+                    False,
+                )
             if entry.get("previous_hash") != previous_hash:
-                return previous_hash, sealed_sequences, key_ids_used, f"chain mismatch at {expected_sequence}", False
+                return (
+                    previous_hash,
+                    sealed_sequences,
+                    key_ids_used,
+                    f"chain mismatch at {expected_sequence}",
+                    False,
+                )
             candidate = dict(entry)
             entry_mac = candidate.pop("entry_mac", None)
             entry_hash = candidate.pop("entry_hash", None)
-            computed = hashlib.sha256(previous_hash.encode("ascii") + _canonical(candidate)).hexdigest()
-            if not isinstance(entry_hash, str) or not hmac.compare_digest(entry_hash, computed):
-                return previous_hash, sealed_sequences, key_ids_used, f"hash mismatch at {expected_sequence}", False
+            computed = hashlib.sha256(
+                previous_hash.encode("ascii") + _canonical(candidate)
+            ).hexdigest()
+            if not isinstance(entry_hash, str) or not hmac.compare_digest(
+                entry_hash, computed
+            ):
+                return (
+                    previous_hash,
+                    sealed_sequences,
+                    key_ids_used,
+                    f"hash mismatch at {expected_sequence}",
+                    False,
+                )
             if entry_mac is not None:
                 mac_candidate = dict(entry)
                 mac_candidate.pop("entry_mac", None)
@@ -292,7 +333,11 @@ class AuditLedger:
         if not event or not actor or not subject:
             raise ValueError("audit event, actor, and subject must be non-empty")
         event_id = (event_id or uuid4().hex).strip()
-        if not event_id or len(event_id) > 240 or any(ord(char) < 32 for char in event_id):
+        if (
+            not event_id
+            or len(event_id) > 240
+            or any(ord(char) < 32 for char in event_id)
+        ):
             raise ValueError("audit event_id must be 1-240 printable characters")
         safe_details = redact_secrets(details)
         bounded_json_dumps(safe_details, max_bytes=256 * 1024)
@@ -301,7 +346,9 @@ class AuditLedger:
             entries = self._entries_unlocked()
             previous_hash, _, _, chain_error, _ = self._verify_entries(entries)
             if chain_error is not None:
-                raise ValueError(f"refusing to append to invalid audit ledger: {chain_error}")
+                raise ValueError(
+                    f"refusing to append to invalid audit ledger: {chain_error}"
+                )
             self._refuse_on_anchor_mismatch(entries, previous_hash)
             for existing in entries:
                 if existing.get("event_id") != event_id:
@@ -314,7 +361,9 @@ class AuditLedger:
                 }
                 if all(existing.get(key) == value for key, value in comparable.items()):
                     return existing
-                raise ValueError("audit event_id was already used for different event content")
+                raise ValueError(
+                    "audit event_id was already used for different event content"
+                )
             if len(entries) >= MAX_AUDIT_ENTRIES:
                 raise ValueError("audit ledger entry limit reached")
             body: dict[str, Any] = {
@@ -336,7 +385,9 @@ class AuditLedger:
                 body["entry_mac"] = self._mac("audit-entry-v1", body)
             append_jsonl(self.path, body)
             if self._active_key_id is not None:
-                self._write_anchor(sequence=int(body["sequence"]), head=str(body["entry_hash"]))
+                self._write_anchor(
+                    sequence=int(body["sequence"]), head=str(body["entry_hash"])
+                )
             self._invalidate_verified_cache()
             return body
 
@@ -361,7 +412,11 @@ class AuditLedger:
             if not event or not actor or not subject:
                 raise ValueError("audit event, actor, and subject must be non-empty")
             event_id = str(record.get("event_id") or uuid4().hex).strip()
-            if not event_id or len(event_id) > 240 or any(ord(char) < 32 for char in event_id):
+            if (
+                not event_id
+                or len(event_id) > 240
+                or any(ord(char) < 32 for char in event_id)
+            ):
                 raise ValueError("audit event_id must be 1-240 printable characters")
             safe_details = redact_secrets(dict(record.get("details") or {}))
             bounded_json_dumps(safe_details, max_bytes=256 * 1024)
@@ -372,7 +427,9 @@ class AuditLedger:
             entries = self._entries_unlocked()
             previous_hash, _, _, chain_error, _ = self._verify_entries(entries)
             if chain_error is not None:
-                raise ValueError(f"refusing to append to invalid audit ledger: {chain_error}")
+                raise ValueError(
+                    f"refusing to append to invalid audit ledger: {chain_error}"
+                )
             self._refuse_on_anchor_mismatch(entries, previous_hash)
             by_id = {str(entry.get("event_id")): entry for entry in entries}
             results: list[dict[str, Any]] = []
@@ -386,8 +443,12 @@ class AuditLedger:
                 }
                 existing = by_id.get(event_id)
                 if existing is not None:
-                    if not all(existing.get(key) == value for key, value in comparable.items()):
-                        raise ValueError("audit event_id was already used for different event content")
+                    if not all(
+                        existing.get(key) == value for key, value in comparable.items()
+                    ):
+                        raise ValueError(
+                            "audit event_id was already used for different event content"
+                        )
                     results.append(existing)
                     continue
                 if len(entries) + len(appended) >= MAX_AUDIT_ENTRIES:
@@ -415,10 +476,15 @@ class AuditLedger:
                 results.append(body)
             if appended:
                 payload = "".join(
-                    json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+                    json.dumps(
+                        body, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                    )
+                    + "\n"
                     for body in appended
                 )
-                if len(payload.encode("utf-8")) > MAX_JSONL_RECORD_BYTES * max(len(appended), 1):
+                if len(payload.encode("utf-8")) > MAX_JSONL_RECORD_BYTES * max(
+                    len(appended), 1
+                ):
                     raise ValueError("audit ledger batch exceeds its record byte limit")
                 with FileLock(str(self.path) + ".lock"):
                     if self.path.exists():
@@ -436,7 +502,8 @@ class AuditLedger:
                         _fsync_directory(self.path.parent)
                 if self._active_key_id is not None:
                     self._write_anchor(
-                        sequence=int(appended[-1]["sequence"]), head=str(appended[-1]["entry_hash"])
+                        sequence=int(appended[-1]["sequence"]),
+                        head=str(appended[-1]["entry_hash"]),
                     )
             self._invalidate_verified_cache()
             return results
@@ -490,7 +557,9 @@ class AuditLedger:
                 "error": str(exc),
             }
 
-        previous_hash, sealed_sequences, key_ids_used, error, chain_valid = self._verify_entries(entries)
+        previous_hash, sealed_sequences, key_ids_used, error, chain_valid = (
+            self._verify_entries(entries)
+        )
         if error is not None:
             return self._failure(entries, error, chain_valid=chain_valid)
 

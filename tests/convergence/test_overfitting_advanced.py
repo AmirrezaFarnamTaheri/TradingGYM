@@ -21,7 +21,9 @@ def test_advanced_overfitting_controls_are_bounded_and_deterministic() -> None:
     assert 0 <= dsr <= 1
     p_value = randomized_baseline_p_value(1.0, np.linspace(-1, 2, 100))
     assert 0 < p_value <= 1
-    mask = benjamini_hochberg(np.array([0.001, 0.01, 0.2, 0.8]), false_discovery_rate=0.05)
+    mask = benjamini_hochberg(
+        np.array([0.001, 0.01, 0.2, 0.8]), false_discovery_rate=0.05
+    )
     assert mask.tolist() == [True, True, False, False]
 
     summary = summarise_walk_forward([1.0, 0.8, -0.2], [0.7, 0.6, -0.4])

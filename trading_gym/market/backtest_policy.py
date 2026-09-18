@@ -6,7 +6,6 @@ import math
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 
-
 _TIMEFRAME_SECONDS = {
     "1m": 60,
     "3m": 180,
@@ -74,12 +73,18 @@ def warmup_calendar_days(timeframe: str, warmup_bars: int) -> int:
     return max(1, math.ceil(calendar_days))
 
 
-def policy_for(*, market: str, timeframe: str, absolute_max_bars: int = 2_000_000) -> BacktestPolicy:
+def policy_for(
+    *, market: str, timeframe: str, absolute_max_bars: int = 2_000_000
+) -> BacktestPolicy:
     tf = normalise_timeframe(timeframe)
     market_key = market.strip().lower()
     max_days = _MARKET_OVERRIDES.get(market_key, {}).get(tf, _DEFAULT_DAYS[tf])
     bars = max(1, (max_days * 86400) // _TIMEFRAME_SECONDS[tf])
-    return BacktestPolicy(max_days=max_days, max_bars=min(bars, absolute_max_bars), reason=f"{market_key or 'default'} {tf} workload/provider limit")
+    return BacktestPolicy(
+        max_days=max_days,
+        max_bars=min(bars, absolute_max_bars),
+        reason=f"{market_key or 'default'} {tf} workload/provider limit",
+    )
 
 
 def validate_backtest_window(
@@ -100,7 +105,10 @@ def validate_backtest_window(
     warmup_days = warmup_calendar_days(timeframe, warmup_bars)
     fetch_start = start_utc - timedelta(days=warmup_days)
     requested_days = max(1, math.ceil((end_utc - fetch_start).total_seconds() / 86400))
-    estimated_bars = math.ceil((end_utc - fetch_start).total_seconds() / _TIMEFRAME_SECONDS[normalise_timeframe(timeframe)])
+    estimated_bars = math.ceil(
+        (end_utc - fetch_start).total_seconds()
+        / _TIMEFRAME_SECONDS[normalise_timeframe(timeframe)]
+    )
     details: dict[str, object] = {
         **asdict(policy),
         "market": market.strip().lower(),
@@ -115,7 +123,9 @@ def validate_backtest_window(
     }
     if requested_days > policy.max_days or estimated_bars > policy.max_bars:
         details["allowed"] = False
-        details["latest_allowed_start"] = (end_utc - timedelta(days=policy.max_days - 1)).isoformat()
+        details["latest_allowed_start"] = (
+            end_utc - timedelta(days=policy.max_days - 1)
+        ).isoformat()
         raise BacktestLimitError(details)
     details["allowed"] = True
     return details

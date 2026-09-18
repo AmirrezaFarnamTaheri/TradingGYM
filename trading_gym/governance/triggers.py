@@ -11,7 +11,11 @@ from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from trading_gym.common.audit_outbox import stamp_outbox_digest, verify_outbox_digest
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.common.security import bounded_json_dumps, redact_secrets
 from trading_gym.governance.ledger import AuditLedger
 from trading_gym.governance.models import OperationProposal, ProposalCreate, RiskTier
@@ -58,10 +62,14 @@ class TriggerCreate(BaseModel):
 
     trigger_id: Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_.-]{1,79}$")]
     kind: TriggerKind
-    metric: Annotated[str | None, Field(pattern=r"^[A-Za-z][A-Za-z0-9_.-]{1,79}$")] = None
+    metric: Annotated[str | None, Field(pattern=r"^[A-Za-z][A-Za-z0-9_.-]{1,79}$")] = (
+        None
+    )
     operator: TriggerOperator | None = None
     threshold: float | None = None
-    event_name: Annotated[str | None, Field(pattern=r"^[A-Za-z][A-Za-z0-9_.-]{1,119}$")] = None
+    event_name: Annotated[
+        str | None, Field(pattern=r"^[A-Za-z][A-Za-z0-9_.-]{1,119}$")
+    ] = None
     interval_seconds: Annotated[int | None, Field(ge=60, le=2_592_000)] = None
     operation: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_.-]{1,79}$")]
     summary: Annotated[str, Field(min_length=1, max_length=1000)]
@@ -74,19 +82,29 @@ class TriggerCreate(BaseModel):
         metric_fields = (self.metric, self.operator, self.threshold)
         if self.kind is TriggerKind.METRIC:
             if any(value is None for value in metric_fields):
-                raise ValueError("metric triggers require metric, operator, and threshold")
+                raise ValueError(
+                    "metric triggers require metric, operator, and threshold"
+                )
             if self.event_name is not None or self.interval_seconds is not None:
-                raise ValueError("metric triggers must not define event or interval fields")
+                raise ValueError(
+                    "metric triggers must not define event or interval fields"
+                )
         elif self.kind is TriggerKind.EVENT:
             if self.event_name is None:
                 raise ValueError("event triggers require event_name")
-            if any(value is not None for value in (*metric_fields, self.interval_seconds)):
-                raise ValueError("event triggers must not define metric or interval fields")
+            if any(
+                value is not None for value in (*metric_fields, self.interval_seconds)
+            ):
+                raise ValueError(
+                    "event triggers must not define metric or interval fields"
+                )
         else:
             if self.interval_seconds is None:
                 raise ValueError("interval triggers require interval_seconds")
             if any(value is not None for value in (*metric_fields, self.event_name)):
-                raise ValueError("interval triggers must not define metric or event fields")
+                raise ValueError(
+                    "interval triggers must not define metric or event fields"
+                )
         bounded_json_dumps(self.payload_template, max_bytes=32 * 1024)
         return self
 
@@ -242,7 +260,11 @@ class TriggerRepository:
             if delivered:
                 atomic_write_json(self.path, document)
             pending = len(document["audit_outbox"])
-        return {"delivered": delivered, "pending": pending, "ledger": self.ledger.verify()}
+        return {
+            "delivered": delivered,
+            "pending": pending,
+            "ledger": self.ledger.verify(),
+        }
 
     def list(self, *, state: TriggerState | None = None) -> list[TriggerDefinition]:
         with self.lock:
@@ -279,7 +301,9 @@ class TriggerRepository:
                     mode="json",
                 )
                 if comparable != request.model_dump(mode="json"):
-                    raise TriggerConflict(f"trigger already exists: {request.trigger_id}")
+                    raise TriggerConflict(
+                        f"trigger already exists: {request.trigger_id}"
+                    )
             else:
                 if len(document["triggers"]) >= self.MAX_TRIGGERS:
                     raise TriggerConflict("trigger store record limit reached")
@@ -294,7 +318,9 @@ class TriggerRepository:
                         else None
                     ),
                 )
-                document["triggers"][request.trigger_id] = definition.model_dump(mode="json")
+                document["triggers"][request.trigger_id] = definition.model_dump(
+                    mode="json"
+                )
                 self._queue_audit(
                     document,
                     event_id=f"trigger:{request.trigger_id}:created",
@@ -399,7 +425,6 @@ class TriggerRepository:
                 proposal = definition.last_proposal
             else:
                 definition.last_evaluated_at = now
-                matched = False
                 details: dict[str, Any] = {
                     "trigger_id": trigger_id,
                     "kind": definition.kind.value,

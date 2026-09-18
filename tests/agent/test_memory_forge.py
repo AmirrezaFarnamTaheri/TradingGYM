@@ -58,7 +58,6 @@ from trading_gym.strategy_lab.models import (
     StrategySpec,
 )
 
-
 # ---------------------------------------------------------------------------
 # Long-term memory
 # ---------------------------------------------------------------------------
@@ -107,9 +106,7 @@ class TestPersistentExperienceMemory:
         hits = memory.query(["regime:chop", "symbol:btcusdt"], now=1_000_700.0)
         assert hits[0].lesson == "chop+btc lesson"
 
-    def test_repeat_observations_consolidate_with_support(
-        self, tmp_path: Path
-    ) -> None:
+    def test_repeat_observations_consolidate_with_support(self, tmp_path: Path) -> None:
         path = tmp_path / "experiences.jsonl"
         memory = PersistentExperienceMemory.open(path)
         base = _recent()
@@ -133,9 +130,7 @@ class TestPersistentExperienceMemory:
         assert reopened.observations() == 4
         assert reopened.query(["regime:chop"])[0].support == 4
 
-    def test_support_outranks_a_one_off_of_equal_overlap(
-        self, tmp_path: Path
-    ) -> None:
+    def test_support_outranks_a_one_off_of_equal_overlap(self, tmp_path: Path) -> None:
         memory = PersistentExperienceMemory.open(tmp_path / "experiences.jsonl")
         for offset in range(5):
             memory.record(
@@ -223,9 +218,7 @@ class TestPersistentExperienceMemory:
 
 
 class TestMemoryAdvice:
-    def test_advice_separates_warnings_from_confirmations(
-        self, tmp_path: Path
-    ) -> None:
+    def test_advice_separates_warnings_from_confirmations(self, tmp_path: Path) -> None:
         memory = PersistentExperienceMemory.open(tmp_path / "experiences.jsonl")
         memory.record(
             context_tags=["regime:chop"], outcome="loss", lesson="chop bleeds"
@@ -450,9 +443,7 @@ class TestToolNomination:
         assert entry["decided_by"] == "operator-1"
         assert entry["note"] == "redundant with existing monitor"
 
-    def test_resolution_of_an_unknown_nomination_raises(
-        self, tmp_path: Path
-    ) -> None:
+    def test_resolution_of_an_unknown_nomination_raises(self, tmp_path: Path) -> None:
         surface = RevisionSurface.open(tmp_path / "revisions.jsonl")
         with pytest.raises(KeyError):
             surface.resolve_nomination(

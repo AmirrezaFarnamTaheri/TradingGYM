@@ -1,4 +1,5 @@
 """Federation, event-sourcing projection, and non-destructive chaos assurance."""
+
 from __future__ import annotations
 
 from collections import defaultdict, deque
@@ -29,7 +30,9 @@ class WorkerNode(BaseModel):
 
     worker_id: Annotated[str, Field(min_length=2, max_length=128)]
     zone: Annotated[str, Field(min_length=1, max_length=80)]
-    capabilities: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(max_length=1000)
+    capabilities: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(
+        max_length=1000
+    )
     capacity_units: Annotated[int, Field(ge=0, le=1_000_000)]
     fencing_token: Annotated[int, Field(ge=1)]
     health: WorkerHealth
@@ -45,10 +48,14 @@ class FederatedWorkUnit(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     work_id: Annotated[str, Field(min_length=2, max_length=128)]
-    required_capabilities: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(max_length=1000)
+    required_capabilities: list[Annotated[str, Field(min_length=2, max_length=120)]] = (
+        Field(max_length=1000)
+    )
     required_units: Annotated[int, Field(ge=1, le=1_000_000)]
     preferred_zone: str | None = Field(default=None, min_length=1, max_length=80)
-    dependency_work_ids: list[Annotated[str, Field(min_length=2, max_length=128)]] = Field(default_factory=list, max_length=1000)
+    dependency_work_ids: list[Annotated[str, Field(min_length=2, max_length=128)]] = (
+        Field(default_factory=list, max_length=1000)
+    )
 
     @model_validator(mode="after")
     def validate_work_lists(self) -> "FederatedWorkUnit":
@@ -99,7 +106,9 @@ class ChaosExperiment(BaseModel):
     target: Annotated[str, Field(min_length=2, max_length=240)]
     blast_radius: float = Field(gt=0.0, le=1.0)
     duration_seconds: Annotated[int, Field(ge=1, le=86400)]
-    abort_conditions: list[Annotated[str, Field(min_length=4, max_length=1000)]] = Field(min_length=1, max_length=100)
+    abort_conditions: list[Annotated[str, Field(min_length=4, max_length=1000)]] = (
+        Field(min_length=1, max_length=100)
+    )
     rollback_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     dry_run: bool = True
 
@@ -110,22 +119,38 @@ class DistributedChaosRequest(BaseModel):
     workers: list[WorkerNode] = Field(max_length=100_000)
     work_units: list[FederatedWorkUnit] = Field(max_length=100_000)
     events: list[EventRecord] = Field(default_factory=list, max_length=1_000_000)
-    chaos_experiments: list[ChaosExperiment] = Field(default_factory=list, max_length=10_000)
+    chaos_experiments: list[ChaosExperiment] = Field(
+        default_factory=list, max_length=10_000
+    )
     genesis_hash: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")] = "0" * 64
 
     @model_validator(mode="after")
     def validate_ids(self) -> "DistributedChaosRequest":
-        for values, label in (([item.worker_id for item in self.workers], "worker"), ([item.work_id for item in self.work_units], "work"), ([item.experiment_id for item in self.chaos_experiments], "chaos")):
+        for values, label in (
+            ([item.worker_id for item in self.workers], "worker"),
+            ([item.work_id for item in self.work_units], "work"),
+            ([item.experiment_id for item in self.chaos_experiments], "chaos"),
+        ):
             if len(values) != len(set(values)):
                 raise ValueError(f"{label} IDs must be unique")
         event_keys = [(item.stream_id, item.sequence) for item in self.events]
         if len(event_keys) != len(set(event_keys)):
             raise ValueError("event stream sequences must be unique")
-        if sum(len(item.dependency_work_ids) for item in self.work_units) > MAX_DISTRIBUTED_DEPENDENCY_LINKS:
+        if (
+            sum(len(item.dependency_work_ids) for item in self.work_units)
+            > MAX_DISTRIBUTED_DEPENDENCY_LINKS
+        ):
             raise ValueError("distributed dependency work budget exceeded")
         if len(self.workers) * len(self.work_units) > MAX_WORKER_WORK_MATCHES:
             raise ValueError("worker-work matching budget exceeded")
-        aggregate_payload_bytes = sum(len(bounded_json_dumps(item.payload, max_bytes=MAX_EVENT_PAYLOAD_BYTES).encode("utf-8")) for item in self.events)
+        aggregate_payload_bytes = sum(
+            len(
+                bounded_json_dumps(
+                    item.payload, max_bytes=MAX_EVENT_PAYLOAD_BYTES
+                ).encode("utf-8")
+            )
+            for item in self.events
+        )
         if aggregate_payload_bytes > MAX_EVENT_AGGREGATE_BYTES:
             raise ValueError("event payload aggregate exceeds 64 MiB")
         return self
@@ -157,7 +182,9 @@ class DistributedChaosReport(BaseModel):
     leader_election_authority_granted: bool = False
 
 
-def evaluate_distributed_chaos(request: DistributedChaosRequest) -> DistributedChaosReport:
+def evaluate_distributed_chaos(
+    request: DistributedChaosRequest,
+) -> DistributedChaosReport:
     blockers: list[str] = []
     warnings: list[str] = []
     work_ids = {item.work_id for item in request.work_units}
@@ -195,19 +222,33 @@ def evaluate_distributed_chaos(request: DistributedChaosRequest) -> DistributedC
                 continue
             if capacities[worker.worker_id] < work.required_units:
                 continue
-            zone_penalty = 0 if work.preferred_zone is None or worker.zone == work.preferred_zone else 1
-            candidates.append((zone_penalty, -capacities[worker.worker_id], -worker.fencing_token, worker.worker_id, worker))
+            zone_penalty = (
+                0
+                if work.preferred_zone is None or worker.zone == work.preferred_zone
+                else 1
+            )
+            candidates.append(
+                (
+                    zone_penalty,
+                    -capacities[worker.worker_id],
+                    -worker.fencing_token,
+                    worker.worker_id,
+                    worker,
+                )
+            )
         if not candidates:
             unassigned.append(work_id)
             continue
         worker = min(candidates)[-1]
         capacities[worker.worker_id] -= work.required_units
-        assignments.append(WorkAssignment(
-            work_id=work_id,
-            worker_id=worker.worker_id,
-            fencing_token=worker.fencing_token,
-            allocated_units=work.required_units,
-        ))
+        assignments.append(
+            WorkAssignment(
+                work_id=work_id,
+                worker_id=worker.worker_id,
+                fencing_token=worker.fencing_token,
+                allocated_units=work.required_units,
+            )
+        )
     if unassigned:
         blockers.append("unassigned_distributed_work")
 
@@ -220,14 +261,16 @@ def evaluate_distributed_chaos(request: DistributedChaosRequest) -> DistributedC
         expected_previous = request.genesis_hash
         expected_sequence = 1
         for event in sorted(records, key=lambda item: item.sequence):
-            calculated = sha256_payload({
-                "stream_id": event.stream_id,
-                "sequence": event.sequence,
-                "event_type": event.event_type,
-                "payload": event.payload,
-                "previous_sha256": event.previous_sha256,
-                "occurred_at": event.occurred_at,
-            })
+            calculated = sha256_payload(
+                {
+                    "stream_id": event.stream_id,
+                    "sequence": event.sequence,
+                    "event_type": event.event_type,
+                    "payload": event.payload,
+                    "previous_sha256": event.previous_sha256,
+                    "occurred_at": event.occurred_at,
+                }
+            )
             if event.sequence != expected_sequence:
                 blockers.append(f"event_sequence_gap:{stream_id}:{expected_sequence}")
             if event.previous_sha256 != expected_previous:

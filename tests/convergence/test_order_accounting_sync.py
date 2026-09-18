@@ -10,7 +10,12 @@ from trading_gym.convergence import order_accounting
 from trading_gym.convergence.order_accounting import OrderAccountingSyncService
 from trading_gym.governance.ledger import AuditLedger
 from trading_gym.orders import (
-    OrderEvent, OrderEventType, OrderIntent, OrderRepository, OrderSide, OrderType,
+    OrderEvent,
+    OrderEventType,
+    OrderIntent,
+    OrderRepository,
+    OrderSide,
+    OrderType,
 )
 
 
@@ -23,24 +28,49 @@ def setup(tmp_path):
         orders=orders, accounting=accounting, path=tmp_path / "sync.json", ledger=ledger
     )
     now = datetime.now(timezone.utc)
-    created = orders.create(OrderIntent(
-        order_id="order:sync-alpha01", account_id="primary", instrument_id="BTC-USDT",
-        quote_currency="USDT", side=OrderSide.BUY, order_type=OrderType.LIMIT,
-        requested_quantity=Decimal("2"), limit_price=Decimal("100"),
-        correlation_id="trace:sync-alpha01", created_by="operator", created_at=now,
-    ))
-    ack = orders.append(OrderEvent(
-        event_id="event:sync-ack-0001", order_id=created.order_id,
-        event_type=OrderEventType.ACKNOWLEDGED, occurred_at=now + timedelta(seconds=1),
-        actor="broker", external_order_id="venue-1",
-    ), expected_revision=created.revision)
-    filled = orders.append(OrderEvent(
-        event_id="event:sync-fill-001", order_id=created.order_id,
-        event_type=OrderEventType.FILL, occurred_at=now + timedelta(seconds=2),
-        actor="broker", external_order_id="venue-1", fill_id="fill-sync-1",
-        fill_quantity=Decimal("1"), fill_price=Decimal("100"),
-        cumulative_filled_quantity=Decimal("1"), fee_amount=Decimal("1"), fee_currency="USDT",
-    ), expected_revision=ack.revision)
+    created = orders.create(
+        OrderIntent(
+            order_id="order:sync-alpha01",
+            account_id="primary",
+            instrument_id="BTC-USDT",
+            quote_currency="USDT",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            requested_quantity=Decimal("2"),
+            limit_price=Decimal("100"),
+            correlation_id="trace:sync-alpha01",
+            created_by="operator",
+            created_at=now,
+        )
+    )
+    ack = orders.append(
+        OrderEvent(
+            event_id="event:sync-ack-0001",
+            order_id=created.order_id,
+            event_type=OrderEventType.ACKNOWLEDGED,
+            occurred_at=now + timedelta(seconds=1),
+            actor="broker",
+            external_order_id="venue-1",
+        ),
+        expected_revision=created.revision,
+    )
+    filled = orders.append(
+        OrderEvent(
+            event_id="event:sync-fill-001",
+            order_id=created.order_id,
+            event_type=OrderEventType.FILL,
+            occurred_at=now + timedelta(seconds=2),
+            actor="broker",
+            external_order_id="venue-1",
+            fill_id="fill-sync-1",
+            fill_quantity=Decimal("1"),
+            fill_price=Decimal("100"),
+            cumulative_filled_quantity=Decimal("1"),
+            fee_amount=Decimal("1"),
+            fee_currency="USDT",
+        ),
+        expected_revision=ack.revision,
+    )
     return orders, accounting, service, filled.order_id
 
 
@@ -68,8 +98,11 @@ def test_sync_requires_existing_account_and_detects_checkpoint_tampering(tmp_pat
     orders, accounting, service, order_id = setup(tmp_path)
     service.sync(order_id)
     import json
+
     document = json.loads((tmp_path / "sync.json").read_text())
-    document["checkpoints"][next(iter(document["checkpoints"]))]["fingerprint"] = "0" * 64
+    document["checkpoints"][next(iter(document["checkpoints"]))]["fingerprint"] = (
+        "0" * 64
+    )
     (tmp_path / "sync.json").write_text(json.dumps(document))
     with pytest.raises(ValueError, match="integrity"):
         service.sync(order_id)
@@ -85,22 +118,40 @@ def setup_many_fills(tmp_path: Path, *, fills: int):
         orders=orders, accounting=accounting, path=tmp_path / "sync.json", ledger=ledger
     )
     now = datetime.now(timezone.utc)
-    created = orders.create(OrderIntent(
-        order_id="order:sync-batch01", account_id="primary", instrument_id="BTC-USDT",
-        quote_currency="USDT", side=OrderSide.BUY, order_type=OrderType.LIMIT,
-        requested_quantity=Decimal(fills), limit_price=Decimal("1"),
-        correlation_id="trace:sync-batch01", created_by="operator", created_at=now,
-    ))
+    created = orders.create(
+        OrderIntent(
+            order_id="order:sync-batch01",
+            account_id="primary",
+            instrument_id="BTC-USDT",
+            quote_currency="USDT",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            requested_quantity=Decimal(fills),
+            limit_price=Decimal("1"),
+            correlation_id="trace:sync-batch01",
+            created_by="operator",
+            created_at=now,
+        )
+    )
     snapshot = created
     for i in range(fills):
-        snapshot = orders.append(OrderEvent(
-            event_id=f"event:sync-fill-{i:04d}", order_id=created.order_id,
-            event_type=OrderEventType.FILL, occurred_at=now + timedelta(seconds=i + 1),
-            actor="broker", external_order_id="venue-batch", fill_id=f"fill-batch-{i}",
-            fill_quantity=Decimal("1"), fill_price=Decimal("1"),
-            cumulative_filled_quantity=Decimal(i + 1), fee_amount=Decimal("0.01"),
-            fee_currency="USDT",
-        ), expected_revision=snapshot.revision)
+        snapshot = orders.append(
+            OrderEvent(
+                event_id=f"event:sync-fill-{i:04d}",
+                order_id=created.order_id,
+                event_type=OrderEventType.FILL,
+                occurred_at=now + timedelta(seconds=i + 1),
+                actor="broker",
+                external_order_id="venue-batch",
+                fill_id=f"fill-batch-{i}",
+                fill_quantity=Decimal("1"),
+                fill_price=Decimal("1"),
+                cumulative_filled_quantity=Decimal(i + 1),
+                fee_amount=Decimal("0.01"),
+                fee_currency="USDT",
+            ),
+            expected_revision=snapshot.revision,
+        )
     return orders, accounting, service, created.order_id
 
 

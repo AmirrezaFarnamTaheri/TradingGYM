@@ -1,4 +1,5 @@
 """Evidence-backed source and external qualification state for the first batch."""
+
 from __future__ import annotations
 
 import json
@@ -207,9 +208,7 @@ class FirstBatchReport(BaseModel):
 class EvidenceRunExpectation(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    workflow_path: str = Field(
-        pattern=r"^\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml$"
-    )
+    workflow_path: str = Field(pattern=r"^\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml$")
     run_id: int = Field(gt=0)
     run_attempt: int = Field(gt=0)
     artifact_name: str = Field(min_length=1, max_length=250)
@@ -284,7 +283,9 @@ def _source_blockers(root: Path, job: int) -> list[str]:
                     for item in report.get("issues", ())
                 )
         elif job == 3:
-            ReleaseIdentityPolicy.from_json(root / "config/release_identity_policy.json")
+            ReleaseIdentityPolicy.from_json(
+                root / "config/release_identity_policy.json"
+            )
         elif job == 10:
             JurisdictionPolicy.from_json(root / "config/jurisdiction_policy.json")
             _load_json(root / "config/public_claims_policy.json")
@@ -299,7 +300,9 @@ def _source_blockers(root: Path, job: int) -> list[str]:
             ).evaluate(root=root)
             blockers.extend(operations.blockers)
         elif job == 18:
-            AbanAuthorityProfileCatalog.from_json(root / "config/aban_authority_profiles.json")
+            AbanAuthorityProfileCatalog.from_json(
+                root / "config/aban_authority_profiles.json"
+            )
         elif job == 19:
             AbanContractBaseline.from_json(root / "config/aban_contract_baseline.json")
     except Exception as exc:  # source contract must fail closed with a stable message
@@ -338,7 +341,9 @@ def evaluate_first_batch(
                 evidence = _load_json(evidence_dir / required)
                 state = (
                     "passed"
-                    if _external_passed(evidence, expected_job=job, provenance=provenance)
+                    if _external_passed(
+                        evidence, expected_job=job, provenance=provenance
+                    )
                     else "external_evidence_failed"
                 )
             except Exception as exc:

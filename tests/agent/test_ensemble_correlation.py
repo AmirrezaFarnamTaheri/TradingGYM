@@ -55,7 +55,9 @@ class _LongFollow(DeterministicRuleBackend):
     def decide(self, context: MarketContext) -> DecisionSignal:
         return DecisionSignal(
             backend=self.name,
-            action_kind=ActionKind.LONG if sum(context.recent_returns) > 0 else ActionKind.SHORT,
+            action_kind=(
+                ActionKind.LONG if sum(context.recent_returns) > 0 else ActionKind.SHORT
+            ),
             target_leverage=1.0 if sum(context.recent_returns) > 0 else -1.0,
             confidence=0.8,
             rationale="follow",
@@ -169,9 +171,7 @@ class TestRevisionEvidenceBuilder:
 
         def make_frame(seed: int) -> pd.DataFrame:
             rng = np.random.default_rng(seed)
-            index = pd.date_range(
-                "2024-07-01", periods=240, freq="5min", tz="UTC"
-            )
+            index = pd.date_range("2024-07-01", periods=240, freq="5min", tz="UTC")
             close = 50_000 * np.exp(np.cumsum(rng.normal(0.0002, 0.0015, 240)))
             open_ = np.roll(close, 1)
             open_[0] = 50_000.0
@@ -272,7 +272,10 @@ class TestMonocultureRejection:
         low = np.minimum(open_, close) * (1 - np.abs(rng.normal(0, 0.0004, 240)))
         frame = pd.DataFrame(
             {
-                "open": open_, "high": high, "low": low, "close": close,
+                "open": open_,
+                "high": high,
+                "low": low,
+                "close": close,
                 "volume": rng.uniform(10, 1000, 240),
                 "spread_bps": np.full(240, 2.0),
             },
@@ -309,8 +312,10 @@ class TestMonocultureRejection:
 
         def spec(fee_bps: float) -> PlaygroundRunSpec:
             return PlaygroundRunSpec(
-                window=frame, strategy=strategy,
-                initial_capital=10_000.0, fee_bps=fee_bps,
+                window=frame,
+                strategy=strategy,
+                initial_capital=10_000.0,
+                fee_bps=fee_bps,
             )
 
         builder = RevisionEvidenceBuilder(
@@ -337,5 +342,3 @@ def _build_roster(inverse: bool = False) -> ArmRegistry:
     registry.register(_arm(_LongFollow("a")))
     registry.register(_arm(_Inverse() if inverse else _LongFollow("b")))
     return registry
-
-

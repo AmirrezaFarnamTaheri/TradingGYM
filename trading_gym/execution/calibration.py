@@ -14,7 +14,10 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from trading_gym.execution.simulation import ExecutionSimulationPolicy, ExecutionSimulationResult
+from trading_gym.execution.simulation import (
+    ExecutionSimulationPolicy,
+    ExecutionSimulationResult,
+)
 
 
 class QueueEventType(str, Enum):
@@ -52,12 +55,16 @@ class QueueSimulationRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_request(self) -> "QueueSimulationRequest":
-        if not math.isfinite(self.order_quantity) or not math.isfinite(self.initial_quantity_ahead):
+        if not math.isfinite(self.order_quantity) or not math.isfinite(
+            self.initial_quantity_ahead
+        ):
             raise ValueError("queue simulation inputs must be finite")
         identifiers = [event.event_id for event in self.events]
         if len(identifiers) != len(set(identifiers)):
             raise ValueError("queue events must have unique event_id values")
-        if self.events != sorted(self.events, key=lambda item: (item.occurred_at, item.event_id)):
+        if self.events != sorted(
+            self.events, key=lambda item: (item.occurred_at, item.event_id)
+        ):
             raise ValueError("queue events must be chronological")
         return self
 
@@ -149,7 +156,9 @@ def simulate_queue(request: QueueSimulationRequest) -> QueueSimulationResult:
 class ExecutionObservation(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    observation_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,199}$")]
+    observation_id: Annotated[
+        str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,199}$")
+    ]
     side: Literal["buy", "sell"]
     predicted: ExecutionSimulationResult
     observed_filled_quantity: Annotated[float, Field(ge=0.0, le=1e30)]
@@ -169,11 +178,16 @@ class ExecutionObservation(BaseModel):
             self.observed_fee_cost,
             self.interval_volume_units,
         )
-        if any(value is not None and not math.isfinite(float(value)) for value in numeric):
+        if any(
+            value is not None and not math.isfinite(float(value)) for value in numeric
+        ):
             raise ValueError("execution observations must be finite")
         if self.observed_filled_quantity > self.predicted.requested_quantity:
             raise ValueError("observed fill exceeds requested quantity")
-        if self.observed_filled_quantity > 0.0 and self.observed_execution_price is None:
+        if (
+            self.observed_filled_quantity > 0.0
+            and self.observed_execution_price is None
+        ):
             raise ValueError("observed_execution_price is required for a positive fill")
         return self
 
@@ -234,7 +248,9 @@ def calibrate_execution(
         raise ValueError("execution observation limit exceeded")
     identifiers = [item.observation_id for item in observations]
     if len(identifiers) != len(set(identifiers)):
-        raise ValueError("execution observations must have unique observation_id values")
+        raise ValueError(
+            "execution observations must have unique observation_id values"
+        )
     policy = base_policy or ExecutionSimulationPolicy()
     thresholds = thresholds or CalibrationThresholds()
 
@@ -252,23 +268,38 @@ def calibrate_execution(
         predicted = observation.predicted
         requested = predicted.requested_quantity
         predicted_fraction = predicted.filled_quantity / requested if requested else 0.0
-        observed_fraction = observation.observed_filled_quantity / requested if requested else 0.0
+        observed_fraction = (
+            observation.observed_filled_quantity / requested if requested else 0.0
+        )
         fill_errors.append(abs(observed_fraction - predicted_fraction))
-        participations.append(observation.observed_filled_quantity / observation.interval_volume_units)
+        participations.append(
+            observation.observed_filled_quantity / observation.interval_volume_units
+        )
         observed_latencies.append(float(observation.observed_latency_ms))
-        latency_biases.append(float(observation.observed_latency_ms - predicted.latency_ms))
+        latency_biases.append(
+            float(observation.observed_latency_ms - predicted.latency_ms)
+        )
         observed_notional = 0.0
         observed_cost = observation.observed_fee_cost
         if observation.observed_filled_quantity > 0.0:
             assert observation.observed_execution_price is not None
-            observed_notional = observation.observed_filled_quantity * observation.observed_execution_price
+            observed_notional = (
+                observation.observed_filled_quantity
+                * observation.observed_execution_price
+            )
             direction = 1.0 if observation.side == "buy" else -1.0
-            adverse = direction * (
-                observation.observed_execution_price - predicted.reference_price
-            ) / predicted.reference_price * 10_000.0
+            adverse = (
+                direction
+                * (observation.observed_execution_price - predicted.reference_price)
+                / predicted.reference_price
+                * 10_000.0
+            )
             adverse_slippage.append(max(0.0, adverse))
             price_errors.append(
-                (observation.observed_execution_price - (predicted.execution_price or predicted.reference_price))
+                (
+                    observation.observed_execution_price
+                    - (predicted.execution_price or predicted.reference_price)
+                )
                 / predicted.reference_price
                 * 10_000.0
             )
@@ -277,14 +308,18 @@ def calibrate_execution(
             )
             observed_cost += observed_slippage
             if observed_notional > 0.0:
-                observed_fee_bps.append(observation.observed_fee_cost / observed_notional * 10_000.0)
+                observed_fee_bps.append(
+                    observation.observed_fee_cost / observed_notional * 10_000.0
+                )
                 fee_biases.append(
                     (observation.observed_fee_cost - predicted.fee_cost)
                     / observed_notional
                     * 10_000.0
                 )
                 cost_biases.append(
-                    (observed_cost - predicted.total_cost) / observed_notional * 10_000.0
+                    (observed_cost - predicted.total_cost)
+                    / observed_notional
+                    * 10_000.0
                 )
 
     fill_mae = statistics.fmean(fill_errors) if fill_errors else 0.0
@@ -298,18 +333,41 @@ def calibrate_execution(
     p50_participation = _percentile(participations, 0.50)
     p90_participation = _percentile(participations, 0.90)
 
-    suggested_fee = min(1000.0, max(0.0, statistics.median(observed_fee_bps) if observed_fee_bps else policy.fee_bps))
+    suggested_fee = min(
+        1000.0,
+        max(
+            0.0,
+            statistics.median(observed_fee_bps) if observed_fee_bps else policy.fee_bps,
+        ),
+    )
     suggested_slippage = min(
         5000.0,
-        max(0.0, statistics.median(adverse_slippage) if adverse_slippage else policy.base_slippage_bps),
+        max(
+            0.0,
+            (
+                statistics.median(adverse_slippage)
+                if adverse_slippage
+                else policy.base_slippage_bps
+            ),
+        ),
     )
     suggested_participation = min(
         1.0,
-        max(1e-6, p90_participation if participations else policy.max_participation_fraction),
+        max(
+            1e-6,
+            p90_participation if participations else policy.max_participation_fraction,
+        ),
     )
     suggested_latency = min(
         3_600_000,
-        max(0, int(round(statistics.median(observed_latencies))) if observed_latencies else policy.base_latency_ms),
+        max(
+            0,
+            (
+                int(round(statistics.median(observed_latencies)))
+                if observed_latencies
+                else policy.base_latency_ms
+            ),
+        ),
     )
     suggested = policy.model_copy(
         update={

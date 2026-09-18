@@ -333,7 +333,9 @@ async def test_connect_rejects_a_private_peer_and_closes_the_socket(monkeypatch)
     async def fake_connect(*_args, **_kwargs):
         return socket
 
-    monkeypatch.setattr("trading_gym.adapters.aban_websocket.websockets.connect", fake_connect)
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+    )
     client = _client_with_peer_policy(allow_private=False)
 
     with pytest.raises(ValueError, match="disallowed"):
@@ -352,7 +354,9 @@ async def test_connect_rejects_an_unverifiable_peer(monkeypatch):
     async def fake_connect(*_args, **_kwargs):
         return socket
 
-    monkeypatch.setattr("trading_gym.adapters.aban_websocket.websockets.connect", fake_connect)
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+    )
     client = _client_with_peer_policy(allow_private=True)
 
     with pytest.raises(ValueError, match="verifiable peer address"):
@@ -369,7 +373,9 @@ async def test_connect_allows_a_public_peer_and_subscribes(monkeypatch):
     async def fake_connect(*_args, **_kwargs):
         return socket
 
-    monkeypatch.setattr("trading_gym.adapters.aban_websocket.websockets.connect", fake_connect)
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+    )
     client = _client_with_peer_policy(allow_private=False)
     client.subscribe(ChannelType.TICKER, "BTC", lambda _msg: None)
 
@@ -390,7 +396,9 @@ async def test_connect_closes_the_socket_when_subscription_send_fails(monkeypatc
     async def fake_connect(*_args, **_kwargs):
         return socket
 
-    monkeypatch.setattr("trading_gym.adapters.aban_websocket.websockets.connect", fake_connect)
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+    )
     client = _client_with_peer_policy(allow_private=False)
     client.subscribe(ChannelType.TICKER, "BTC", lambda _msg: None)
 
@@ -402,10 +410,15 @@ async def test_connect_closes_the_socket_when_subscription_send_fails(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_connect_failure_does_not_log_exception_body(ws_client, monkeypatch, caplog):
+async def test_connect_failure_does_not_log_exception_body(
+    ws_client, monkeypatch, caplog
+):
     async def fail_connect(*_args, **_kwargs):
         raise RuntimeError("authorization=secret-token")
-    monkeypatch.setattr("trading_gym.adapters.aban_websocket.websockets.connect", fail_connect)
+
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect", fail_connect
+    )
     with caplog.at_level("ERROR"):
         with pytest.raises(RuntimeError):
             await ws_client.connect()
@@ -416,7 +429,9 @@ async def test_connect_failure_does_not_log_exception_body(ws_client, monkeypatc
 def test_connection_kwargs_disable_ambient_proxy(ws_client):
     kwargs = ws_client._connect_kwargs({"Authorization": "Token secret"})
     assert kwargs.get("proxy") is None
-    header_key = "additional_headers" if "additional_headers" in kwargs else "extra_headers"
+    header_key = (
+        "additional_headers" if "additional_headers" in kwargs else "extra_headers"
+    )
     assert kwargs[header_key]["Authorization"] == "Token secret"
 
 
@@ -424,6 +439,7 @@ def test_connection_kwargs_disable_ambient_proxy(ws_client):
 async def test_callback_failure_accounts_the_dropped_message(ws_client):
     """A message whose callback raises is already popped and permanently lost;
     drop telemetry must count it so message loss is not underreported."""
+
     def callback(_message: Message) -> None:
         ws_client._running = False  # let the dispatch loop exit after this cycle
         raise RuntimeError("boom")

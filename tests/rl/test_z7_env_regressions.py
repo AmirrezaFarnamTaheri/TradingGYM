@@ -60,7 +60,9 @@ class _ProbeEnv(MarginTradingEnv):
     """
 
     def __init__(self, t: int = 0) -> None:
-        self.observation_space = spaces.Box(-np.inf, np.inf, shape=(12,), dtype=np.float64)
+        self.observation_space = spaces.Box(
+            -np.inf, np.inf, shape=(12,), dtype=np.float64
+        )
         self.action_space = spaces.Box(-1.0, 1.0, shape=(1,), dtype=np.float32)
         self._state = type("S", (), {})()
         self._state.position = 0.0
@@ -154,9 +156,7 @@ def test_live_mode_obs_reads_the_streamed_bar() -> None:
             for i in range(n):
                 self._raw_buffer.append(feat[i])
             # a freshly streamed bar the historical frame does not hold
-            self._raw_buffer.append(
-                np.array([0.0, 0.09, 0.0, 0.005], dtype=np.float32)
-            )
+            self._raw_buffer.append(np.array([0.0, 0.09, 0.0, 0.005], dtype=np.float32))
 
         @property
         def unwrapped(self) -> "_LiveProbe":

@@ -60,7 +60,6 @@ def test_registry_builds_named_rewards_and_rejects_unknown():
         "log_return",
         "position_tracking",
     }
-    fn = build_reward("drawdown_penalised", lambda_dd=1.5)
     with pytest.raises(ValueError):
         build_reward("does_not_exist")
 
@@ -72,7 +71,9 @@ def test_decay_window_weights_recent_values_and_is_instance_scoped():
     for v in (8.0, 4.0, 2.0, 1.0):
         fast.push(v)
     # Newest value carries weight 1.0; older values decay by half-life.
-    assert fast.weighted_sum() == pytest.approx(1.0 + 0.5 * 2.0 + 0.25 * 4.0 + 0.125 * 8.0)
+    assert fast.weighted_sum() == pytest.approx(
+        1.0 + 0.5 * 2.0 + 0.25 * 4.0 + 0.125 * 8.0
+    )
     other = DecayWindow(half_life_steps=1, max_len=4)
     other.push(1000.0)
     assert fast.weighted_sum() != other.weighted_sum()
@@ -83,8 +84,11 @@ def test_decayed_unrealized_profit_tracks_open_position():
 
     window = DecayWindow(half_life_steps=2)
     fn = build_reward(
-        "decayed_unrealized_profit", window=window, current_price=110.0,
-        entry_price=100.0, scaling=10.0,
+        "decayed_unrealized_profit",
+        window=window,
+        current_price=110.0,
+        entry_price=100.0,
+        scaling=10.0,
     )
     base_holding = np.log(101.0 / 100.0)
     holding = fn(_Ctx(before=100.0, after=101.0, pos_after=1.0))
@@ -113,7 +117,7 @@ def test_event_gated_reward_pays_only_on_trades():
     assert exit_gain > 0 > exit_loss
 
 
-def test_default_reward_equals_env_inline_formula():
+def test_default_reward_drawdown_penalised_matches_formula():
     fn = build_reward("drawdown_penalised", lambda_dd=1.5)
     ctx = _Ctx(before=100.0, after=104.0, history=[120.0])
     assert fn(ctx) == pytest.approx(drawdown_penalised_reward(ctx, lambda_dd=1.5))

@@ -56,7 +56,8 @@ def deployment_isolation_health() -> DeploymentIsolationHealth:
         "deployment_mode": mode,
         "tenant_id": tenant_id,
         "valid": not blockers,
-        "single_tenant_enforced": mode == "single_tenant" and not requested_multi_tenant,
+        "single_tenant_enforced": mode == "single_tenant"
+        and not requested_multi_tenant,
         "multi_tenant_supported": False,
         "isolation_boundary": "one_process_and_data_home_per_tenant",
         "blockers": sorted(blockers),

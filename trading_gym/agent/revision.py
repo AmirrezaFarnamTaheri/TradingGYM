@@ -32,8 +32,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from filelock import FileLock
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -155,14 +154,10 @@ class GateChain:
     def _gate_sealed_holdout(
         self, candidate: RevisionCandidate, tier_config: TierConfig
     ) -> str | None:
-        unknown = set(candidate.sealed_holdouts) - set(
-            candidate.seeded_holdout_seals
-        )
+        unknown = set(candidate.sealed_holdouts) - set(candidate.seeded_holdout_seals)
         if unknown:
             return f"unsealed holdout ids: {sorted(unknown)}"
-        missing = set(candidate.seeded_holdout_seals) - set(
-            candidate.sealed_holdouts
-        )
+        missing = set(candidate.seeded_holdout_seals) - set(candidate.sealed_holdouts)
         if missing:
             return f"holdout results missing for: {sorted(missing)}"
         if tier_config.require_holdout_replication:
@@ -327,9 +322,7 @@ class RevisionSurface:
 
         gates = GateChain().evaluate(candidate, tier_config=tier)
         if gates.failed_gate == "canary":
-            self._record(
-                candidate, decision="rejected", reason="canary", frozen=True
-            )
+            self._record(candidate, decision="rejected", reason="canary", frozen=True)
             return RevisionOutcome(
                 applied=False,
                 reason="canary",
@@ -429,9 +422,11 @@ class RevisionSurface:
             raise ValueError("decision must be accepted or rejected")
         for index in range(len(self._events) - 1, -1, -1):
             event = self._events[index]
-            if event.type == "tool_nomination" and event.payload.get(
-                "tool_name"
-            ) == tool_name and event.payload.get("status") == "nominated":
+            if (
+                event.type == "tool_nomination"
+                and event.payload.get("tool_name") == tool_name
+                and event.payload.get("status") == "nominated"
+            ):
                 resolution = {
                     "tool_name": tool_name,
                     "decision": decision,
@@ -476,10 +471,7 @@ class RevisionSurface:
                     state[name]["status"] = event.payload["decision"]
                     state[name]["decided_by"] = event.payload["decided_by"]
                     state[name]["note"] = event.payload["note"]
-        return tuple(
-            state[name]
-            for name in sorted(state)
-        )
+        return tuple(state[name] for name in sorted(state))
 
     def history(self) -> tuple[dict[str, Any], ...]:
         return tuple(event.to_json() for event in self._events)
@@ -550,11 +542,11 @@ class RevisionSurface:
     def _load(self, *, verify: bool) -> None:
         if not self._path.exists():
             return
-        for number, line in enumerate(self._path.read_text(encoding="utf-8").splitlines(), start=1):
+        for number, line in enumerate(
+            self._path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
             if not line.strip():
-                raise RevisionLedgerIntegrityError(
-                    "blank line in revision journal"
-                )
+                raise RevisionLedgerIntegrityError("blank line in revision journal")
             try:
                 record = json.loads(line)
             except json.JSONDecodeError as exc:
@@ -568,9 +560,7 @@ class RevisionSurface:
                     raise RevisionLedgerIntegrityError(
                         f"journal record missing {key!r}"
                     )
-            body = {
-                key: value for key, value in record.items() if key != "entry_hash"
-            }
+            body = {key: value for key, value in record.items() if key != "entry_hash"}
             if hashlib.sha256(_canonical(body)).hexdigest() != record["entry_hash"]:
                 raise RevisionLedgerIntegrityError(
                     f"journal record {record['seq']} hash mismatch"
@@ -595,9 +585,10 @@ class RevisionSurface:
         now = datetime.now(timezone.utc)
         window_start = now - timedelta(days=1)
         for event in self._events:
-            if event.type == "revision_decision" and event.payload.get(
-                "decision"
-            ) == "applied":
+            if (
+                event.type == "revision_decision"
+                and event.payload.get("decision") == "applied"
+            ):
                 try:
                     moment = datetime.fromisoformat(
                         str(event.ts).replace("Z", "+00:00")

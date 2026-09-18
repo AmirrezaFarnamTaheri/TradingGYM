@@ -1,4 +1,5 @@
 """Non-authoritative operational dependency and blast-radius analysis."""
+
 from __future__ import annotations
 
 import hashlib
@@ -40,7 +41,9 @@ class DependencyImpactRequest(BaseModel):
         for item in self.services:
             unknown = set(item.dependencies) - known
             if unknown:
-                raise ValueError(f"unknown dependencies for {item.service_id}: {sorted(unknown)}")
+                raise ValueError(
+                    f"unknown dependencies for {item.service_id}: {sorted(unknown)}"
+                )
             if item.service_id in item.dependencies:
                 raise ValueError("service cannot depend on itself")
         return self
@@ -89,7 +92,9 @@ def _find_cycle(nodes: dict[str, ServiceDependencyNode]) -> list[str] | None:
     return None
 
 
-def evaluate_dependency_impact(request: DependencyImpactRequest) -> DependencyImpactReport:
+def evaluate_dependency_impact(
+    request: DependencyImpactRequest,
+) -> DependencyImpactReport:
     nodes = {item.service_id: item for item in request.services}
     blockers: list[str] = []
     warnings: list[str] = []
@@ -101,7 +106,9 @@ def evaluate_dependency_impact(request: DependencyImpactRequest) -> DependencyIm
         for dependency in node.dependencies:
             reverse[dependency].add(service_id)
     paths: dict[str, list[str]] = {}
-    queue: list[tuple[str, list[str]]] = [(service_id, [service_id]) for service_id in request.directly_changed_services]
+    queue: list[tuple[str, list[str]]] = [
+        (service_id, [service_id]) for service_id in request.directly_changed_services
+    ]
     visited: set[str] = set()
     while queue:
         current, path = queue.pop(0)
@@ -111,15 +118,24 @@ def evaluate_dependency_impact(request: DependencyImpactRequest) -> DependencyIm
         paths[current] = path
         for dependent in sorted(reverse[current]):
             queue.append((dependent, path + [dependent]))
-    critical = sorted(service_id for service_id in visited if nodes[service_id].criticality == "critical")
+    critical = sorted(
+        service_id
+        for service_id in visited
+        if nodes[service_id].criticality == "critical"
+    )
     if len(critical) > request.maximum_critical_blast_radius:
         blockers.append(f"critical_blast_radius_exceeded:{len(critical)}")
     for service_id in sorted(visited):
         node = nodes[service_id]
-        headroom = (node.capacity_units - node.observed_load_units) / node.capacity_units
+        headroom = (
+            node.capacity_units - node.observed_load_units
+        ) / node.capacity_units
         if headroom < request.minimum_headroom_fraction:
             blockers.append(f"capacity_headroom_insufficient:{service_id}")
-        if service_id in request.directly_changed_services and not node.rollback_available:
+        if (
+            service_id in request.directly_changed_services
+            and not node.rollback_available
+        ):
             blockers.append(f"rollback_unavailable:{service_id}")
         if node.observed_load_units > node.capacity_units:
             blockers.append(f"service_over_capacity:{service_id}")
@@ -127,7 +143,9 @@ def evaluate_dependency_impact(request: DependencyImpactRequest) -> DependencyIm
         if nodes[service_id].criticality == "critical":
             warnings.append(f"direct_critical_change:{service_id}")
     payload = request.model_dump(mode="json")
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return DependencyImpactReport(
         change_id=request.change_id,
         directly_changed_services=sorted(request.directly_changed_services),

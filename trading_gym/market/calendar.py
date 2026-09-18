@@ -5,6 +5,7 @@ windows.  It is intentionally non-authoritative: it can tell callers whether a
 requested instant or interval is inside an admitted session, but it cannot
 submit, schedule, or execute an order.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -56,10 +57,14 @@ class CalendarException(BaseModel):
         if self.closed and (self.opens_at is not None or self.closes_at is not None):
             raise ValueError("closed exception cannot define opening or closing time")
         if not self.closed and self.opens_at is None and self.closes_at is None:
-            raise ValueError("non-closed exception must override an opening or closing time")
+            raise ValueError(
+                "non-closed exception must override an opening or closing time"
+            )
         for value in (self.opens_at, self.closes_at):
             if value is not None and value.tzinfo is not None:
-                raise ValueError("exception times must be local naive wall-clock values")
+                raise ValueError(
+                    "exception times must be local naive wall-clock values"
+                )
         return self
 
 
@@ -155,7 +160,9 @@ class ExecutionWindowRequest(BaseModel):
                 raise ValueError("requested timestamps must be timezone-aware")
         if self.ends_at <= self.starts_at:
             raise ValueError("requested window must end after it starts")
-        if (self.ends_at - self.starts_at).total_seconds() > self.maximum_duration_seconds:
+        if (
+            self.ends_at - self.starts_at
+        ).total_seconds() > self.maximum_duration_seconds:
             raise ValueError("requested window exceeds maximum duration")
         return self
 
@@ -177,7 +184,9 @@ class ExecutionWindowPlan(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str
+    ).encode("utf-8")
 
 
 def _calendar_hash(spec: MarketCalendarSpec) -> str:
@@ -194,36 +203,67 @@ def _localize(local_date: date, wall_time: time, tz: ZoneInfo) -> datetime:
     return candidate
 
 
-def _intervals_for_date(spec: MarketCalendarSpec, local_date: date) -> list[SessionInterval]:
+def _intervals_for_date(
+    spec: MarketCalendarSpec, local_date: date
+) -> list[SessionInterval]:
     tz = ZoneInfo(spec.timezone_name)
-    exception = next((item for item in spec.exceptions if item.local_date == local_date), None)
+    exception = next(
+        (item for item in spec.exceptions if item.local_date == local_date), None
+    )
     if exception and exception.closed:
         return []
     intervals: list[SessionInterval] = []
-    for session in sorted(spec.sessions, key=lambda item: (item.opens_at, item.session_id)):
+    for session in sorted(
+        spec.sessions, key=lambda item: (item.opens_at, item.session_id)
+    ):
         if local_date.weekday() not in session.weekdays:
             continue
-        opens_at = exception.opens_at if exception and exception.opens_at is not None else session.opens_at
-        closes_at = exception.closes_at if exception and exception.closes_at is not None else session.closes_at
+        opens_at = (
+            exception.opens_at
+            if exception and exception.opens_at is not None
+            else session.opens_at
+        )
+        closes_at = (
+            exception.closes_at
+            if exception and exception.closes_at is not None
+            else session.closes_at
+        )
         start_local = _localize(local_date, opens_at, tz)
-        close_date = local_date + timedelta(days=1) if closes_at <= opens_at else local_date
+        close_date = (
+            local_date + timedelta(days=1) if closes_at <= opens_at else local_date
+        )
         end_local = _localize(close_date, closes_at, tz)
-        intervals.append(SessionInterval(
-            session_id=session.session_id,
-            local_date=local_date,
-            opens_at=start_local.astimezone(timezone.utc),
-            closes_at=end_local.astimezone(timezone.utc),
-            exception_reason=exception.reason if exception else None,
-        ))
+        intervals.append(
+            SessionInterval(
+                session_id=session.session_id,
+                local_date=local_date,
+                opens_at=start_local.astimezone(timezone.utc),
+                closes_at=end_local.astimezone(timezone.utc),
+                exception_reason=exception.reason if exception else None,
+            )
+        )
     return intervals
 
 
-def _maintenance_at(spec: MarketCalendarSpec, observed_at: datetime) -> MaintenanceWindow | None:
+def _maintenance_at(
+    spec: MarketCalendarSpec, observed_at: datetime
+) -> MaintenanceWindow | None:
     moment = observed_at.astimezone(timezone.utc)
-    return next((item for item in spec.maintenance if item.starts_at.astimezone(timezone.utc) <= moment < item.ends_at.astimezone(timezone.utc)), None)
+    return next(
+        (
+            item
+            for item in spec.maintenance
+            if item.starts_at.astimezone(timezone.utc)
+            <= moment
+            < item.ends_at.astimezone(timezone.utc)
+        ),
+        None,
+    )
 
 
-def _next_session(spec: MarketCalendarSpec, observed_at: datetime) -> SessionInterval | None:
+def _next_session(
+    spec: MarketCalendarSpec, observed_at: datetime
+) -> SessionInterval | None:
     tz = ZoneInfo(spec.timezone_name)
     local_date = observed_at.astimezone(tz).date() - timedelta(days=1)
     moment = observed_at.astimezone(timezone.utc)
@@ -234,16 +274,24 @@ def _next_session(spec: MarketCalendarSpec, observed_at: datetime) -> SessionInt
     return None
 
 
-def inspect_market_session(spec: MarketCalendarSpec, observed_at: datetime) -> MarketSessionReport:
+def inspect_market_session(
+    spec: MarketCalendarSpec, observed_at: datetime
+) -> MarketSessionReport:
     if observed_at.tzinfo is None or observed_at.utcoffset() is None:
         raise ValueError("observed_at must be timezone-aware")
     moment = observed_at.astimezone(timezone.utc)
     maintenance = _maintenance_at(spec, moment)
     tz = ZoneInfo(spec.timezone_name)
     local_date = moment.astimezone(tz).date()
-    candidates = _intervals_for_date(spec, local_date) + _intervals_for_date(spec, local_date - timedelta(days=1))
-    active = next((item for item in candidates if item.opens_at <= moment < item.closes_at), None)
-    exception = next((item for item in spec.exceptions if item.local_date == local_date), None)
+    candidates = _intervals_for_date(spec, local_date) + _intervals_for_date(
+        spec, local_date - timedelta(days=1)
+    )
+    active = next(
+        (item for item in candidates if item.opens_at <= moment < item.closes_at), None
+    )
+    exception = next(
+        (item for item in spec.exceptions if item.local_date == local_date), None
+    )
     if maintenance is not None:
         status = SessionStatus.MAINTENANCE
         reason = maintenance.reason
@@ -283,7 +331,11 @@ def plan_execution_window(request: ExecutionWindowRequest) -> ExecutionWindowPla
             blockers.append(f"market_closed:{cursor.isoformat()}:{report.status.value}")
             break
         interval = report.active_session
-        if not covered or covered[-1].session_id != interval.session_id or covered[-1].opens_at != interval.opens_at:
+        if (
+            not covered
+            or covered[-1].session_id != interval.session_id
+            or covered[-1].opens_at != interval.opens_at
+        ):
             covered.append(interval)
         if end <= interval.closes_at:
             cursor = end

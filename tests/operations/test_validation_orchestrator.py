@@ -12,12 +12,10 @@ from trading_gym.operations.validation_orchestrator import (
     VERDICT_NO_GO,
 )
 from trading_gym.experiments.sealed_spec import (
-    SealedExperiment,
     SealMismatch,
     seal_experiment,
     verify_seal,
 )
-
 
 # ---------------------------------------------------------------------------
 # Orchestrator
@@ -87,7 +85,10 @@ def test_format_and_json_artifacts():
     text = format_verdict(verdict)
     assert "verdict=GO" in text
     payload = verdict_to_json(verdict)
-    assert '"verdict":"GO"' in payload.replace(": ", ":").replace('": "', '":"') or '"GO"' in payload
+    assert (
+        '"verdict":"GO"' in payload.replace(": ", ":").replace('": "', '":"')
+        or '"GO"' in payload
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -29,17 +29,26 @@ def test_dossier_declares_missing_data_and_reflection_rejects_absence_claim() ->
     dossier = build_dossier(subject="TEST", evidence=evidence)
     assert "news" in dossier.missing_data
     result = audit_claims(["There was no news [market:1]."], dossier)
-    assert any(item["code"] == "absence_from_missing_data" for item in result["findings"])
+    assert any(
+        item["code"] == "absence_from_missing_data" for item in result["findings"]
+    )
     assert audit_claims(["Closing price was 100 [market:1]."], dossier)["valid"] is True
 
 
 def test_security_redacts_and_blocks_ssrf_targets() -> None:
-    assert redact_secrets({"nested": {"api-key": "secret"}})["nested"]["api-key"] == "***"
+    assert (
+        redact_secrets({"nested": {"api-key": "secret"}})["nested"]["api-key"] == "***"
+    )
     with pytest.raises(ValueError):
         validate_base_url("http://169.254.169.254/latest", resolve_dns=False)
     with pytest.raises(ValueError):
         validate_base_url("file:///etc/passwd", resolve_dns=False)
-    assert validate_base_url("http://127.0.0.1:11434", allow_loopback=True, resolve_dns=False) == "http://127.0.0.1:11434"
+    assert (
+        validate_base_url(
+            "http://127.0.0.1:11434", allow_loopback=True, resolve_dns=False
+        )
+        == "http://127.0.0.1:11434"
+    )
 
 
 def test_redaction_covers_api_secret_key_shapes() -> None:
@@ -104,8 +113,13 @@ def test_provider_repository_stores_only_env_reference(tmp_path: Path) -> None:
 
 
 def test_safe_tools_expose_no_direct_live_trade(tmp_path: Path) -> None:
-    governance = GovernanceService(tmp_path / "proposals.json", AuditLedger(tmp_path / "audit.jsonl"))
-    registry = SafeToolRegistry(strategies=StrategyRepository(tmp_path / "strategies.json"), governance=governance)
+    governance = GovernanceService(
+        tmp_path / "proposals.json", AuditLedger(tmp_path / "audit.jsonl")
+    )
+    registry = SafeToolRegistry(
+        strategies=StrategyRepository(tmp_path / "strategies.json"),
+        governance=governance,
+    )
     names = {item["name"] for item in registry.describe()}
     assert "trade.execute" not in names
     proposal = registry.invoke(

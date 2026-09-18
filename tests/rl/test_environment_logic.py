@@ -252,5 +252,7 @@ def test_live_mode_constructs(minimal_env_config, minimal_feature_config, mock_i
     assert env._raw_buffer.maxlen == env.T
 
     env.reset()
-    obs, reward, terminated, truncated, info = env.step(np.array([0.0], dtype=np.float32))
+    obs, reward, terminated, truncated, info = env.step(
+        np.array([0.0], dtype=np.float32)
+    )
     assert isinstance(obs, np.ndarray)

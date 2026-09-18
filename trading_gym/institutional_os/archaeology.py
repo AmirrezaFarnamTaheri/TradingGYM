@@ -3,6 +3,7 @@
 The scanner treats repositories as untrusted evidence. It never imports donor
 modules, follows symlinks, executes package scripts, or reads outside the root.
 """
+
 from __future__ import annotations
 
 import ast
@@ -18,29 +19,121 @@ from pydantic import BaseModel, ConfigDict, Field
 from .base import sha256_payload
 from .source_mining import HistoricalSurface, SurfaceDisposition
 
-_GENERATED = {"dist", "build", "coverage", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
-_VENDORED = {"node_modules", "vendor", "third_party", "third-party", "extern", "external"}
+_GENERATED = {
+    "dist",
+    "build",
+    "coverage",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+}
+_VENDORED = {
+    "node_modules",
+    "vendor",
+    "third_party",
+    "third-party",
+    "extern",
+    "external",
+}
 _TESTS = {"test", "tests", "fixtures", "fixture", "snapshots", "__snapshots__"}
-_DOC_NAMES = {"readme", "changelog", "contributing", "code_of_conduct", "security", "roadmap", "vision", "design"}
+_DOC_NAMES = {
+    "readme",
+    "changelog",
+    "contributing",
+    "code_of_conduct",
+    "security",
+    "roadmap",
+    "vision",
+    "design",
+}
 _ADMIN = {".github", ".gitlab", ".devcontainer"}
 _DEPLOY = {"deploy", "deployment", "helm", "k8s", "kubernetes", "terraform", "nix"}
 _UI = {"frontend", "web", "ui", "app", "apps", "desktop", "mobile", "components"}
 _SCRIPT = {"script", "scripts", "bin", "tools"}
-_MEDIA = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".mp3", ".mp4", ".wav"}
+_MEDIA = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".mp3",
+    ".mp4",
+    ".wav",
+}
 _TEXT = {
-    ".py", ".rs", ".go", ".ts", ".tsx", ".js", ".jsx", ".c", ".h", ".cc", ".cpp", ".hpp",
-    ".java", ".kt", ".swift", ".rb", ".php", ".cs", ".sh", ".ps1", ".sql", ".html", ".css",
-    ".scss", ".md", ".rst", ".adoc", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+    ".py",
+    ".rs",
+    ".go",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".c",
+    ".h",
+    ".cc",
+    ".cpp",
+    ".hpp",
+    ".java",
+    ".kt",
+    ".swift",
+    ".rb",
+    ".php",
+    ".cs",
+    ".sh",
+    ".ps1",
+    ".sql",
+    ".html",
+    ".css",
+    ".scss",
+    ".md",
+    ".rst",
+    ".adoc",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".ini",
+    ".cfg",
+    ".conf",
 }
 _LANGUAGE = {
-    ".py": "python", ".rs": "rust", ".go": "go", ".ts": "typescript", ".tsx": "typescript",
-    ".js": "javascript", ".jsx": "javascript", ".c": "c", ".h": "c", ".cc": "cpp", ".cpp": "cpp",
-    ".hpp": "cpp", ".java": "java", ".kt": "kotlin", ".swift": "swift", ".rb": "ruby",
-    ".php": "php", ".cs": "csharp", ".sh": "shell", ".ps1": "powershell", ".sql": "sql",
-    ".html": "html", ".css": "css", ".scss": "scss", ".md": "markdown", ".rst": "rst",
-    ".json": "json", ".yaml": "yaml", ".yml": "yaml", ".toml": "toml",
+    ".py": "python",
+    ".rs": "rust",
+    ".go": "go",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".c": "c",
+    ".h": "c",
+    ".cc": "cpp",
+    ".cpp": "cpp",
+    ".hpp": "cpp",
+    ".java": "java",
+    ".kt": "kotlin",
+    ".swift": "swift",
+    ".rb": "ruby",
+    ".php": "php",
+    ".cs": "csharp",
+    ".sh": "shell",
+    ".ps1": "powershell",
+    ".sql": "sql",
+    ".html": "html",
+    ".css": "css",
+    ".scss": "scss",
+    ".md": "markdown",
+    ".rst": "rst",
+    ".json": "json",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".toml": "toml",
 }
-_MARKER_RE = re.compile(r"\b(TODO|FIXME|XXX|HACK|DEPRECATED|SECURITY|MIGRATION)\b", re.IGNORECASE)
+_MARKER_RE = re.compile(
+    r"\b(TODO|FIXME|XXX|HACK|DEPRECATED|SECURITY|MIGRATION)\b", re.IGNORECASE
+)
 _JS_SYMBOL_RE = re.compile(
     r"(?:^|\n)\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)"
     r"|(?:^|\n)\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=",
@@ -53,7 +146,9 @@ class ArchaeologyPolicy(BaseModel):
 
     maximum_files: Annotated[int, Field(ge=1, le=2_000_000)] = 1_000_000
     maximum_total_bytes: Annotated[int, Field(ge=1, le=10 * 1024**4)] = 100 * 1024**3
-    maximum_inspected_text_bytes: Annotated[int, Field(ge=1024, le=64 * 1024**2)] = 2 * 1024**2
+    maximum_inspected_text_bytes: Annotated[int, Field(ge=1024, le=64 * 1024**2)] = (
+        2 * 1024**2
+    )
     maximum_symbols_per_file: Annotated[int, Field(ge=1, le=100_000)] = 10_000
     maximum_markers_per_file: Annotated[int, Field(ge=1, le=10_000)] = 1_000
 
@@ -96,17 +191,20 @@ class RepositoryArchaeologyReport(BaseModel):
         output: list[HistoricalSurface] = []
         for item in self.surfaces:
             semantic_units = (item.semantic_units or [f"surface:{item.category}"])[:100]
-            output.append(HistoricalSurface(
-                donor=self.donor,
-                path=item.path,
-                sha256=item.sha256,
-                category=item.category,
-                semantic_units=semantic_units,
-                disposition=SurfaceDisposition.REFERENCE,
-                rationale="Deterministically inventoried as untrusted donor evidence for explicit semantic disposition.",
-                high_risk=item.category in {"implementation", "deployment", "configuration", "script"},
-                evidence_complete=True,
-            ))
+            output.append(
+                HistoricalSurface(
+                    donor=self.donor,
+                    path=item.path,
+                    sha256=item.sha256,
+                    category=item.category,
+                    semantic_units=semantic_units,
+                    disposition=SurfaceDisposition.REFERENCE,
+                    rationale="Deterministically inventoried as untrusted donor evidence for explicit semantic disposition.",
+                    high_risk=item.category
+                    in {"implementation", "deployment", "configuration", "script"},
+                    evidence_complete=True,
+                )
+            )
         return output
 
 
@@ -132,13 +230,24 @@ def _classify(relative: Path) -> str:
         return "media"
     if parts & _ADMIN:
         return "repository-administration"
-    if parts & _DEPLOY or relative.name.lower() in {"dockerfile", "docker-compose.yml", "docker-compose.yaml"}:
+    if parts & _DEPLOY or relative.name.lower() in {
+        "dockerfile",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+    }:
         return "deployment"
     if parts & _SCRIPT:
         return "script"
     if parts & _UI:
         return "ui-or-product"
-    if relative.name.lower() in {"license", "license.txt", "license.md", "notice", "notice.txt", "trademarks.md"}:
+    if relative.name.lower() in {
+        "license",
+        "license.txt",
+        "license.md",
+        "notice",
+        "notice.txt",
+        "trademarks.md",
+    }:
         return "governance"
     if stem in _DOC_NAMES or suffix in {".md", ".rst", ".adoc"}:
         return "documentation"
@@ -159,7 +268,9 @@ def _python_symbols(text: str) -> list[str]:
     return sorted(set(output))
 
 
-def _text_evidence(path: Path, data: bytes, policy: ArchaeologyPolicy) -> tuple[list[str], list[str], list[str]]:
+def _text_evidence(
+    path: Path, data: bytes, policy: ArchaeologyPolicy
+) -> tuple[list[str], list[str], list[str]]:
     suffix = path.suffix.lower()
     if suffix not in _TEXT:
         return [], [], []
@@ -168,9 +279,17 @@ def _text_evidence(path: Path, data: bytes, policy: ArchaeologyPolicy) -> tuple[
     if suffix == ".py":
         symbols = _python_symbols(text)
     elif suffix in {".js", ".jsx", ".ts", ".tsx"}:
-        symbols = sorted({first or second for first, second in _JS_SYMBOL_RE.findall(text) if first or second})
+        symbols = sorted(
+            {
+                first or second
+                for first, second in _JS_SYMBOL_RE.findall(text)
+                if first or second
+            }
+        )
     elif suffix in {".md", ".rst", ".adoc"}:
-        symbols = sorted({heading.strip()[:240] for heading in _MD_HEADING_RE.findall(text)})
+        symbols = sorted(
+            {heading.strip()[:240] for heading in _MD_HEADING_RE.findall(text)}
+        )
     symbols = symbols[: policy.maximum_symbols_per_file]
     markers = [match.group(1).upper() for match in _MARKER_RE.finditer(text)]
     markers = markers[: policy.maximum_markers_per_file]
@@ -179,7 +298,9 @@ def _text_evidence(path: Path, data: bytes, policy: ArchaeologyPolicy) -> tuple[
     return symbols, markers, units
 
 
-def scan_repository(root: Path, donor: str, policy: ArchaeologyPolicy | None = None) -> RepositoryArchaeologyReport:
+def scan_repository(
+    root: Path, donor: str, policy: ArchaeologyPolicy | None = None
+) -> RepositoryArchaeologyReport:
     policy = policy or ArchaeologyPolicy()
     root = root.resolve()
     if not root.is_dir():
@@ -199,7 +320,9 @@ def scan_repository(root: Path, donor: str, policy: ArchaeologyPolicy | None = N
                 entries.append((candidate, candidate.relative_to(root), True))
         for name in sorted(files):
             candidate = base / name
-            entries.append((candidate, candidate.relative_to(root), candidate.is_symlink()))
+            entries.append(
+                (candidate, candidate.relative_to(root), candidate.is_symlink())
+            )
         if len(entries) > policy.maximum_files:
             raise ValueError("repository file limit exceeded")
     entries.sort(key=lambda item: item[1].as_posix())
@@ -234,19 +357,21 @@ def scan_repository(root: Path, donor: str, policy: ArchaeologyPolicy | None = N
         language = _LANGUAGE.get(relative.suffix.lower(), "unknown")
         if not units:
             units = [f"surface:{category}"]
-        surfaces.append(ArchaeologySurface(
-            donor=donor,
-            path=relative_text,
-            sha256=digest,
-            size_bytes=size,
-            category=category,
-            language=language,
-            is_symlink=is_symlink,
-            symlink_target=symlink_target,
-            symbols=symbols,
-            markers=markers,
-            semantic_units=units,
-        ))
+        surfaces.append(
+            ArchaeologySurface(
+                donor=donor,
+                path=relative_text,
+                sha256=digest,
+                size_bytes=size,
+                category=category,
+                language=language,
+                is_symlink=is_symlink,
+                symlink_target=symlink_target,
+                symbols=symbols,
+                markers=markers,
+                semantic_units=units,
+            )
+        )
     category_counts = Counter(item.category for item in surfaces)
     language_counts = Counter(item.language for item in surfaces)
     payload: dict[str, Any] = {

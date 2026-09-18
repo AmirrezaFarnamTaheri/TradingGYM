@@ -66,14 +66,18 @@ def httpx_transport(
         )
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if config.api_key_env:
-            headers["Authorization"] = f"Bearer {os.environ.get(config.api_key_env, '')}"
+            headers["Authorization"] = (
+                f"Bearer {os.environ.get(config.api_key_env, '')}"
+            )
         body = {
             "model": config.model,
             "messages": messages,
             "temperature": 0.2,
             "max_tokens": 300,
         }
-        with httpx.Client(timeout=timeout_seconds, follow_redirects=False, trust_env=False) as client:
+        with httpx.Client(
+            timeout=timeout_seconds, follow_redirects=False, trust_env=False
+        ) as client:
             response = client.post(
                 urljoin(base.rstrip("/") + "/", "chat/completions"),
                 headers=headers,
@@ -193,7 +197,9 @@ class LLMDecisionBackend(IntelligenceBackend):
                 validator=lambda o: o is not None,
             ),
         ]
-        self._ladder: DegradationLadder[dict[str, Any] | None] = DegradationLadder(ladder_modes)
+        self._ladder: DegradationLadder[dict[str, Any] | None] = DegradationLadder(
+            ladder_modes
+        )
 
     def is_available(self) -> bool:
         if self._explicit_transport:

@@ -3,13 +3,25 @@ from pathlib import Path
 import pytest
 
 from trading_gym.governance.ledger import AuditLedger
-from trading_gym.governance.models import ConsumeRequest, DecisionRequest, ProposalCreate, ProposalState, RiskTier
+from trading_gym.governance.models import (
+    ConsumeRequest,
+    DecisionRequest,
+    ProposalCreate,
+    ProposalState,
+    RiskTier,
+)
 from trading_gym.governance.service import GovernanceConflict, GovernanceService
-from trading_gym.governance.triggers import TriggerOperator, TriggerRule, evaluate_trigger
+from trading_gym.governance.triggers import (
+    TriggerOperator,
+    TriggerRule,
+    evaluate_trigger,
+)
 
 
 def service(tmp_path: Path) -> GovernanceService:
-    return GovernanceService(tmp_path / "proposals.json", AuditLedger(tmp_path / "audit.jsonl"))
+    return GovernanceService(
+        tmp_path / "proposals.json", AuditLedger(tmp_path / "audit.jsonl")
+    )
 
 
 def test_proposal_requires_closed_transitions_and_is_one_time(tmp_path: Path) -> None:
@@ -82,7 +94,9 @@ def test_trigger_only_yields_a_proposal() -> None:
         summary="Pause new risk after drawdown threshold",
         risk_tier=RiskTier.HIGH,
     )
-    proposal = evaluate_trigger(rule, {"drawdown": 0.15}, evaluation_bucket="2026-07-26T23:00")
+    proposal = evaluate_trigger(
+        rule, {"drawdown": 0.15}, evaluation_bucket="2026-07-26T23:00"
+    )
     assert proposal is not None
     assert proposal.operation == "risk.pause"
     assert not hasattr(proposal, "execute")

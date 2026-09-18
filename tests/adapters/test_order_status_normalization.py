@@ -35,9 +35,9 @@ def test_every_alias_table_entry_normalizes_to_canonical(
 def test_alias_tables_contain_no_unknown_values() -> None:
     """Alias tables exist to resolve: no entry may map to UNKNOWN."""
     for venue, table in STATUS_ALIASES.items():
-        assert CanonicalOrderStatus.UNKNOWN not in table.values(), (
-            f"{venue} alias table must not contain UNKNOWN values"
-        )
+        assert (
+            CanonicalOrderStatus.UNKNOWN not in table.values()
+        ), f"{venue} alias table must not contain UNKNOWN values"
 
 
 @pytest.mark.parametrize(

@@ -91,11 +91,7 @@ def _candidate_paths() -> list[Path]:
     else:
         names = ["libaxiom_kernel.so"]
     root = Path(__file__).resolve().parents[2] / "rust" / "axiom_kernel" / "target"
-    return [
-        root / profile / name
-        for profile in ("release", "debug")
-        for name in names
-    ]
+    return [root / profile / name for profile in ("release", "debug") for name in names]
 
 
 def load_kernel() -> Any | None:
@@ -197,9 +193,7 @@ def simulate(
     open_buf = np.ascontiguousarray(open_, dtype=np.float64)
     close_buf = np.ascontiguousarray(close, dtype=np.float64)
     spread_buf = np.ascontiguousarray(spread_bps, dtype=np.float64)
-    if not (
-        open_buf.shape[0] == close_buf.shape[0] == spread_buf.shape[0] == n
-    ):
+    if not (open_buf.shape[0] == close_buf.shape[0] == spread_buf.shape[0] == n):
         raise KernelError("window columns must have equal length")
 
     equity = np.empty(n, dtype=np.float64)

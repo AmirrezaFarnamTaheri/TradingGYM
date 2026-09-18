@@ -17,7 +17,11 @@ from trading_gym.common.audit_outbox import (
     ensure_audit_outbox,
     queue_audit_event,
 )
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.common.security import bounded_json_dumps
 from trading_gym.governance.ledger import AuditLedger
 from trading_gym.research.models import ResearchDossier
@@ -42,7 +46,9 @@ class ResearchNote(BaseModel):
     note_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$")]
     subject: Annotated[str, Field(min_length=1, max_length=200)]
     body: Annotated[str, Field(max_length=50_000)]
-    evidence_ids: Annotated[list[str], Field(max_length=500)] = Field(default_factory=list)
+    evidence_ids: Annotated[list[str], Field(max_length=500)] = Field(
+        default_factory=list
+    )
     revision: int = Field(default=1, ge=1)
     created_at: datetime
     updated_at: datetime
@@ -165,10 +171,16 @@ class ResearchWorkspace:
                 event="research.watchlist_saved",
                 actor=actor,
                 subject=entry.instrument_id,
-                details={"workspace_revision": document["revision"], "tags": entry.tags},
+                details={
+                    "workspace_revision": document["revision"],
+                    "tags": entry.tags,
+                },
             )
             atomic_write_json(self.path, document)
-            result = {"revision": document["revision"], "entry": entry.model_dump(mode="json")}
+            result = {
+                "revision": document["revision"],
+                "entry": entry.model_dump(mode="json"),
+            }
         self.reconcile_audit()
         return result
 
@@ -232,7 +244,11 @@ class ResearchWorkspace:
                 body=body,
                 evidence_ids=evidence_ids or [],
                 revision=current_revision + 1,
-                created_at=ResearchNote.model_validate(existing).created_at if existing else now,
+                created_at=(
+                    ResearchNote.model_validate(existing).created_at
+                    if existing
+                    else now
+                ),
                 updated_at=now,
             )
             bounded_json_dumps(note.model_dump(mode="json"), max_bytes=128 * 1024)

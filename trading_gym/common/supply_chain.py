@@ -9,7 +9,6 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-
 MAX_LOCK_BYTES = 32 * 1024 * 1024
 
 
@@ -35,7 +34,9 @@ def _normalise_poetry_dependency(name: str, value: Any) -> dict[str, Any]:
         record["constraint"] = value
         record["source"] = "registry"
     elif isinstance(value, list):
-        record["constraint"] = " OR ".join(str(item.get("version", "*")) for item in value if isinstance(item, dict))
+        record["constraint"] = " OR ".join(
+            str(item.get("version", "*")) for item in value if isinstance(item, dict)
+        )
         record["source"] = "registry"
     elif isinstance(value, dict):
         record["constraint"] = str(value.get("version", "*"))
@@ -83,7 +84,9 @@ def build_dependency_inventory(project_root: Path) -> dict[str, Any]:
                 "ecosystem": "pypi",
                 "version": str(package_record.get("version", "unknown")),
                 "direct": False,
-                "groups": sorted(str(item) for item in package_record.get("groups", [])),
+                "groups": sorted(
+                    str(item) for item in package_record.get("groups", [])
+                ),
                 "optional": bool(package_record.get("optional", False)),
                 "python_versions": str(package_record.get("python-versions", "*")),
                 "artifact_hashes": hashes,
@@ -170,10 +173,14 @@ def build_dependency_inventory(project_root: Path) -> dict[str, Any]:
                 }
             )
 
-    backend_version = str(pyproject.get("tool", {}).get("poetry", {}).get("version", ""))
+    backend_version = str(
+        pyproject.get("tool", {}).get("poetry", {}).get("version", "")
+    )
     frontend_version = str(package.get("version", ""))
     lock_root = lock.get("packages", {}).get("", {})
-    lock_version = str(lock_root.get("version", "")) if isinstance(lock_root, dict) else ""
+    lock_version = (
+        str(lock_root.get("version", "")) if isinstance(lock_root, dict) else ""
+    )
     if len({backend_version, frontend_version, lock_version}) != 1:
         findings.append(
             {
@@ -192,7 +199,10 @@ def build_dependency_inventory(project_root: Path) -> dict[str, Any]:
     }
     payload = {
         "schema": "trading-gym-dependency-inventory/v1",
-        "project": {"name": pyproject.get("tool", {}).get("poetry", {}).get("name"), "version": backend_version},
+        "project": {
+            "name": pyproject.get("tool", {}).get("poetry", {}).get("name"),
+            "version": backend_version,
+        },
         "files": files,
         "components": python_direct + python_locked + npm_components,
         "findings": findings,
@@ -212,11 +222,15 @@ def build_dependency_inventory(project_root: Path) -> dict[str, Any]:
 
 def verify_dependency_policy(project_root: Path) -> dict[str, Any]:
     inventory = build_dependency_inventory(project_root)
-    critical = [item for item in inventory["findings"] if item["severity"] == "critical"]
+    critical = [
+        item for item in inventory["findings"] if item["severity"] == "critical"
+    ]
     return {
         "valid": not critical,
         "inventory_sha256": inventory["inventory_sha256"],
         "critical": critical,
-        "warnings": [item for item in inventory["findings"] if item["severity"] == "warning"],
+        "warnings": [
+            item for item in inventory["findings"] if item["severity"] == "warning"
+        ],
         "summary": inventory["summary"],
     }

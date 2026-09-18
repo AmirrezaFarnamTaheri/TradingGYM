@@ -37,9 +37,12 @@ def test_a_rule_becomes_wired_once_its_key_is_supplied() -> None:
 
     assert "stall" not in status["unwired_rules"]
     # The other four still have no producer, so they stay flagged.
-    assert {"single_trade_loss", "slippage_breach", "api_error_burst", "rejection_rate"} <= set(
-        status["unwired_rules"]
-    )
+    assert {
+        "single_trade_loss",
+        "slippage_breach",
+        "api_error_burst",
+        "rejection_rate",
+    } <= set(status["unwired_rules"])
 
 
 def test_unwired_reporting_is_not_a_trip_or_a_failure() -> None:

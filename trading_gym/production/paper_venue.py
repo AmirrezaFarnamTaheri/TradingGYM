@@ -85,9 +85,10 @@ class PaperVenue(VenueAdapter):
         price = self._prices[symbol]
         if intent.quantity <= 0:
             raise ValueError("quantity must be positive")
-        order_id = "paper-" + hashlib.sha256(
-            intent.idempotency_key.encode("utf-8")
-        ).hexdigest()[:12]
+        order_id = (
+            "paper-"
+            + hashlib.sha256(intent.idempotency_key.encode("utf-8")).hexdigest()[:12]
+        )
         receipt: dict[str, object] = {
             "order_id": order_id,
             "status": "filled",

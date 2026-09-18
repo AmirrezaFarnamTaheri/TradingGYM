@@ -1,4 +1,5 @@
 """Bounded, non-authoritative recurrence planning."""
+
 from trading_gym.scheduling.planner import (
     MissedRunPolicy,
     SchedulePlan,

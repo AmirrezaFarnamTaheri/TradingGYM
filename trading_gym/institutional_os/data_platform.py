@@ -1,11 +1,12 @@
 """Unified market-data lake, quality, and point-in-time feature-store evidence."""
+
 from __future__ import annotations
 
 import math
 from collections import defaultdict
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -54,7 +55,9 @@ class QualityObservation(BaseModel):
     dataset_id: Annotated[str, Field(min_length=2, max_length=128)]
     timestamp: datetime
     values: dict[str, float] = Field(max_length=1000)
-    missing_fields: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(default_factory=list, max_length=1000)
+    missing_fields: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(
+        default_factory=list, max_length=1000
+    )
 
     @model_validator(mode="after")
     def validate_values(self) -> "QualityObservation":
@@ -74,7 +77,9 @@ class VendorComparison(BaseModel):
 
     @model_validator(mode="after")
     def validate_values(self) -> "VendorComparison":
-        if not math.isfinite(self.primary_value) or any(not math.isfinite(item) for item in self.peer_values):
+        if not math.isfinite(self.primary_value) or any(
+            not math.isfinite(item) for item in self.peer_values
+        ):
             raise ValueError("vendor comparison values must be finite")
         return self
 
@@ -84,7 +89,9 @@ class FeatureDefinition(BaseModel):
 
     feature_id: Annotated[str, Field(min_length=2, max_length=128)]
     version: Annotated[str, Field(min_length=1, max_length=80)]
-    source_dataset_ids: list[Annotated[str, Field(min_length=2, max_length=128)]] = Field(min_length=1, max_length=1000)
+    source_dataset_ids: list[Annotated[str, Field(min_length=2, max_length=128)]] = (
+        Field(min_length=1, max_length=1000)
+    )
     transformation_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     event_time_field: Annotated[str, Field(min_length=1, max_length=120)]
     availability_delay_seconds: Annotated[int, Field(ge=0, le=10 * 365 * 86400)] = 0
@@ -121,10 +128,18 @@ class DataPlatformRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     partitions: list[DataPartition] = Field(max_length=1_000_000)
-    quality_observations: list[QualityObservation] = Field(default_factory=list, max_length=1_000_000)
-    vendor_comparisons: list[VendorComparison] = Field(default_factory=list, max_length=100_000)
-    feature_definitions: list[FeatureDefinition] = Field(default_factory=list, max_length=100_000)
-    feature_materialisations: list[FeatureMaterialisation] = Field(default_factory=list, max_length=1_000_000)
+    quality_observations: list[QualityObservation] = Field(
+        default_factory=list, max_length=1_000_000
+    )
+    vendor_comparisons: list[VendorComparison] = Field(
+        default_factory=list, max_length=100_000
+    )
+    feature_definitions: list[FeatureDefinition] = Field(
+        default_factory=list, max_length=100_000
+    )
+    feature_materialisations: list[FeatureMaterialisation] = Field(
+        default_factory=list, max_length=1_000_000
+    )
     evaluated_at: datetime
     maximum_staleness_seconds: Annotated[int, Field(ge=1, le=10 * 365 * 86400)] = 86400
     maximum_missing_fraction: float = Field(default=0.01, ge=0.0, le=1.0)
@@ -135,7 +150,9 @@ class DataPlatformRequest(BaseModel):
         keys = [(item.dataset_id, item.partition_key) for item in self.partitions]
         if len(keys) != len(set(keys)):
             raise ValueError("dataset partition keys must be unique")
-        definitions = [(item.feature_id, item.version) for item in self.feature_definitions]
+        definitions = [
+            (item.feature_id, item.version) for item in self.feature_definitions
+        ]
         if len(definitions) != len(set(definitions)):
             raise ValueError("feature definition versions must be unique")
         comparison_fields = [item.field for item in self.vendor_comparisons]
@@ -146,14 +163,24 @@ class DataPlatformRequest(BaseModel):
             for item in self.feature_materialisations
         ]
         if len(materialisation_keys) != len(set(materialisation_keys)):
-            raise ValueError("feature materialisations must be unique by feature version and event time")
+            raise ValueError(
+                "feature materialisations must be unique by feature version and event time"
+            )
         for definition in self.feature_definitions:
-            if len(definition.source_dataset_ids) != len(set(definition.source_dataset_ids)):
+            if len(definition.source_dataset_ids) != len(
+                set(definition.source_dataset_ids)
+            ):
                 raise ValueError("feature source dataset IDs must be unique")
-        quality_cells = sum(len(item.values) + len(item.missing_fields) for item in self.quality_observations)
+        quality_cells = sum(
+            len(item.values) + len(item.missing_fields)
+            for item in self.quality_observations
+        )
         if quality_cells > MAX_DATA_QUALITY_CELLS:
             raise ValueError("data-quality work budget exceeded")
-        if sum(len(item.source_dataset_ids) for item in self.feature_definitions) > MAX_FEATURE_LINEAGE_LINKS:
+        if (
+            sum(len(item.source_dataset_ids) for item in self.feature_definitions)
+            > MAX_FEATURE_LINEAGE_LINKS
+        ):
             raise ValueError("feature-lineage work budget exceeded")
         return self
 
@@ -204,7 +231,9 @@ def evaluate_data_platform(request: DataPlatformRequest) -> DataPlatformReport:
         if item.dataset_id not in datasets:
             quality_failures.append(f"unknown_quality_dataset:{item.dataset_id}")
         if item.timestamp > request.evaluated_at:
-            quality_failures.append(f"future_quality_observation:{item.dataset_id}:{item.timestamp.isoformat()}")
+            quality_failures.append(
+                f"future_quality_observation:{item.dataset_id}:{item.timestamp.isoformat()}"
+            )
         by_dataset[item.dataset_id].append(item)
     for dataset_id in sorted(datasets):
         observations = by_dataset.get(dataset_id, [])
@@ -212,7 +241,9 @@ def evaluate_data_platform(request: DataPlatformRequest) -> DataPlatformReport:
             quality_failures.append(f"missing_quality_observations:{dataset_id}")
             continue
         missing = sum(len(item.missing_fields) for item in observations)
-        fields = sum(max(1, len(item.values) + len(item.missing_fields)) for item in observations)
+        fields = sum(
+            max(1, len(item.values) + len(item.missing_fields)) for item in observations
+        )
         if missing / fields > request.maximum_missing_fraction:
             quality_failures.append(f"missingness:{dataset_id}")
         times = [item.timestamp for item in observations]
@@ -221,32 +252,48 @@ def evaluate_data_platform(request: DataPlatformRequest) -> DataPlatformReport:
     for item in request.vendor_comparisons:
         median = sorted(item.peer_values)[len(item.peer_values) // 2]
         denominator = max(abs(median), 1e-12)
-        if abs(item.primary_value - median) / denominator > item.maximum_relative_deviation:
+        if (
+            abs(item.primary_value - median) / denominator
+            > item.maximum_relative_deviation
+        ):
             disagreements.append(item.field)
     duplicate_content = sorted(
-        dataset_id for dataset_id, hashes in partition_hashes.items()
+        dataset_id
+        for dataset_id, hashes in partition_hashes.items()
         if len(hashes) < partition_counts[dataset_id]
     )
     if duplicate_content:
-        warnings.extend(f"duplicate_partition_content:{item}" for item in duplicate_content)
-    definitions = {(item.feature_id, item.version): item for item in request.feature_definitions}
+        warnings.extend(
+            f"duplicate_partition_content:{item}" for item in duplicate_content
+        )
+    definitions = {
+        (item.feature_id, item.version): item for item in request.feature_definitions
+    }
     lineage: dict[str, list[str]] = {}
     for definition in request.feature_definitions:
         key = f"{definition.feature_id}:{definition.version}"
         lineage[key] = sorted(definition.source_dataset_ids)
         missing_sources = sorted(set(definition.source_dataset_ids) - datasets)
         if missing_sources:
-            blockers.append(f"missing_feature_sources:{key}:{','.join(missing_sources[:10])}")
+            blockers.append(
+                f"missing_feature_sources:{key}:{','.join(missing_sources[:10])}"
+            )
     for item in request.feature_materialisations:
         definition = definitions.get((item.feature_id, item.feature_version))
         if definition is None:
-            pit_failures.append(f"missing_definition:{item.feature_id}:{item.feature_version}")
+            pit_failures.append(
+                f"missing_definition:{item.feature_id}:{item.feature_version}"
+            )
             continue
         if item.available_at > request.evaluated_at:
-            pit_failures.append(f"future_materialisation:{item.feature_id}:{item.content_sha256}")
+            pit_failures.append(
+                f"future_materialisation:{item.feature_id}:{item.content_sha256}"
+            )
         earliest = item.event_time.timestamp() + definition.availability_delay_seconds
         if item.available_at.timestamp() + 1e-9 < earliest:
-            pit_failures.append(f"availability_delay:{item.feature_id}:{item.content_sha256}")
+            pit_failures.append(
+                f"availability_delay:{item.feature_id}:{item.content_sha256}"
+            )
     if stale:
         blockers.append("stale_partitions")
     if quality_failures:

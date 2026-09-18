@@ -109,7 +109,9 @@ def deliver_audit_events(document: dict[str, Any], ledger: Any) -> int:
     append_events = getattr(ledger, "append_events", None)
     if append_events is not None:
         try:
-            append_events([dict(record, event_id=event_id) for event_id, record in records])
+            append_events(
+                [dict(record, event_id=event_id) for event_id, record in records]
+            )
         except Exception as exc:
             raise AuditOutboxPending(f"{len(outbox)} audit event(s) pending") from exc
         for event_id, _ in records:

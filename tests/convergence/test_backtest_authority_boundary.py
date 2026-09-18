@@ -15,7 +15,9 @@ def test_backtest_uses_hash_pinned_model_bounded_dates_and_unique_output(
     checkpoints = tmp_path / "checkpoints"
     source = tmp_path / "model.zip"
     source.write_bytes(b"model-bytes")
-    ModelRegistry(checkpoints).register("candidate-v1", source, {}, {}, set_active=False)
+    ModelRegistry(checkpoints).register(
+        "candidate-v1", source, {}, {}, set_active=False
+    )
     captured: dict[str, object] = {}
 
     async def fake_start(process_key, command, **kwargs):  # type: ignore[no-untyped-def]

@@ -6,7 +6,6 @@ from pathlib import Path
 os.environ.setdefault("API_KEY", "test-api-key-12345")
 
 import numpy as np  # noqa: E402
-import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
 
@@ -46,7 +45,7 @@ class _StubProviderRepo:
         ]
 
 
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException  # noqa: E402
 
 
 def _verify(x_api_key: str = Header(None, alias="X-API-Key")):
@@ -67,7 +66,6 @@ def _app(config_yaml: Path | None):
 
 
 def _client(app):
-    from fastapi.testclient import TestClient
 
     return TestClient(app)
 

@@ -1,4 +1,5 @@
 """Generate or verify the product Python-module accountability manifest."""
+
 from __future__ import annotations
 
 from pathlib import Path

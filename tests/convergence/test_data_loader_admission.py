@@ -9,7 +9,9 @@ import pytest
 from trading_gym.data.data_loader import load_data_from_lake
 
 
-def _frame(timestamp: str, *, close: float = 101.0, spread: bool = True) -> pd.DataFrame:
+def _frame(
+    timestamp: str, *, close: float = 101.0, spread: bool = True
+) -> pd.DataFrame:
     data = {
         "timestamp": pd.to_datetime([timestamp]),
         "open": [100.0],
@@ -75,7 +77,9 @@ def test_loader_rejects_conflicting_duplicate_candles(tmp_path, monkeypatch):
 
 def test_loader_deduplicates_identical_candles_with_receipt(tmp_path, monkeypatch):
     _partition(tmp_path, "a.parquet", "b.parquet")
-    monkeypatch.setattr(pd, "read_parquet", lambda _path: _frame("2024-01-01T00:00:00Z"))
+    monkeypatch.setattr(
+        pd, "read_parquet", lambda _path: _frame("2024-01-01T00:00:00Z")
+    )
 
     loaded = load_data_from_lake(tmp_path, ("BTC",), ("5m",))["BTC"]["5m"]
 

@@ -29,7 +29,9 @@ def test_verified_snapshot_matches_pinned_bytes_and_is_private(tmp_path: Path) -
     assert not snapshot_path.exists()
 
 
-def test_verified_snapshot_rejects_hash_mismatch_symlink_and_oversize(tmp_path: Path) -> None:
+def test_verified_snapshot_rejects_hash_mismatch_symlink_and_oversize(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / "model.zip"
     source.write_bytes(b"model")
     digest = hashlib.sha256(b"different").hexdigest()

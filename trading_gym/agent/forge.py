@@ -145,9 +145,7 @@ class StrategyForge:
     ) -> tuple[str, ...]:
         """Relevant recorded lessons, newest and best-supported first."""
 
-        return tuple(
-            experience.lesson for experience in memory.query(list(tags), k=k)
-        )
+        return tuple(experience.lesson for experience in memory.query(list(tags), k=k))
 
     def consult(
         self,
@@ -236,9 +234,7 @@ class StrategyForge:
             seed, n=n, seed_rng=seed_rng, mutation_range=mutation_range
         )
         if not variants:
-            raise ValueError(
-                f"seed {seed.name!r} admits no distinct grammar mutations"
-            )
+            raise ValueError(f"seed {seed.name!r} admits no distinct grammar mutations")
 
         scored: list[tuple[StrategySpec, float, dict[str, float]]] = []
         for variant in variants:
@@ -298,9 +294,7 @@ class StrategyForge:
                     windows=self.windows,
                 )
             )
-        seals = {
-            name: seal_window(window) for name, window in self.windows.items()
-        }
+        seals = {name: seal_window(window) for name, window in self.windows.items()}
         return self.surface.submit(
             RevisionCandidate(
                 revision_id=revision_id,

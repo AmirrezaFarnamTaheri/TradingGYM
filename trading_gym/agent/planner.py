@@ -37,7 +37,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Protocol
 
-from trading_gym.agent.arms.base import Arm, ArmProposal, ArmRegistry, ArmTier, Blackboard
+from trading_gym.agent.arms.base import (
+    Arm,
+    ArmProposal,
+    ArmRegistry,
+    ArmTier,
+    Blackboard,
+)
 from trading_gym.agent.fusion import (
     DisagreementEscalated,
     FusedDecision,
@@ -83,9 +89,7 @@ class PlannerResult:
     invoked_tiers: tuple[tuple[ArmTier, str], ...]
     benched: tuple[tuple[str, str], ...]
     proposals: tuple[ArmProposal, ...]
-    caution: CautionState = field(
-        default_factory=lambda: CautionState(level="normal")
-    )
+    caution: CautionState = field(default_factory=lambda: CautionState(level="normal"))
     cycle_id: str | None = None
 
 
@@ -139,7 +143,12 @@ class TierCascadePlanner:
             else self._fusion
         )
 
-        for tier in (ArmTier.T1_RULES, ArmTier.T2_STATS, ArmTier.T3_MODEL, ArmTier.T4_LLM):
+        for tier in (
+            ArmTier.T1_RULES,
+            ArmTier.T2_STATS,
+            ArmTier.T3_MODEL,
+            ArmTier.T4_LLM,
+        ):
             for arm in self._registry.by_tier(tier):
                 reason = self._preflight(arm, principal=principal, ledger=ledger)
                 if reason is not None:

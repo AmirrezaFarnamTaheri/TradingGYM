@@ -1,4 +1,5 @@
 """Evidence-only failover and replica-readiness evaluation."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -59,7 +60,9 @@ class FailoverReadinessReport(BaseModel):
     routing_mutation_performed: bool = False
 
 
-def evaluate_failover_readiness(request: FailoverReadinessRequest) -> FailoverReadinessReport:
+def evaluate_failover_readiness(
+    request: FailoverReadinessRequest,
+) -> FailoverReadinessReport:
     blockers: list[str] = []
     warnings: list[str] = []
     seen: set[str] = set()
@@ -111,7 +114,9 @@ def evaluate_failover_readiness(request: FailoverReadinessRequest) -> FailoverRe
     # replica must not be promoted while it is known to be behind the latest durable
     # sequence merely because the holder of that sequence is unhealthy.
     latest_sequence = max(timely_sequences, default=-1)
-    stale_candidates = [item.replica_id for item in candidates if item.last_sequence < latest_sequence]
+    stale_candidates = [
+        item.replica_id for item in candidates if item.last_sequence < latest_sequence
+    ]
     for replica_id in stale_candidates:
         warnings.append(f"candidate_not_at_latest_sequence:{replica_id}")
     candidates = [item for item in candidates if item.last_sequence == latest_sequence]

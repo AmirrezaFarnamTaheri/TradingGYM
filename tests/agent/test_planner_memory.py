@@ -87,7 +87,9 @@ class _Bear(DeterministicRuleBackend):
         )
 
 
-def arm(backend: DeterministicRuleBackend, tier: ArmTier = ArmTier.T1_RULES) -> BackendArm:
+def arm(
+    backend: DeterministicRuleBackend, tier: ArmTier = ArmTier.T1_RULES
+) -> BackendArm:
     return BackendArm(
         backend=backend,
         tier=tier,
@@ -128,7 +130,9 @@ def run(planner: TierCascadePlanner, ledger: GrantLedger, cycle_id: str | None =
     )
 
 
-def bleed(memory: WorkingMemory, planner: TierCascadePlanner, ledger: GrantLedger, n: int) -> None:
+def bleed(
+    memory: WorkingMemory, planner: TierCascadePlanner, ledger: GrantLedger, n: int
+) -> None:
     """Run ``n`` cycles and settle each as a loss."""
 
     for index in range(n):
@@ -215,9 +219,7 @@ class TestCautionApplication:
             first.fused.target_leverage
         )
 
-    def test_a_loss_streak_shrinks_leverage_and_says_why(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_loss_streak_shrinks_leverage_and_says_why(self, tmp_path: Path) -> None:
         memory = WorkingMemory(max_cycles=8)
         planner = TierCascadePlanner(registry(_Bull()), FusionConfig(), memory=memory)
         ledger = grants(tmp_path)
@@ -264,7 +266,9 @@ class TestCautionApplication:
 
         memory = WorkingMemory(max_cycles=16)
         thin = FusionConfig(quorum_confidence=0.45)
-        planner = TierCascadePlanner(registry(_Bull(confidence=0.5)), thin, memory=memory)
+        planner = TierCascadePlanner(
+            registry(_Bull(confidence=0.5)), thin, memory=memory
+        )
         ledger = grants(tmp_path)
 
         confident = run(planner, ledger, cycle_id="c0")
@@ -277,9 +281,7 @@ class TestCautionApplication:
         assert after.fused.escalated
         assert after.fused.target_leverage == pytest.approx(0.0)
 
-    def test_escalated_decisions_pass_through_untouched(
-        self, tmp_path: Path
-    ) -> None:
+    def test_escalated_decisions_pass_through_untouched(self, tmp_path: Path) -> None:
         memory = WorkingMemory(max_cycles=16)
         planner = TierCascadePlanner(
             registry(_Bull(), _Bear()),
@@ -302,9 +304,10 @@ class TestCautionApplication:
         memory.settle(cycle_id="c0", outcome="profit", pnl_quote=10.0)
         for index in range(6):
             result = run(planner, ledger, cycle_id=f"c{index + 1}")
-            assert abs(result.fused.target_leverage) <= abs(
-                uncautioned.fused.target_leverage
-            ) + 1e-12
+            assert (
+                abs(result.fused.target_leverage)
+                <= abs(uncautioned.fused.target_leverage) + 1e-12
+            )
             memory.settle(
                 cycle_id=f"c{index + 1}",
                 outcome="loss" if index % 2 else "profit",

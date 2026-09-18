@@ -90,9 +90,7 @@ def _snapshot(book: LimitOrderBook | None = None, mid: float = 100.0) -> MarketS
 
 
 def _asks(*levels: tuple[str, str]) -> tuple[PriceLevel, ...]:
-    return tuple(
-        PriceLevel(price=Decimal(p), quantity=Decimal(q)) for p, q in levels
-    )
+    return tuple(PriceLevel(price=Decimal(p), quantity=Decimal(q)) for p, q in levels)
 
 
 def test_buy_walks_asks_and_pays_depth_shortfall(config):
@@ -105,7 +103,9 @@ def test_buy_walks_asks_and_pays_depth_shortfall(config):
 
     assert result.delta_units == pytest.approx(Decimal("3"))
     # Quantity-weighted average across both consumed levels, tick-rounded.
-    expected_avg = (Decimal("1") * Decimal("100.10") + Decimal("2") * Decimal("100.30")) / Decimal("3")
+    expected_avg = (
+        Decimal("1") * Decimal("100.10") + Decimal("2") * Decimal("100.30")
+    ) / Decimal("3")
     assert result.executed_price == expected_avg.quantize(Decimal("0.01"))
     assert result.executed_price > Decimal("100")
     # The book embeds the spread: crossing cost must stay zero and the
@@ -166,7 +166,9 @@ def test_no_book_keeps_legacy_parametric_path(config):
     result = engine.apply_trade(_state(), 1.0, market)
 
     half_spread = (Decimal("20") / Decimal("10000")) * Decimal("100") / Decimal("2")
-    assert result.executed_price == (Decimal("100") + half_spread).quantize(Decimal("0.01"))
+    assert result.executed_price == (Decimal("100") + half_spread).quantize(
+        Decimal("0.01")
+    )
     assert result.crossing_cost == pytest.approx(Decimal("1") * half_spread)
     assert result.slippage_cost > 0
     assert not result.liquidity_capped

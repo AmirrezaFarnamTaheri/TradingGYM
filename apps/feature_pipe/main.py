@@ -1,6 +1,5 @@
 import argparse
 import logging
-import sys
 from trading_gym.common.config import load_app_config
 from trading_gym.pipelines.feature_pipeline import run_feature_pipeline
 

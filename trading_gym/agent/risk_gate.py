@@ -99,4 +99,6 @@ def build_advisory_payload(
     verdicts: Mapping[str, PositionLimitVerdict],
 ) -> dict[str, Any]:
     """JSON-safe payload shaped like the donor's ``risk_analysis`` message."""
-    return {symbol: verdict.as_payload() for symbol, verdict in sorted(verdicts.items())}
+    return {
+        symbol: verdict.as_payload() for symbol, verdict in sorted(verdicts.items())
+    }

@@ -1,4 +1,5 @@
 """Versioned data and protocol contracts."""
+
 from .schema import (
     FieldContract,
     SchemaCompatibilityReport,

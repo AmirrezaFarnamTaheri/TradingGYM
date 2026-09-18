@@ -34,9 +34,7 @@ from trading_gym.strategy_lab.evaluator import validate_market_frame
 
 def make_frame(n: int = 120, seed: int = 7) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
-    index = pd.date_range(
-        "2024-07-01T00:00:00Z", periods=n, freq="5min", tz="UTC"
-    )
+    index = pd.date_range("2024-07-01T00:00:00Z", periods=n, freq="5min", tz="UTC")
     close = 50_000 * np.exp(np.cumsum(rng.normal(0, 0.001, n)))
     open_ = np.roll(close, 1)
     open_[0] = 50_000.0
@@ -102,7 +100,9 @@ class TestOverlayPrimitives:
     def test_gap_kinds_preserve_envelope(self, kind: str) -> None:
         frame = make_frame()
         start = frame.index[30]
-        magnitude = -12.0 if kind == "flash_crash" else (8.0 if kind == "gap_up" else -8.0)
+        magnitude = (
+            -12.0 if kind == "flash_crash" else (8.0 if kind == "gap_up" else -8.0)
+        )
         out = gap_injection(
             frame, kind=kind, magnitude_pct=magnitude, recovery_bars=4, start=start
         )
@@ -261,7 +261,7 @@ class TestDeterminism:
                         "start": 30,
                         "randomize": ["magnitude_pct"],
                         "ranges": {"magnitude_pct": [-15.0, -5.0]},
-                    }
+                    },
                 }
             ],
             "seed": 1234,

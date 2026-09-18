@@ -17,11 +17,18 @@ from typing import Annotated, Any
 from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from trading_gym.common.audit_outbox import deliver_audit_events, ensure_audit_outbox, queue_audit_event
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.audit_outbox import (
+    deliver_audit_events,
+    ensure_audit_outbox,
+    queue_audit_event,
+)
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.common.security import bounded_json_dumps, confined_child
 from trading_gym.governance.ledger import AuditLedger
-
 
 MAX_NODES = 100_000
 MAX_EDGES = 500_000
@@ -140,7 +147,9 @@ class LineageConflict(RuntimeError):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
 
 
 def _graph_hash(document: dict[str, Any]) -> str:
@@ -154,7 +163,9 @@ def _graph_hash(document: dict[str, Any]) -> str:
 
 
 class LineageRepository:
-    def __init__(self, path: Path | None = None, ledger: AuditLedger | None = None) -> None:
+    def __init__(
+        self, path: Path | None = None, ledger: AuditLedger | None = None
+    ) -> None:
         self.path = path or resolve_data_home() / "lineage.json"
         self.ledger = ledger or AuditLedger()
         self.lock = FileLock(str(self.path) + ".lineage.lock")
@@ -174,15 +185,23 @@ class LineageRepository:
         )
         if not isinstance(document, dict) or document.get("schema_version") != 1:
             raise ValueError("unsupported lineage store schema")
-        if not isinstance(document.get("nodes"), dict) or not isinstance(document.get("edges"), dict):
+        if not isinstance(document.get("nodes"), dict) or not isinstance(
+            document.get("edges"), dict
+        ):
             raise ValueError("lineage nodes and edges must be objects")
         if not isinstance(document.get("revision"), int) or document["revision"] < 0:
             raise ValueError("lineage revision is invalid")
         ensure_audit_outbox(document)
         if len(document["nodes"]) > MAX_NODES or len(document["edges"]) > MAX_EDGES:
             raise ValueError("lineage graph size limit exceeded")
-        nodes = {key: LineageNodeCreate.model_validate(value) for key, value in document["nodes"].items()}
-        edges = {key: LineageEdgeCreate.model_validate(value) for key, value in document["edges"].items()}
+        nodes = {
+            key: LineageNodeCreate.model_validate(value)
+            for key, value in document["nodes"].items()
+        }
+        edges = {
+            key: LineageEdgeCreate.model_validate(value)
+            for key, value in document["edges"].items()
+        }
         if any(key != value.node_id for key, value in nodes.items()):
             raise ValueError("lineage node key mismatch")
         if any(key != value.edge_id for key, value in edges.items()):
@@ -248,7 +267,10 @@ class LineageRepository:
     ) -> LineageSnapshot:
         with self.lock:
             document = self._load()
-            if expected_revision is not None and document["revision"] != expected_revision:
+            if (
+                expected_revision is not None
+                and document["revision"] != expected_revision
+            ):
                 raise LineageConflict(
                     f"expected revision {expected_revision}, found {document['revision']}"
                 )
@@ -267,7 +289,11 @@ class LineageRepository:
                 event="lineage.node_added",
                 actor=actor,
                 subject=node.node_id,
-                details={"kind": node.kind.value, "sha256": node.sha256, "revision": document["revision"]},
+                details={
+                    "kind": node.kind.value,
+                    "sha256": node.sha256,
+                    "revision": document["revision"],
+                },
             )
             atomic_write_json(self.path, document)
             snapshot = self._snapshot_from(document)
@@ -282,11 +308,17 @@ class LineageRepository:
     ) -> LineageSnapshot:
         with self.lock:
             document = self._load()
-            if expected_revision is not None and document["revision"] != expected_revision:
+            if (
+                expected_revision is not None
+                and document["revision"] != expected_revision
+            ):
                 raise LineageConflict(
                     f"expected revision {expected_revision}, found {document['revision']}"
                 )
-            if edge.parent_node_id not in document["nodes"] or edge.child_node_id not in document["nodes"]:
+            if (
+                edge.parent_node_id not in document["nodes"]
+                or edge.child_node_id not in document["nodes"]
+            ):
                 raise LineageConflict("lineage edge references an unknown node")
             existing = document["edges"].get(edge.edge_id)
             if existing is not None:
@@ -297,7 +329,9 @@ class LineageRepository:
                 raise LineageConflict("lineage edge limit reached")
             candidate = dict(document["edges"])
             candidate[edge.edge_id] = edge.model_dump(mode="json")
-            self._assert_acyclic(LineageEdgeCreate.model_validate(value) for value in candidate.values())
+            self._assert_acyclic(
+                LineageEdgeCreate.model_validate(value) for value in candidate.values()
+            )
             document["edges"] = candidate
             self._touch(document)
             queue_audit_event(
@@ -335,27 +369,45 @@ class LineageRepository:
             raise KeyError(node_id)
         return LineageNodeCreate.model_validate(raw)
 
-    def list_nodes(self, *, kind: LineageNodeKind | None = None) -> list[LineageNodeCreate]:
+    def list_nodes(
+        self, *, kind: LineageNodeKind | None = None
+    ) -> list[LineageNodeCreate]:
         with self.lock:
-            nodes = [LineageNodeCreate.model_validate(value) for value in self._load()["nodes"].values()]
+            nodes = [
+                LineageNodeCreate.model_validate(value)
+                for value in self._load()["nodes"].values()
+            ]
         if kind is not None:
             nodes = [node for node in nodes if node.kind is kind]
-        return sorted(nodes, key=lambda node: (node.created_at, node.node_id), reverse=True)
+        return sorted(
+            nodes, key=lambda node: (node.created_at, node.node_id), reverse=True
+        )
 
     def list_edges(self) -> list[LineageEdgeCreate]:
         with self.lock:
-            edges = [LineageEdgeCreate.model_validate(value) for value in self._load()["edges"].values()]
+            edges = [
+                LineageEdgeCreate.model_validate(value)
+                for value in self._load()["edges"].values()
+            ]
         return sorted(edges, key=lambda edge: (edge.created_at, edge.edge_id))
 
-    def _traverse(self, root_node_id: str, *, descendants: bool, max_nodes: int) -> LineageTraversal:
+    def _traverse(
+        self, root_node_id: str, *, descendants: bool, max_nodes: int
+    ) -> LineageTraversal:
         if max_nodes < 1 or max_nodes > MAX_TRAVERSAL:
             raise ValueError(f"max_nodes must be 1-{MAX_TRAVERSAL}")
         with self.lock:
             document = self._load()
             if root_node_id not in document["nodes"]:
                 raise KeyError(root_node_id)
-            nodes = {key: LineageNodeCreate.model_validate(value) for key, value in document["nodes"].items()}
-            edges = [LineageEdgeCreate.model_validate(value) for value in document["edges"].values()]
+            nodes = {
+                key: LineageNodeCreate.model_validate(value)
+                for key, value in document["nodes"].items()
+            }
+            edges = [
+                LineageEdgeCreate.model_validate(value)
+                for value in document["edges"].values()
+            ]
         adjacency: dict[str, list[tuple[str, LineageEdgeCreate]]] = {}
         for edge in edges:
             source = edge.parent_node_id if descendants else edge.child_node_id
@@ -367,7 +419,9 @@ class LineageRepository:
         truncated = False
         while queue:
             current = queue.pop(0)
-            for destination, edge in sorted(adjacency.get(current, []), key=lambda pair: pair[1].edge_id):
+            for destination, edge in sorted(
+                adjacency.get(current, []), key=lambda pair: pair[1].edge_id
+            ):
                 selected_edges[edge.edge_id] = edge
                 if destination in visited:
                     continue
@@ -395,9 +449,16 @@ class LineageRepository:
         if not node.uri or not node.uri.startswith("file:"):
             raise ValueError("lineage node does not define a file: URI")
         relative = Path(node.uri.removeprefix("file:"))
-        if relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts):
+        if relative.is_absolute() or any(
+            part in {"", ".", ".."} for part in relative.parts
+        ):
             raise ValueError("lineage file URI must be a confined relative path")
-        candidate = confined_child(root.resolve(strict=True), *relative.parts, must_exist=True, allow_symlinks=False)
+        candidate = confined_child(
+            root.resolve(strict=True),
+            *relative.parts,
+            must_exist=True,
+            allow_symlinks=False,
+        )
         if not candidate.is_file():
             raise ValueError("lineage file node does not reference a regular file")
         digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
@@ -409,7 +470,9 @@ class LineageRepository:
             "path": relative.as_posix(),
         }
 
-    def export_bundle(self, root_node_id: str, *, include_descendants: bool = False) -> ProvenanceBundle:
+    def export_bundle(
+        self, root_node_id: str, *, include_descendants: bool = False
+    ) -> ProvenanceBundle:
         traversal = (
             self.impact(root_node_id, max_nodes=MAX_TRAVERSAL)
             if include_descendants

@@ -1,4 +1,5 @@
 """Counterparty credit and net-exposure evidence without settlement authority."""
+
 from __future__ import annotations
 
 import hashlib
@@ -34,7 +35,14 @@ class CounterpartyExposure(BaseModel):
 
     @model_validator(mode="after")
     def validate_values(self) -> "CounterpartyExposure":
-        for name in ("receivable", "payable", "posted_collateral", "credit_limit", "overdue_receivable", "disputed_amount"):
+        for name in (
+            "receivable",
+            "payable",
+            "posted_collateral",
+            "credit_limit",
+            "overdue_receivable",
+            "disputed_amount",
+        ):
             _finite(getattr(self, name), name)
         if self.credit_limit <= 0:
             raise ValueError("credit_limit must be positive")
@@ -84,7 +92,9 @@ class CounterpartyRiskReport(BaseModel):
     transfer_authority_granted: bool = False
 
 
-def evaluate_counterparty_risk(request: CounterpartyRiskRequest) -> CounterpartyRiskReport:
+def evaluate_counterparty_risk(
+    request: CounterpartyRiskRequest,
+) -> CounterpartyRiskReport:
     if request.allow_cross_counterparty_netting:
         raise ValueError("cross-counterparty netting is not supported")
     seen: set[str] = set()
@@ -97,27 +107,41 @@ def evaluate_counterparty_risk(request: CounterpartyRiskRequest) -> Counterparty
             violations.append(f"duplicate_counterparty:{exposure.counterparty_id}")
             continue
         seen.add(exposure.counterparty_id)
-        collateral_credit = exposure.posted_collateral * (Decimal("1") - exposure.collateral_haircut_fraction)
-        unsecured = max(Decimal("0"), exposure.receivable - exposure.payable - collateral_credit)
-        adjusted = (unsecured + exposure.disputed_amount) * exposure.wrong_way_risk_multiplier
+        collateral_credit = exposure.posted_collateral * (
+            Decimal("1") - exposure.collateral_haircut_fraction
+        )
+        unsecured = max(
+            Decimal("0"), exposure.receivable - exposure.payable - collateral_credit
+        )
+        adjusted = (
+            unsecured + exposure.disputed_amount
+        ) * exposure.wrong_way_risk_multiplier
         utilisation = adjusted / exposure.credit_limit
         item_violations: list[str] = []
         if adjusted > exposure.credit_limit:
             item_violations.append("credit_limit_exceeded")
-        overdue_fraction = exposure.overdue_receivable / exposure.receivable if exposure.receivable else Decimal("0")
+        overdue_fraction = (
+            exposure.overdue_receivable / exposure.receivable
+            if exposure.receivable
+            else Decimal("0")
+        )
         if overdue_fraction > request.maximum_overdue_fraction:
             item_violations.append("overdue_fraction_exceeded")
         if exposure.netting_set_id is None and exposure.receivable and exposure.payable:
             warnings.append(f"no_netting_agreement:{exposure.counterparty_id}")
-        violations.extend(f"{exposure.counterparty_id}:{item}" for item in item_violations)
-        lines.append(CounterpartyRiskLine(
-            counterparty_id=exposure.counterparty_id,
-            net_unsecured_exposure=unsecured,
-            adjusted_exposure=adjusted,
-            credit_limit=exposure.credit_limit,
-            utilisation_fraction=utilisation,
-            violations=item_violations,
-        ))
+        violations.extend(
+            f"{exposure.counterparty_id}:{item}" for item in item_violations
+        )
+        lines.append(
+            CounterpartyRiskLine(
+                counterparty_id=exposure.counterparty_id,
+                net_unsecured_exposure=unsecured,
+                adjusted_exposure=adjusted,
+                credit_limit=exposure.credit_limit,
+                utilisation_fraction=utilisation,
+                violations=item_violations,
+            )
+        )
         total += adjusted
     if not lines:
         violations.append("counterparty_exposures_empty")
@@ -129,7 +153,9 @@ def evaluate_counterparty_risk(request: CounterpartyRiskRequest) -> Counterparty
         "violations": sorted(set(violations)),
         "warnings": sorted(set(warnings)),
     }
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return CounterpartyRiskReport(
         total_adjusted_exposure=total,
         lines=lines,

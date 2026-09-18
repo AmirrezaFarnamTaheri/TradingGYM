@@ -36,11 +36,17 @@ class LookaheadKeyedCache:
     def put(self, *, namespace: str, key: str, value: Any, lookahead: int) -> None:
         if not namespace or not key:
             raise ValueError("namespace and key are required")
-        if isinstance(lookahead, bool) or not isinstance(lookahead, int) or lookahead < 0:
+        if (
+            isinstance(lookahead, bool)
+            or not isinstance(lookahead, int)
+            or lookahead < 0
+        ):
             raise ValueError("lookahead must be a non-negative integer")
         buckets = self._store.setdefault(namespace, {})
         existing = {
-            la: bucket for la, bucket in buckets.items() if key in bucket and la != lookahead
+            la: bucket
+            for la, bucket in buckets.items()
+            if key in bucket and la != lookahead
         }
         if existing:
             raise LookaheadMismatch(namespace, key, next(iter(existing)))

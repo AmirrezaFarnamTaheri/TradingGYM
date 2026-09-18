@@ -138,9 +138,7 @@ class TestQuarantineRepository:
     def test_role_separation_is_enforced(self) -> None:
         repo = SkillQuarantineRepository()
         with pytest.raises(ValueError, match="role separation"):
-            repo.admit(
-                "skill_a", {}, reviewer="alice", preparer="alice"
-            )
+            repo.admit("skill_a", {}, reviewer="alice", preparer="alice")
 
     def test_risky_record_is_refused(self) -> None:
         repo = SkillQuarantineRepository()

@@ -32,7 +32,6 @@ from trading_gym.agent.autonomy_ladder import (
     AutonomyGovernor,
 )
 
-
 SHADOW_START = "2026-06-01T00:00:00Z"
 
 
@@ -76,7 +75,9 @@ class TestPromotionGates:
         governor.promote(strong_shadow_evidence())
         with pytest.raises(PromotionDenied):
             governor.promote(
-                strong_shadow_evidence(fusion_lift_dsr=0.0, critical_proposal_id="prop-1")
+                strong_shadow_evidence(
+                    fusion_lift_dsr=0.0, critical_proposal_id="prop-1"
+                )
             )
         with pytest.raises(PromotionDenied):
             governor.promote(

@@ -65,7 +65,11 @@ def test_non_positive_quantity_rejected(book):
 
 def test_volume_cap_limits_participation(book):
     capped = volume_capped_market_fill(
-        book, side="buy", quantity=D("10"), bar_volume=D("1500"), max_participation=D("0.001")
+        book,
+        side="buy",
+        quantity=D("10"),
+        bar_volume=D("1500"),
+        max_participation=D("0.001"),
     )
     # cap = 1500 × 0.001 = 1.5 → fills fully *relative to the cap*, spanning
     # the first ask level plus part of the second.

@@ -44,7 +44,9 @@ def _approved(service: GovernanceService):
     )
 
 
-def test_reservation_prevents_double_consume_and_can_be_released(tmp_path: Path) -> None:
+def test_reservation_prevents_double_consume_and_can_be_released(
+    tmp_path: Path,
+) -> None:
     service = GovernanceService(
         tmp_path / "proposals.json",
         AuditLedger(tmp_path / "audit.jsonl", hmac_key="x" * 32),
@@ -101,7 +103,9 @@ def test_reservation_prevents_double_consume_and_can_be_released(tmp_path: Path)
     assert service.ledger.verify()["valid"] is True
 
 
-def test_live_start_releases_reservation_when_spawn_fails(tmp_path: Path, monkeypatch) -> None:
+def test_live_start_releases_reservation_when_spawn_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("AUDIT_HMAC_KEY", "h" * 32)
     monkeypatch.setenv("APPROVAL_API_KEY", "approval-secret")

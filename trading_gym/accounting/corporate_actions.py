@@ -35,7 +35,13 @@ class FractionalPolicy(str, Enum):
     REJECT = "reject"
 
 
-def _finite(value: Decimal | None, name: str, *, positive: bool = False, non_negative: bool = False) -> None:
+def _finite(
+    value: Decimal | None,
+    name: str,
+    *,
+    positive: bool = False,
+    non_negative: bool = False,
+) -> None:
     if value is None:
         return
     if not value.is_finite() or abs(value) > MAX_VALUE:
@@ -70,7 +76,9 @@ class CorporateActionRequest(BaseModel):
     action_type: CorporateActionType
     effective_at: datetime
     holding: CorporateActionHolding
-    successor_instrument_id: Annotated[str | None, Field(min_length=3, max_length=120)] = None
+    successor_instrument_id: Annotated[
+        str | None, Field(min_length=3, max_length=120)
+    ] = None
     ratio: Decimal | None = None
     cash_per_unit: Decimal | None = None
     cash_consideration_per_unit: Decimal | None = None
@@ -85,22 +93,39 @@ class CorporateActionRequest(BaseModel):
             raise ValueError("effective_at must be timezone-aware")
         _finite(self.ratio, "ratio", positive=True)
         _finite(self.cash_per_unit, "cash_per_unit", positive=True)
-        _finite(self.cash_consideration_per_unit, "cash_consideration_per_unit", non_negative=True)
+        _finite(
+            self.cash_consideration_per_unit,
+            "cash_consideration_per_unit",
+            non_negative=True,
+        )
         _finite(self.cash_in_lieu_price, "cash_in_lieu_price", positive=True)
         _finite(self.withholding_rate, "withholding_rate", non_negative=True)
         if self.withholding_rate > 1:
             raise ValueError("withholding_rate must not exceed 1")
-        if self.action_type in {
-            CorporateActionType.SPLIT,
-            CorporateActionType.REVERSE_SPLIT,
-            CorporateActionType.STOCK_DIVIDEND,
-        } and self.ratio is None:
+        if (
+            self.action_type
+            in {
+                CorporateActionType.SPLIT,
+                CorporateActionType.REVERSE_SPLIT,
+                CorporateActionType.STOCK_DIVIDEND,
+            }
+            and self.ratio is None
+        ):
             raise ValueError("share-changing action requires ratio")
-        if self.action_type is CorporateActionType.CASH_DIVIDEND and self.cash_per_unit is None:
+        if (
+            self.action_type is CorporateActionType.CASH_DIVIDEND
+            and self.cash_per_unit is None
+        ):
             raise ValueError("cash dividend requires cash_per_unit")
-        if self.action_type is CorporateActionType.SYMBOL_CHANGE and not self.successor_instrument_id:
+        if (
+            self.action_type is CorporateActionType.SYMBOL_CHANGE
+            and not self.successor_instrument_id
+        ):
             raise ValueError("symbol change requires successor_instrument_id")
-        if self.fractional_policy is FractionalPolicy.CASH_IN_LIEU and self.cash_in_lieu_price is None:
+        if (
+            self.fractional_policy is FractionalPolicy.CASH_IN_LIEU
+            and self.cash_in_lieu_price is None
+        ):
             raise ValueError("cash-in-lieu policy requires cash_in_lieu_price")
         return self
 
@@ -150,10 +175,14 @@ class CorporateActionPlan(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str
+    ).encode("utf-8")
 
 
-def _round_to_increment(value: Decimal, increment: Decimal | None) -> tuple[Decimal, Decimal]:
+def _round_to_increment(
+    value: Decimal, increment: Decimal | None
+) -> tuple[Decimal, Decimal]:
     if increment is None:
         return value, Decimal("0")
     units = (value / increment).to_integral_value(rounding=ROUND_DOWN)
@@ -161,7 +190,9 @@ def _round_to_increment(value: Decimal, increment: Decimal | None) -> tuple[Deci
     return rounded, value - rounded
 
 
-def _cash(currency: str, amount: Decimal, withholding_rate: Decimal, rationale: str) -> CashAdjustmentProposal:
+def _cash(
+    currency: str, amount: Decimal, withholding_rate: Decimal, rationale: str
+) -> CashAdjustmentProposal:
     withholding = abs(amount) * withholding_rate if amount > 0 else Decimal("0")
     net = amount - withholding
     direction = "receivable" if net > 0 else "payable" if net < 0 else "none"
@@ -183,14 +214,22 @@ def plan_corporate_action(request: CorporateActionRequest) -> CorporateActionPla
     warnings: list[str] = []
 
     destination = request.successor_instrument_id or holding.instrument_id
-    if request.action_type in {CorporateActionType.SPLIT, CorporateActionType.REVERSE_SPLIT}:
+    if request.action_type in {
+        CorporateActionType.SPLIT,
+        CorporateActionType.REVERSE_SPLIT,
+    }:
         assert request.ratio is not None
         if request.action_type is CorporateActionType.SPLIT and request.ratio <= 1:
             blockers.append("split_ratio_must_exceed_one")
-        if request.action_type is CorporateActionType.REVERSE_SPLIT and request.ratio >= 1:
+        if (
+            request.action_type is CorporateActionType.REVERSE_SPLIT
+            and request.ratio >= 1
+        ):
             blockers.append("reverse_split_ratio_must_be_below_one")
         raw_quantity = holding.quantity * request.ratio
-        adjusted_quantity, fractional = _round_to_increment(raw_quantity, holding.quantity_increment)
+        adjusted_quantity, fractional = _round_to_increment(
+            raw_quantity, holding.quantity_increment
+        )
         if fractional:
             if request.fractional_policy is FractionalPolicy.RETAIN:
                 adjusted_quantity, fractional = raw_quantity, Decimal("0")
@@ -225,7 +264,9 @@ def plan_corporate_action(request: CorporateActionRequest) -> CorporateActionPla
     elif request.action_type is CorporateActionType.STOCK_DIVIDEND:
         assert request.ratio is not None
         raw_quantity = holding.quantity * (Decimal("1") + request.ratio)
-        adjusted_quantity, fractional = _round_to_increment(raw_quantity, holding.quantity_increment)
+        adjusted_quantity, fractional = _round_to_increment(
+            raw_quantity, holding.quantity_increment
+        )
         if fractional:
             if request.fractional_policy is FractionalPolicy.RETAIN:
                 adjusted_quantity, fractional = raw_quantity, Decimal("0")
@@ -233,70 +274,90 @@ def plan_corporate_action(request: CorporateActionRequest) -> CorporateActionPla
                 blockers.append("fractional_position_requires_explicit_treatment")
             else:
                 assert request.cash_in_lieu_price is not None
-                cash.append(_cash(
-                    holding.quote_currency,
-                    fractional * request.cash_in_lieu_price,
-                    request.withholding_rate,
-                    "stock-dividend fractional cash-in-lieu proposal",
-                ))
-        positions.append(PositionAdjustmentProposal(
-            source_instrument_id=holding.instrument_id,
-            destination_instrument_id=destination,
-            quantity_before=holding.quantity,
-            quantity_after=adjusted_quantity,
-            average_entry_price_before=holding.average_entry_price,
-            average_entry_price_after=(
-                holding.average_entry_price / (Decimal("1") + request.ratio)
-                if holding.quantity != 0
-                else holding.average_entry_price
-            ),
-            fractional_quantity=fractional,
-            rationale="stock_dividend",
-        ))
+                cash.append(
+                    _cash(
+                        holding.quote_currency,
+                        fractional * request.cash_in_lieu_price,
+                        request.withholding_rate,
+                        "stock-dividend fractional cash-in-lieu proposal",
+                    )
+                )
+        positions.append(
+            PositionAdjustmentProposal(
+                source_instrument_id=holding.instrument_id,
+                destination_instrument_id=destination,
+                quantity_before=holding.quantity,
+                quantity_after=adjusted_quantity,
+                average_entry_price_before=holding.average_entry_price,
+                average_entry_price_after=(
+                    holding.average_entry_price / (Decimal("1") + request.ratio)
+                    if holding.quantity != 0
+                    else holding.average_entry_price
+                ),
+                fractional_quantity=fractional,
+                rationale="stock_dividend",
+            )
+        )
     elif request.action_type is CorporateActionType.CASH_DIVIDEND:
         assert request.cash_per_unit is not None
         amount = holding.quantity * request.cash_per_unit
-        cash.append(_cash(
-            holding.quote_currency,
-            amount,
-            request.withholding_rate,
-            "cash-dividend proposal; short positions produce a payable",
-        ))
-        warnings.append("dividend_entitlement_and_withholding_require_external_confirmation")
+        cash.append(
+            _cash(
+                holding.quote_currency,
+                amount,
+                request.withholding_rate,
+                "cash-dividend proposal; short positions produce a payable",
+            )
+        )
+        warnings.append(
+            "dividend_entitlement_and_withholding_require_external_confirmation"
+        )
     elif request.action_type is CorporateActionType.SYMBOL_CHANGE:
         assert request.successor_instrument_id is not None
         if request.successor_instrument_id == holding.instrument_id:
             blockers.append("successor_instrument_must_differ")
-        positions.append(PositionAdjustmentProposal(
-            source_instrument_id=holding.instrument_id,
-            destination_instrument_id=request.successor_instrument_id,
-            quantity_before=holding.quantity,
-            quantity_after=holding.quantity,
-            average_entry_price_before=holding.average_entry_price,
-            average_entry_price_after=holding.average_entry_price,
-            rationale="symbol_change",
-        ))
-        warnings.append("instrument_registry_and_open_orders_require_separate_migration")
+        positions.append(
+            PositionAdjustmentProposal(
+                source_instrument_id=holding.instrument_id,
+                destination_instrument_id=request.successor_instrument_id,
+                quantity_before=holding.quantity,
+                quantity_after=holding.quantity,
+                average_entry_price_before=holding.average_entry_price,
+                average_entry_price_after=holding.average_entry_price,
+                rationale="symbol_change",
+            )
+        )
+        warnings.append(
+            "instrument_registry_and_open_orders_require_separate_migration"
+        )
     elif request.action_type is CorporateActionType.DELISTING:
         if request.cash_consideration_per_unit is None:
-            blockers.append("delisting_requires_confirmed_cash_consideration_or_manual_resolution")
+            blockers.append(
+                "delisting_requires_confirmed_cash_consideration_or_manual_resolution"
+            )
         else:
-            cash.append(_cash(
-                holding.quote_currency,
-                holding.quantity * request.cash_consideration_per_unit,
-                request.withholding_rate,
-                "delisting cash-consideration proposal",
-            ))
-            positions.append(PositionAdjustmentProposal(
-                source_instrument_id=holding.instrument_id,
-                destination_instrument_id=holding.instrument_id,
-                quantity_before=holding.quantity,
-                quantity_after=Decimal("0"),
-                average_entry_price_before=holding.average_entry_price,
-                average_entry_price_after=Decimal("0"),
-                rationale="delisting",
-            ))
-        warnings.append("delisting_timing_claims_and_settlement_require_external_confirmation")
+            cash.append(
+                _cash(
+                    holding.quote_currency,
+                    holding.quantity * request.cash_consideration_per_unit,
+                    request.withholding_rate,
+                    "delisting cash-consideration proposal",
+                )
+            )
+            positions.append(
+                PositionAdjustmentProposal(
+                    source_instrument_id=holding.instrument_id,
+                    destination_instrument_id=holding.instrument_id,
+                    quantity_before=holding.quantity,
+                    quantity_after=Decimal("0"),
+                    average_entry_price_before=holding.average_entry_price,
+                    average_entry_price_after=Decimal("0"),
+                    rationale="delisting",
+                )
+            )
+        warnings.append(
+            "delisting_timing_claims_and_settlement_require_external_confirmation"
+        )
 
     payload = {
         "request": request.model_dump(mode="json"),

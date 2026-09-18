@@ -15,7 +15,6 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
 MAX_ABS = Decimal("1e30")
 
 
@@ -78,9 +77,13 @@ class LotFill(BaseModel):
         _finite(self.fee_to_base_rate, "fee_to_base_rate", positive=True)
         if self.fee_amount:
             if not self.fee_currency or self.fee_to_base_rate is None:
-                raise ValueError("non-zero fees require fee_currency and fee_to_base_rate")
+                raise ValueError(
+                    "non-zero fees require fee_currency and fee_to_base_rate"
+                )
         elif self.fee_to_base_rate is not None and self.fee_currency is None:
-            raise ValueError("fee_currency is required when fee_to_base_rate is present")
+            raise ValueError(
+                "fee_currency is required when fee_to_base_rate is present"
+            )
         return self
 
     @property
@@ -257,7 +260,9 @@ def analyse_lots(
         opposite = "short" if direction == "long" else "long"
         remaining = fill.quantity
         lots = open_by_instrument.setdefault(fill.instrument_id, [])
-        opposing = _lot_order([lot for lot in lots if lot.direction == opposite], method)
+        opposing = _lot_order(
+            [lot for lot in lots if lot.direction == opposite], method
+        )
         closing_fee_remaining = fill_fee
 
         for lot in opposing:
@@ -289,7 +294,9 @@ def analyse_lots(
                     quantity=matched,
                     opened_at=lot.opened_at,
                     closed_at=fill.occurred_at,
-                    holding_seconds=Decimal(str((fill.occurred_at - lot.opened_at).total_seconds())),
+                    holding_seconds=Decimal(
+                        str((fill.occurred_at - lot.opened_at).total_seconds())
+                    ),
                     opening_value_base=opening_value,
                     closing_value_base=closing_value,
                     opening_fee_base=opening_fee_share,
@@ -316,12 +323,15 @@ def analyse_lots(
             mark_unit: Decimal | None = None
             if mark is not None:
                 if mark.quote_currency != lot.quote_currency:
-                    raise ValueError(f"mark quote currency mismatch for {instrument_id}")
+                    raise ValueError(
+                        f"mark quote currency mismatch for {instrument_id}"
+                    )
                 mark_unit = mark.unit_value_base
                 gross = (
                     (mark_unit - lot.opening_unit_value_base) * lot.remaining_quantity
                     if lot.direction == "long"
-                    else (lot.opening_unit_value_base - mark_unit) * lot.remaining_quantity
+                    else (lot.opening_unit_value_base - mark_unit)
+                    * lot.remaining_quantity
                 )
                 unrealized = gross - lot.remaining_opening_fee_base
                 unrealized_total += unrealized
@@ -355,29 +365,37 @@ def analyse_lots(
     )
 
     strategy_ids = sorted(
-        {
-            item.strategy_id or "unattributed"
-            for item in disposals
-        }
+        {item.strategy_id or "unattributed" for item in disposals}
         | {lot.strategy_id or "unattributed" for lot in open_lots}
         | {fill.strategy_id or "unattributed" for fill in ordered}
     )
     attribution: list[StrategyAttribution] = []
     for strategy_id in strategy_ids:
         matches = [
-            item for item in disposals if (item.strategy_id or "unattributed") == strategy_id
+            item
+            for item in disposals
+            if (item.strategy_id or "unattributed") == strategy_id
         ]
         strategy_lots = [
-            item for item in open_lots if (item.strategy_id or "unattributed") == strategy_id
+            item
+            for item in open_lots
+            if (item.strategy_id or "unattributed") == strategy_id
         ]
         strategy_fill_ids = {
-            fill.fill_id for fill in ordered if (fill.strategy_id or "unattributed") == strategy_id
+            fill.fill_id
+            for fill in ordered
+            if (fill.strategy_id or "unattributed") == strategy_id
         }
-        fees = sum((fill.fee_base for fill in ordered if fill.fill_id in strategy_fill_ids), Decimal("0"))
+        fees = sum(
+            (fill.fee_base for fill in ordered if fill.fill_id in strategy_fill_ids),
+            Decimal("0"),
+        )
         attribution.append(
             StrategyAttribution(
                 strategy_id=strategy_id,
-                realized_pnl_base=sum((item.realized_pnl_base for item in matches), Decimal("0")),
+                realized_pnl_base=sum(
+                    (item.realized_pnl_base for item in matches), Decimal("0")
+                ),
                 unrealized_pnl_base=sum(
                     (
                         item.unrealized_pnl_base
@@ -388,7 +406,9 @@ def analyse_lots(
                 ),
                 fees_base=fees,
                 closed_quantity=sum((item.quantity for item in matches), Decimal("0")),
-                open_quantity=sum((item.remaining_quantity for item in strategy_lots), Decimal("0")),
+                open_quantity=sum(
+                    (item.remaining_quantity for item in strategy_lots), Decimal("0")
+                ),
                 profitable_matches=sum(item.realized_pnl_base > 0 for item in matches),
                 losing_matches=sum(item.realized_pnl_base < 0 for item in matches),
             )
@@ -413,7 +433,11 @@ def analyse_lots(
             Decimal("0"),
         ),
         open_short_quantity=sum(
-            (item.remaining_quantity for item in open_lots if item.direction == "short"),
+            (
+                item.remaining_quantity
+                for item in open_lots
+                if item.direction == "short"
+            ),
             Decimal("0"),
         ),
         disposals=disposals,

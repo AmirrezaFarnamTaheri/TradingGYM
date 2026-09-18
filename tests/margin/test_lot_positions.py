@@ -6,7 +6,6 @@ import pytest
 
 from trading_gym.margin.lot_positions import LotLedger, LotLedgerError
 
-
 D = Decimal
 
 
@@ -80,8 +79,14 @@ def test_net_position_tracks_arbitrary_sequence():
     ledger = LotLedger()
     net = D("0")
     fills = [
-        ("2.5", "100"), ("-1", "102"), ("-2", "98"), ("0.75", "101"),
-        ("-0.25", "97"), ("3", "105"), ("-6", "95"), ("1", "99"),
+        ("2.5", "100"),
+        ("-1", "102"),
+        ("-2", "98"),
+        ("0.75", "101"),
+        ("-0.25", "97"),
+        ("3", "105"),
+        ("-6", "95"),
+        ("1", "99"),
     ]
     for qty, price in fills:
         signed = D(qty)

@@ -13,7 +13,6 @@ against risk-on. Contract below pins this behavior.
 
 from __future__ import annotations
 
-import math
 
 import pytest
 
@@ -21,7 +20,6 @@ from trading_gym.agent.arms.factory import StatisticsArmBackend
 from trading_gym.intelligence.types import (
     ActionKind,
     BackendHealth,
-    DecisionSignal,
     MarketContext,
 )
 
@@ -61,9 +59,7 @@ class TestStatisticsArm:
     def test_collapsed_sharpe_raises_confident_hold(self) -> None:
         arm = StatisticsArmBackend(min_history=20, psr_threshold=0.9)
         # alternating big losses → negative Sharpe → PSR ≈ 0
-        returns = tuple(
-            [0.01, -0.02] * 10
-        )
+        returns = tuple([0.01, -0.02] * 10)
         signal = arm.decide(make_context(returns))
         assert signal.action_kind is ActionKind.HOLD
         assert signal.confidence >= 0.7

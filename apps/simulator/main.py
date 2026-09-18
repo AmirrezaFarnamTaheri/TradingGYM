@@ -12,7 +12,10 @@ from filelock import FileLock
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 from trading_gym.common.config import load_app_config
-from trading_gym.common.security import validate_regular_file, verified_regular_file_snapshot
+from trading_gym.common.security import (
+    validate_regular_file,
+    verified_regular_file_snapshot,
+)
 import trading_gym.pipelines.environment
 from trading_gym.pipelines.environment import create_environment
 from trading_gym.data.data_loader import load_data_from_lake
@@ -194,14 +197,18 @@ def run(
         if start_date is not None and end_date is not None:
             days = (end_date - start_date).days
             if days <= 0 or days > 3660:
-                raise ValueError("simulation date window must be between 1 and 3660 days")
+                raise ValueError(
+                    "simulation date window must be between 1 and 3660 days"
+                )
             start_at = pd.Timestamp(start_date, tz="UTC")
             end_at = pd.Timestamp(end_date + timedelta(days=1), tz="UTC")
         else:
             start_at = end_at = None
         cfg = load_app_config(config)
     except Exception as exc:
-        logger.error("Simulator input validation failed error_type=%s", type(exc).__name__)
+        logger.error(
+            "Simulator input validation failed error_type=%s", type(exc).__name__
+        )
         raise typer.Exit(code=1) from exc
 
     env = None

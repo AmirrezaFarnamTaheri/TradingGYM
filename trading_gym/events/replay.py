@@ -1,4 +1,5 @@
 """Verify and replay ordered event envelopes without mutating source state."""
+
 from __future__ import annotations
 
 import hashlib
@@ -12,7 +13,14 @@ MAX_EVENTS = 1_000_000
 MAX_PAYLOAD_BYTES = 256 * 1024
 
 
-def _hash(previous_hash: str, sequence: int, event_id: str, event_type: str, occurred_at: datetime, payload: dict[str, Any]) -> str:
+def _hash(
+    previous_hash: str,
+    sequence: int,
+    event_id: str,
+    event_type: str,
+    occurred_at: datetime,
+    payload: dict[str, Any],
+) -> str:
     body = {
         "previous_hash": previous_hash,
         "sequence": sequence,
@@ -21,7 +29,9 @@ def _hash(previous_hash: str, sequence: int, event_id: str, event_type: str, occ
         "occurred_at": occurred_at.isoformat(),
         "payload": payload,
     }
-    raw = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    raw = json.dumps(
+        body, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
     return hashlib.sha256(raw).hexdigest()
 
 
@@ -41,7 +51,9 @@ class EventEnvelope(BaseModel):
     def validate_envelope(self) -> "EventEnvelope":
         if self.occurred_at.tzinfo is None or self.occurred_at.utcoffset() is None:
             raise ValueError("occurred_at must be timezone-aware")
-        encoded = json.dumps(self.payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+        encoded = json.dumps(
+            self.payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode()
         if len(encoded) > MAX_PAYLOAD_BYTES:
             raise ValueError("event payload is too large")
         return self
@@ -58,7 +70,9 @@ class EventEnvelope(BaseModel):
         previous_hash: str,
         payload: dict[str, Any],
     ) -> "EventEnvelope":
-        digest = _hash(previous_hash, sequence, event_id, event_type, occurred_at, payload)
+        digest = _hash(
+            previous_hash, sequence, event_id, event_type, occurred_at, payload
+        )
         return cls(
             stream_id=stream_id,
             sequence=sequence,

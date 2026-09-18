@@ -46,7 +46,9 @@ def reservation(index: int, amount: str = "100") -> BudgetReservationCreate:
 
 def test_budget_reserve_commit_release_and_snapshot(tmp_path):
     now = datetime.now(timezone.utc)
-    repo = BudgetRepository(tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl"))
+    repo = BudgetRepository(
+        tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl")
+    )
     created = repo.create(budget(now))
     assert created.available == Decimal("1000")
     first = repo.reserve(reservation(1, "300"), now=now)
@@ -77,7 +79,9 @@ def test_budget_reserve_commit_release_and_snapshot(tmp_path):
 
 def test_budget_prevents_concurrent_overspend(tmp_path):
     now = datetime.now(timezone.utc)
-    repo = BudgetRepository(tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl"))
+    repo = BudgetRepository(
+        tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl")
+    )
     repo.create(budget(now))
 
     def attempt(index: int) -> bool:
@@ -97,7 +101,9 @@ def test_budget_prevents_concurrent_overspend(tmp_path):
 
 def test_reservation_idempotency_and_semantic_collision(tmp_path):
     now = datetime.now(timezone.utc)
-    repo = BudgetRepository(tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl"))
+    repo = BudgetRepository(
+        tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl")
+    )
     repo.create(budget(now))
     request = reservation(1)
     first = repo.reserve(request, now=now)
@@ -106,21 +112,29 @@ def test_reservation_idempotency_and_semantic_collision(tmp_path):
         repo.reserve(request.model_copy(update={"amount": Decimal("101")}), now=now)
     with pytest.raises(BudgetConflict, match="idempotency key"):
         repo.reserve(
-            reservation(2).model_copy(update={"idempotency_key": request.idempotency_key}),
+            reservation(2).model_copy(
+                update={"idempotency_key": request.idempotency_key}
+            ),
             now=now,
         )
 
 
 def test_expiry_releases_capacity_and_is_audited(tmp_path):
     now = datetime.now(timezone.utc)
-    repo = BudgetRepository(tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl"))
+    repo = BudgetRepository(
+        tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl")
+    )
     repo.create(budget(now))
     request = reservation(1, "900").model_copy(update={"expires_in_seconds": 30})
     reserved = repo.reserve(request, now=now)
     result = repo.reconcile_expired(now=now + timedelta(seconds=31))
     assert result == {"expired": 1, "mutation_performed": True}
-    assert repo.get_reservation(reserved.reservation_id).state is ReservationState.EXPIRED
-    assert repo.get_budget(request.budget_id, now=now + timedelta(seconds=31)).available == Decimal("1000")
+    assert (
+        repo.get_reservation(reserved.reservation_id).state is ReservationState.EXPIRED
+    )
+    assert repo.get_budget(
+        request.budget_id, now=now + timedelta(seconds=31)
+    ).available == Decimal("1000")
 
 
 def test_budget_tampering_is_detected(tmp_path):
@@ -137,7 +151,9 @@ def test_budget_tampering_is_detected(tmp_path):
 
 def test_budget_window_and_commit_bounds_fail_closed(tmp_path):
     now = datetime.now(timezone.utc)
-    repo = BudgetRepository(tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl"))
+    repo = BudgetRepository(
+        tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl")
+    )
     inactive = budget(now).model_copy(
         update={
             "budget_id": "budget:future-0001",
@@ -183,7 +199,9 @@ def test_get_budget_persists_an_expiry_it_observed_on_another_budget(tmp_path):
 
     # Reading an unrelated budget is what observes the expiry.
     later = now + timedelta(seconds=31)
-    assert repo.get_budget(budget(now).budget_id, now=later).available == Decimal("1000")
+    assert repo.get_budget(budget(now).budget_id, now=later).available == Decimal(
+        "1000"
+    )
 
     # The expiry survived to disk and its receipt reached the audit ledger.
     fresh = BudgetRepository(path, ledger=AuditLedger(ledger_path))
@@ -196,7 +214,9 @@ def test_idempotency_replay_is_actor_and_metadata_sensitive(tmp_path):
     """F6: replay detection compares actor and metadata too, so a replay that
     changes either is a semantic collision rather than an accepted duplicate."""
     now = datetime.now(timezone.utc)
-    repo = BudgetRepository(tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl"))
+    repo = BudgetRepository(
+        tmp_path / "budgets.json", ledger=AuditLedger(tmp_path / "audit.jsonl")
+    )
     repo.create(budget(now))
     original = reservation(1)
     first = repo.reserve(original, now=now)
@@ -207,7 +227,10 @@ def test_idempotency_replay_is_actor_and_metadata_sensitive(tmp_path):
     with pytest.raises(BudgetConflict, match="idempotency key"):
         repo.reserve(
             original.model_copy(
-                update={"reservation_id": "reservation:replay-0001", "actor": "attacker"}
+                update={
+                    "reservation_id": "reservation:replay-0001",
+                    "actor": "attacker",
+                }
             ),
             now=now,
         )
@@ -239,7 +262,9 @@ def test_list_budgets_reflects_expiry_before_snapshotting(tmp_path):
     later = now + timedelta(seconds=31)
 
     listed = next(
-        item for item in repo.list_budgets(now=later) if item.budget_id == budget(now).budget_id
+        item
+        for item in repo.list_budgets(now=later)
+        if item.budget_id == budget(now).budget_id
     )
     assert listed.reserved == Decimal("0")
     assert listed.available == Decimal("1000")

@@ -5,6 +5,7 @@ checkpoint/outbox around that property: a crash after accounting apply but
 before checkpoint publication is safe because the next run replays the same
 semantic event and then records the checkpoint.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -17,8 +18,16 @@ from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field
 
 from trading_gym.accounting import AccountingRepository
-from trading_gym.common.audit_outbox import deliver_audit_events, ensure_audit_outbox, queue_audit_event
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.audit_outbox import (
+    deliver_audit_events,
+    ensure_audit_outbox,
+    queue_audit_event,
+)
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.governance.ledger import AuditLedger
 from trading_gym.orders import OrderRepository
 
@@ -55,25 +64,38 @@ class OrderAccountingSyncService:
 
     @staticmethod
     def _fingerprint(value: Any) -> str:
-        payload = json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        payload = json.dumps(
+            value, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")
         return hashlib.sha256(payload).hexdigest()
 
     @classmethod
     def _integrity(cls, document: dict[str, Any]) -> str:
-        return cls._fingerprint({
-            "schema_version": 1,
-            "revision": document["revision"],
-            "checkpoints": document["checkpoints"],
-        })
+        return cls._fingerprint(
+            {
+                "schema_version": 1,
+                "revision": document["revision"],
+                "checkpoints": document["checkpoints"],
+            }
+        )
 
     def _load(self) -> dict[str, Any]:
         document = read_json(
             self.path,
-            {"schema_version": 1, "revision": 0, "checkpoints": {}, "audit_outbox": {}, "integrity_sha256": ""},
+            {
+                "schema_version": 1,
+                "revision": 0,
+                "checkpoints": {},
+                "audit_outbox": {},
+                "integrity_sha256": "",
+            },
         )
         if not isinstance(document, dict) or document.get("schema_version") != 1:
             raise ValueError("unsupported order-accounting sync schema")
-        if not isinstance(document.get("checkpoints"), dict) or len(document["checkpoints"]) > 5_000_000:
+        if (
+            not isinstance(document.get("checkpoints"), dict)
+            or len(document["checkpoints"]) > 5_000_000
+        ):
             raise ValueError("order-accounting checkpoints are invalid")
         ensure_audit_outbox(document)
         expected = document.get("integrity_sha256")
@@ -121,8 +143,13 @@ class OrderAccountingSyncService:
                 fingerprint = self._fingerprint(payload)
                 recorded = document["checkpoints"].get(event.event_id)
                 if recorded is not None:
-                    if recorded.get("fingerprint") != fingerprint or recorded.get("order_id") != order_id:
-                        raise ValueError("order-accounting checkpoint identity collision")
+                    if (
+                        recorded.get("fingerprint") != fingerprint
+                        or recorded.get("order_id") != order_id
+                    ):
+                        raise ValueError(
+                            "order-accounting checkpoint identity collision"
+                        )
                     existing += 1
                     continue
                 document["checkpoints"][event.event_id] = {
@@ -151,7 +178,9 @@ class OrderAccountingSyncService:
                 atomic_write_json(self.path, document)
         return new, existing
 
-    def sync(self, order_id: str, *, actor: str = "accounting-reconciler") -> OrderAccountingSyncReport:
+    def sync(
+        self, order_id: str, *, actor: str = "accounting-reconciler"
+    ) -> OrderAccountingSyncReport:
         order = self.orders.get(order_id)
         if not self.accounting.exists(order.account_id):
             raise KeyError(f"account:{order.account_id}")
@@ -166,8 +195,12 @@ class OrderAccountingSyncService:
             for event in events:
                 recorded = checkpoints.get(event.event_id)
                 if recorded is not None:
-                    if recorded.get("fingerprint") != self._fingerprint(event.model_dump(mode="json")):
-                        raise ValueError("order-accounting checkpoint fingerprint mismatch")
+                    if recorded.get("fingerprint") != self._fingerprint(
+                        event.model_dump(mode="json")
+                    ):
+                        raise ValueError(
+                            "order-accounting checkpoint fingerprint mismatch"
+                        )
                 else:
                     pending.append(event)
 
@@ -177,7 +210,9 @@ class OrderAccountingSyncService:
         # run by replaying the same event.
         revisions = {
             event.event_id: snapshot.revision
-            for event, snapshot in zip(pending, account.apply_events(pending, actor=actor))
+            for event, snapshot in zip(
+                pending, account.apply_events(pending, actor=actor)
+            )
         }
 
         # Checkpoint every newly applied event in one batched write so the cost
@@ -201,7 +236,8 @@ class OrderAccountingSyncService:
             document = self._load()
             covered = [
                 event.event_id in document["checkpoints"]
-                and document["checkpoints"][event.event_id]["fingerprint"] == self._fingerprint(event.model_dump(mode="json"))
+                and document["checkpoints"][event.event_id]["fingerprint"]
+                == self._fingerprint(event.model_dump(mode="json"))
                 for event in events
             ]
             checkpoint_sha = document["integrity_sha256"]
@@ -228,4 +264,7 @@ class OrderAccountingSyncService:
             if delivered:
                 document["integrity_sha256"] = self._integrity(document)
                 atomic_write_json(self.path, document)
-            return {"delivered": delivered, "pending": len(ensure_audit_outbox(document))}
+            return {
+                "delivered": delivered,
+                "pending": len(ensure_audit_outbox(document)),
+            }

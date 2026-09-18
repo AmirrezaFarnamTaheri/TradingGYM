@@ -175,9 +175,7 @@ class FeatureAssembler:
         # 2. Core Features (Numba)
         # Force copy to numpy array to prevent Numba/Pandas ABI conflicts
         log_rets = np.array(calculate_log_returns(prices))
-        vol = np.array(
-            calculate_volatility(log_rets, window=rolling_window // 10)
-        )
+        vol = np.array(calculate_volatility(log_rets, window=rolling_window // 10))
         rsi = np.array(calculate_rsi(prices, period=14))
 
         # 3. Microstructure Features (Vectorized)
@@ -217,5 +215,7 @@ class FeatureAssembler:
         # not a value to silently coerce into a tradable signal.
         output = features.astype(np.float32)
         if not np.isfinite(output.to_numpy(dtype=np.float32, copy=False)).all():
-            raise ValueError(f"Feature generation produced non-finite values for {symbol}")
+            raise ValueError(
+                f"Feature generation produced non-finite values for {symbol}"
+            )
         return output

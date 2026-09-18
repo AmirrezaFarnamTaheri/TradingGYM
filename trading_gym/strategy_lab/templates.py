@@ -73,14 +73,18 @@ def template_catalogue() -> dict[str, StrategySpec]:
             entry=ConditionGroup(
                 mode=LogicMode.ALL,
                 conditions=[
-                    condition(indicator("ema12"), Operator.CROSSES_ABOVE, indicator("ema26")),
+                    condition(
+                        indicator("ema12"), Operator.CROSSES_ABOVE, indicator("ema26")
+                    ),
                     condition(indicator("roc10"), Operator.GT, constant(0.0)),
                 ],
             ),
             exit=ConditionGroup(
                 mode=LogicMode.ANY,
                 conditions=[
-                    condition(indicator("ema12"), Operator.CROSSES_BELOW, indicator("ema26")),
+                    condition(
+                        indicator("ema12"), Operator.CROSSES_BELOW, indicator("ema26")
+                    ),
                     condition(indicator("roc10"), Operator.LT, constant(-2.0)),
                 ],
             ),
@@ -94,7 +98,9 @@ def template_catalogue() -> dict[str, StrategySpec]:
         "rsi_mean_reversion": StrategySpec(
             name="RSI mean reversion",
             description="Enter on deeply oversold RSI and exit after normalization.",
-            indicators=[IndicatorSpec(name="rsi", alias="rsi14", params={"period": 14})],
+            indicators=[
+                IndicatorSpec(name="rsi", alias="rsi14", params={"period": 14})
+            ],
             entry=ConditionGroup(
                 conditions=[condition(indicator("rsi14"), Operator.LT, constant(30))]
             ),
@@ -123,14 +129,18 @@ def template_catalogue() -> dict[str, StrategySpec]:
             entry=ConditionGroup(
                 mode=LogicMode.ALL,
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_BELOW, indicator("bb_lower")),
+                    condition(
+                        field("close"), Operator.CROSSES_BELOW, indicator("bb_lower")
+                    ),
                     condition(indicator("rsi14"), Operator.LT, constant(35)),
                 ],
             ),
             exit=ConditionGroup(
                 mode=LogicMode.ANY,
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_ABOVE, indicator("bb_middle")),
+                    condition(
+                        field("close"), Operator.CROSSES_ABOVE, indicator("bb_middle")
+                    ),
                     condition(indicator("rsi14"), Operator.GT, constant(60)),
                 ],
             ),
@@ -160,12 +170,16 @@ def template_catalogue() -> dict[str, StrategySpec]:
             ],
             entry=ConditionGroup(
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_ABOVE, indicator("upper20"))
+                    condition(
+                        field("close"), Operator.CROSSES_ABOVE, indicator("upper20")
+                    )
                 ]
             ),
             exit=ConditionGroup(
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_BELOW, indicator("lower10"))
+                    condition(
+                        field("close"), Operator.CROSSES_BELOW, indicator("lower10")
+                    )
                 ]
             ),
             risk=RiskSpec(max_position_fraction=0.08, stop_loss_fraction=0.04),
@@ -221,14 +235,18 @@ def template_catalogue() -> dict[str, StrategySpec]:
             entry=ConditionGroup(
                 mode=LogicMode.ALL,
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_ABOVE, indicator("vwap20")),
+                    condition(
+                        field("close"), Operator.CROSSES_ABOVE, indicator("vwap20")
+                    ),
                     condition(indicator("rsi14"), Operator.GT, constant(50)),
                 ],
             ),
             exit=ConditionGroup(
                 mode=LogicMode.ANY,
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_BELOW, indicator("vwap20")),
+                    condition(
+                        field("close"), Operator.CROSSES_BELOW, indicator("vwap20")
+                    ),
                     condition(indicator("rsi14"), Operator.LT, constant(40)),
                 ],
             ),
@@ -253,14 +271,22 @@ def template_catalogue() -> dict[str, StrategySpec]:
             entry=ConditionGroup(
                 mode=LogicMode.ALL,
                 conditions=[
-                    condition(indicator("stoch_k"), Operator.CROSSES_ABOVE, indicator("stoch_d")),
+                    condition(
+                        indicator("stoch_k"),
+                        Operator.CROSSES_ABOVE,
+                        indicator("stoch_d"),
+                    ),
                     condition(indicator("stoch_k"), Operator.LT, constant(30)),
                 ],
             ),
             exit=ConditionGroup(
                 mode=LogicMode.ANY,
                 conditions=[
-                    condition(indicator("stoch_k"), Operator.CROSSES_BELOW, indicator("stoch_d")),
+                    condition(
+                        indicator("stoch_k"),
+                        Operator.CROSSES_BELOW,
+                        indicator("stoch_d"),
+                    ),
                     condition(indicator("stoch_k"), Operator.GT, constant(80)),
                 ],
             ),
@@ -290,14 +316,18 @@ def template_catalogue() -> dict[str, StrategySpec]:
             entry=ConditionGroup(
                 mode=LogicMode.ALL,
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_ABOVE, indicator("chan_upper")),
+                    condition(
+                        field("close"), Operator.CROSSES_ABOVE, indicator("chan_upper")
+                    ),
                     condition(indicator("atr14"), Operator.GT, indicator("atr50")),
                 ],
             ),
             exit=ConditionGroup(
                 mode=LogicMode.ANY,
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_BELOW, indicator("chan_middle")),
+                    condition(
+                        field("close"), Operator.CROSSES_BELOW, indicator("chan_middle")
+                    ),
                     condition(indicator("atr14"), Operator.LT, indicator("atr50")),
                 ],
             ),
@@ -325,7 +355,9 @@ def template_catalogue() -> dict[str, StrategySpec]:
             entry=ConditionGroup(
                 mode=LogicMode.ALL,
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_ABOVE, indicator("ema30")),
+                    condition(
+                        field("close"), Operator.CROSSES_ABOVE, indicator("ema30")
+                    ),
                     condition(indicator("roc14"), Operator.GT, constant(0.5)),
                     condition(indicator("obv_raw"), Operator.GT, constant(0.0)),
                 ],
@@ -333,7 +365,9 @@ def template_catalogue() -> dict[str, StrategySpec]:
             exit=ConditionGroup(
                 mode=LogicMode.ANY,
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_BELOW, indicator("ema30")),
+                    condition(
+                        field("close"), Operator.CROSSES_BELOW, indicator("ema30")
+                    ),
                     condition(indicator("roc14"), Operator.LT, constant(-1.0)),
                 ],
             ),
@@ -368,13 +402,17 @@ def template_catalogue() -> dict[str, StrategySpec]:
             entry=ConditionGroup(
                 mode=LogicMode.ALL,
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_ABOVE, indicator("band_upper")),
+                    condition(
+                        field("close"), Operator.CROSSES_ABOVE, indicator("band_upper")
+                    ),
                     condition(indicator("atr10"), Operator.LT, indicator("atr40")),
                 ],
             ),
             exit=ConditionGroup(
                 conditions=[
-                    condition(field("close"), Operator.CROSSES_BELOW, indicator("band_middle"))
+                    condition(
+                        field("close"), Operator.CROSSES_BELOW, indicator("band_middle")
+                    )
                 ]
             ),
             risk=RiskSpec(
@@ -396,7 +434,12 @@ def template_catalogue() -> dict[str, StrategySpec]:
                 IndicatorSpec(
                     name="macd",
                     alias="hist",
-                    params={"fast": 8, "slow": 21, "signal": 5, "component": "histogram"},
+                    params={
+                        "fast": 8,
+                        "slow": 21,
+                        "signal": 5,
+                        "component": "histogram",
+                    },
                 ),
                 IndicatorSpec(name="ema", alias="ema50", params={"period": 50}),
                 IndicatorSpec(name="rsi", alias="rsi10", params={"period": 10}),
@@ -413,7 +456,9 @@ def template_catalogue() -> dict[str, StrategySpec]:
                 mode=LogicMode.ANY,
                 conditions=[
                     condition(indicator("hist"), Operator.CROSSES_BELOW, constant(0.0)),
-                    condition(field("close"), Operator.CROSSES_BELOW, indicator("ema50")),
+                    condition(
+                        field("close"), Operator.CROSSES_BELOW, indicator("ema50")
+                    ),
                 ],
             ),
             risk=RiskSpec(

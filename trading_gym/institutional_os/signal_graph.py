@@ -1,4 +1,5 @@
 """Bounded signal-intelligence graph with cycle and impact analysis."""
+
 from __future__ import annotations
 
 from collections import defaultdict, deque
@@ -44,14 +45,18 @@ class SignalGraphRequest(BaseModel):
 
     nodes: list[SignalNode] = Field(max_length=100_000)
     edges: list[SignalEdge] = Field(max_length=500_000)
-    impact_roots: list[Annotated[str, Field(min_length=2, max_length=128)]] = Field(default_factory=list, max_length=1000)
+    impact_roots: list[Annotated[str, Field(min_length=2, max_length=128)]] = Field(
+        default_factory=list, max_length=1000
+    )
 
     @model_validator(mode="after")
     def validate_graph(self) -> "SignalGraphRequest":
         ids = [item.node_id for item in self.nodes]
         if len(ids) != len(set(ids)):
             raise ValueError("signal node IDs must be unique")
-        edge_keys = [(item.source_id, item.target_id, item.relationship) for item in self.edges]
+        edge_keys = [
+            (item.source_id, item.target_id, item.relationship) for item in self.edges
+        ]
         if len(edge_keys) != len(set(edge_keys)):
             raise ValueError("signal edges must be unique")
         return self
@@ -114,7 +119,7 @@ def analyze_signal_graph(request: SignalGraphRequest) -> SignalGraphReport:
                 path.append(target)
                 frames.append((target, iter(sorted(outgoing[target]))))
             elif target_state == 1 and target in positions:
-                cycle = path[positions[target]:] + [target]
+                cycle = path[positions[target] :] + [target]
                 body = cycle[:-1]
                 pivot = min(range(len(body)), key=lambda index: body[index])
                 canonical_body = body[pivot:] + body[:pivot]
@@ -133,7 +138,9 @@ def analyze_signal_graph(request: SignalGraphRequest) -> SignalGraphReport:
             continue
         impacted.add(node)
         queue.extend(sorted(outgoing[node]))
-    orphan = sorted(node for node in node_map if not outgoing[node] and not incoming[node])
+    orphan = sorted(
+        node for node in node_map if not outgoing[node] and not incoming[node]
+    )
     blockers = []
     warnings = []
     if missing:

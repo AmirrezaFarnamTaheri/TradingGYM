@@ -12,7 +12,9 @@ from apps.trainer import update as trainer_update
 from trading_gym.models.versioning import ModelRegistry
 
 
-def _registered(root: Path, tmp_path: Path, *, version: str = "v1", active: bool = False) -> ModelRegistry:
+def _registered(
+    root: Path, tmp_path: Path, *, version: str = "v1", active: bool = False
+) -> ModelRegistry:
     artifact = tmp_path / f"{version}.zip"
     artifact.write_bytes(f"artifact-{version}".encode())
     registry = ModelRegistry(root)
@@ -27,7 +29,9 @@ def _registered(root: Path, tmp_path: Path, *, version: str = "v1", active: bool
     return registry
 
 
-def test_legacy_checkpoint_is_visible_but_not_authoritative(tmp_path: Path, monkeypatch) -> None:
+def test_legacy_checkpoint_is_visible_but_not_authoritative(
+    tmp_path: Path, monkeypatch
+) -> None:
     checkpoints = tmp_path / "checkpoints"
     legacy = checkpoints / "legacy-v1"
     legacy.mkdir(parents=True)
@@ -53,7 +57,9 @@ def test_legacy_checkpoint_is_visible_but_not_authoritative(tmp_path: Path, monk
     assert error.value.status_code == 409
 
 
-def test_registered_paper_model_uses_verified_artifact(tmp_path: Path, monkeypatch) -> None:
+def test_registered_paper_model_uses_verified_artifact(
+    tmp_path: Path, monkeypatch
+) -> None:
     checkpoints = tmp_path / "checkpoints"
     registry = _registered(checkpoints, tmp_path)
     expected = registry.artifact_path("v1")
@@ -78,7 +84,9 @@ def test_registered_paper_model_uses_verified_artifact(tmp_path: Path, monkeypat
     command = captured["command"]
     assert isinstance(command, list)
     assert str(expected) in command
-    assert captured["metadata"]["artifact_sha256"] == registry.get_version("v1").code_hash
+    assert (
+        captured["metadata"]["artifact_sha256"] == registry.get_version("v1").code_hash
+    )
 
 
 def test_live_model_must_be_active(tmp_path: Path, monkeypatch) -> None:
@@ -104,7 +112,9 @@ def test_live_model_must_be_active(tmp_path: Path, monkeypatch) -> None:
     assert "active admitted model" in error.value.detail
 
 
-def test_registry_activation_is_audited_and_tamper_blocks_resolution(tmp_path: Path) -> None:
+def test_registry_activation_is_audited_and_tamper_blocks_resolution(
+    tmp_path: Path,
+) -> None:
     registry = _registered(tmp_path / "registry", tmp_path, active=False)
     registry.set_active("v1", actor="reviewer", reason="approved test")
     assert registry.get_active().version == "v1"
@@ -143,7 +153,9 @@ def test_update_can_stage_but_never_promotes_production(monkeypatch) -> None:
         def __init__(self) -> None:
             self.calls: list[tuple[str, str, str]] = []
 
-        def transition_model_version_stage(self, *, name: str, version: str, stage: str) -> None:
+        def transition_model_version_stage(
+            self, *, name: str, version: str, stage: str
+        ) -> None:
             self.calls.append((name, version, stage))
 
     def load_model(uri: str) -> str:
@@ -180,7 +192,9 @@ def test_training_entrypoint_targets_callable_main() -> None:
     assert 'tg-train = "apps.trainer.main:main"' in pyproject
 
 
-def test_default_mlflow_deserialization_requires_explicit_acknowledgement(monkeypatch) -> None:
+def test_default_mlflow_deserialization_requires_explicit_acknowledgement(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(trainer_update, "load_app_config", lambda _: object())
     with pytest.raises(RuntimeError, match="disabled by default"):
         trainer_update.update(

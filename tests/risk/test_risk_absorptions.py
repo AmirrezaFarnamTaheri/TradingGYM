@@ -59,21 +59,33 @@ def test_position_scale_is_binary_conservative_around_the_budget():
     # Policy: full size while the conformal VaR stays strictly inside the
     # dollar budget; any estimate at or beyond the budget takes nothing.
     # Strictly-inside sanity: 1% VaR vs 5% budget.
-    assert compute_conformal_position_scale(
-        var_estimate=0.01, equity=100_000.0, risk_budget_fraction=0.05
-    ) == 1.0
+    assert (
+        compute_conformal_position_scale(
+            var_estimate=0.01, equity=100_000.0, risk_budget_fraction=0.05
+        )
+        == 1.0
+    )
     # At the boundary and beyond: no size.
-    assert compute_conformal_position_scale(
-        var_estimate=0.05, equity=100_000.0, risk_budget_fraction=0.05
-    ) == 0.0
-    assert compute_conformal_position_scale(
-        var_estimate=0.20, equity=100_000.0, risk_budget_fraction=0.05
-    ) == 0.0
-
+    assert (
+        compute_conformal_position_scale(
+            var_estimate=0.05, equity=100_000.0, risk_budget_fraction=0.05
+        )
+        == 0.0
+    )
+    assert (
+        compute_conformal_position_scale(
+            var_estimate=0.20, equity=100_000.0, risk_budget_fraction=0.05
+        )
+        == 0.0
+    )
 
 
 def _switch(**overrides) -> LatchingKillSwitch:
-    return LatchingKillSwitch(config=LatchingConfig(**overrides)) if overrides else LatchingKillSwitch()
+    return (
+        LatchingKillSwitch(config=LatchingConfig(**overrides))
+        if overrides
+        else LatchingKillSwitch()
+    )
 
 
 def test_no_trigger_returns_clean_decision():
@@ -93,8 +105,12 @@ def test_no_trigger_returns_clean_decision():
     ("overrides", "expected_reason"),
     [
         pytest.param(dict(daily_pnl=-350.0), REASON_DAILY_LOSS, id="daily-loss"),
-        pytest.param(dict(nav=8_000.0, peak_nav=10_000.0), REASON_DRAWDOWN, id="drawdown"),
-        pytest.param(dict(consecutive_losses=5), REASON_CONSECUTIVE_LOSSES, id="streak"),
+        pytest.param(
+            dict(nav=8_000.0, peak_nav=10_000.0), REASON_DRAWDOWN, id="drawdown"
+        ),
+        pytest.param(
+            dict(consecutive_losses=5), REASON_CONSECUTIVE_LOSSES, id="streak"
+        ),
     ],
 )
 def test_each_limit_latches(overrides, expected_reason):
@@ -113,8 +129,12 @@ def test_each_limit_latches(overrides, expected_reason):
     assert decision.halted and decision.reason == expected_reason
     # Sticky: subsequent healthy inputs stay halted with the same reason.
     again = switch.check(
-        now=NOW + timedelta(minutes=1), daily_pnl=0.0, daily_start_nav=10_000.0,
-        nav=9_999.0, peak_nav=10_000.0, consecutive_losses=0,
+        now=NOW + timedelta(minutes=1),
+        daily_pnl=0.0,
+        daily_start_nav=10_000.0,
+        nav=9_999.0,
+        peak_nav=10_000.0,
+        consecutive_losses=0,
         last_data_time=NOW,
     )
     assert again.halted and again.reason == expected_reason
@@ -124,7 +144,10 @@ def test_stale_data_uses_injected_clock_not_wall_clock():
     switch = _switch(stale_data_seconds=60)
     decision = switch.check(
         now=NOW,
-        daily_pnl=0.0, daily_start_nav=10_000.0, nav=10_000.0, peak_nav=10_000.0,
+        daily_pnl=0.0,
+        daily_start_nav=10_000.0,
+        nav=10_000.0,
+        peak_nav=10_000.0,
         consecutive_losses=0,
         last_data_time=NOW - timedelta(seconds=61),
     )
@@ -133,9 +156,15 @@ def test_stale_data_uses_injected_clock_not_wall_clock():
 
 def test_reset_requires_actor_and_clears_latch():
     switch = _switch(max_daily_loss_pct=0.001)
-    switch.check(now=NOW, daily_pnl=-50.0, daily_start_nav=10_000.0,
-                 nav=10_000.0, peak_nav=10_000.0, consecutive_losses=0,
-                 last_data_time=NOW)
+    switch.check(
+        now=NOW,
+        daily_pnl=-50.0,
+        daily_start_nav=10_000.0,
+        nav=10_000.0,
+        peak_nav=10_000.0,
+        consecutive_losses=0,
+        last_data_time=NOW,
+    )
     assert switch.latched
     with pytest.raises(ValueError):
         switch.reset(actor="  ")

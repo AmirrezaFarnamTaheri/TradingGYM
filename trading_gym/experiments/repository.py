@@ -16,9 +16,17 @@ from trading_gym.common.audit_outbox import (
     ensure_audit_outbox,
     queue_audit_event,
 )
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.common.security import bounded_json_dumps, redact_secrets
-from trading_gym.experiments.models import ExperimentCreate, ExperimentRecord, ExperimentState
+from trading_gym.experiments.models import (
+    ExperimentCreate,
+    ExperimentRecord,
+    ExperimentState,
+)
 from trading_gym.governance.ledger import AuditLedger
 
 
@@ -52,7 +60,11 @@ class ExperimentRepository:
     @staticmethod
     def _validate_worker(worker_id: str) -> str:
         worker_id = worker_id.strip()
-        if not worker_id or len(worker_id) > 120 or any(ord(char) < 32 for char in worker_id):
+        if (
+            not worker_id
+            or len(worker_id) > 120
+            or any(ord(char) < 32 for char in worker_id)
+        ):
             raise ValueError("worker_id must be 1-120 printable characters")
         return worker_id
 
@@ -83,7 +95,9 @@ class ExperimentRepository:
                 raise ValueError("experiment idempotency index is inconsistent")
         for key, experiment_id in document["idempotency"].items():
             if experiment_id not in document["experiments"]:
-                raise ValueError(f"idempotency key {key!r} points to a missing experiment")
+                raise ValueError(
+                    f"idempotency key {key!r} points to a missing experiment"
+                )
         ensure_audit_outbox(document)
         return document
 
@@ -182,7 +196,8 @@ class ExperimentRepository:
                     comparable = (
                         existing.experiment_type == request.experiment_type
                         and existing.name == request.name
-                        and existing.configuration == redact_secrets(request.configuration)
+                        and existing.configuration
+                        == redact_secrets(request.configuration)
                         and existing.priority == request.priority
                         and existing.max_attempts == request.max_attempts
                     )
@@ -190,14 +205,20 @@ class ExperimentRepository:
                         raise ExperimentConflict(
                             "legacy idempotency key maps to a different experiment request"
                         )
-                    document["idempotency_fingerprints"][request.idempotency_key] = fingerprint
+                    document["idempotency_fingerprints"][
+                        request.idempotency_key
+                    ] = fingerprint
                     queue_audit_event(
                         document,
                         event_id=f"experiment:{existing.experiment_id}:idempotency-fingerprint-repaired",
                         event="experiment.idempotency_repaired",
                         actor="system-reconciler",
                         subject=existing.experiment_id,
-                        details={"idempotency_key_sha256": hashlib.sha256(request.idempotency_key.encode()).hexdigest()},
+                        details={
+                            "idempotency_key_sha256": hashlib.sha256(
+                                request.idempotency_key.encode()
+                            ).hexdigest()
+                        },
                     )
                     atomic_write_json(self.path, document)
                 result = existing
@@ -216,15 +237,22 @@ class ExperimentRepository:
                     created_at=now,
                     updated_at=now,
                 )
-                document["experiments"][record.experiment_id] = record.model_dump(mode="json")
+                document["experiments"][record.experiment_id] = record.model_dump(
+                    mode="json"
+                )
                 document["idempotency"][request.idempotency_key] = record.experiment_id
-                document["idempotency_fingerprints"][request.idempotency_key] = fingerprint
+                document["idempotency_fingerprints"][
+                    request.idempotency_key
+                ] = fingerprint
                 self._queue_transition(
                     document,
                     record,
                     event="experiment.created",
                     actor=actor,
-                    details={"experiment_type": record.experiment_type, "priority": record.priority},
+                    details={
+                        "experiment_type": record.experiment_type,
+                        "priority": record.priority,
+                    },
                 )
                 atomic_write_json(self.path, document)
                 result = record
@@ -241,7 +269,9 @@ class ExperimentRepository:
                 record = ExperimentRecord.model_validate(raw)
                 event = self._apply_stale(record, now)
                 if event is not None:
-                    document["experiments"][experiment_id] = record.model_dump(mode="json")
+                    document["experiments"][experiment_id] = record.model_dump(
+                        mode="json"
+                    )
                     self._queue_transition(
                         document,
                         record,
@@ -309,16 +339,27 @@ class ExperimentRepository:
                     )
                     changed = True
                 document["experiments"][experiment_id] = record.model_dump(mode="json")
-                eligible_state = record.state in {ExperimentState.PENDING, ExperimentState.STALE}
-                eligible_type = accepted_types is None or record.experiment_type in accepted_types
-                if eligible_state and eligible_type and record.attempts < record.max_attempts:
+                eligible_state = record.state in {
+                    ExperimentState.PENDING,
+                    ExperimentState.STALE,
+                }
+                eligible_type = (
+                    accepted_types is None or record.experiment_type in accepted_types
+                )
+                if (
+                    eligible_state
+                    and eligible_type
+                    and record.attempts < record.max_attempts
+                ):
                     candidates.append(record)
             if not candidates:
                 if changed:
                     atomic_write_json(self.path, document)
                 result = None
             else:
-                record = sorted(candidates, key=lambda item: (-item.priority, item.created_at))[0]
+                record = sorted(
+                    candidates, key=lambda item: (-item.priority, item.created_at)
+                )[0]
                 previous_state = record.state.value
                 record.state = ExperimentState.RUNNING
                 record.claimed_by = worker_id
@@ -327,13 +368,18 @@ class ExperimentRepository:
                 record.lease_expires_at = now + timedelta(seconds=lease_seconds)
                 record.updated_at = now
                 record.revision += 1
-                document["experiments"][record.experiment_id] = record.model_dump(mode="json")
+                document["experiments"][record.experiment_id] = record.model_dump(
+                    mode="json"
+                )
                 self._queue_transition(
                     document,
                     record,
                     event="experiment.claimed",
                     actor=worker_id,
-                    details={"previous_state": previous_state, "lease_seconds": lease_seconds},
+                    details={
+                        "previous_state": previous_state,
+                        "lease_seconds": lease_seconds,
+                    },
                 )
                 atomic_write_json(self.path, document)
                 changed = True
@@ -435,7 +481,9 @@ class ExperimentRepository:
                         f"expected revision {expected_revision}, found {record.revision}"
                     )
                 if record.state is not ExperimentState.RUNNING:
-                    raise ExperimentConflict(f"experiment is {record.state.value}, not running")
+                    raise ExperimentConflict(
+                        f"experiment is {record.state.value}, not running"
+                    )
                 if record.claimed_by != worker_id:
                     raise ExperimentConflict("worker does not own the experiment lease")
                 if record.lease_expires_at is None or record.lease_expires_at <= now:
@@ -516,16 +564,22 @@ class ExperimentRepository:
                 stale_changed = True
             if record.revision != expected_revision:
                 if stale_changed:
-                    document["experiments"][experiment_id] = record.model_dump(mode="json")
+                    document["experiments"][experiment_id] = record.model_dump(
+                        mode="json"
+                    )
                     atomic_write_json(self.path, document)
                 conflict = ExperimentConflict(
                     f"expected revision {expected_revision}, found {record.revision}"
                 )
             elif record.state in _TERMINAL:
                 if stale_changed:
-                    document["experiments"][experiment_id] = record.model_dump(mode="json")
+                    document["experiments"][experiment_id] = record.model_dump(
+                        mode="json"
+                    )
                     atomic_write_json(self.path, document)
-                conflict = ExperimentConflict(f"experiment is already {record.state.value}")
+                conflict = ExperimentConflict(
+                    f"experiment is already {record.state.value}"
+                )
             else:
                 record.state = ExperimentState.CANCELLED
                 record.cancellation_reason = reason[:1000] or "cancelled by operator"

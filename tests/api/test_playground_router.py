@@ -24,7 +24,6 @@ from fastapi.testclient import TestClient
 from apps.api.playground_router import create_playground_router
 from trading_gym.authz.grants import GrantLedger, GrantRequest
 
-
 OPERATOR_SECRET = "operator-secret-0123456789abcdef0123"
 AGENT_SECRET = "agent-secret-0123456789abcdef0123456"
 ACTOR_JSON = json.dumps(
@@ -162,9 +161,7 @@ class TestPlaygroundRuns:
         assert "playground.run" in response.json()["detail"]
 
     def test_run_with_unauthenticated_caller_denied(self, auth_env) -> None:  # type: ignore[no-untyped-def]
-        response = _client().post(
-            "/api/v1/playground/runs", json=_run_payload()
-        )
+        response = _client().post("/api/v1/playground/runs", json=_run_payload())
         assert response.status_code == 403
 
     def test_invalid_window_rejected(self, auth_env) -> None:  # type: ignore[no-untyped-def]

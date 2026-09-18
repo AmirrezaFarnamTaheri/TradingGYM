@@ -1,13 +1,14 @@
-import math
 """
 Financing Rate Manager
 ======================
 Manages daily financing rates for leveraged positions.
 """
 
-from typing import Dict
-from datetime import datetime
 import logging
+import math
+from datetime import datetime
+from typing import Dict
+
 from trading_gym.common.config import AppConfig
 
 logger = logging.getLogger(__name__)

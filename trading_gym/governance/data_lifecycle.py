@@ -4,16 +4,16 @@ This plane classifies durable assets against explicit retention rules and legal
 holds.  It produces reviewable retain/review/purge-candidate decisions but has
 no filesystem, database, deletion, archival, or legal authority.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 
 _ID = r"^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$"
 _CATEGORY = r"^[A-Za-z0-9][A-Za-z0-9._-]{1,79}$"
@@ -72,7 +72,10 @@ class RetentionRule(BaseModel):
 
     @model_validator(mode="after")
     def validate_rule(self) -> "RetentionRule":
-        if self.purge_after_days is not None and self.purge_after_days < self.review_after_days:
+        if (
+            self.purge_after_days is not None
+            and self.purge_after_days < self.review_after_days
+        ):
             raise ValueError("purge_after_days must be at least review_after_days")
         return self
 
@@ -84,8 +87,12 @@ class LegalHoldEvidence(BaseModel):
     reason: Annotated[str, Field(min_length=1, max_length=2000)]
     starts_at: datetime
     expires_at: datetime | None = None
-    asset_ids: list[Annotated[str, Field(pattern=_ID)]] = Field(default_factory=list, max_length=10_000)
-    categories: list[Annotated[str, Field(pattern=_CATEGORY)]] = Field(default_factory=list, max_length=1000)
+    asset_ids: list[Annotated[str, Field(pattern=_ID)]] = Field(
+        default_factory=list, max_length=10_000
+    )
+    categories: list[Annotated[str, Field(pattern=_CATEGORY)]] = Field(
+        default_factory=list, max_length=1000
+    )
     source_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 
     @model_validator(mode="after")
@@ -97,7 +104,9 @@ class LegalHoldEvidence(BaseModel):
                 raise ValueError("expires_at must be after starts_at")
         if not self.asset_ids and not self.categories:
             raise ValueError("a legal hold must target at least one asset or category")
-        if len(set(self.asset_ids)) != len(self.asset_ids) or len(set(self.categories)) != len(self.categories):
+        if len(set(self.asset_ids)) != len(self.asset_ids) or len(
+            set(self.categories)
+        ) != len(self.categories):
             raise ValueError("legal hold targets must be unique")
         return self
 
@@ -108,7 +117,9 @@ class DataLifecycleRequest(BaseModel):
     evaluated_at: datetime
     assets: list[DataAssetEvidence] = Field(max_length=100_000)
     rules: list[RetentionRule] = Field(max_length=1000)
-    legal_holds: list[LegalHoldEvidence] = Field(default_factory=list, max_length=10_000)
+    legal_holds: list[LegalHoldEvidence] = Field(
+        default_factory=list, max_length=10_000
+    )
 
     @model_validator(mode="after")
     def validate_request(self) -> "DataLifecycleRequest":
@@ -146,7 +157,9 @@ class DataLifecycleReport(BaseModel):
 
 
 def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
+    ).encode("utf-8")
 
 
 def evaluate_data_lifecycle(request: DataLifecycleRequest) -> DataLifecycleReport:
@@ -181,18 +194,23 @@ def evaluate_data_lifecycle(request: DataLifecycleRequest) -> DataLifecycleRepor
         )
         rule = rules.get(asset.category)
         age_days = max(0, (request.evaluated_at - asset.created_at).days)
-        if asset.created_at > request.evaluated_at or asset.updated_at > request.evaluated_at:
+        if (
+            asset.created_at > request.evaluated_at
+            or asset.updated_at > request.evaluated_at
+        ):
             blockers.append(f"asset_timestamp_in_future:{asset.asset_id}")
         if rule is None:
             blockers.append(f"retention_rule_missing:{asset.asset_id}")
-            decisions.append(DataLifecycleDecision(
-                asset_id=asset.asset_id,
-                category=asset.category,
-                action=LifecycleAction.REVIEW,
-                age_days=age_days,
-                active_hold_ids=holds,
-                reasons=["no_explicit_retention_rule"],
-            ))
+            decisions.append(
+                DataLifecycleDecision(
+                    asset_id=asset.asset_id,
+                    category=asset.category,
+                    action=LifecycleAction.REVIEW,
+                    age_days=age_days,
+                    active_hold_ids=holds,
+                    reasons=["no_explicit_retention_rule"],
+                )
+            )
             continue
         if rule.classification is not asset.classification:
             blockers.append(f"classification_rule_mismatch:{asset.asset_id}")
@@ -225,18 +243,23 @@ def evaluate_data_lifecycle(request: DataLifecycleRequest) -> DataLifecycleRepor
             action = LifecycleAction.RETAIN
             reasons.append("within_retention_period")
 
-        decisions.append(DataLifecycleDecision(
-            asset_id=asset.asset_id,
-            category=asset.category,
-            action=action,
-            age_days=age_days,
-            review_eligible_at=review_at,
-            purge_eligible_at=purge_at,
-            active_hold_ids=holds,
-            reasons=sorted(set(reasons)),
-        ))
+        decisions.append(
+            DataLifecycleDecision(
+                asset_id=asset.asset_id,
+                category=asset.category,
+                action=action,
+                age_days=age_days,
+                review_eligible_at=review_at,
+                purge_eligible_at=purge_at,
+                active_hold_ids=holds,
+                reasons=sorted(set(reasons)),
+            )
+        )
 
-    counts = {action.value: sum(item.action is action for item in decisions) for action in LifecycleAction}
+    counts = {
+        action.value: sum(item.action is action for item in decisions)
+        for action in LifecycleAction
+    }
     blockers = sorted(set(blockers))
     warnings = sorted(set(warnings))
     payload = {

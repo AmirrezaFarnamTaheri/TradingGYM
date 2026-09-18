@@ -16,7 +16,11 @@ from trading_gym.common.audit_outbox import (
     ensure_audit_outbox,
     queue_audit_event,
 )
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.governance.ledger import AuditLedger
 from trading_gym.strategy_lab.models import StrategySpec
 
@@ -75,7 +79,10 @@ class StrategyRepository:
                 raise ValueError("strategy revision does not match version history")
             expected = 1
             for version in versions:
-                if not isinstance(version, dict) or int(version.get("revision", 0)) != expected:
+                if (
+                    not isinstance(version, dict)
+                    or int(version.get("revision", 0)) != expected
+                ):
                     raise ValueError("strategy version history is not contiguous")
                 spec = StrategySpec.model_validate(version.get("spec"))
                 if version.get("sha256") != self._hash(spec):

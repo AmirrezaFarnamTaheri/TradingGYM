@@ -82,8 +82,7 @@ class ExperienceMemory:
         # tick, so an entry rebuilt from to_dict() never recomputed its id.
         timestamp = float(created_at) if created_at is not None else _now()
         material = json.dumps(
-            {"tags": list(tags), "outcome": outcome, "lesson": lesson,
-             "t": timestamp},
+            {"tags": list(tags), "outcome": outcome, "lesson": lesson, "t": timestamp},
             sort_keys=True,
         ).encode()
         memory_id = hashlib.sha256(material).hexdigest()[:16]
@@ -99,7 +98,9 @@ class ExperienceMemory:
             del self._entries[0 : len(self._entries) - self.max_entries]
         return entry
 
-    def query(self, tags: list[str], *, k: int = 3, now: float | None = None) -> list[Experience]:
+    def query(
+        self, tags: list[str], *, k: int = 3, now: float | None = None
+    ) -> list[Experience]:
         """Top-k experiences by tag overlap, then recency and support.
 
         Overlap dominates (weight 10); the tiebreak adds recency decay on

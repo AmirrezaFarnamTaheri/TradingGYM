@@ -1,4 +1,5 @@
 """Operational runbook completeness and rehearsal readiness analysis."""
+
 from __future__ import annotations
 
 import hashlib
@@ -9,9 +10,18 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-StepKind = Literal["diagnostic", "verification", "manual_change", "automated_change", "rollback", "communication"]
+StepKind = Literal[
+    "diagnostic",
+    "verification",
+    "manual_change",
+    "automated_change",
+    "rollback",
+    "communication",
+]
 RiskLevel = Literal["low", "medium", "high", "critical"]
-_SECRET_PATTERN = re.compile(r"(?i)(api[_-]?key|secret|token|password|private[_-]?key)\s*[:=]\s*[^$<{\s][^\s]{5,}")
+_SECRET_PATTERN = re.compile(
+    r"(?i)(api[_-]?key|secret|token|password|private[_-]?key)\s*[:=]\s*[^$<{\s][^\s]{5,}"
+)
 
 
 class RunbookStep(BaseModel):
@@ -43,7 +53,10 @@ class RunbookReadinessRequest(BaseModel):
     def coherent(self) -> "RunbookReadinessRequest":
         if self.evaluated_at.tzinfo is None or self.evaluated_at.utcoffset() is None:
             raise ValueError("evaluated_at must be timezone-aware")
-        if self.last_rehearsed_at and (self.last_rehearsed_at.tzinfo is None or self.last_rehearsed_at.utcoffset() is None):
+        if self.last_rehearsed_at and (
+            self.last_rehearsed_at.tzinfo is None
+            or self.last_rehearsed_at.utcoffset() is None
+        ):
             raise ValueError("last_rehearsed_at must be timezone-aware")
         ids = [step.step_id for step in self.steps]
         orders = [step.order for step in self.steps]
@@ -72,7 +85,9 @@ class RunbookReadinessReport(BaseModel):
     mutation_performed: bool = False
 
 
-def evaluate_runbook_readiness(request: RunbookReadinessRequest) -> RunbookReadinessReport:
+def evaluate_runbook_readiness(
+    request: RunbookReadinessRequest,
+) -> RunbookReadinessReport:
     blockers: list[str] = []
     warnings: list[str] = []
     by_id = {step.step_id: step for step in request.steps}
@@ -81,24 +96,39 @@ def evaluate_runbook_readiness(request: RunbookReadinessRequest) -> RunbookReadi
         if role not in roles:
             blockers.append(f"required_role_missing:{role}")
     for step in request.steps:
-        if any(_SECRET_PATTERN.search(text) for text in (
-            step.instruction, step.precondition, step.success_evidence,
-        )):
+        if any(
+            _SECRET_PATTERN.search(text)
+            for text in (
+                step.instruction,
+                step.precondition,
+                step.success_evidence,
+            )
+        ):
             blockers.append(f"literal_secret_detected:{step.step_id}")
         if step.destructive:
             if not step.rollback_step_id:
                 blockers.append(f"destructive_step_without_rollback:{step.step_id}")
             elif step.rollback_step_id not in by_id:
-                blockers.append(f"rollback_step_missing:{step.step_id}:{step.rollback_step_id}")
+                blockers.append(
+                    f"rollback_step_missing:{step.step_id}:{step.rollback_step_id}"
+                )
             elif by_id[step.rollback_step_id].kind != "rollback":
-                blockers.append(f"rollback_step_wrong_kind:{step.step_id}:{step.rollback_step_id}")
+                blockers.append(
+                    f"rollback_step_wrong_kind:{step.step_id}:{step.rollback_step_id}"
+                )
             elif by_id[step.rollback_step_id].order <= step.order:
                 blockers.append(f"rollback_step_not_after_change:{step.step_id}")
         elif step.rollback_step_id:
             warnings.append(f"rollback_link_on_nondestructive_step:{step.step_id}")
     if request.risk_level in {"high", "critical"}:
-        change_roles = {step.owner_role for step in request.steps if step.kind in {"manual_change", "automated_change"}}
-        verification_roles = {step.owner_role for step in request.steps if step.kind == "verification"}
+        change_roles = {
+            step.owner_role
+            for step in request.steps
+            if step.kind in {"manual_change", "automated_change"}
+        }
+        verification_roles = {
+            step.owner_role for step in request.steps if step.kind == "verification"
+        }
         if not verification_roles:
             blockers.append("independent_verification_missing")
         elif change_roles & verification_roles:
@@ -114,7 +144,9 @@ def evaluate_runbook_readiness(request: RunbookReadinessRequest) -> RunbookReadi
     if not any(step.kind == "communication" for step in request.steps):
         warnings.append("communication_step_missing")
     payload = request.model_dump(mode="json")
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return RunbookReadinessReport(
         runbook_id=request.runbook_id,
         version=request.version,

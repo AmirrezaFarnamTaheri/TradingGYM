@@ -53,7 +53,9 @@ def adapter(mock_config, mock_client):
             live_consent=LiveConsent(
                 actor="test-executor",
                 scope="live.execute",
-                expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+                expires_at=(
+                    datetime.now(timezone.utc) + timedelta(hours=1)
+                ).isoformat(),
                 nonce="test-session",
             ),
             proposal_id="test-proposal",
@@ -196,7 +198,9 @@ def test_get_live_equity_fails_closed_when_no_positive_equity(adapter, mock_clie
 
 
 @pytest.mark.asyncio
-async def test_dry_run_adapter_never_submits_or_cancels_orders(mock_config, mock_client):
+async def test_dry_run_adapter_never_submits_or_cancels_orders(
+    mock_config, mock_client
+):
     with patch(
         "trading_gym.execution.live_execution_adapter.EnhancedAbanClient",
         return_value=mock_client,

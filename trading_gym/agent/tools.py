@@ -203,7 +203,9 @@ class SafeToolRegistry:
         self.register(
             "experiment.list",
             "List durable experiment jobs.",
-            lambda args, actor: [item.model_dump(mode="json") for item in self.experiments.list()],
+            lambda args, actor: [
+                item.model_dump(mode="json") for item in self.experiments.list()
+            ],
         )
         self.register(
             "proposal.create",
@@ -340,10 +342,7 @@ class SafeToolRegistry:
         return tuple(dict(entry) for entry in self._revisions)
 
     def usage_report(self) -> dict[str, dict[str, Any]]:
-        return {
-            name: usage.to_dict()
-            for name, usage in sorted(self._usage.items())
-        }
+        return {name: usage.to_dict() for name, usage in sorted(self._usage.items())}
 
     def describe(self) -> list[dict[str, str]]:
         """Callable tools only — retired tools are not selectable."""
@@ -464,7 +463,9 @@ class SafeToolRegistry:
 
     @staticmethod
     def _size_position(args: dict[str, Any], actor: str) -> dict[str, Any]:
-        return size_position(PositionSizingRequest.model_validate(args)).model_dump(mode="json")
+        return size_position(PositionSizingRequest.model_validate(args)).model_dump(
+            mode="json"
+        )
 
     @staticmethod
     def _evaluate_portfolio(args: dict[str, Any], actor: str) -> dict[str, Any]:
@@ -490,7 +491,9 @@ class SafeToolRegistry:
 
     def _plan_backtest(self, args: dict[str, Any], actor: str) -> dict[str, Any]:
         request = BacktestWorkflowRequest.model_validate(args)
-        return self.workflows.plan_backtest(request, actor=actor).model_dump(mode="json")
+        return self.workflows.plan_backtest(request, actor=actor).model_dump(
+            mode="json"
+        )
 
     def _create_experiment(self, args: dict[str, Any], actor: str) -> dict[str, Any]:
         request = ExperimentCreate.model_validate(args)

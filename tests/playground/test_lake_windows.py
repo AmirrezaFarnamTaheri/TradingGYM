@@ -141,15 +141,11 @@ class TestLakeWindowProvider:
 class TestRegimeArm:
     def test_uptrend_classification(self) -> None:
         arm = RegimeArmBackend()
-        assert (
-            arm.classify((0.01, 0.008, 0.012, 0.009, 0.011)) == "trend_up"
-        )
+        assert arm.classify((0.01, 0.008, 0.012, 0.009, 0.011)) == "trend_up"
 
     def test_downtrend_classification(self) -> None:
         arm = RegimeArmBackend()
-        assert (
-            arm.classify((-0.01, -0.008, -0.012, -0.009, -0.011)) == "trend_down"
-        )
+        assert arm.classify((-0.01, -0.008, -0.012, -0.009, -0.011)) == "trend_down"
 
     def test_chop_classification(self) -> None:
         arm = RegimeArmBackend()

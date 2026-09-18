@@ -62,7 +62,13 @@ def test_portfolio_risk_aggregates_duplicate_instruments_and_gates_losses() -> N
     )
     assert decision.instrument_fractions["BTC"] == 25_000 / 80_000
     assert decision.allowed is False
-    assert {"gross_leverage", "instrument_concentration", "sector_concentration", "drawdown", "daily_loss"}.issubset(decision.violations)
+    assert {
+        "gross_leverage",
+        "instrument_concentration",
+        "sector_concentration",
+        "drawdown",
+        "daily_loss",
+    }.issubset(decision.violations)
 
 
 def test_non_finite_notional_is_rejected_not_fail_open() -> None:

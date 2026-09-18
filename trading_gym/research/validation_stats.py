@@ -17,7 +17,6 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import stats
 
-
 # --- Quintile spread (signal quality) ---
 
 
@@ -114,7 +113,12 @@ def breakthrough_status(
     """Donor boolean gates: 2x benchmark proxy via rel_return>=0.10? The donor
     used 2x/5x benchmark, positive Sharpe, MDD<=35%, turnover<=8. Here the
     benchmark multiple is caller-normalised into relative_return thresholds."""
-    return bool(relative_return >= 0.10 and sharpe > 0 and max_drawdown <= 0.35 and turnover <= 8.0)
+    return bool(
+        relative_return >= 0.10
+        and sharpe > 0
+        and max_drawdown <= 0.35
+        and turnover <= 8.0
+    )
 
 
 # --- Random-entry baseline percentile gate ---

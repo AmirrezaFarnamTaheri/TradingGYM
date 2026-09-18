@@ -88,8 +88,9 @@ class IntelligencePolicyAdapter:
 
             return MarketContext(
                 symbol=str(ctx.get("symbol", "UNKNOWN")),
-                position_units=float(ctx.get("position_units",
-                                             ctx.get("position_norm", 0.0))),
+                position_units=float(
+                    ctx.get("position_units", ctx.get("position_norm", 0.0))
+                ),
                 equity=float(ctx.get("equity", 1.0)) * 10_000.0,
                 margin_level=ctx.get("margin_level"),
                 last_close=float(ctx.get("last_close", ctx.get("price_ratio", 1.0))),
@@ -97,8 +98,7 @@ class IntelligencePolicyAdapter:
                 recent_returns=tuple(),
                 drawdown_from_peak=ctx.get("drawdown_from_peak"),
                 extras={
-                    k: float(v) for k, v in ctx.items()
-                    if isinstance(v, (int, float))
+                    k: float(v) for k, v in ctx.items() if isinstance(v, (int, float))
                 },
             )
 

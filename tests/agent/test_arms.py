@@ -231,9 +231,7 @@ class TestArmAuthzComposition:
         for arm in registry.arms():
             for scope in arm.required_scopes:
                 decision = ledger.check("agent-axiom1", scope)
-                assert decision.allowed, (
-                    f"arm {arm.name} scope {scope} not granted"
-                )
+                assert decision.allowed, f"arm {arm.name} scope {scope} not granted"
 
         # a scope outside the grant is denied — the pre-flight would bench the arm
         assert not ledger.check("agent-axiom1", "trade.live.order.submit").allowed

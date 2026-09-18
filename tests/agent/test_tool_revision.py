@@ -37,9 +37,7 @@ from trading_gym.strategy_lab.templates import template_catalogue
 
 
 def build_registry(tmp_path: Path) -> SafeToolRegistry:
-    governance = GovernanceService(
-        ledger=AuditLedger(path=tmp_path / "audit.jsonl")
-    )
+    governance = GovernanceService(ledger=AuditLedger(path=tmp_path / "audit.jsonl"))
     return SafeToolRegistry(
         strategies=StrategyRepository(tmp_path / "strategies.json"),
         governance=governance,
@@ -56,9 +54,7 @@ class TestUsageMetering:
         assert report["strategy.list"]["failures"] == 0
         assert report["strategy.list"]["last_called_at"]
 
-    def test_failures_are_counted_and_the_error_retained(
-        self, tmp_path: Path
-    ) -> None:
+    def test_failures_are_counted_and_the_error_retained(self, tmp_path: Path) -> None:
         registry = build_registry(tmp_path)
         with pytest.raises(Exception):
             registry.invoke(
@@ -163,9 +159,7 @@ class TestRevision:
 class TestRetirement:
     def test_a_retired_tool_refuses_to_run(self, tmp_path: Path) -> None:
         registry = build_registry(tmp_path)
-        registry.retire(
-            "strategy.list", reason="superseded by strategy.templates"
-        )
+        registry.retire("strategy.list", reason="superseded by strategy.templates")
         with pytest.raises(ToolRetired):
             registry.invoke(
                 ToolRequest(tool="strategy.list", actor="agent", arguments={})
@@ -242,9 +236,7 @@ class TestNomination:
         }
         with pytest.raises(KeyError):
             registry.invoke(
-                ToolRequest(
-                    tool="funding.rate_monitor", actor="agent", arguments={}
-                )
+                ToolRequest(tool="funding.rate_monitor", actor="agent", arguments={})
             )
 
     def test_nominating_an_available_tool_is_rejected(self, tmp_path: Path) -> None:
@@ -345,7 +337,8 @@ class TestAuthorityIsUnchanged:
         )
         names = {item["name"] for item in registry.describe()}
         assert not any(
-            name.startswith(("trade.execute", "trade.live", "wallet.")) for name in names
+            name.startswith(("trade.execute", "trade.live", "wallet."))
+            for name in names
         )
 
     def test_results_are_still_redacted(self, tmp_path: Path) -> None:

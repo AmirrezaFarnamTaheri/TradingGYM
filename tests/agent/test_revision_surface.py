@@ -34,9 +34,7 @@ from trading_gym.agent.revision import (
     RevisionSurface,
     RevisionCandidate,
     GateChain,
-    GateResult,
 )
-
 
 SEEDS = {"holdout-a": "sha-a", "holdout-b": "sha-b"}
 
@@ -76,9 +74,7 @@ class TestRevisionSurface:
 
     def test_structural_requires_holdout_replication(self, tmp_path: Path) -> None:
         surface = RevisionSurface.open(tmp_path / "revisions.jsonl")
-        outcome = surface.submit(
-            candidate(RevisionKind.STRUCTURAL, holdout=0.98)
-        )
+        outcome = surface.submit(candidate(RevisionKind.STRUCTURAL, holdout=0.98))
         assert outcome.applied is False
         assert outcome.gates.failed_gate == "sealed_holdout"
         assert outcome.reason == "sealed_holdout"

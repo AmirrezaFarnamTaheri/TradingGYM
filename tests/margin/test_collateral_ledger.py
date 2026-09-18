@@ -90,11 +90,7 @@ def test_equity_identity_holds_after_flows():
     ledger.cover_short(SYM, D("4"), D("90"))
     ledger.buy(SYM, D("1"), D("95"))
     prices = {SYM: D("92")}
-    expected = (
-        D("10000")
-        + ledger.realized_pnl()
-        + ledger.unrealized_pnl(prices)
-    )
+    expected = D("10000") + ledger.realized_pnl() + ledger.unrealized_pnl(prices)
     assert ledger.equity(prices) == expected
 
 

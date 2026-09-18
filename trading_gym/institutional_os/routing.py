@@ -1,4 +1,5 @@
 """Non-authoritative smart-order-routing recommendation engine."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -29,14 +30,43 @@ class VenueQuote(BaseModel):
 
     @model_validator(mode="after")
     def validate_quote(self) -> "VenueQuote":
-        require_decimal(self.available_quantity, "available_quantity", minimum=Decimal("0"), maximum=Decimal("1e30"))
-        require_decimal(self.expected_price, "expected_price", minimum=Decimal("0.000000000001"), maximum=Decimal("1e30"))
-        require_decimal(self.fee_bps, "fee_bps", minimum=Decimal("0"), maximum=Decimal("10000"))
-        require_decimal(self.latency_ms, "latency_ms", minimum=Decimal("0"), maximum=Decimal("1e9"))
-        require_decimal(self.fill_probability, "fill_probability", minimum=Decimal("0"), maximum=Decimal("1"))
-        require_decimal(self.reliability_score, "reliability_score", minimum=Decimal("0"), maximum=Decimal("1"))
+        require_decimal(
+            self.available_quantity,
+            "available_quantity",
+            minimum=Decimal("0"),
+            maximum=Decimal("1e30"),
+        )
+        require_decimal(
+            self.expected_price,
+            "expected_price",
+            minimum=Decimal("0.000000000001"),
+            maximum=Decimal("1e30"),
+        )
+        require_decimal(
+            self.fee_bps, "fee_bps", minimum=Decimal("0"), maximum=Decimal("10000")
+        )
+        require_decimal(
+            self.latency_ms, "latency_ms", minimum=Decimal("0"), maximum=Decimal("1e9")
+        )
+        require_decimal(
+            self.fill_probability,
+            "fill_probability",
+            minimum=Decimal("0"),
+            maximum=Decimal("1"),
+        )
+        require_decimal(
+            self.reliability_score,
+            "reliability_score",
+            minimum=Decimal("0"),
+            maximum=Decimal("1"),
+        )
         if self.counterparty_limit is not None:
-            require_decimal(self.counterparty_limit, "counterparty_limit", minimum=Decimal("0"), maximum=Decimal("1e30"))
+            require_decimal(
+                self.counterparty_limit,
+                "counterparty_limit",
+                minimum=Decimal("0"),
+                maximum=Decimal("1e30"),
+            )
         return self
 
 
@@ -54,10 +84,28 @@ class RoutingPolicy(BaseModel):
 
     @model_validator(mode="after")
     def validate_policy(self) -> "RoutingPolicy":
-        for name in ("price_weight", "fee_weight", "latency_weight", "fill_weight", "reliability_weight"):
-            require_decimal(getattr(self, name), name, minimum=Decimal("0"), maximum=Decimal("1e12"))
-        require_decimal(self.minimum_fill_probability, "minimum_fill_probability", minimum=Decimal("0"), maximum=Decimal("1"))
-        require_decimal(self.minimum_reliability, "minimum_reliability", minimum=Decimal("0"), maximum=Decimal("1"))
+        for name in (
+            "price_weight",
+            "fee_weight",
+            "latency_weight",
+            "fill_weight",
+            "reliability_weight",
+        ):
+            require_decimal(
+                getattr(self, name), name, minimum=Decimal("0"), maximum=Decimal("1e12")
+            )
+        require_decimal(
+            self.minimum_fill_probability,
+            "minimum_fill_probability",
+            minimum=Decimal("0"),
+            maximum=Decimal("1"),
+        )
+        require_decimal(
+            self.minimum_reliability,
+            "minimum_reliability",
+            minimum=Decimal("0"),
+            maximum=Decimal("1"),
+        )
         return self
 
 
@@ -71,7 +119,12 @@ class RoutingRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_request(self) -> "RoutingRequest":
-        require_decimal(self.quantity, "quantity", minimum=Decimal("0.000000000001"), maximum=Decimal("1e30"))
+        require_decimal(
+            self.quantity,
+            "quantity",
+            minimum=Decimal("0.000000000001"),
+            maximum=Decimal("1e30"),
+        )
         ids = [item.venue_id for item in self.quotes]
         if len(ids) != len(set(ids)):
             raise ValueError("venue IDs must be unique")
@@ -118,24 +171,36 @@ def recommend_routes(request: RoutingRequest) -> RoutingReport:
             continue
         effective_capacity = quote.available_quantity
         if quote.counterparty_limit is not None:
-            effective_capacity = min(effective_capacity, quote.counterparty_limit / quote.expected_price)
+            effective_capacity = min(
+                effective_capacity, quote.counterparty_limit / quote.expected_price
+            )
         if effective_capacity <= 0:
             continue
-        directional_price = quote.expected_price if request.side == RoutingSide.BUY else -quote.expected_price
+        directional_price = (
+            quote.expected_price
+            if request.side == RoutingSide.BUY
+            else -quote.expected_price
+        )
         score = (
             request.policy.price_weight * directional_price
-            + request.policy.fee_weight * quote.expected_price * quote.fee_bps / Decimal("10000")
+            + request.policy.fee_weight
+            * quote.expected_price
+            * quote.fee_bps
+            / Decimal("10000")
             + request.policy.latency_weight * quote.latency_ms
             + request.policy.fill_weight * (Decimal("1") - quote.fill_probability)
-            + request.policy.reliability_weight * (Decimal("1") - quote.reliability_score)
+            + request.policy.reliability_weight
+            * (Decimal("1") - quote.reliability_score)
         )
-        eligible.append((score, quote.model_copy(update={"available_quantity": effective_capacity})))
+        eligible.append(
+            (score, quote.model_copy(update={"available_quantity": effective_capacity}))
+        )
     eligible.sort(key=lambda item: (item[0], item[1].venue_id))
     remaining = request.quantity
     slices: list[RouteSlice] = []
     notional = Decimal("0")
     fees = Decimal("0")
-    for score, quote in eligible[:request.policy.maximum_venues]:
+    for score, quote in eligible[: request.policy.maximum_venues]:
         if remaining <= 0:
             break
         quantity = min(remaining, quote.available_quantity)
@@ -143,13 +208,15 @@ def recommend_routes(request: RoutingRequest) -> RoutingReport:
             continue
         slice_notional = quantity * quote.expected_price
         slice_fee = slice_notional * quote.fee_bps / Decimal("10000")
-        slices.append(RouteSlice(
-            venue_id=quote.venue_id,
-            quantity=quantity,
-            expected_price=quote.expected_price,
-            expected_fee=slice_fee,
-            score=score,
-        ))
+        slices.append(
+            RouteSlice(
+                venue_id=quote.venue_id,
+                quantity=quantity,
+                expected_price=quote.expected_price,
+                expected_fee=slice_fee,
+                score=score,
+            )
+        )
         notional += slice_notional
         fees += slice_fee
         remaining -= quantity

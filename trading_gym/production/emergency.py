@@ -59,7 +59,9 @@ class EmergencyController:
 
     @property
     def path(self) -> Path:
-        return self._explicit_path or (resolve_data_home() / "production" / "emergency.json")
+        return self._explicit_path or (
+            resolve_data_home() / "production" / "emergency.json"
+        )
 
     def snapshot(self) -> EmergencyState:
         path = self.path
@@ -89,8 +91,13 @@ class EmergencyController:
                 actor=actor,
                 approver=approver,
             )
-            payload = json.dumps(asdict(next_state), sort_keys=True, separators=(",", ":")) + "\n"
-            fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+            payload = (
+                json.dumps(asdict(next_state), sort_keys=True, separators=(",", ":"))
+                + "\n"
+            )
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+            )
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as handle:
                     handle.write(payload)

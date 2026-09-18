@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover - exercised when the optional stack is a
     MlflowClient = None  # type: ignore[assignment,misc]
 
 from trading_gym.common.config import load_app_config
+
 run_walkforward: Callable[..., Any] | None = None
 
 logger = logging.getLogger(__name__)
@@ -71,15 +72,30 @@ def assess_candidate(
         raise ValueError("min_folds must be at least 3")
     if not math.isfinite(min_absolute_improvement) or min_absolute_improvement < 0:
         raise ValueError("min_absolute_improvement must be finite and non-negative")
-    if not math.isfinite(min_relative_improvement) or not 0 <= min_relative_improvement <= 1:
+    if (
+        not math.isfinite(min_relative_improvement)
+        or not 0 <= min_relative_improvement <= 1
+    ):
         raise ValueError("min_relative_improvement must be in [0, 1]")
 
     champion_values = _extract_sharpes(champion_results)
     challenger_values = _extract_sharpes(challenger_results)
-    champion = sum(champion_values) / len(champion_values) if champion_values else float("nan")
-    challenger = sum(challenger_values) / len(challenger_values) if challenger_values else float("nan")
-    absolute = challenger - champion if math.isfinite(champion) and math.isfinite(challenger) else float("nan")
-    relative = absolute / abs(champion) if math.isfinite(absolute) and champion != 0 else None
+    champion = (
+        sum(champion_values) / len(champion_values) if champion_values else float("nan")
+    )
+    challenger = (
+        sum(challenger_values) / len(challenger_values)
+        if challenger_values
+        else float("nan")
+    )
+    absolute = (
+        challenger - champion
+        if math.isfinite(champion) and math.isfinite(challenger)
+        else float("nan")
+    )
+    relative = (
+        absolute / abs(champion) if math.isfinite(absolute) and champion != 0 else None
+    )
 
     reasons: list[str] = []
     if len(champion_values) < min_folds:
@@ -134,7 +150,9 @@ def update(
             ("challenger", challenger_run_id),
         ):
             if not _MLFLOW_RUN_ID.fullmatch(run_id):
-                raise ValueError(f"{label} run id must be 32 lowercase hexadecimal characters")
+                raise ValueError(
+                    f"{label} run id must be 32 lowercase hexadecimal characters"
+                )
         pyfunc = getattr(mlflow, "pyfunc", None) if mlflow is not None else None
         if pyfunc is None or not hasattr(pyfunc, "load_model"):
             raise RuntimeError("mlflow.pyfunc is unavailable; cannot load models")
@@ -170,7 +188,9 @@ def update(
     logger.info("Candidate assessment: %s", asdict(assessment))
 
     if not assessment.qualified_for_staging:
-        logger.info("Challenger retained as candidate: %s", "; ".join(assessment.reasons))
+        logger.info(
+            "Challenger retained as candidate: %s", "; ".join(assessment.reasons)
+        )
         return assessment
 
     model_name = getattr(challenger_results, "model_name", None)
@@ -196,8 +216,12 @@ def main(
     challenger_run_id: str = typer.Option(..., "--challenger-run-id"),
     timeframe: str = typer.Option("5m", "--timeframe", "-t"),
     min_folds: int = typer.Option(3, "--min-folds", min=3, max=1000),
-    min_absolute_improvement: float = typer.Option(0.10, "--min-absolute-improvement", min=0),
-    min_relative_improvement: float = typer.Option(0.05, "--min-relative-improvement", min=0, max=1),
+    min_absolute_improvement: float = typer.Option(
+        0.10, "--min-absolute-improvement", min=0
+    ),
+    min_relative_improvement: float = typer.Option(
+        0.05, "--min-relative-improvement", min=0, max=1
+    ),
     allow_unsafe_mlflow_deserialization: bool = typer.Option(
         False,
         "--allow-unsafe-mlflow-deserialization",
@@ -223,7 +247,9 @@ def main(
     except typer.Exit:
         raise
     except Exception as exc:
-        logger.error("Model candidate evaluation failed error_type=%s", type(exc).__name__)
+        logger.error(
+            "Model candidate evaluation failed error_type=%s", type(exc).__name__
+        )
         raise typer.Exit(code=1) from exc
 
 

@@ -96,9 +96,9 @@ def test_guard_veto_is_the_rules_channels_own_hold(tmp_path: Path) -> None:
     registry = default_registry(rule_backend=rules)
     by_name = {arm.name: arm for arm in registry.arms()}
     for name in ("rules", "risk-guard:rules"):
-        assert by_name[name].propose(_stressed_context()).action_kind is ActionKind.HOLD, (
-            f"{name} must flatten on a guard veto"
-        )
+        assert (
+            by_name[name].propose(_stressed_context()).action_kind is ActionKind.HOLD
+        ), f"{name} must flatten on a guard veto"
 
     planner = TierCascadePlanner(registry)
     result = planner.run(
@@ -205,9 +205,9 @@ def test_all_hold_t1_presses_on_to_a_decisive_t3(tmp_path: Path) -> None:
         ledger=make_grants(tmp_path),
     )
     assert result.fused.action_kind is ActionKind.LONG
-    assert any(tier is ArmTier.T3_MODEL for tier, _ in result.invoked_tiers), (
-        "the decisive T3 arm was never consulted"
-    )
+    assert any(
+        tier is ArmTier.T3_MODEL for tier, _ in result.invoked_tiers
+    ), "the decisive T3 arm was never consulted"
 
 
 def test_split_t1_presses_on_to_a_decisive_t3(tmp_path: Path) -> None:
@@ -268,9 +268,9 @@ def test_split_t1_presses_on_to_a_decisive_t3(tmp_path: Path) -> None:
     )
     assert not result.fused.escalated, "the T1 escalation must not settle the cycle"
     assert result.fused.action_kind is ActionKind.LONG
-    assert any(tier is ArmTier.T3_MODEL for tier, _ in result.invoked_tiers), (
-        "the tie-breaking T3 arm was never consulted"
-    )
+    assert any(
+        tier is ArmTier.T3_MODEL for tier, _ in result.invoked_tiers
+    ), "the tie-breaking T3 arm was never consulted"
 
 
 def _four_record_journal(root: Path) -> Path:
@@ -323,6 +323,6 @@ def test_memory_id_is_reproducible_from_the_stored_record() -> None:
         {"tags": ["a"], "outcome": "loss", "lesson": "x", "t": entry.created_at},
         sort_keys=True,
     ).encode()
-    assert entry.memory_id == hashlib.sha256(material).hexdigest()[:16], (
-        "the id must recompute from the record's own stored timestamp"
-    )
+    assert (
+        entry.memory_id == hashlib.sha256(material).hexdigest()[:16]
+    ), "the id must recompute from the record's own stored timestamp"

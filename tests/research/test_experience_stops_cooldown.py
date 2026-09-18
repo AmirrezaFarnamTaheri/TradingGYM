@@ -7,7 +7,6 @@ from trading_gym.agent.experience_memory import ExperienceMemory
 from trading_gym.risk.dynamic_stops import atr_series, dynamic_stop, ratchet_take_profit
 from trading_gym.risk.reentry_cooldown import CooldownConfig, ReentryCooldown
 
-
 # ---------------------------------------------------------------------------
 # Experience memory (ReasoningBank absorption)
 # ---------------------------------------------------------------------------
@@ -15,10 +14,18 @@ from trading_gym.risk.reentry_cooldown import CooldownConfig, ReentryCooldown
 
 def test_record_and_query_by_tag_overlap_with_recency():
     mem = ExperienceMemory()
-    mem.record(context_tags=["btc", "stop_loss"], outcome="loss",
-               lesson="tighten stop in high vol", created_at=1000.0)
-    mem.record(context_tags=["eth", "take_profit"], outcome="profitable",
-               lesson="trail wins", created_at=2000.0)
+    mem.record(
+        context_tags=["btc", "stop_loss"],
+        outcome="loss",
+        lesson="tighten stop in high vol",
+        created_at=1000.0,
+    )
+    mem.record(
+        context_tags=["eth", "take_profit"],
+        outcome="profitable",
+        lesson="trail wins",
+        created_at=2000.0,
+    )
     hits = mem.query(["btc", "stop_loss"], now=2500.0)
     assert hits and hits[0].lesson.startswith("tighten")
 
@@ -62,11 +69,21 @@ def test_atr_series_wilder_smoothing_basic():
 
 def test_dynamic_stop_respects_timeframe_floor():
     # Tiny ATR: floor should dominate.
-    stop = dynamic_stop(side="long", entry_price=100.0, atr_value=0.01,
-                        multiplier=1.0, timeframe_floor=0.8)
+    stop = dynamic_stop(
+        side="long",
+        entry_price=100.0,
+        atr_value=0.01,
+        multiplier=1.0,
+        timeframe_floor=0.8,
+    )
     assert stop == pytest.approx(99.2)
-    short = dynamic_stop(side="short", entry_price=100.0, atr_value=0.01,
-                         multiplier=1.0, timeframe_floor=0.8)
+    short = dynamic_stop(
+        side="short",
+        entry_price=100.0,
+        atr_value=0.01,
+        multiplier=1.0,
+        timeframe_floor=0.8,
+    )
     assert short == pytest.approx(100.8)
 
 
@@ -81,20 +98,29 @@ def test_ratchet_take_profit_only_advances_long():
     tiers = [101.0, 103.0, 105.0]
     # Price at 102 banks only the 101 tier.
     locked, tp = ratchet_take_profit(
-        side="long", entry_price=100.0, current_price=102.0,
-        previously_locked=100.0, tiers=tiers,
+        side="long",
+        entry_price=100.0,
+        current_price=102.0,
+        previously_locked=100.0,
+        tiers=tiers,
     )
     assert (locked, tp) == (101.0, 101.0)
     # Price runs to 104: next tier banks; protection never retreats.
     locked2, tp2 = ratchet_take_profit(
-        side="long", entry_price=100.0, current_price=104.0,
-        previously_locked=locked, tiers=tiers,
+        side="long",
+        entry_price=100.0,
+        current_price=104.0,
+        previously_locked=locked,
+        tiers=tiers,
     )
     assert (locked2, tp2) == (103.0, 103.0)
     # Pullback below the lock cannot un-bank it.
     locked3, _ = ratchet_take_profit(
-        side="long", entry_price=100.0, current_price=102.0,
-        previously_locked=locked2, tiers=tiers,
+        side="long",
+        entry_price=100.0,
+        current_price=102.0,
+        previously_locked=locked2,
+        tiers=tiers,
     )
     assert locked3 == locked2
 
@@ -102,16 +128,21 @@ def test_ratchet_take_profit_only_advances_long():
 def test_ratchet_take_profit_short_direction():
     tiers = [97.0, 96.0, 95.0]
     locked, tp = ratchet_take_profit(
-        side="short", entry_price=100.0, current_price=96.5,
-        previously_locked=100.0, tiers=tiers,
+        side="short",
+        entry_price=100.0,
+        current_price=96.5,
+        previously_locked=100.0,
+        tiers=tiers,
     )
     assert (locked, tp) == (97.0, 97.0)
     locked2, _ = ratchet_take_profit(
-        side="short", entry_price=100.0, current_price=95.5,
-        previously_locked=locked, tiers=tiers,
+        side="short",
+        entry_price=100.0,
+        current_price=95.5,
+        previously_locked=locked,
+        tiers=tiers,
     )
     assert locked2 == 96.0
-
 
 
 # ---------------------------------------------------------------------------
@@ -120,8 +151,9 @@ def test_ratchet_take_profit_short_direction():
 
 
 def test_cooldown_asymmetric_by_exit_kind():
-    cfg = CooldownConfig(bars_after_stop_loss=12, bars_after_take_profit=3,
-                         bars_after_manual_exit=1)
+    cfg = CooldownConfig(
+        bars_after_stop_loss=12, bars_after_take_profit=3, bars_after_manual_exit=1
+    )
     cd = ReentryCooldown(config=cfg)
     cd.on_exit("stop_loss", bar_index=0)
     for _ in range(12):

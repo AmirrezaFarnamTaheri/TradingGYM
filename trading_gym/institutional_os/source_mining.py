@@ -1,4 +1,5 @@
 """Exhaustive semantic-mining evidence for donor archives and historical artefacts."""
+
 from __future__ import annotations
 
 from collections import Counter
@@ -28,7 +29,9 @@ class HistoricalSurface(BaseModel):
     path: Annotated[str, Field(min_length=1, max_length=1024)]
     sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     category: Annotated[str, Field(min_length=1, max_length=80)]
-    semantic_units: list[Annotated[str, Field(min_length=1, max_length=240)]] = Field(max_length=100)
+    semantic_units: list[Annotated[str, Field(min_length=1, max_length=240)]] = Field(
+        max_length=100
+    )
     disposition: SurfaceDisposition
     rationale: Annotated[str, Field(min_length=8, max_length=4000)]
     high_risk: bool = False
@@ -38,7 +41,9 @@ class HistoricalSurface(BaseModel):
 class SourceMiningRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    expected_donors: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(min_length=1, max_length=100)
+    expected_donors: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(
+        min_length=1, max_length=100
+    )
     surfaces: list[HistoricalSurface] = Field(max_length=1_000_000)
     require_high_risk_resolution: bool = True
     minimum_semantic_units_per_donor: Annotated[int, Field(ge=1, le=1_000_000)] = 1
@@ -50,7 +55,10 @@ class SourceMiningRequest(BaseModel):
             raise ValueError("donor/path surfaces must be unique")
         if len(self.expected_donors) != len(set(self.expected_donors)):
             raise ValueError("expected donors must be unique")
-        if sum(len(item.semantic_units) for item in self.surfaces) > MAX_SOURCE_MINING_SEMANTIC_UNITS:
+        if (
+            sum(len(item.semantic_units) for item in self.surfaces)
+            > MAX_SOURCE_MINING_SEMANTIC_UNITS
+        ):
             raise ValueError("source-mining semantic-unit budget exceeded")
         return self
 
@@ -95,7 +103,9 @@ def evaluate_source_mining(request: SourceMiningRequest) -> SourceMiningReport:
         if donor_counts[donor] == 0:
             blockers.append(f"missing_donor:{donor}")
         if semantic_counts[donor] < request.minimum_semantic_units_per_donor:
-            blockers.append(f"insufficient_semantic_units:{donor}:{semantic_counts[donor]}")
+            blockers.append(
+                f"insufficient_semantic_units:{donor}:{semantic_counts[donor]}"
+            )
     if request.require_high_risk_resolution and unresolved:
         blockers.append("unresolved_high_risk_surfaces")
     payload = {

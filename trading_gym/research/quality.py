@@ -6,8 +6,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict
 
-from trading_gym.research.models import EvidenceItem, EvidenceQuality, ResearchDossier
-
+from trading_gym.research.models import EvidenceQuality, ResearchDossier
 
 _QUALITY_WEIGHT = {
     EvidenceQuality.PRIMARY: 1.0,
@@ -58,10 +57,14 @@ def assess_dossier(
     fresh = 0
     for item in evidence_by_id.values():
         reference = item.published_at or item.observed_at
-        reference = reference if reference.tzinfo else reference.replace(tzinfo=timezone.utc)
+        reference = (
+            reference if reference.tzinfo else reference.replace(tzinfo=timezone.utc)
+        )
         if (now - reference.astimezone(timezone.utc)).days <= freshness_days:
             fresh += 1
-    missing = [section.name for section in dossier.sections if section.status == "missing"]
+    missing = [
+        section.name for section in dossier.sections if section.status == "missing"
+    ]
     warnings: list[str] = []
     if duplicates:
         warnings.append("duplicate evidence identifiers")

@@ -154,23 +154,23 @@ class TestMemoryEndpoints:
         assert advice["warnings"] == [{"lesson": "same lesson", "support": 3}]
 
     def test_advice_requires_a_tag(self, auth_env: Path) -> None:
-        response = client().get(
-            "/api/v1/forge/memory/advice", headers=AGENT_HEADERS
-        )
+        response = client().get("/api/v1/forge/memory/advice", headers=AGENT_HEADERS)
         assert response.status_code == 422
 
     def test_advice_on_an_unseen_tag_is_empty(self, auth_env: Path) -> None:
-        body = client().get(
-            "/api/v1/forge/memory/advice",
-            headers=AGENT_HEADERS,
-            params={"tags": ["never-seen"]},
-        ).json()
+        body = (
+            client()
+            .get(
+                "/api/v1/forge/memory/advice",
+                headers=AGENT_HEADERS,
+                params={"tags": ["never-seen"]},
+            )
+            .json()
+        )
         assert body["consulted"] == 0
         assert body["net_signal"] == pytest.approx(0.0)
 
-    def test_a_corrupt_journal_is_503_not_an_empty_memory(
-        self, auth_env: Path
-    ) -> None:
+    def test_a_corrupt_journal_is_503_not_an_empty_memory(self, auth_env: Path) -> None:
         api = client()
         api.post(
             "/api/v1/forge/memory/records",
@@ -198,20 +198,26 @@ class TestMemoryEndpoints:
 
 class TestStrategyEndpoints:
     def test_templates_are_listed(self, auth_env: Path) -> None:
-        body = client().get(
-            "/api/v1/forge/strategies/templates", headers=AGENT_HEADERS
-        ).json()
+        body = (
+            client()
+            .get("/api/v1/forge/strategies/templates", headers=AGENT_HEADERS)
+            .json()
+        )
         assert set(body["templates"]) == set(template_catalogue())
         entry = body["templates"]["atr_volatility_breakout"]
         assert entry["description"]
         assert "atr" in entry["indicators"]
 
     def test_templates_detail_returns_full_specs(self, auth_env: Path) -> None:
-        body = client().get(
-            "/api/v1/forge/strategies/templates",
-            headers=AGENT_HEADERS,
-            params={"detail": True},
-        ).json()
+        body = (
+            client()
+            .get(
+                "/api/v1/forge/strategies/templates",
+                headers=AGENT_HEADERS,
+                params={"detail": True},
+            )
+            .json()
+        )
         from trading_gym.strategy_lab.models import StrategySpec
 
         StrategySpec.model_validate(body["templates"]["sma_crossover"])
@@ -234,20 +240,22 @@ class TestStrategyEndpoints:
         assert len(first.json()["variants"]) == 3
         assert first.json()["proposed_by"] == "agent-axiom1"
 
-    def test_variants_respect_a_narrow_mutation_range(
-        self, auth_env: Path
-    ) -> None:
-        body = client().post(
-            "/api/v1/forge/strategies/variants",
-            headers=AGENT_HEADERS,
-            json={
-                "strategy": spec_payload(),
-                "count": 4,
-                "seed": 3,
-                "min_period": 4,
-                "max_period": 9,
-            },
-        ).json()
+    def test_variants_respect_a_narrow_mutation_range(self, auth_env: Path) -> None:
+        body = (
+            client()
+            .post(
+                "/api/v1/forge/strategies/variants",
+                headers=AGENT_HEADERS,
+                json={
+                    "strategy": spec_payload(),
+                    "count": 4,
+                    "seed": 3,
+                    "min_period": 4,
+                    "max_period": 9,
+                },
+            )
+            .json()
+        )
         for variant in body["variants"]:
             for indicator in variant["indicators"]:
                 if "period" in indicator["params"]:
@@ -284,9 +292,7 @@ class TestStrategyEndpoints:
 
 
 class TestNominationEndpoints:
-    def test_nomination_is_journaled_and_grants_nothing(
-        self, auth_env: Path
-    ) -> None:
+    def test_nomination_is_journaled_and_grants_nothing(self, auth_env: Path) -> None:
         api = client()
         created = api.post(
             "/api/v1/forge/nominations",
@@ -363,16 +369,16 @@ class TestAuthorizationGates:
             ("get", "/api/v1/forge/nominations", None),
             ("post", "/api/v1/forge/nominations", {}),
         ):
-            response = getattr(api, method)(path, json=payload) if payload is not None else getattr(api, method)(path)
+            response = (
+                getattr(api, method)(path, json=payload)
+                if payload is not None
+                else getattr(api, method)(path)
+            )
             assert response.status_code == 403, f"{method} {path} was not denied"
 
-    def test_an_unscoped_actor_is_denied_per_endpoint(
-        self, auth_env: Path
-    ) -> None:
+    def test_an_unscoped_actor_is_denied_per_endpoint(self, auth_env: Path) -> None:
         api = client()
-        templates = api.get(
-            "/api/v1/forge/strategies/templates", headers=GHOST_HEADERS
-        )
+        templates = api.get("/api/v1/forge/strategies/templates", headers=GHOST_HEADERS)
         assert templates.status_code == 403
         assert "forge.strategy.read" in templates.json()["detail"]
 

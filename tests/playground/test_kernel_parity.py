@@ -122,9 +122,9 @@ def _assert_bit_identical(spec: PlaygroundRunSpec) -> None:
         assert fast_trade["entry_ts"] == ref_trade["entry_ts"]
         assert fast_trade["exit_ts"] == ref_trade["exit_ts"]
         for field in ("entry_price", "exit_price", "pnl_quote", "cost_quote"):
-            assert fast_trade[field] == ref_trade[field], (
-                f"{field} differs: {fast_trade[field]!r} != {ref_trade[field]!r}"
-            )
+            assert (
+                fast_trade[field] == ref_trade[field]
+            ), f"{field} differs: {fast_trade[field]!r} != {ref_trade[field]!r}"
     assert list(fast_changes) == list(ref_changes)
 
 

@@ -13,7 +13,11 @@ import httpx
 from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.common.audit_outbox import (
     deliver_audit_events,
     ensure_audit_outbox,
@@ -89,7 +93,9 @@ class ProviderRepository:
         self.lock = FileLock(str(self.path) + ".repository.lock")
 
     def _load(self) -> dict[str, Any]:
-        document = read_json(self.path, {"schema_version": 1, "revision": 0, "providers": {}})
+        document = read_json(
+            self.path, {"schema_version": 1, "revision": 0, "providers": {}}
+        )
         if document.get("schema_version") != 1:
             raise ValueError("unsupported provider repository schema")
         document.setdefault("revision", 0)
@@ -117,7 +123,10 @@ class ProviderRepository:
         with self.lock:
             document = self._load()
         return sorted(
-            [ProviderConfig.model_validate(item) for item in document["providers"].values()],
+            [
+                ProviderConfig.model_validate(item)
+                for item in document["providers"].values()
+            ],
             key=lambda item: item.provider_id,
         )
 

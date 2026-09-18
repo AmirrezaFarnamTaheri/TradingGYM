@@ -167,7 +167,9 @@ class TestEnhancedAbanClient(unittest.TestCase):
 
     @patch("trading_gym.adapters.enhanced_aban_client.time.sleep", return_value=None)
     def test_get_request_retries_transient_failure(self, _sleep):
-        self.mock_sdk_client.balance = Mock(side_effect=[TimeoutError("temporary"), {"data": []}])
+        self.mock_sdk_client.balance = Mock(
+            side_effect=[TimeoutError("temporary"), {"data": []}]
+        )
 
         result = self.client._make_request("GET", "balance")
 
@@ -230,4 +232,3 @@ class TestEnhancedAbanClient(unittest.TestCase):
             EnhancedAbanClient(api_key="key", retry_attempts=6)
         with self.assertRaises(ValueError):
             EnhancedAbanClient(api_key="key", base_url="https://example.com")
-

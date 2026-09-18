@@ -150,9 +150,7 @@ def _gate_shadow_to_paper(
         raise PromotionDenied("constraint breaches in the shadow window")
     if not evidence.journal_valid:
         raise PromotionDenied("decision journal failed integrity verification")
-    window_start = (
-        _parse_iso(demoted_at) if demoted_at is not None else None
-    )
+    window_start = _parse_iso(demoted_at) if demoted_at is not None else None
     if window_start is not None:
         effective_days = (now - window_start).days
     else:
@@ -172,10 +170,11 @@ def _gate_paper_to_live(
     evidence: PromotionEvidence, demoted_at: str | None, now: datetime
 ) -> None:
     _gate_shadow_to_paper(evidence, demoted_at, now)
-    if evidence.fusion_lift_dsr is None or evidence.fusion_lift_dsr < MIN_FUSION_LIFT_DSR:
-        raise PromotionDenied(
-            "positive DSR fusion lift required for live promotion"
-        )
+    if (
+        evidence.fusion_lift_dsr is None
+        or evidence.fusion_lift_dsr < MIN_FUSION_LIFT_DSR
+    ):
+        raise PromotionDenied("positive DSR fusion lift required for live promotion")
     if not evidence.critical_proposal_id:
         raise PromotionDenied(
             "an approved critical proposal is required for live authority"
@@ -314,16 +313,15 @@ class AutonomyGovernor:
 
     # -- transitions ---------------------------------------------------------
 
-    def promote(self, evidence: PromotionEvidence, *, at: str | None = None) -> "AutonomyGovernor":
+    def promote(
+        self, evidence: PromotionEvidence, *, at: str | None = None
+    ) -> "AutonomyGovernor":
         now = _parse_iso(at) if at else datetime.now(timezone.utc)
         nxt = self._level.next
         if nxt is None:
             raise PromotionDenied(f"already at the top level {self._level.value}")
         gate = _GATES[(self._level, nxt)]
-        if (
-            self._level is AutonomyLevel.L0_SHADOW
-            and evidence.critical_proposal_id
-        ):
+        if self._level is AutonomyLevel.L0_SHADOW and evidence.critical_proposal_id:
             raise PromotionDenied(
                 "a critical proposal cannot exist for a shadow-level agent "
                 "(skip-level promotion attempt)"
@@ -352,7 +350,9 @@ class AutonomyGovernor:
         self._demoted_at = None
         return self
 
-    def demote(self, *, reason: str, actor: str, at: str | None = None) -> "AutonomyGovernor":
+    def demote(
+        self, *, reason: str, actor: str, at: str | None = None
+    ) -> "AutonomyGovernor":
         if not reason or not actor:
             raise ValueError("demotion requires reason and actor")
         now = _parse_iso(at) if at else datetime.now(timezone.utc)
@@ -376,7 +376,9 @@ class AutonomyGovernor:
     def _load(self, *, verify: bool) -> None:
         if not self._path.exists():
             return
-        for number, line in enumerate(self._path.read_text(encoding="utf-8").splitlines(), start=1):
+        for number, line in enumerate(
+            self._path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
             if not line.strip():
                 raise AutonomyLedgerIntegrityError("blank line in autonomy journal")
             try:
@@ -392,11 +394,7 @@ class AutonomyGovernor:
                     raise AutonomyLedgerIntegrityError(
                         f"journal record missing {key!r}"
                     )
-            body = {
-                key: value
-                for key, value in record.items()
-                if key != "entry_hash"
-            }
+            body = {key: value for key, value in record.items() if key != "entry_hash"}
             computed = hashlib.sha256(_canonical(body)).hexdigest()
             if computed != record["entry_hash"]:
                 raise AutonomyLedgerIntegrityError(

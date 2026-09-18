@@ -54,7 +54,5 @@ def test_optuna_gate_lets_active_trials_through():
     study.optimize(objective, n_trials=3)
 
     assert len(study.trials) == 3
-    assert all(
-        t.state == optuna.trial.TrialState.COMPLETE for t in study.trials
-    )
+    assert all(t.state == optuna.trial.TrialState.COMPLETE for t in study.trials)
     assert all(t.user_attrs.get("pruned_reason") is None for t in study.trials)

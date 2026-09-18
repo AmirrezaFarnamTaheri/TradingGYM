@@ -18,7 +18,9 @@ class SelectionEntry:
 class BackendRegistry:
     """Ordered registry; ``select`` walks it until one backend can act."""
 
-    def __init__(self, entries: Iterable[tuple[IntelligenceBackend, int]] | None = None):
+    def __init__(
+        self, entries: Iterable[tuple[IntelligenceBackend, int]] | None = None
+    ):
         self._entries: list[SelectionEntry] = []
         for backend, priority in entries or []:
             self.register(backend, priority=priority)
@@ -49,9 +51,7 @@ class BackendRegistry:
             for entry in self._entries:
                 if entry.backend.name == name:
                     if require_available and not entry.backend.is_available():
-                        raise BackendUnavailable(
-                            f"backend {name} is not available"
-                        )
+                        raise BackendUnavailable(f"backend {name} is not available")
                     return entry.backend
             raise BackendUnavailable(f"unknown backend {name!r}")
 

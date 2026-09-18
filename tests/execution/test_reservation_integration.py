@@ -6,7 +6,6 @@ coordinator reports a committed receipt, released when the failure is
 provably terminal, and held while the outcome is ambiguous.
 """
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
@@ -80,7 +79,9 @@ def _adapter(cfg, cl, **kwargs):
             live_consent=LiveConsent(
                 actor="test-executor",
                 scope="live.execute",
-                expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+                expires_at=(
+                    datetime.now(timezone.utc) + timedelta(hours=1)
+                ).isoformat(),
                 nonce="reservation-test",
             ),
             proposal_id="res-proposal",

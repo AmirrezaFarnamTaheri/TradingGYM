@@ -15,10 +15,17 @@ from uuid import uuid4
 from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from trading_gym.common.audit_outbox import deliver_audit_events, ensure_audit_outbox, queue_audit_event
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.audit_outbox import (
+    deliver_audit_events,
+    ensure_audit_outbox,
+    queue_audit_event,
+)
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.governance.ledger import AuditLedger
-
 
 MAX_SAMPLES = 1_000_000
 MAX_BASELINES = 10_000
@@ -41,9 +48,13 @@ class DriftPolicy(BaseModel):
         if self.critical_psi < self.warning_psi:
             raise ValueError("critical_psi must be at least warning_psi")
         if self.critical_mean_shift_z < self.warning_mean_shift_z:
-            raise ValueError("critical_mean_shift_z must be at least warning_mean_shift_z")
+            raise ValueError(
+                "critical_mean_shift_z must be at least warning_mean_shift_z"
+            )
         if self.critical_missing_delta < self.warning_missing_delta:
-            raise ValueError("critical_missing_delta must be at least warning_missing_delta")
+            raise ValueError(
+                "critical_missing_delta must be at least warning_missing_delta"
+            )
         return self
 
 
@@ -151,21 +162,31 @@ def _proportions(values: list[float], edges: list[float]) -> list[float]:
 
 
 def _baseline_hash(payload: dict[str, Any]) -> str:
-    unsigned = {key: value for key, value in payload.items() if key != "baseline_sha256"}
-    encoded = json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    unsigned = {
+        key: value for key, value in payload.items() if key != "baseline_sha256"
+    }
+    encoded = json.dumps(
+        unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 
-def build_baseline(request: DriftBaselineCreate, *, now: datetime | None = None) -> DriftBaseline:
+def build_baseline(
+    request: DriftBaselineCreate, *, now: datetime | None = None
+) -> DriftBaseline:
     finite, missing_rate = _finite(request.values)
     if len(finite) < request.policy.minimum_samples:
-        raise ValueError("baseline does not contain the minimum number of finite samples")
+        raise ValueError(
+            "baseline does not contain the minimum number of finite samples"
+        )
     edges = _edges(finite, request.bins)
     proportions = _proportions(finite, edges)
     payload: dict[str, Any] = {
         "baseline_id": uuid4().hex,
         "feature_name": request.feature_name,
-        "created_at": (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat(),
+        "created_at": (now or datetime.now(timezone.utc))
+        .astimezone(timezone.utc)
+        .isoformat(),
         "revision": 1,
         "sample_count": len(request.values),
         "finite_count": len(finite),
@@ -183,7 +204,9 @@ def build_baseline(request: DriftBaselineCreate, *, now: datetime | None = None)
     return DriftBaseline.model_validate(normalised)
 
 
-def evaluate_drift(baseline: DriftBaseline, request: DriftEvaluationRequest) -> DriftEvaluation:
+def evaluate_drift(
+    baseline: DriftBaseline, request: DriftEvaluationRequest
+) -> DriftEvaluation:
     if _baseline_hash(baseline.model_dump(mode="json")) != baseline.baseline_sha256:
         raise ValueError("drift baseline hash mismatch")
     finite, missing_rate = _finite(request.values)
@@ -208,7 +231,9 @@ def evaluate_drift(baseline: DriftBaseline, request: DriftEvaluationRequest) -> 
     )
     observed_mean = fmean(finite)
     if baseline.standard_deviation <= EPSILON:
-        mean_shift_z = 0.0 if abs(observed_mean - baseline.mean) <= EPSILON else 1_000_000.0
+        mean_shift_z = (
+            0.0 if abs(observed_mean - baseline.mean) <= EPSILON else 1_000_000.0
+        )
     else:
         mean_shift_z = abs(observed_mean - baseline.mean) / baseline.standard_deviation
     missing_delta = abs(missing_rate - baseline.missing_rate)
@@ -244,20 +269,31 @@ def evaluate_drift(baseline: DriftBaseline, request: DriftEvaluationRequest) -> 
 
 
 class DriftBaselineRepository:
-    def __init__(self, path: Path | None = None, ledger: AuditLedger | None = None) -> None:
+    def __init__(
+        self, path: Path | None = None, ledger: AuditLedger | None = None
+    ) -> None:
         self.path = path or resolve_data_home() / "drift-baselines.json"
         self.ledger = ledger or AuditLedger()
         self.lock = FileLock(str(self.path) + ".drift.lock")
 
     def _load(self) -> dict[str, Any]:
-        document = read_json(self.path, {"schema_version": 1, "revision": 0, "baselines": {}, "audit_outbox": {}})
-        if document.get("schema_version") != 1 or not isinstance(document.get("baselines"), dict):
+        document = read_json(
+            self.path,
+            {"schema_version": 1, "revision": 0, "baselines": {}, "audit_outbox": {}},
+        )
+        if document.get("schema_version") != 1 or not isinstance(
+            document.get("baselines"), dict
+        ):
             raise ValueError("invalid drift-baseline store")
         if len(document["baselines"]) > MAX_BASELINES:
             raise ValueError("drift-baseline limit exceeded")
         for baseline_id, raw in document["baselines"].items():
             baseline = DriftBaseline.model_validate(raw)
-            if baseline.baseline_id != baseline_id or _baseline_hash(baseline.model_dump(mode="json")) != baseline.baseline_sha256:
+            if (
+                baseline.baseline_id != baseline_id
+                or _baseline_hash(baseline.model_dump(mode="json"))
+                != baseline.baseline_sha256
+            ):
                 raise ValueError("stored drift baseline is invalid")
         ensure_audit_outbox(document)
         return document
@@ -272,12 +308,17 @@ class DriftBaselineRepository:
         baseline = build_baseline(request)
         with self.lock:
             document = self._load()
-            if expected_store_revision is not None and document["revision"] != expected_store_revision:
+            if (
+                expected_store_revision is not None
+                and document["revision"] != expected_store_revision
+            ):
                 raise DriftConflict("drift-baseline store revision conflict")
             if len(document["baselines"]) >= MAX_BASELINES:
                 raise DriftConflict("drift-baseline limit reached")
             document["revision"] += 1
-            document["baselines"][baseline.baseline_id] = baseline.model_dump(mode="json")
+            document["baselines"][baseline.baseline_id] = baseline.model_dump(
+                mode="json"
+            )
             queue_audit_event(
                 document,
                 event_id=f"drift:{baseline.baseline_id}:created:{baseline.baseline_sha256[:16]}",
@@ -304,7 +345,10 @@ class DriftBaselineRepository:
 
     def list(self) -> list[DriftBaseline]:
         with self.lock:
-            return [DriftBaseline.model_validate(value) for value in self._load()["baselines"].values()]
+            return [
+                DriftBaseline.model_validate(value)
+                for value in self._load()["baselines"].values()
+            ]
 
     def audit_pending(self) -> int:
         with self.lock:

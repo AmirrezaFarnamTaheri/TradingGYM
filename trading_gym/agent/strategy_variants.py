@@ -96,9 +96,7 @@ def mutate_indicators(
         if indicator.name == "macd":
             params = _repair_macd(params, lo, hi)
         mutated.append(
-            IndicatorSpec(
-                alias=indicator.alias, name=indicator.name, params=params
-            )
+            IndicatorSpec(alias=indicator.alias, name=indicator.name, params=params)
         )
     return mutated
 

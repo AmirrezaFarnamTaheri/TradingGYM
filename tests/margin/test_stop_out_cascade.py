@@ -96,9 +96,9 @@ def test_partial_trim_closes_less_than_whole_lot():
     plan = _plan(single, exec_price=92.5, reference_price=100, equity=100)
     assert len(plan.closures) == 1
     closure = plan.closures[0]
-    assert 0 < closure.quantity < D("10"), (
-        "a leveraged loser mid-cascade must restore margin before flattening"
-    )
+    assert (
+        0 < closure.quantity < D("10")
+    ), "a leveraged loser mid-cascade must restore margin before flattening"
     eq, pos = _apply_projection(plan, single, 100)
     assert _borrow_ratio(eq, pos, 92.5) >= 0.03 - 1e-6
 
@@ -114,7 +114,9 @@ def test_unrestorable_shortfall_reports_full_liquidation():
 def test_deterministic_tie_breaking_by_lot_id():
     lots_a = (_lot(9, 1, "1", "100"), _lot(4, 1, "1", "100"))
     plan_a = _plan(lots_a, exec_price=50, reference_price=100, equity=40)
-    plan_b = _plan(tuple(reversed(lots_a)), exec_price=50, reference_price=100, equity=40)
+    plan_b = _plan(
+        tuple(reversed(lots_a)), exec_price=50, reference_price=100, equity=40
+    )
     assert plan_a.closures == plan_b.closures
     assert plan_a.closures[0].lot_id == 4
 
@@ -135,7 +137,7 @@ def test_planner_does_not_mutate_input_lots():
 
 def test_short_side_cascade_closes_worst_short_first():
     # Two shorts; the one entered lower bleeds more when price rallies.
-    deep = _lot(3, -1, "8", "80")     # short from 80, price rallied to ref 100
+    deep = _lot(3, -1, "8", "80")  # short from 80, price rallied to ref 100
     shallow = _lot(4, -1, "2", "99")  # barely underwater
     lots = (deep, shallow)
     # Equity 60 at ref 100: net-short rebuild borrow 10 units → 60/1000.

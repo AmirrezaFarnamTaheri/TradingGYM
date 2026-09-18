@@ -120,9 +120,7 @@ class TestMutationBounds:
                 assert MIN_PERIOD <= period <= MAX_PERIOD
 
     def test_a_narrow_range_is_respected(self) -> None:
-        variants = propose_variants(
-            sma_seed(), count=8, seed=5, mutation_range=(4, 9)
-        )
+        variants = propose_variants(sma_seed(), count=8, seed=5, mutation_range=(4, 9))
         assert variants
         for variant in variants:
             for indicator in variant.indicators:
@@ -211,9 +209,9 @@ class TestMutationBounds:
             assert [item.alias for item in variant.indicators] == [
                 item.alias for item in seed.indicators
             ]
-            assert [
-                condition.operator for condition in variant.entry.conditions
-            ] == [condition.operator for condition in seed.entry.conditions]
+            assert [condition.operator for condition in variant.entry.conditions] == [
+                condition.operator for condition in seed.entry.conditions
+            ]
             assert variant.risk == seed.risk
             assert variant.timeframe == seed.timeframe
 

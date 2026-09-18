@@ -29,7 +29,9 @@ class CircuitOpenError(RuntimeError):
 
 
 class CircuitBreaker:
-    def __init__(self, *, failure_threshold: int = 5, recovery_timeout: float = 30.0) -> None:
+    def __init__(
+        self, *, failure_threshold: int = 5, recovery_timeout: float = 30.0
+    ) -> None:
         if failure_threshold < 1:
             raise ValueError("failure_threshold must be positive")
         if recovery_timeout <= 0:
@@ -43,7 +45,9 @@ class CircuitBreaker:
 
     def snapshot(self) -> CircuitSnapshot:
         with self._lock:
-            return CircuitSnapshot(self._state_unlocked(time.monotonic()), self._failures, self._opened_at)
+            return CircuitSnapshot(
+                self._state_unlocked(time.monotonic()), self._failures, self._opened_at
+            )
 
     def _state_unlocked(self, now: float) -> CircuitState:
         if self._opened_at is None:

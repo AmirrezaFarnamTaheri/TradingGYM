@@ -32,7 +32,10 @@ OPERATOR_SECRET = "operator-secret-0123456789abcdef0123"
 AGENT_SECRET = "agent-secret-0123456789abcdef0123456"
 ACTOR_JSON = json.dumps(
     {
-        "operator-1": {"secret": OPERATOR_SECRET, "roles": ["proposer", "executor", "operator"]},
+        "operator-1": {
+            "secret": OPERATOR_SECRET,
+            "roles": ["proposer", "executor", "operator"],
+        },
         "agent-axiom1": {"secret": AGENT_SECRET, "roles": ["executor"]},
     }
 )
@@ -205,7 +208,9 @@ class TestGatewayAuth:
         def reject() -> None:
             raise HTTPException(status_code=401, detail="invalid API key")
 
-        response = _client(reject).post("/api/v1/authz/check", json={"scope": "trade.paper.order"})
+        response = _client(reject).post(
+            "/api/v1/authz/check", json={"scope": "trade.paper.order"}
+        )
         assert response.status_code == 401
 
 

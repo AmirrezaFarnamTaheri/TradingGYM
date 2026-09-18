@@ -54,7 +54,8 @@ def _normalise_timestamp_index(frame: pd.DataFrame, *, source: str) -> pd.DataFr
         candidates = [
             column
             for column in result.columns
-            if "timestamp" in str(column).lower() or str(column).lower() in {"time", "datetime"}
+            if "timestamp" in str(column).lower()
+            or str(column).lower() in {"time", "datetime"}
         ]
         if len(candidates) != 1:
             raise ValueError(f"A unique timestamp column is required in {source}")
@@ -93,9 +94,13 @@ def validate_market_frame(
     numeric_columns = [*_REQUIRED_OHLCV, "spread_bps"]
     for column in numeric_columns:
         try:
-            frame[column] = pd.to_numeric(frame[column], errors="raise").astype(np.float64)
+            frame[column] = pd.to_numeric(frame[column], errors="raise").astype(
+                np.float64
+            )
         except (TypeError, ValueError) as exc:
-            raise ValueError(f"Non-numeric {column} values in {symbol}/{timeframe}") from exc
+            raise ValueError(
+                f"Non-numeric {column} values in {symbol}/{timeframe}"
+            ) from exc
 
     values = frame[numeric_columns].to_numpy(dtype=np.float64, copy=False)
     if not np.isfinite(values).all():
@@ -103,7 +108,9 @@ def validate_market_frame(
     if (frame[["open", "high", "low", "close"]].to_numpy() <= 0).any():
         raise ValueError(f"Prices must be positive in {symbol}/{timeframe}")
     if (frame[["volume", "spread_bps"]].to_numpy() < 0).any():
-        raise ValueError(f"Volume and spread must be non-negative in {symbol}/{timeframe}")
+        raise ValueError(
+            f"Volume and spread must be non-negative in {symbol}/{timeframe}"
+        )
 
     upper = frame[["open", "close", "low"]].max(axis=1)
     lower = frame[["open", "close", "high"]].min(axis=1)
@@ -116,7 +123,9 @@ def validate_market_frame(
         duplicate_rows = frame.loc[frame.index.duplicated(keep=False), numeric_columns]
         conflicts = duplicate_rows.groupby(level=0, sort=False).nunique(dropna=False)
         if (conflicts > 1).any(axis=None):
-            raise ValueError(f"Conflicting duplicate timestamps in {symbol}/{timeframe}")
+            raise ValueError(
+                f"Conflicting duplicate timestamps in {symbol}/{timeframe}"
+            )
         frame = frame.loc[~frame.index.duplicated(keep="last")]
 
     if not frame.index.is_monotonic_increasing or not frame.index.is_unique:
@@ -172,14 +181,22 @@ def load_data_from_lake(
                     allow_symlinks=False,
                 )
             except FileNotFoundError as exc:
-                raise FileNotFoundError(f"Missing partition: {symbol}/{timeframe}") from exc
+                raise FileNotFoundError(
+                    f"Missing partition: {symbol}/{timeframe}"
+                ) from exc
             if partition_dir.is_symlink() or not partition_dir.is_dir():
-                raise FileNotFoundError(f"Missing or unsafe partition: {symbol}/{timeframe}")
+                raise FileNotFoundError(
+                    f"Missing or unsafe partition: {symbol}/{timeframe}"
+                )
 
             pending_marker = partition_dir / ".integrity-pending"
             if pending_marker.exists() or pending_marker.is_symlink():
-                raise ValueError(f"Partition integrity update is incomplete: {symbol}/{timeframe}")
-            parquet_files = sorted(partition_dir.glob("*.parquet"), key=lambda item: item.name)
+                raise ValueError(
+                    f"Partition integrity update is incomplete: {symbol}/{timeframe}"
+                )
+            parquet_files = sorted(
+                partition_dir.glob("*.parquet"), key=lambda item: item.name
+            )
             if not parquet_files:
                 raise ValueError(f"No parquet files found for {symbol}/{timeframe}")
             if len(parquet_files) > max_files_per_partition:
@@ -194,7 +211,9 @@ def load_data_from_lake(
                     raise ValueError(f"Unsafe parquet member in {symbol}/{timeframe}")
                 size = parquet_file.stat().st_size
                 if size > _MAX_FILE_BYTES:
-                    raise ValueError(f"Parquet shard exceeds per-file limit: {parquet_file.name}")
+                    raise ValueError(
+                        f"Parquet shard exceeds per-file limit: {parquet_file.name}"
+                    )
                 total_bytes += size
                 if total_bytes > max_total_bytes_per_partition:
                     raise ValueError(f"Byte limit exceeded for {symbol}/{timeframe}")
@@ -212,7 +231,9 @@ def load_data_from_lake(
                         f"Failed to load complete partition {symbol}/{timeframe}"
                     ) from exc
                 if frame.empty:
-                    raise ValueError(f"Empty parquet shard: {symbol}/{timeframe}/{parquet_file.name}")
+                    raise ValueError(
+                        f"Empty parquet shard: {symbol}/{timeframe}/{parquet_file.name}"
+                    )
                 frame = _normalise_timestamp_index(frame, source=parquet_file.name)
                 row_count += len(frame)
                 if row_count > max_rows_per_partition:
@@ -236,9 +257,11 @@ def load_data_from_lake(
                     "source_sha256": hashes,
                     "source_bytes": total_bytes,
                     "synthetic_spread_bps": synthetic_spread,
-                    "default_spread_bps": float(default_spread_bps)
-                    if synthetic_spread and default_spread_bps is not None
-                    else None,
+                    "default_spread_bps": (
+                        float(default_spread_bps)
+                        if synthetic_spread and default_spread_bps is not None
+                        else None
+                    ),
                     "deduplicated_rows": duplicate_count,
                 }
             )
@@ -261,7 +284,9 @@ def load_symbol_timeframe(
 ) -> pd.DataFrame:
     """Load one complete symbol/timeframe partition."""
     data = load_data_from_lake(lake_dir, (symbol,), (timeframe,), **kwargs)
-    return data[_validate_component(symbol, "symbol")][_validate_component(timeframe, "timeframe")]
+    return data[_validate_component(symbol, "symbol")][
+        _validate_component(timeframe, "timeframe")
+    ]
 
 
 def get_available_partitions(lake_dir: Path) -> Dict[str, list[str]]:
@@ -272,7 +297,11 @@ def get_available_partitions(lake_dir: Path) -> Dict[str, list[str]]:
     root = root.resolve(strict=True)
     partitions: Dict[str, set[str]] = {}
 
-    top_level = [path for path in sorted(root.iterdir()) if path.is_dir() and not path.is_symlink()]
+    top_level = [
+        path
+        for path in sorted(root.iterdir())
+        if path.is_dir() and not path.is_symlink()
+    ]
     for first in top_level:
         try:
             first_name = _validate_component(first.name, "partition")
@@ -295,4 +324,6 @@ def get_available_partitions(lake_dir: Path) -> Dict[str, list[str]]:
             # Production interpretation: first=symbol, second=timeframe.
             partitions.setdefault(first_name, set()).add(second_name)
 
-    return {symbol: sorted(timeframes) for symbol, timeframes in sorted(partitions.items())}
+    return {
+        symbol: sorted(timeframes) for symbol, timeframes in sorted(partitions.items())
+    }

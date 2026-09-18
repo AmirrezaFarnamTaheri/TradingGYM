@@ -1,4 +1,5 @@
 """Privacy minimisation and subject-request planning."""
+
 from .minimisation import (
     DataFieldRecord,
     PrivacyAssessmentRequest,

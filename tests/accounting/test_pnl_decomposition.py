@@ -10,7 +10,6 @@ from trading_gym.accounting.models import AccountingEvent, AccountingEventType, 
 from trading_gym.accounting.pnl_decomposition import (
     COMPONENT_FEES,
     COMPONENT_FUNDING,
-    COMPONENT_REALIZED,
     COMPONENT_RESIDUAL,
     decompose_snapshot,
 )
@@ -23,7 +22,9 @@ def _event(event_id: str, **kwargs) -> AccountingEvent:
     return AccountingEvent(
         event_id=event_id,
         account_id="decomp-test",
-        event_type=AccountingEventType.FILL if "type" not in kwargs else kwargs.pop("type"),
+        event_type=(
+            AccountingEventType.FILL if "type" not in kwargs else kwargs.pop("type")
+        ),
         occurred_at=NOW,
         **kwargs,
     )
@@ -126,7 +127,7 @@ def test_unexplained_money_lands_in_residual_and_flags_unbalanced(traded_ledger)
 
 
 def test_missing_currency_in_opening_treated_as_zero():
-    from trading_gym.accounting.models import AccountSnapshot, PositionState
+    from trading_gym.accounting.models import AccountSnapshot
 
     snapshot = AccountSnapshot(
         account_id="x",

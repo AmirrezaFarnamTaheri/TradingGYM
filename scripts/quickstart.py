@@ -50,19 +50,27 @@ def doctor() -> None:
             detail = f"CUDA {'required' if not cuda else 'ready'}"
         elif mode == "llm":
             has_provider = bool(os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY"))
-            local_ollama = Path("/tmp").exists()  # placeholder: real check pings endpoint
+            local_ollama = Path(
+                "/tmp"
+            ).exists()  # placeholder: real check pings endpoint
             ok = has_provider or local_ollama
             detail = "API key or Ollama endpoint"
         else:
             ok = True
             detail = "always available"
 
-        status = typer.style("✓", fg=typer.colors.GREEN) if ok else typer.style("✗", fg=typer.colors.RED)
+        status = (
+            typer.style("✓", fg=typer.colors.GREEN)
+            if ok
+            else typer.style("✗", fg=typer.colors.RED)
+        )
         typer.echo(f"  {status}  {mode:<8}  {label:<{width}}  ({detail})")
 
     typer.echo("\nRecommended command:")
     if cuda:
-        typer.echo("  python scripts/quickstart.py paper --intelligence-mode fusion ...")
+        typer.echo(
+            "  python scripts/quickstart.py paper --intelligence-mode fusion ..."
+        )
     else:
         typer.echo("  python scripts/quickstart.py paper --intelligence-mode rl ...")
     typer.echo()

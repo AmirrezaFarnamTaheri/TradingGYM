@@ -5,6 +5,7 @@ calendar, settlement, lineage, budget, recovery, and supply-chain evidence.  It
 cannot activate a model, approve a proposal, consume a budget, restore a
 snapshot, mitigate an incident, schedule work, settle funds, or submit an order.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -14,8 +15,16 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from trading_gym.accounting import AccountValuationReport, CorporateActionPlan, SettlementReport
-from trading_gym.assurance.qualification import QualificationReport, QualificationRequest, qualify_candidate
+from trading_gym.accounting import (
+    AccountValuationReport,
+    CorporateActionPlan,
+    SettlementReport,
+)
+from trading_gym.assurance.qualification import (
+    QualificationReport,
+    QualificationRequest,
+    qualify_candidate,
+)
 from trading_gym.budgets import BudgetSnapshot
 from trading_gym.convergence.order_accounting import OrderAccountingSyncReport
 from trading_gym.execution.calibration import CalibrationReport
@@ -27,8 +36,12 @@ from trading_gym.governance.identity import ActorIdentityHealth
 from trading_gym.lineage import LineageSnapshot
 from trading_gym.market.calendar import ExecutionWindowPlan
 from trading_gym.operations import (
-    ClockHealthReport, IncidentReadinessReport, MigrationPlan, RecoveryObjectiveReport,
-    RestoreDrillReport, VersionSkewReport,
+    ClockHealthReport,
+    IncidentReadinessReport,
+    MigrationPlan,
+    RecoveryObjectiveReport,
+    RestoreDrillReport,
+    VersionSkewReport,
 )
 from trading_gym.orders import OrderReconciliationReport
 from trading_gym.portfolio import RebalancePlan
@@ -144,7 +157,9 @@ class SystemQualificationReport(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str
+    ).encode("utf-8")
 
 
 def qualify_system(request: SystemQualificationRequest) -> SystemQualificationReport:
@@ -237,7 +252,9 @@ def qualify_system(request: SystemQualificationRequest) -> SystemQualificationRe
 
     if policy.require_nonempty_lineage and request.lineage.node_count == 0:
         blockers.append("lineage_empty")
-    if request.lineage.edge_count > max(0, request.lineage.node_count * (request.lineage.node_count - 1)):
+    if request.lineage.edge_count > max(
+        0, request.lineage.node_count * (request.lineage.node_count - 1)
+    ):
         blockers.append("lineage_counts_invalid")
 
     for item in request.order_reconciliations:
@@ -279,7 +296,10 @@ def qualify_system(request: SystemQualificationRequest) -> SystemQualificationRe
             blockers.append(f"order_accounting_incomplete:{item.order_id}")
         if item.execution_authority_granted:
             blockers.append(f"order_accounting_authority_violation:{item.order_id}")
-        if item.newly_checkpointed + item.already_checkpointed < item.expected_fill_events:
+        if (
+            item.newly_checkpointed + item.already_checkpointed
+            < item.expected_fill_events
+        ):
             blockers.append(f"order_accounting_coverage:{item.order_id}")
 
     for item in request.account_valuations:
@@ -310,19 +330,32 @@ def qualify_system(request: SystemQualificationRequest) -> SystemQualificationRe
     for index, item in enumerate(request.market_windows):
         if not item.allowed or item.blockers:
             blockers.append(f"market_window_blocked:{index}")
-        if not item.dry_run or item.mutation_performed or item.execution_authority_granted or item.scheduling_authority_granted:
+        if (
+            not item.dry_run
+            or item.mutation_performed
+            or item.execution_authority_granted
+            or item.scheduling_authority_granted
+        ):
             blockers.append(f"market_window_authority_violation:{index}")
 
     for index, item in enumerate(request.derivative_risk_reports):
         if not item.allowed or item.violations:
             blockers.append(f"derivative_risk_failed:{index}")
-        if item.mutation_performed or item.execution_authority_granted or item.liquidation_authority_granted:
+        if (
+            item.mutation_performed
+            or item.execution_authority_granted
+            or item.liquidation_authority_granted
+        ):
             blockers.append(f"derivative_risk_authority_violation:{index}")
 
     for index, item in enumerate(request.rebalance_plans):
         if not item.feasible or item.blockers:
             blockers.append(f"rebalance_infeasible:{index}")
-        if not item.dry_run or item.mutation_performed or item.execution_authority_granted:
+        if (
+            not item.dry_run
+            or item.mutation_performed
+            or item.execution_authority_granted
+        ):
             blockers.append(f"rebalance_authority_violation:{index}")
         warnings.extend(f"rebalance:{index}:{warning}" for warning in item.warnings)
 
@@ -349,7 +382,9 @@ def qualify_system(request: SystemQualificationRequest) -> SystemQualificationRe
             or item.registry_authority_granted
         ):
             blockers.append(f"corporate_action_authority_violation:{index}")
-        warnings.extend(f"corporate_action:{index}:{warning}" for warning in item.warnings)
+        warnings.extend(
+            f"corporate_action:{index}:{warning}" for warning in item.warnings
+        )
 
     for index, item in enumerate(request.temporal_leakage_reports):
         if not item.ready_for_human_review or item.blockers:
@@ -361,7 +396,9 @@ def qualify_system(request: SystemQualificationRequest) -> SystemQualificationRe
             or item.execution_authority_granted
         ):
             blockers.append(f"temporal_leakage_authority_violation:{index}")
-        warnings.extend(f"temporal_leakage:{index}:{warning}" for warning in item.warnings)
+        warnings.extend(
+            f"temporal_leakage:{index}:{warning}" for warning in item.warnings
+        )
 
     for index, item in enumerate(request.identity_health_reports):
         if not item.valid or item.blockers:
@@ -372,7 +409,11 @@ def qualify_system(request: SystemQualificationRequest) -> SystemQualificationRe
     for index, item in enumerate(request.clock_health_reports):
         if not item.healthy or item.blockers:
             blockers.append(f"clock_health_failed:{index}")
-        if item.clock_mutation_performed or item.scheduling_authority_granted or item.execution_authority_granted:
+        if (
+            item.clock_mutation_performed
+            or item.scheduling_authority_granted
+            or item.execution_authority_granted
+        ):
             blockers.append(f"clock_health_authority_violation:{index}")
         warnings.extend(f"clock_health:{index}:{warning}" for warning in item.warnings)
 
@@ -392,7 +433,9 @@ def qualify_system(request: SystemQualificationRequest) -> SystemQualificationRe
             or item.mutation_performed
         ):
             blockers.append(f"data_lifecycle_authority_violation:{index}")
-        warnings.extend(f"data_lifecycle:{index}:{warning}" for warning in item.warnings)
+        warnings.extend(
+            f"data_lifecycle:{index}:{warning}" for warning in item.warnings
+        )
 
     for index, item in enumerate(request.credential_rotation_reports):
         if not item.ready_for_human_review or item.blockers:
@@ -404,7 +447,9 @@ def qualify_system(request: SystemQualificationRequest) -> SystemQualificationRe
             or item.mutation_performed
         ):
             blockers.append(f"credential_rotation_authority_violation:{index}")
-        warnings.extend(f"credential_rotation:{index}:{warning}" for warning in item.warnings)
+        warnings.extend(
+            f"credential_rotation:{index}:{warning}" for warning in item.warnings
+        )
 
     for index, item in enumerate(request.recovery_objective_reports):
         if not item.ready_for_human_review or item.blockers:
@@ -416,7 +461,9 @@ def qualify_system(request: SystemQualificationRequest) -> SystemQualificationRe
             or item.mutation_performed
         ):
             blockers.append(f"recovery_objectives_authority_violation:{index}")
-        warnings.extend(f"recovery_objectives:{index}:{warning}" for warning in item.warnings)
+        warnings.extend(
+            f"recovery_objectives:{index}:{warning}" for warning in item.warnings
+        )
 
     blockers = sorted(set(blockers))
     warnings = sorted(set(warnings))

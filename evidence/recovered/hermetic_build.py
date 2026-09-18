@@ -38,7 +38,14 @@ POLICY = ToolchainPolicy()
 
 _DEFAULT_STAGE_TIMEOUT_SECONDS = 1800.0
 _DEFAULT_MAX_OUTPUT_CHARS = 65536
-_SENSITIVE_NAME_FRAGMENTS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "AUTHORIZATION")
+_SENSITIVE_NAME_FRAGMENTS = (
+    "KEY",
+    "TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "CREDENTIAL",
+    "AUTHORIZATION",
+)
 _SECRET_ASSIGNMENT_RE = re.compile(
     r"(?i)\b(api[_-]?key|token|secret|password|authorization)(\s*[:=]\s*)([^\s]+)"
 )
@@ -66,7 +73,9 @@ def evaluate_toolchain_versions(
 ) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
     python_pair = _major_minor(python_version)
-    if python_pair is None or not (policy.python_min <= python_pair <= policy.python_max):
+    if python_pair is None or not (
+        policy.python_min <= python_pair <= policy.python_max
+    ):
         issues.append(
             {
                 "code": "unsupported_python",
@@ -102,13 +111,20 @@ def evaluate_toolchain_versions(
     return issues
 
 
-def build_plan(root: Path, *, scope: str = "all", run_tests: bool = True) -> list[dict[str, Any]]:
+def build_plan(
+    root: Path, *, scope: str = "all", run_tests: bool = True
+) -> list[dict[str, Any]]:
     root = root.resolve()
     stages: list[dict[str, Any]] = [
         {
             "name": "verify_dependency_locks",
             "cwd": str(root),
-            "command": [sys.executable, "scripts/verify_dependency_locks.py", "--root", "."],
+            "command": [
+                sys.executable,
+                "scripts/verify_dependency_locks.py",
+                "--root",
+                ".",
+            ],
         }
     ]
     if scope in ("python", "all"):
@@ -204,7 +220,11 @@ def _tool_version(command: Sequence[str]) -> str:
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"unavailable: {exc}"
-    return (result.stdout or "").strip().splitlines()[0] if result.stdout else f"exit={result.returncode}"
+    return (
+        (result.stdout or "").strip().splitlines()[0]
+        if result.stdout
+        else f"exit={result.returncode}"
+    )
 
 
 def inspect_toolchain() -> dict[str, str]:
@@ -256,14 +276,20 @@ def _sensitive_values_from_environment(environment: dict[str, str]) -> tuple[str
     values: set[str] = set()
     for name, value in environment.items():
         upper = name.upper()
-        if value and len(value) >= 6 and any(fragment in upper for fragment in _SENSITIVE_NAME_FRAGMENTS):
+        if (
+            value
+            and len(value) >= 6
+            and any(fragment in upper for fragment in _SENSITIVE_NAME_FRAGMENTS)
+        ):
             values.add(value)
     return tuple(sorted(values, key=len, reverse=True))
 
 
 def _redact_output(value: str, sensitive_values: Sequence[str]) -> str:
     redacted = value
-    for secret in sorted({item for item in sensitive_values if len(item) >= 6}, key=len, reverse=True):
+    for secret in sorted(
+        {item for item in sensitive_values if len(item) >= 6}, key=len, reverse=True
+    ):
         redacted = redacted.replace(secret, "[REDACTED]")
     redacted = _BEARER_RE.sub(r"\1[REDACTED]", redacted)
     redacted = _SECRET_ASSIGNMENT_RE.sub(r"\1\2[REDACTED]", redacted)
@@ -318,7 +344,9 @@ class _BoundedStreamCapture:
     def render(self) -> tuple[str, bool]:
         truncated = self.bytes_seen > self.bytes_retained
         if truncated:
-            data = bytes(self.head) + b"\n... [OUTPUT TRUNCATED] ...\n" + bytes(self.tail)
+            data = (
+                bytes(self.head) + b"\n... [OUTPUT TRUNCATED] ...\n" + bytes(self.tail)
+            )
         else:
             data = bytes(self.head) + bytes(self.tail)
         value = data.decode("utf-8", errors="replace")
@@ -399,7 +427,9 @@ def _run_stage_command(
         timed_out = True
         _terminate_process_tree(process)
         exit_code = 124
-        capture.feed(f"\nStage exceeded timeout of {timeout_seconds:g} seconds.\n".encode())
+        capture.feed(
+            f"\nStage exceeded timeout of {timeout_seconds:g} seconds.\n".encode()
+        )
     finally:
         reader.join(timeout=10)
         if reader.is_alive():
@@ -423,7 +453,9 @@ def execute_plan(
     cache_root.mkdir(parents=True, exist_ok=True)
     evidence_path.parent.mkdir(parents=True, exist_ok=True)
     env = _base_environment(cache_root=cache_root, offline=offline)
-    redaction_values = tuple(sensitive_values or ()) + _sensitive_values_from_environment(env)
+    redaction_values = tuple(
+        sensitive_values or ()
+    ) + _sensitive_values_from_environment(env)
     stages: list[dict[str, Any]] = []
     overall_status = "verified"
     started = time.monotonic()
@@ -469,7 +501,9 @@ def execute_plan(
         "max_output_chars": max_output_chars,
         "stages": stages,
     }
-    evidence_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    evidence_path.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return report
 
 
@@ -480,14 +514,22 @@ def _print(payload: Any) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("plan", "check", "run"))
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--scope", choices=("locks", "python", "frontend", "all"), default="all")
+    parser.add_argument(
+        "--root", type=Path, default=Path(__file__).resolve().parents[1]
+    )
+    parser.add_argument(
+        "--scope", choices=("locks", "python", "frontend", "all"), default="all"
+    )
     parser.add_argument("--skip-tests", action="store_true")
     parser.add_argument("--offline", action="store_true")
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--evidence", type=Path)
-    parser.add_argument("--stage-timeout-seconds", type=float, default=_DEFAULT_STAGE_TIMEOUT_SECONDS)
-    parser.add_argument("--max-output-chars", type=int, default=_DEFAULT_MAX_OUTPUT_CHARS)
+    parser.add_argument(
+        "--stage-timeout-seconds", type=float, default=_DEFAULT_STAGE_TIMEOUT_SECONDS
+    )
+    parser.add_argument(
+        "--max-output-chars", type=int, default=_DEFAULT_MAX_OUTPUT_CHARS
+    )
     args = parser.parse_args()
 
     root = args.root.resolve()
@@ -517,7 +559,11 @@ def main() -> int:
     )
     check_report = {
         "schema_version": 1,
-        "status": "verified" if not version_issues and lock_report["status"] == "verified" else "rejected",
+        "status": (
+            "verified"
+            if not version_issues and lock_report["status"] == "verified"
+            else "rejected"
+        ),
         "toolchain": tools,
         "policy": asdict(POLICY),
         "lock_report": lock_report,
@@ -533,7 +579,9 @@ def main() -> int:
     evidence = args.evidence or root / "build" / "hermetic" / "report.json"
     temporary_cache: tempfile.TemporaryDirectory[str] | None = None
     if args.cache_root is None:
-        temporary_cache = tempfile.TemporaryDirectory(prefix="axiomforge-hermetic-cache-")
+        temporary_cache = tempfile.TemporaryDirectory(
+            prefix="axiomforge-hermetic-cache-"
+        )
         cache_root = Path(temporary_cache.name)
     else:
         cache_root = args.cache_root.resolve()

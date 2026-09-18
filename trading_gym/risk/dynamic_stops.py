@@ -106,7 +106,8 @@ def ratchet_take_profit(
         raise ValueError("previously_locked must be finite")
     long = side.strip().lower() == "long"
     reached = [
-        t for t in tiers
+        t
+        for t in tiers
         if (
             (current_price >= t and t > previously_locked)
             if long

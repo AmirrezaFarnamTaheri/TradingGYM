@@ -1,4 +1,5 @@
 """Scientific trading-lab reproduction protocols and strategy genomes."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -44,7 +45,9 @@ class StrategyGene(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     gene_id: Annotated[str, Field(min_length=2, max_length=128)]
-    category: Annotated[str, Field(pattern=r"^(indicator|rule|risk|execution|parameter)$")]
+    category: Annotated[
+        str, Field(pattern=r"^(indicator|rule|risk|execution|parameter)$")
+    ]
     value: Any
     mutable: bool = True
     allowed_values: list[Any] = Field(default_factory=list, max_length=10_000)
@@ -62,11 +65,17 @@ class ScientificLabRequest(BaseModel):
     study_id: Annotated[str, Field(min_length=2, max_length=128)]
     protocol_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     artifacts: list[ReproductionArtifact] = Field(max_length=10_000)
-    required_artifact_types: list[Annotated[str, Field(min_length=2, max_length=80)]] = Field(max_length=100)
+    required_artifact_types: list[
+        Annotated[str, Field(min_length=2, max_length=80)]
+    ] = Field(max_length=100)
     benchmarks: list[BenchmarkResult] = Field(max_length=100_000)
-    baseline_benchmarks: list[BenchmarkResult] = Field(default_factory=list, max_length=100_000)
+    baseline_benchmarks: list[BenchmarkResult] = Field(
+        default_factory=list, max_length=100_000
+    )
     genome: list[StrategyGene] = Field(max_length=10_000)
-    secondary_genome: list[StrategyGene] = Field(default_factory=list, max_length=10_000)
+    secondary_genome: list[StrategyGene] = Field(
+        default_factory=list, max_length=10_000
+    )
     operation: GenomeOperation = GenomeOperation.NONE
     mutation_gene_id: str | None = Field(default=None, min_length=2, max_length=128)
     mutation_value: Any = None
@@ -86,24 +95,39 @@ class ScientificLabRequest(BaseModel):
         benchmark_keys = [(item.benchmark_id, item.metric) for item in self.benchmarks]
         if len(benchmark_keys) != len(set(benchmark_keys)):
             raise ValueError("benchmark results must be unique")
-        baseline_keys = [(item.benchmark_id, item.metric) for item in self.baseline_benchmarks]
+        baseline_keys = [
+            (item.benchmark_id, item.metric) for item in self.baseline_benchmarks
+        ]
         if len(baseline_keys) != len(set(baseline_keys)):
             raise ValueError("baseline benchmark results must be unique")
-        baseline = {(item.benchmark_id, item.metric): item for item in self.baseline_benchmarks}
+        baseline = {
+            (item.benchmark_id, item.metric): item for item in self.baseline_benchmarks
+        }
         for item in self.benchmarks:
             previous = baseline.get((item.benchmark_id, item.metric))
-            if previous is not None and previous.higher_is_better != item.higher_is_better:
+            if (
+                previous is not None
+                and previous.higher_is_better != item.higher_is_better
+            ):
                 raise ValueError("benchmark direction must match its baseline")
         genome_payload = [item.model_dump(mode="json") for item in self.genome]
-        secondary_payload = [item.model_dump(mode="json") for item in self.secondary_genome]
-        arbitrary_payload = {"genome": genome_payload, "secondary_genome": secondary_payload, "mutation_value": self.mutation_value}
+        secondary_payload = [
+            item.model_dump(mode="json") for item in self.secondary_genome
+        ]
+        arbitrary_payload = {
+            "genome": genome_payload,
+            "secondary_genome": secondary_payload,
+            "mutation_value": self.mutation_value,
+        }
         if redact_secrets(arbitrary_payload) != arbitrary_payload:
             raise ValueError("strategy genome contains credential-like fields")
         bounded_json_dumps(arbitrary_payload, max_bytes=MAX_GENOME_PAYLOAD_BYTES)
         if self.operation == GenomeOperation.CROSSOVER:
             secondary = [item.gene_id for item in self.secondary_genome]
             if secondary != ids:
-                raise ValueError("crossover genomes must have identical ordered gene IDs")
+                raise ValueError(
+                    "crossover genomes must have identical ordered gene IDs"
+                )
         return self
 
 
@@ -128,23 +152,33 @@ class ScientificLabReport(BaseModel):
 def evaluate_scientific_lab(request: ScientificLabRequest) -> ScientificLabReport:
     available = {item.artifact_type for item in request.artifacts}
     missing = sorted(set(request.required_artifact_types) - available)
-    unverified = sorted(item.artifact_type for item in request.artifacts if not item.independently_verified)
+    unverified = sorted(
+        item.artifact_type
+        for item in request.artifacts
+        if not item.independently_verified
+    )
     blockers: list[str] = []
     warnings: list[str] = []
     if missing:
         blockers.append("reproduction_artifacts_missing")
     if unverified:
         blockers.append("reproduction_artifacts_unverified")
-    baseline = {(item.benchmark_id, item.metric): item for item in request.baseline_benchmarks}
+    baseline = {
+        (item.benchmark_id, item.metric): item for item in request.baseline_benchmarks
+    }
     deltas: dict[str, float] = {}
     for item in request.benchmarks:
         key = (item.benchmark_id, item.metric)
         previous = baseline.get(key)
         if previous is None:
-            warnings.append(f"benchmark_without_baseline:{item.benchmark_id}:{item.metric}")
+            warnings.append(
+                f"benchmark_without_baseline:{item.benchmark_id}:{item.metric}"
+            )
             continue
         raw = item.value - previous.value
-        deltas[f"{item.benchmark_id}:{item.metric}"] = raw if item.higher_is_better else -raw
+        deltas[f"{item.benchmark_id}:{item.metric}"] = (
+            raw if item.higher_is_better else -raw
+        )
         if item.sample_count < 30:
             warnings.append(f"small_benchmark_sample:{item.benchmark_id}:{item.metric}")
     proposed = list(request.genome)
@@ -160,7 +194,10 @@ def evaluate_scientific_lab(request: ScientificLabRequest) -> ScientificLabRepor
                 blockers.append("immutable_gene")
                 changed.append(gene)
                 continue
-            if gene.allowed_values and request.mutation_value not in gene.allowed_values:
+            if (
+                gene.allowed_values
+                and request.mutation_value not in gene.allowed_values
+            ):
                 blockers.append("mutation_value_not_allowed")
                 changed.append(gene)
                 continue
@@ -171,7 +208,9 @@ def evaluate_scientific_lab(request: ScientificLabRequest) -> ScientificLabRepor
     elif request.operation == GenomeOperation.CROSSOVER:
         proposed = [
             first if index % 2 == 0 else second
-            for index, (first, second) in enumerate(zip(request.genome, request.secondary_genome))
+            for index, (first, second) in enumerate(
+                zip(request.genome, request.secondary_genome)
+            )
         ]
     genome_payload = [item.model_dump(mode="json") for item in proposed]
     genome_hash = sha256_payload(genome_payload)

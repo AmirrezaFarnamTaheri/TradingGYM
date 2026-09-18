@@ -24,7 +24,9 @@ def consent(*, actor: str = "executor", seconds: int = 60) -> LiveConsent:
     return LiveConsent(
         actor=actor,
         scope="live.execute",
-        expires_at=(datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat(),
+        expires_at=(
+            datetime.now(timezone.utc) + timedelta(seconds=seconds)
+        ).isoformat(),
         nonce="nonce",
     )
 
@@ -59,7 +61,9 @@ def test_live_consent_binds_each_mutation_and_deduplicates(tmp_path) -> None:
 def test_live_coordinator_rejects_tamper_expiry_and_emergency_halt(tmp_path) -> None:
     venue = FakeVenue()
     emergency = EmergencyController(tmp_path / "emergency.json")
-    coordinator = LiveExecutionCoordinator({"abantether": venue}, emergency_controller=emergency)
+    coordinator = LiveExecutionCoordinator(
+        {"abantether": venue}, emergency_controller=emergency
+    )
     c = consent()
     i = intent()
     auth = coordinator.bind_authorization(i, consent=c, proposal_id="proposal")
@@ -67,7 +71,9 @@ def test_live_coordinator_rejects_tamper_expiry_and_emergency_halt(tmp_path) -> 
     with pytest.raises(PermissionError, match="authorization_mismatch"):
         coordinator.execute(tampered, auth, consent=c)
     with pytest.raises(PermissionError):
-        coordinator.bind_authorization(i, consent=consent(seconds=-1), proposal_id="proposal")
+        coordinator.bind_authorization(
+            i, consent=consent(seconds=-1), proposal_id="proposal"
+        )
     emergency.transition(
         halt=True,
         reason="operator halt",

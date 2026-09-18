@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional
 import yaml
 from pydantic import BaseModel, Field, field_validator, ValidationInfo, model_validator
 
-
 MAX_CONFIG_BYTES = 2 * 1024 * 1024
 _ASSET_SYMBOL = re.compile(r"^[A-Z0-9]{2,24}$")
 
@@ -111,7 +110,10 @@ class BorrowCapConfig(BaseModel):
             raise ValueError("allowed_symbols contains duplicates")
         if any(not _ASSET_SYMBOL.fullmatch(symbol) for symbol in allowed):
             raise ValueError("allowed_symbols contains an invalid symbol")
-        caps = {str(symbol).upper().strip(): float(cap) for symbol, cap in self.borrow_caps.items()}
+        caps = {
+            str(symbol).upper().strip(): float(cap)
+            for symbol, cap in self.borrow_caps.items()
+        }
         if any(not _ASSET_SYMBOL.fullmatch(symbol) for symbol in caps):
             raise ValueError("borrow_caps contains an invalid symbol")
         if any(not math.isfinite(cap) or cap <= 0 for cap in caps.values()):
@@ -471,6 +473,7 @@ class AppConfig(BaseModel):
 def load_app_config(path: str | Path) -> AppConfig:
     """Load the project configuration from a YAML file."""
     from trading_gym.common.intelligence_config import IntelligenceConfig
+
     ns = {"IntelligenceConfig": IntelligenceConfig}
     AppConfig.model_rebuild(_types_namespace=ns)
     data = _load_yaml(Path(path))

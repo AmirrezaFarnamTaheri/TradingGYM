@@ -56,9 +56,7 @@ def test_probability_blending_is_convex_and_normalized():
     var_calm = model.predict_var("calm")
     var_crisis = model.predict_var("crisis")
 
-    blended = model.predict_var(
-        "calm", {"calm": 0.5, "crisis": 0.5}
-    )
+    blended = model.predict_var("calm", {"calm": 0.5, "crisis": 0.5})
     assert blended == pytest.approx((var_calm + var_crisis) / 2.0)
 
     # Unnormalised weights are normalised internally.

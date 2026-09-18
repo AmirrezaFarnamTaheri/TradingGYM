@@ -30,6 +30,7 @@ LEVEL_MAP = {
     "FATAL": logging.CRITICAL,
 }
 
+
 def configure_logging(
     level: int | str = logging.INFO,
     *,

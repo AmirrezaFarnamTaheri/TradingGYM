@@ -7,14 +7,12 @@ read-only evidence until an explicit lifecycle event is admitted.
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 
 MAX_ABS_VALUE = Decimal("1e30")
 _IDENTIFIER = r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,199}$"
@@ -117,11 +115,19 @@ class OrderIntent(BaseModel):
         _bounded_decimal(self.requested_quantity, "requested_quantity", positive=True)
         _bounded_decimal(self.limit_price, "limit_price", positive=True)
         _bounded_decimal(self.stop_price, "stop_price", positive=True)
-        if self.order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT} and self.limit_price is None:
+        if (
+            self.order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT}
+            and self.limit_price is None
+        ):
             raise ValueError("limit_price is required for limit and stop-limit orders")
-        if self.order_type in {OrderType.STOP, OrderType.STOP_LIMIT} and self.stop_price is None:
+        if (
+            self.order_type in {OrderType.STOP, OrderType.STOP_LIMIT}
+            and self.stop_price is None
+        ):
             raise ValueError("stop_price is required for stop and stop-limit orders")
-        if self.order_type is OrderType.MARKET and (self.limit_price is not None or self.stop_price is not None):
+        if self.order_type is OrderType.MARKET and (
+            self.limit_price is not None or self.stop_price is not None
+        ):
             raise ValueError("market orders must not define limit_price or stop_price")
         if len(self.metadata) > 100:
             raise ValueError("metadata contains too many fields")
@@ -160,11 +166,20 @@ class OrderEvent(BaseModel):
         _bounded_decimal(self.fee_amount, "fee_amount", non_negative=True)
         if self.fee_amount and not self.fee_currency:
             raise ValueError("fee_currency is required when fee_amount is non-zero")
-        if self.event_type is OrderEventType.ACKNOWLEDGED and not self.external_order_id:
+        if (
+            self.event_type is OrderEventType.ACKNOWLEDGED
+            and not self.external_order_id
+        ):
             raise ValueError("acknowledged events require external_order_id")
         if self.event_type is OrderEventType.FILL:
-            if not self.fill_id or self.fill_quantity is None or self.fill_price is None:
-                raise ValueError("fill events require fill_id, fill_quantity, and fill_price")
+            if (
+                not self.fill_id
+                or self.fill_quantity is None
+                or self.fill_price is None
+            ):
+                raise ValueError(
+                    "fill events require fill_id, fill_quantity, and fill_price"
+                )
         else:
             if any(
                 value is not None
@@ -241,7 +256,9 @@ class OrderObservation(BaseModel):
         )
         _bounded_decimal(self.average_fill_price, "average_fill_price", positive=True)
         if self.cumulative_filled_quantity and self.average_fill_price is None:
-            raise ValueError("average_fill_price is required when cumulative quantity is positive")
+            raise ValueError(
+                "average_fill_price is required when cumulative quantity is positive"
+            )
         return self
 
 

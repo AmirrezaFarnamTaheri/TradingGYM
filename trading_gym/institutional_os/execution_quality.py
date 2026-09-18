@@ -1,7 +1,7 @@
 """Execution-quality attribution for fills versus arrival, VWAP, and TWAP."""
+
 from __future__ import annotations
 
-import math
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -30,8 +30,18 @@ class ExecutionFill(BaseModel):
     @model_validator(mode="after")
     def validate_fill(self) -> "ExecutionFill":
         require_aware(self.occurred_at, "occurred_at")
-        require_decimal(self.price, "price", minimum=Decimal("0.000000000001"), maximum=Decimal("1e30"))
-        require_decimal(self.quantity, "quantity", minimum=Decimal("0.000000000001"), maximum=Decimal("1e30"))
+        require_decimal(
+            self.price,
+            "price",
+            minimum=Decimal("0.000000000001"),
+            maximum=Decimal("1e30"),
+        )
+        require_decimal(
+            self.quantity,
+            "quantity",
+            minimum=Decimal("0.000000000001"),
+            maximum=Decimal("1e30"),
+        )
         require_decimal(self.fee, "fee", minimum=Decimal("0"), maximum=Decimal("1e30"))
         return self
 
@@ -50,11 +60,21 @@ class ExecutionQualityRequest(BaseModel):
     @model_validator(mode="after")
     def validate_request(self) -> "ExecutionQualityRequest":
         for name in ("arrival_price", "vwap_benchmark", "twap_benchmark"):
-            require_decimal(getattr(self, name), name, minimum=Decimal("0.000000000001"), maximum=Decimal("1e30"))
+            require_decimal(
+                getattr(self, name),
+                name,
+                minimum=Decimal("0.000000000001"),
+                maximum=Decimal("1e30"),
+            )
         for name in ("decision_price", "post_trade_price"):
             value = getattr(self, name)
             if value is not None:
-                require_decimal(value, name, minimum=Decimal("0.000000000001"), maximum=Decimal("1e30"))
+                require_decimal(
+                    value,
+                    name,
+                    minimum=Decimal("0.000000000001"),
+                    maximum=Decimal("1e30"),
+                )
         ids = [item.fill_id for item in self.fills]
         if len(ids) != len(set(ids)):
             raise ValueError("fill IDs must be unique")
@@ -93,7 +113,9 @@ class ExecutionQualityReport(BaseModel):
     mutation_performed: bool = False
 
 
-def analyze_execution_quality(request: ExecutionQualityRequest) -> ExecutionQualityReport:
+def analyze_execution_quality(
+    request: ExecutionQualityRequest,
+) -> ExecutionQualityReport:
     direction = Decimal("1") if request.side == ExecutionSide.BUY else Decimal("-1")
     total_quantity = sum((item.quantity for item in request.fills), Decimal("0"))
     notional = sum((item.price * item.quantity for item in request.fills), Decimal("0"))
@@ -110,20 +132,37 @@ def analyze_execution_quality(request: ExecutionQualityRequest) -> ExecutionQual
     for venue_id in sorted(venues):
         fills = venues[venue_id]
         quantity = sum((item.quantity for item in fills), Decimal("0"))
-        venue_average = sum((item.price * item.quantity for item in fills), Decimal("0")) / quantity
-        venue_quality.append(VenueQuality(
-            venue_id=venue_id,
-            quantity=quantity,
-            average_price=venue_average,
-            fee=sum((item.fee for item in fills), Decimal("0")),
-            arrival_shortfall_bps=direction * (venue_average - request.arrival_price) / request.arrival_price * Decimal("10000"),
-        ))
+        venue_average = (
+            sum((item.price * item.quantity for item in fills), Decimal("0")) / quantity
+        )
+        venue_quality.append(
+            VenueQuality(
+                venue_id=venue_id,
+                quantity=quantity,
+                average_price=venue_average,
+                fee=sum((item.fee for item in fills), Decimal("0")),
+                arrival_shortfall_bps=direction
+                * (venue_average - request.arrival_price)
+                / request.arrival_price
+                * Decimal("10000"),
+            )
+        )
     delay = None
     if request.decision_price is not None:
-        delay = direction * (request.arrival_price - request.decision_price) / request.decision_price * Decimal("10000")
+        delay = (
+            direction
+            * (request.arrival_price - request.decision_price)
+            / request.decision_price
+            * Decimal("10000")
+        )
     adverse = None
     if request.post_trade_price is not None:
-        adverse = direction * (request.post_trade_price - average) / average * Decimal("10000")
+        adverse = (
+            direction
+            * (request.post_trade_price - average)
+            / average
+            * Decimal("10000")
+        )
     payload = {
         "total_quantity": total_quantity,
         "average_fill_price": average,

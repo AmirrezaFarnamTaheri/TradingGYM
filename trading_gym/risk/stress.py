@@ -3,6 +3,7 @@
 Stress reports are analytical guardrails.  They do not resize positions, close
 orders, reserve capital, or grant execution authority.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -42,8 +43,14 @@ class StressScenario(BaseModel):
 
     @model_validator(mode="after")
     def validate_scenario(self) -> "StressScenario":
-        values = [*self.instrument_shocks.values(), *self.asset_class_shocks.values(), *self.currency_shocks.values()]
-        if any(not math.isfinite(value) or value < -1.0 or value > 10.0 for value in values):
+        values = [
+            *self.instrument_shocks.values(),
+            *self.asset_class_shocks.values(),
+            *self.currency_shocks.values(),
+        ]
+        if any(
+            not math.isfinite(value) or value < -1.0 or value > 10.0 for value in values
+        ):
             raise ValueError("stress shocks must be finite and between -1 and 10")
         return self
 
@@ -86,7 +93,9 @@ class PortfolioStressReport(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
 
 
 def evaluate_portfolio_stress(
@@ -107,7 +116,9 @@ def evaluate_portfolio_stress(
     for position in positions:
         price = scenario.instrument_shocks.get(
             position.instrument_id,
-            scenario.asset_class_shocks.get(position.asset_class, scenario.default_price_shock_fraction),
+            scenario.asset_class_shocks.get(
+                position.asset_class, scenario.default_price_shock_fraction
+            ),
         )
         fx = scenario.currency_shocks.get(position.currency, 0.0)
         combined = (1.0 + price) * (1.0 + fx) - 1.0
@@ -116,15 +127,17 @@ def evaluate_portfolio_stress(
         total_pnl = pnl - liquidity
         total += total_pnl
         stressed_gross += abs(position.notional_base * (1.0 + combined))
-        results.append(StressPositionResult(
-            instrument_id=position.instrument_id,
-            price_shock_fraction=price,
-            fx_shock_fraction=fx,
-            combined_return_fraction=combined,
-            pnl_base=pnl,
-            liquidity_cost_base=liquidity,
-            total_pnl_base=total_pnl,
-        ))
+        results.append(
+            StressPositionResult(
+                instrument_id=position.instrument_id,
+                price_shock_fraction=price,
+                fx_shock_fraction=fx,
+                combined_return_fraction=combined,
+                pnl_base=pnl,
+                liquidity_cost_base=liquidity,
+                total_pnl_base=total_pnl,
+            )
+        )
     after = equity + total
     loss_fraction = max(0.0, -total / equity)
     leverage = float("inf") if after <= 0 else stressed_gross / after

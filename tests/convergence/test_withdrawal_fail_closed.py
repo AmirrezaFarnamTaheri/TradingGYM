@@ -23,9 +23,15 @@ def network(*, memo: bool = False) -> NetworkInfo:
     )
 
 
-def test_withdrawal_fails_closed_when_network_admission_is_unavailable(monkeypatch) -> None:
+def test_withdrawal_fails_closed_when_network_admission_is_unavailable(
+    monkeypatch,
+) -> None:
     instance = client()
-    monkeypatch.setattr(instance, "get_networks", lambda *args: (_ for _ in ()).throw(TimeoutError("secret")))
+    monkeypatch.setattr(
+        instance,
+        "get_networks",
+        lambda *args: (_ for _ in ()).throw(TimeoutError("secret")),
+    )
     called = False
 
     def request(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -41,7 +47,9 @@ def test_withdrawal_fails_closed_when_network_admission_is_unavailable(monkeypat
 def test_withdrawal_requires_memo_and_enforces_bounds(monkeypatch) -> None:
     instance = client()
     monkeypatch.setattr(instance, "get_networks", lambda *args: [network(memo=True)])
-    monkeypatch.setattr(instance, "_make_request", lambda *args, **kwargs: {"id": "never"})
+    monkeypatch.setattr(
+        instance, "_make_request", lambda *args, **kwargs: {"id": "never"}
+    )
     with pytest.raises(ValueError, match="requires a memo"):
         instance.submit_withdrawal("USDT", "TRC20", 20, "T1234567890abcdef")
     with pytest.raises(ValueError, match="outside"):
@@ -55,7 +63,11 @@ def test_withdrawal_is_sent_once_and_returns_only_safe_identifier(monkeypatch) -
 
     def request(*args, **kwargs):  # type: ignore[no-untyped-def]
         calls.append((args, kwargs))
-        return {"success": True, "id": "withdrawal-123", "message": "authorization=venue-secret"}
+        return {
+            "success": True,
+            "id": "withdrawal-123",
+            "message": "authorization=venue-secret",
+        }
 
     monkeypatch.setattr(instance, "_make_request", request)
     result = instance.submit_withdrawal(

@@ -244,17 +244,15 @@ class PersistentExperienceMemory:
         cutoff = _now() - self._retention_days * 86400.0
         all_entries: list[dict[str, Any]] = []
         seen_hashes: set[str] = set()
-        for position, line in enumerate(self._path.read_text(encoding="utf-8").splitlines()):
+        for position, line in enumerate(
+            self._path.read_text(encoding="utf-8").splitlines()
+        ):
             if not line.strip():
-                raise MemoryJournalIntegrityError(
-                    "blank line in experience journal"
-                )
+                raise MemoryJournalIntegrityError("blank line in experience journal")
             entry = json.loads(line)
             for key in ("seq", "record", "record_sha256"):
                 if key not in entry:
-                    raise MemoryJournalIntegrityError(
-                        f"journal record missing {key!r}"
-                    )
+                    raise MemoryJournalIntegrityError(f"journal record missing {key!r}")
             # Seq must be contiguous from 1: deleting an interior line leaves
             # the per-record hashes otherwise intact (each covers only its own
             # seq and record), so a hole in the journal went undetected.
@@ -281,8 +279,11 @@ class PersistentExperienceMemory:
         # checked against the full record list before retention drops anything.
         self._verify_anchor(all_entries)
 
-        kept = [entry for entry in all_entries
-                if float(entry["record"]["created_at"]) >= cutoff]
+        kept = [
+            entry
+            for entry in all_entries
+            if float(entry["record"]["created_at"]) >= cutoff
+        ]
         # the pruned state is the durable state
         if len(kept) != len(all_entries):
             kept = self._rewrite(kept)
@@ -308,10 +309,10 @@ class PersistentExperienceMemory:
         seq = anchor.get("seq")
         head = anchor.get("head")
         if not isinstance(seq, int) or not isinstance(head, str):
-            raise MemoryJournalIntegrityError(
-                "experience journal anchor is malformed"
-            )
-        if entries and (seq != entries[-1]["seq"] or head != entries[-1]["record_sha256"]):
+            raise MemoryJournalIntegrityError("experience journal anchor is malformed")
+        if entries and (
+            seq != entries[-1]["seq"] or head != entries[-1]["record_sha256"]
+        ):
             raise MemoryJournalIntegrityError(
                 "experience journal anchor does not match the sealed tail "
                 f"(anchor seq={seq}, journal ends at seq={entries[-1]['seq']}); "
@@ -389,13 +390,11 @@ class PersistentExperienceMemory:
                 }
             )
         lines = "".join(
-            json.dumps(entry, ensure_ascii=False, sort_keys=True,
-                       separators=(",", ":")) + "\n"
+            json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            + "\n"
             for entry in rewritten
         )
-        atomic_write_text(
-            self._path, lines, max_bytes=64 * 1024 * 1024
-        )
+        atomic_write_text(self._path, lines, max_bytes=64 * 1024 * 1024)
         head = rewritten[-1]["record_sha256"] if rewritten else _GENESIS
         atomic_write_json(
             self._anchor_path,
@@ -412,7 +411,5 @@ def _normalise_tags(context_tags: list[str]) -> tuple[str, ...]:
 
 
 def _material_id(tags: tuple[str, ...], outcome: str, lesson: str) -> str:
-    material = _canonical(
-        {"tags": list(tags), "outcome": outcome, "lesson": lesson}
-    )
+    material = _canonical({"tags": list(tags), "outcome": outcome, "lesson": lesson})
     return hashlib.sha256(material).hexdigest()[:16]

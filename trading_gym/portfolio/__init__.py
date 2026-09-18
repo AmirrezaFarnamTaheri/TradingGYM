@@ -1,4 +1,5 @@
 """Portfolio planning surfaces."""
+
 from .rebalance import (
     PlannedRebalanceTrade,
     RebalanceHolding,
@@ -10,6 +11,11 @@ from .rebalance import (
 )
 
 __all__ = [
-    "PlannedRebalanceTrade", "RebalanceHolding", "RebalancePlan", "RebalancePolicy",
-    "RebalanceSide", "RebalanceTarget", "plan_rebalance",
+    "PlannedRebalanceTrade",
+    "RebalanceHolding",
+    "RebalancePlan",
+    "RebalancePolicy",
+    "RebalanceSide",
+    "RebalanceTarget",
+    "plan_rebalance",
 ]

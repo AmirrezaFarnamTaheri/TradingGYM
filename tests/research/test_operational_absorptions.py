@@ -15,7 +15,6 @@ from trading_gym.research.validation_stats import (
     random_entry_baseline,
 )
 
-
 # ---------------------------------------------------------------------------
 # Quintile spread
 # ---------------------------------------------------------------------------
@@ -61,21 +60,25 @@ def test_fragility_penalty_grows_with_negative_slices_and_instability():
 
 
 def test_composite_score_penalises_fragility():
-    base = dict(relative_return=0.2, sharpe=1.5, max_drawdown=-0.10,
-                turnover=2.0, win_rate=0.6)
+    base = dict(
+        relative_return=0.2, sharpe=1.5, max_drawdown=-0.10, turnover=2.0, win_rate=0.6
+    )
     stable = composite_window_score(oos_slice_returns=np.array([0.02] * 8), **base)
     fragile = composite_window_score(
         oos_slice_returns=np.array([0.09, -0.06] * 4), **base
     )
     assert fragile < stable
-    assert breakthrough_ok(base["relative_return"], base["sharpe"],
-                           base["max_drawdown"], base["turnover"])
+    assert breakthrough_ok(
+        base["relative_return"], base["sharpe"], base["max_drawdown"], base["turnover"]
+    )
 
 
 def breakthrough_ok(rel, sharpe, mdd, to):
     from trading_gym.research.validation_stats import breakthrough_status
-    return breakthrough_status(relative_return=rel, sharpe=sharpe,
-                               max_drawdown=mdd, turnover=to)
+
+    return breakthrough_status(
+        relative_return=rel, sharpe=sharpe, max_drawdown=mdd, turnover=to
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +95,9 @@ def test_random_baseline_gate_separates_edge_from_luck():
         s = x.std(ddof=1)
         return float(x.mean() / s)
 
-    edge_res = random_entry_baseline(edge_returns, sharpe(edge_returns), n_simulations=300)
+    edge_res = random_entry_baseline(
+        edge_returns, sharpe(edge_returns), n_simulations=300
+    )
     assert edge_res.passes_95
 
     lucky_sharpe = sharpe(lucky_returns)
@@ -111,11 +116,13 @@ def test_random_baseline_validation():
 
 
 def test_reconcile_fill_tolerance_band():
-    ok = reconcile_fill(expected_quantity=1.0, filled_quantity=1.0009,
-                        tolerance_fraction=0.001)
+    ok = reconcile_fill(
+        expected_quantity=1.0, filled_quantity=1.0009, tolerance_fraction=0.001
+    )
     assert ok.matched and abs(ok.delta) <= 0.001 * 1.0
-    bad = reconcile_fill(expected_quantity=1.0, filled_quantity=1.5,
-                         tolerance_fraction=0.001)
+    bad = reconcile_fill(
+        expected_quantity=1.0, filled_quantity=1.5, tolerance_fraction=0.001
+    )
     assert not bad.matched and bad.delta == pytest.approx(0.5)
     with pytest.raises(ValueError):
         reconcile_fill(expected_quantity=float("nan"), filled_quantity=1.0)

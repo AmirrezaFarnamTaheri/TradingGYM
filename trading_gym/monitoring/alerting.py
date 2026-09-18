@@ -39,7 +39,11 @@ from urllib.parse import urlencode
 
 import httpx
 
-from trading_gym.common.security import bounded_json_dumps, redact_secrets, validate_base_url
+from trading_gym.common.security import (
+    bounded_json_dumps,
+    redact_secrets,
+    validate_base_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -151,14 +155,20 @@ class Alert:
         self.message = str(self.message)
         self.source = str(self.source).strip()
         if not self.title or len(self.title) > MAX_ALERT_TITLE_CHARS:
-            raise ValueError(f"Alert title must be 1-{MAX_ALERT_TITLE_CHARS} characters")
+            raise ValueError(
+                f"Alert title must be 1-{MAX_ALERT_TITLE_CHARS} characters"
+            )
         if len(self.message) > MAX_ALERT_MESSAGE_CHARS:
-            raise ValueError(f"Alert message exceeds {MAX_ALERT_MESSAGE_CHARS} characters")
+            raise ValueError(
+                f"Alert message exceeds {MAX_ALERT_MESSAGE_CHARS} characters"
+            )
         if not self.source or len(self.source) > 120:
             raise ValueError("Alert source must be 1-120 characters")
         self.event_id = str(self.event_id).strip().lower()
         if not re.fullmatch(r"[a-f0-9]{32}", self.event_id):
-            raise ValueError("Alert event_id must be 32 lowercase hexadecimal characters")
+            raise ValueError(
+                "Alert event_id must be 32 lowercase hexadecimal characters"
+            )
         # Validate serialisability and bound metadata before it reaches any channel.
         bounded_json_dumps(self.metadata, max_bytes=MAX_ALERT_PAYLOAD_BYTES)
 
@@ -434,7 +444,9 @@ class TelegramChannel(AlertChannel):
                 timeout=10,
             )
             if response.status_code != 200:
-                raise RuntimeError(f"Telegram API returned status {response.status_code}")
+                raise RuntimeError(
+                    f"Telegram API returned status {response.status_code}"
+                )
         except Exception as e:
             # The Telegram token is embedded in the URL, so never log exception text.
             logger.error("Failed to send Telegram alert: %s", type(e).__name__)
@@ -504,7 +516,11 @@ class WebhookChannel(AlertChannel):
                     time.sleep(backoff_time)
 
         # Surface the last exception after exhausting retries
-        logger.error("Webhook failed after %d attempts (%s)", attempts, type(last_exc).__name__ if last_exc else "unknown")
+        logger.error(
+            "Webhook failed after %d attempts (%s)",
+            attempts,
+            type(last_exc).__name__ if last_exc else "unknown",
+        )
         raise last_exc if last_exc else RuntimeError("Webhook send failed")
 
 

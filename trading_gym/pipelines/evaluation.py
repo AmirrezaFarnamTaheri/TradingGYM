@@ -14,14 +14,16 @@ from stable_baselines3 import PPO
 from trading_gym.baselines.strategies import Strategy
 from trading_gym.common.config import AppConfig
 from trading_gym.common.persistence import atomic_write_text
-from trading_gym.common.security import validate_regular_file, verified_regular_file_snapshot
+from trading_gym.common.security import (
+    validate_regular_file,
+    verified_regular_file_snapshot,
+)
 from trading_gym.common.utils import load_app_config
 from trading_gym.pipelines.environment import (
     create_environment,
     load_environment_inputs,
 )
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
-
 
 logger = logging.getLogger(__name__)
 

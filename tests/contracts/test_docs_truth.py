@@ -35,12 +35,12 @@ def test_axiom1_readme_claims_map_to_real_modules() -> None:
         "trading_gym/agent/planner.py": "planner",
     }
     for module_path, label in claim_matrix.items():
-        assert (ROOT / module_path).exists(), (
-            f"README claims AXIOM-1 {label} but {module_path} is missing"
-        )
-        assert module_path in readme or label in readme.lower(), (
-            f"module {module_path} exists but is not documented in README"
-        )
+        assert (
+            ROOT / module_path
+        ).exists(), f"README claims AXIOM-1 {label} but {module_path} is missing"
+        assert (
+            module_path in readme or label in readme.lower()
+        ), f"module {module_path} exists but is not documented in README"
 
 
 def test_every_axiom1_module_documents_its_adr() -> None:
@@ -123,9 +123,9 @@ def test_readme_test_count_matches_suite_manifest() -> None:
     collected = int(match_tail.group(1))
     # README states passed + skipped = collected (deselected excluded);
     # allow the documented skip count (3) as slack either direction.
-    assert abs(claimed - collected) <= 3, (
-        f"README claims {claimed} passed but {collected} tests are collected"
-    )
+    assert (
+        abs(claimed - collected) <= 3
+    ), f"README claims {claimed} passed but {collected} tests are collected"
 
 
 def test_module_accountability_manifest_is_current() -> None:

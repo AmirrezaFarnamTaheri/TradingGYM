@@ -4,6 +4,7 @@ The evaluator accepts identifiers, timestamps, and one-way fingerprints only.
 It cannot retrieve, generate, rotate, revoke, distribute, or validate the value
 of a credential.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -13,7 +14,6 @@ from enum import Enum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 
 _ID = r"^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$"
 _PURPOSE = r"^[a-z][a-z0-9._-]{1,79}$"
@@ -41,9 +41,9 @@ class CredentialMetadata(BaseModel):
     activated_at: datetime
     expires_at: datetime | None = None
     successor_key_id: Annotated[str | None, Field(default=None, pattern=_ID)]
-    environments: list[Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")]] = Field(
-        default_factory=list, max_length=100
-    )
+    environments: list[
+        Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$")]
+    ] = Field(default_factory=list, max_length=100)
 
     @model_validator(mode="after")
     def validate_metadata(self) -> "CredentialMetadata":
@@ -64,7 +64,9 @@ class CredentialMetadata(BaseModel):
 class CredentialRotationPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    required_purposes: list[Annotated[str, Field(pattern=_PURPOSE)]] = Field(max_length=1000)
+    required_purposes: list[Annotated[str, Field(pattern=_PURPOSE)]] = Field(
+        max_length=1000
+    )
     maximum_active_age_days: Annotated[int, Field(ge=1, le=3650)] = 90
     expiry_warning_days: Annotated[int, Field(ge=1, le=3650)] = 14
     minimum_overlap_seconds: Annotated[int, Field(ge=0, le=31_536_000)] = 3600
@@ -109,10 +111,14 @@ class CredentialRotationReport(BaseModel):
 
 
 def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str).encode(
+        "utf-8"
+    )
 
 
-def evaluate_credential_rotation(request: CredentialRotationRequest) -> CredentialRotationReport:
+def evaluate_credential_rotation(
+    request: CredentialRotationRequest,
+) -> CredentialRotationReport:
     blockers: list[str] = []
     warnings: list[str] = []
     ids = [item.credential_id for item in request.credentials]
@@ -122,7 +128,9 @@ def evaluate_credential_rotation(request: CredentialRotationRequest) -> Credenti
         blockers.append("duplicate_credential_id")
     if len(set(keys)) != len(keys):
         blockers.append("duplicate_key_id")
-    if request.policy.require_distinct_fingerprints and len(set(fingerprints)) != len(fingerprints):
+    if request.policy.require_distinct_fingerprints and len(set(fingerprints)) != len(
+        fingerprints
+    ):
         blockers.append("credential_fingerprint_reused")
 
     by_key = {item.key_id: item for item in request.credentials}
@@ -146,7 +154,9 @@ def evaluate_credential_rotation(request: CredentialRotationRequest) -> Credenti
             if successor is None or successor.state is not CredentialState.ACTIVE:
                 blockers.append(f"retiring_successor_missing:{item.credential_id}")
             elif successor.purpose != item.purpose:
-                blockers.append(f"retiring_successor_purpose_mismatch:{item.credential_id}")
+                blockers.append(
+                    f"retiring_successor_purpose_mismatch:{item.credential_id}"
+                )
             elif item.expires_at is None:
                 blockers.append(f"retiring_expiry_missing:{item.credential_id}")
             else:
@@ -169,8 +179,12 @@ def evaluate_credential_rotation(request: CredentialRotationRequest) -> Credenti
         "evaluated_at": request.evaluated_at.isoformat(),
         "credential_count": len(request.credentials),
         "active_by_purpose": active_by_purpose,
-        "retiring_count": sum(item.state is CredentialState.RETIRING for item in request.credentials),
-        "revoked_count": sum(item.state is CredentialState.REVOKED for item in request.credentials),
+        "retiring_count": sum(
+            item.state is CredentialState.RETIRING for item in request.credentials
+        ),
+        "revoked_count": sum(
+            item.state is CredentialState.REVOKED for item in request.credentials
+        ),
         "blockers": blockers,
         "warnings": warnings,
     }

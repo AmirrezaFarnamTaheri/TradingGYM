@@ -84,7 +84,11 @@ def child_environment(
             continue
         upper = name.upper()
         credential_like = any(upper.endswith(suffix) for suffix in _SECRET_ENV_SUFFIXES)
-        if credential_like and name not in allowed_secrets and name not in allowed_control:
+        if (
+            credential_like
+            and name not in allowed_secrets
+            and name not in allowed_control
+        ):
             environment.pop(name, None)
     return environment
 
@@ -173,7 +177,14 @@ def decode_websocket_auth_protocol(header: str | None) -> tuple[str | None, str 
         return None, None
     tokens = [item.strip() for item in header.split(",") if item.strip()]
     selected = WS_PROTOCOL if WS_PROTOCOL in tokens else None
-    encoded = next((item[len(WS_AUTH_PREFIX) :] for item in tokens if item.startswith(WS_AUTH_PREFIX)), None)
+    encoded = next(
+        (
+            item[len(WS_AUTH_PREFIX) :]
+            for item in tokens
+            if item.startswith(WS_AUTH_PREFIX)
+        ),
+        None,
+    )
     if encoded is None:
         return None, selected
     if not encoded or len(encoded) > MAX_WS_TOKEN_BYTES * 2:

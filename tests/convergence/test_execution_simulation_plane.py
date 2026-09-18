@@ -45,7 +45,9 @@ def test_simulation_partial_fill_and_minimum_fill_rejection():
     assert partial.filled_quantity == 1.0
     rejected = simulate_execution(
         request(quantity=100.0, interval_volume_units=10.0, order_id="order-sim-0002"),
-        ExecutionSimulationPolicy(max_participation_fraction=0.1, minimum_fill_fraction=0.5),
+        ExecutionSimulationPolicy(
+            max_participation_fraction=0.1, minimum_fill_fraction=0.5
+        ),
     )
     assert rejected.status is SimulatedOrderStatus.REJECTED
     assert rejected.filled_quantity == 0.0
@@ -64,5 +66,8 @@ def test_stress_scenarios_are_at_least_as_conservative():
     )
     assert scenarios.adverse.filled_quantity <= scenarios.base.filled_quantity
     assert scenarios.extreme.filled_quantity <= scenarios.adverse.filled_quantity
-    if scenarios.extreme.execution_price is not None and scenarios.base.execution_price is not None:
+    if (
+        scenarios.extreme.execution_price is not None
+        and scenarios.base.execution_price is not None
+    ):
         assert scenarios.extreme.execution_price >= scenarios.base.execution_price

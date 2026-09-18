@@ -54,7 +54,6 @@ from trading_gym.common.config import (
 )
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
 
-
 # ---------------------------------------------------------------------------
 # Fixtures — a clean-accounting config so the stop-out mechanics are isolated
 # from microstructure noise.  Near-zero spread/slippage/fees make the marked-
@@ -122,10 +121,10 @@ def _tape(prices: dict[int, tuple[float, float, float]]) -> dict:
     mid = np.full(T, 100.0, dtype=np.float64)
     high = np.full(T, 100.5, dtype=np.float64)
     low = np.full(T, 99.5, dtype=np.float64)
-    for bar, (m, h, l) in prices.items():
+    for bar, (m, h, lo) in prices.items():
         mid[bar] = m
         high[bar] = h
-        low[bar] = l
+        low[bar] = lo
     cols = ["log_ret", "volatility", "rsi", "spread_ratio", "sector", "can_short"]
     feat = np.zeros((T, len(cols)), dtype=np.float32)
     feat[:, 3] = 0.0001  # 1 bps spread — under the 50 bps skip ceiling
@@ -137,8 +136,9 @@ def _tape(prices: dict[int, tuple[float, float, float]]) -> dict:
     }
 
 
-def _build_env(tape: dict, *, stop_out_cascade: bool = True,
-               initial_equity: float = 1000.0) -> MarginTradingEnv:
+def _build_env(
+    tape: dict, *, stop_out_cascade: bool = True, initial_equity: float = 1000.0
+) -> MarginTradingEnv:
     return MarginTradingEnv(
         features=tape["features"],
         prices_mid=tape["prices_mid"],
@@ -200,19 +200,19 @@ def test_graded_cascade_fires_through_step_and_restores_margin():
 
     # --- Worst-first: with identical entries the tie-break is lowest lot id ---
     closed_lot_ids = [ev["lot_id"] for ev in info["stop_out_events"]]
-    worst_lot = max(
-        pre_step_open_lots, key=lambda lot: (lot.entry_price, -lot.lot_id)
-    )
-    assert closed_lot_ids[0] == worst_lot.lot_id, (
-        "cascade must close the worst lot first (entry ties break by id)"
-    )
+    worst_lot = max(pre_step_open_lots, key=lambda lot: (lot.entry_price, -lot.lot_id))
+    assert (
+        closed_lot_ids[0] == worst_lot.lot_id
+    ), "cascade must close the worst lot first (entry ties break by id)"
 
     # --- Trim: the first closure is a partial close, not the whole lot ---
     first_event = info["stop_out_events"][0]
-    first_lot = next(lot for lot in pre_step_open_lots if lot.lot_id == closed_lot_ids[0])
-    assert 0 < first_event["quantity"] < float(first_lot.quantity), (
-        "minimal restoring fraction must trim, not dump the whole lot"
+    first_lot = next(
+        lot for lot in pre_step_open_lots if lot.lot_id == closed_lot_ids[0]
     )
+    assert (
+        0 < first_event["quantity"] < float(first_lot.quantity)
+    ), "minimal restoring fraction must trim, not dump the whole lot"
 
     # --- Book survives: position reduced but non-zero, borrow de-risked ---
     assert 0 < float(env._state.position) < pre_step_position
@@ -233,9 +233,9 @@ def test_graded_cascade_fires_through_step_and_restores_margin():
     expected_equity = (
         pre_step_equity + mtm_delta + closure_sum - costs - info["financing_paid"]
     )
-    assert float(env._state.equity) == pytest.approx(expected_equity, abs=1e-6), (
-        "equity must conserve: marked-to-mid + cascade closures − engine costs − financing"
-    )
+    assert float(env._state.equity) == pytest.approx(
+        expected_equity, abs=1e-6
+    ), "equity must conserve: marked-to-mid + cascade closures − engine costs − financing"
 
     # --- Episode still steppable on the next (recovery) bar ---
     env.step(np.array([5.0], dtype=np.float32))

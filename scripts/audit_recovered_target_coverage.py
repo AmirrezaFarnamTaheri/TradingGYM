@@ -4,6 +4,7 @@ This is target-node accountability, not a claim that missing donor bytes were
 recovered. Fragments after ``#`` identify symbols/resources inside a path and
 are checked at file granularity here.
 """
+
 from __future__ import annotations
 
 import csv
@@ -32,7 +33,10 @@ for path in files:
         reader = csv.DictReader(handle)
         for row in reader:
             rows += 1
-            raw_values = [row.get("target_nodes", ""), row.get("implementation_node", "")]
+            raw_values = [
+                row.get("target_nodes", ""),
+                row.get("implementation_node", ""),
+            ]
             for raw in raw_values:
                 for token in re.split(r"[;\n]+", raw or ""):
                     token = token.strip().strip("`")
@@ -67,7 +71,15 @@ if "--check" in sys.argv:
         raise SystemExit(1)
 else:
     OUT.write_text(text, encoding="utf-8")
-print(json.dumps({k: report[k] for k in ("ledger_rows", "unique_target_paths", "present_target_paths")}, sort_keys=True))
+print(
+    json.dumps(
+        {
+            k: report[k]
+            for k in ("ledger_rows", "unique_target_paths", "present_target_paths")
+        },
+        sort_keys=True,
+    )
+)
 if missing:
     for item in missing:
         print(item["target"])

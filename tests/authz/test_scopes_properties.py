@@ -71,7 +71,9 @@ class TestScopeGrammarProperties:
 
     @settings(max_examples=200, deadline=None)
     @given(segments)
-    def test_first_segment_literal_anchors_matching(self, segs: tuple[str, ...]) -> None:
+    def test_first_segment_literal_anchors_matching(
+        self, segs: tuple[str, ...]
+    ) -> None:
         scope = concrete(segs)
         decoy = "zz" + scope  # different first segment
         pattern = ScopePattern.parse(segs[0] + ".**")

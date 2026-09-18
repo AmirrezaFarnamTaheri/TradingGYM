@@ -1,7 +1,9 @@
 from pathlib import Path
 
 
-def test_operator_workspace_surfaces_single_authority_and_non_custodial_posture() -> None:
+def test_operator_workspace_surfaces_single_authority_and_non_custodial_posture() -> (
+    None
+):
     root = Path(__file__).resolve().parents[2]
     panel = (root / "frontend/src/components/ProductionPanel.jsx").read_text()
     app = (root / "frontend/src/App.jsx").read_text()

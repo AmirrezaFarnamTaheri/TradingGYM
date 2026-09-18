@@ -34,7 +34,9 @@ def purged_walk_forward(
     while test_start + test_size <= sample_count:
         train_end = test_start - purge_size
         train_start = max(0, train_end - train_size)
-        folds.append(WalkForwardFold(train_start, train_end, test_start, test_start + test_size))
+        folds.append(
+            WalkForwardFold(train_start, train_end, test_start, test_start + test_size)
+        )
         test_start += test_size + embargo_size
     if not folds:
         raise ValueError("configuration yields no complete walk-forward folds")
@@ -98,6 +100,7 @@ def bootstrap_sharpe_interval(
     alpha = (1.0 - confidence) / 2.0
     return (float(np.quantile(scores, alpha)), float(np.quantile(scores, 1.0 - alpha)))
 
+
 EULER_MASCHERONI = 0.5772156649015329
 
 
@@ -126,10 +129,9 @@ def expected_maximum_standard_normal(trials: int) -> float:
     if trials == 1:
         return 0.0
     normal = NormalDist()
-    return (
-        (1.0 - EULER_MASCHERONI) * normal.inv_cdf(1.0 - 1.0 / trials)
-        + EULER_MASCHERONI * normal.inv_cdf(1.0 - 1.0 / (trials * math.e))
-    )
+    return (1.0 - EULER_MASCHERONI) * normal.inv_cdf(
+        1.0 - 1.0 / trials
+    ) + EULER_MASCHERONI * normal.inv_cdf(1.0 - 1.0 / (trials * math.e))
 
 
 def deflated_sharpe_ratio(
@@ -195,7 +197,9 @@ def summarise_walk_forward(
         raise ValueError("walk-forward arrays contain no finite windows")
     mean_is = float(np.mean(in_sample))
     mean_oos = float(np.mean(out_sample))
-    efficiency = mean_oos / mean_is if mean_is > 0 else (1.0 if mean_oos >= mean_is else 0.0)
+    efficiency = (
+        mean_oos / mean_is if mean_is > 0 else (1.0 if mean_oos >= mean_is else 0.0)
+    )
     profitable_ratio = float(np.mean(out_sample > 0))
     degradation = np.where(
         np.abs(in_sample) > 1e-15,
@@ -220,7 +224,9 @@ def summarise_walk_forward(
     )
 
 
-def randomized_baseline_p_value(observed_score: float, randomized_scores: np.ndarray) -> float:
+def randomized_baseline_p_value(
+    observed_score: float, randomized_scores: np.ndarray
+) -> float:
     """Finite-sample permutation p-value with the Phipson-Smyth correction."""
 
     scores = np.asarray(randomized_scores, dtype=float)
@@ -231,7 +237,9 @@ def randomized_baseline_p_value(observed_score: float, randomized_scores: np.nda
     return float((exceedances + 1) / (scores.size + 1))
 
 
-def benjamini_hochberg(p_values: np.ndarray, *, false_discovery_rate: float = 0.05) -> np.ndarray:
+def benjamini_hochberg(
+    p_values: np.ndarray, *, false_discovery_rate: float = 0.05
+) -> np.ndarray:
     """Return a boolean rejection mask controlling the false discovery rate."""
 
     values = np.asarray(p_values, dtype=float)
