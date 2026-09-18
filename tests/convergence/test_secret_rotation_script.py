@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -25,7 +26,11 @@ def test_apply_rotates_atomically_and_preserves_other_authorities(tmp_path: Path
     assert result.changed and result.secure
     assert "old-insecure" not in content
     assert "WORKER_API_KEY=" + "w" * 40 in content
-    assert env.stat().st_mode & 0o777 == 0o600
+    if os.name == "posix":
+        # The 0600 privacy guarantee is a POSIX mode property;
+        # Windows reports no file-mode bits, so it is only
+        # verifiable where they exist.
+        assert env.stat().st_mode & 0o777 == 0o600
 
 
 def test_symlink_and_duplicate_definitions_fail_closed(tmp_path: Path):

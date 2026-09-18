@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 import pytest
@@ -24,7 +25,11 @@ def test_verified_snapshot_matches_pinned_bytes_and_is_private(tmp_path: Path) -
     ) as snapshot:
         assert snapshot != source
         assert snapshot.read_bytes() == b"trusted-model-bytes"
-        assert snapshot.stat().st_mode & 0o077 == 0
+        if os.name == "posix":
+            # The 0600 privacy guarantee is a POSIX mode property;
+            # Windows reports no file-mode bits, so it is only
+            # verifiable where they exist.
+            assert snapshot.stat().st_mode & 0o077 == 0
         snapshot_path = snapshot
     assert not snapshot_path.exists()
 
