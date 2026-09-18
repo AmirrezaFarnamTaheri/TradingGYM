@@ -101,13 +101,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.10", "3.11", "3.12"]
-        exclude:
-          # Reduce matrix size for faster CI
-          - os: windows-latest
-            python-version: "3.10"
-          - os: windows-latest
-            python-version: "3.11"
+        # The package depends on Python 3.11+ stdlib modules (tomllib in
+        # trading_gym/common/supply_chain.py, enum.StrEnum in
+        # trading_gym/institutional_os/final_absorption.py), so 3.10 is outside
+        # the supported floor declared in pyproject.toml.
+        python-version: ["3.11", "3.12"]
 
     steps:
       - name: Free Disk Space (Ubuntu)
