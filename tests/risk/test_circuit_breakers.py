@@ -165,6 +165,50 @@ def test_auto_reset_logic(breaker_config):
     assert not breaker.is_tripped()
 
 
+def test_auto_reset_clears_the_window_that_tripped(breaker_config):
+    """A cooldown that leaves the tripping burst in the window is pointless.
+
+    With ``auto_reset``, ``check`` falls through to the rules again right
+    after the reset; if the burst is still in the window the breaker re-trips
+    on the next sample and can never recover. The reset must clear the
+    rolling evidence (while keeping the cumulative drawdown and liveness
+    anchors, which a cooldown must not forgive).
+    """
+    breaker_config.auto_reset = True
+    breaker_config.cooldown_minutes = 0.001  # very short
+    breaker_config.max_api_error_count = 2
+    breaker_config.api_error_window_minutes = 60
+    breaker = CircuitBreaker(breaker_config)
+
+    now = time.time()
+    # A burst of api errors within the window trips api_error_burst.
+    for offset in (300, 200, 100):
+        breaker.metrics.api_errors.append(now - offset)
+    assert breaker.check({"current_time": now, "api_error": True})
+    assert "api_error_burst" in breaker.trip_reason
+
+    time.sleep(0.1)
+    # The stored burst would still exceed the limit, so a reset that kept it
+    # would re-trip here instead of recovering.
+    assert not breaker.check({"current_time": time.time()})
+    assert not breaker.is_tripped()
+    assert breaker.state == BreakerState.CLOSED
+    assert len(breaker.metrics.api_errors) == 0
+
+
+def test_reset_keeps_the_cumulative_drawdown_and_liveness_anchors(breaker):
+    """``initial_nav`` and ``last_fill_time`` outlive a reset — they are states,
+    not bursts, and forgiving them would let a cooldown hide a real drawdown or
+    a stalled market."""
+    breaker.initial_nav = 10000.0
+    breaker.metrics.last_fill_time = time.time() - 60
+
+    breaker.reset(manual=True)
+
+    assert breaker.initial_nav == 10000.0
+    assert breaker.metrics.last_fill_time is not None
+
+
 def test_custom_rule(breaker):
     def my_rule(ctx):
         return ctx.get("custom_val", 0) > 100
@@ -192,3 +236,27 @@ def test_disable_enable(breaker):
 
     # Now it should trip
     assert breaker.check(ctx)
+
+
+def test_margin_floor_rule_needs_a_supplied_ratio(breaker_config):
+    """The margin_floor rule defaults a *missing* margin_ratio to infinity
+    (healthy), so a caller that omits it silently disarms the floor. This is
+    why the rule stayed inert until the environment began supplying the
+    value; a non-finite ratio is rejected rather than treated as safe."""
+    safe = CircuitBreaker(breaker_config)
+    # Absent key -> treated as healthy, the floor cannot fire.
+    assert not safe.check({"nav": 100.0, "initial_nav": 100.0}, current_time=0.0)
+
+    tripped = CircuitBreaker(breaker_config)
+    assert tripped.check(
+        {"nav": 100.0, "initial_nav": 100.0, "margin_ratio": 0.1},
+        current_time=60.0,
+    )
+    assert tripped.trip_reason.startswith("margin_floor")
+
+    bad = CircuitBreaker(breaker_config)
+    assert bad.check(
+        {"nav": 100.0, "initial_nav": 100.0, "margin_ratio": float("inf")},
+        current_time=120.0,
+    )
+    assert bad.trip_reason.startswith("invalid_context")

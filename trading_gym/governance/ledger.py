@@ -20,7 +20,15 @@ from uuid import uuid4
 
 from filelock import FileLock
 
-from trading_gym.common.persistence import append_jsonl, atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.persistence import (
+    MAX_JSONL_RECORD_BYTES,
+    _fsync_directory,
+    _reject_symlink,
+    append_jsonl,
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.common.security import bounded_json_dumps, redact_secrets
 
 GENESIS_HASH = "0" * 64
@@ -145,6 +153,12 @@ class AuditLedger:
         # whether sealing is configured; all MAC operations use the keyring.
         self._key = self._keys.get(self._active_key_id) if self._active_key_id else None
         self.lock = FileLock(str(self.path) + ".chain.lock")
+        # Verified-state cache: verify() re-reads and re-validates the whole
+        # chain, which is O(N) per call and O(N^2) across N appends when a
+        # caller verifies after every write. Cache the last verified result
+        # keyed by file identity so an unchanged ledger is verified once.
+        self._verified_signature: tuple[float, int] | None = None
+        self._verified_cache: dict[str, Any] | None = None
 
     @property
     def sealing_enabled(self) -> bool:
@@ -288,6 +302,7 @@ class AuditLedger:
             previous_hash, _, _, chain_error, _ = self._verify_entries(entries)
             if chain_error is not None:
                 raise ValueError(f"refusing to append to invalid audit ledger: {chain_error}")
+            self._refuse_on_anchor_mismatch(entries, previous_hash)
             for existing in entries:
                 if existing.get("event_id") != event_id:
                     continue
@@ -322,13 +337,148 @@ class AuditLedger:
             append_jsonl(self.path, body)
             if self._active_key_id is not None:
                 self._write_anchor(sequence=int(body["sequence"]), head=str(body["entry_hash"]))
+            self._invalidate_verified_cache()
             return body
+
+    def append_events(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Append many audit events in one locked, chain-verified pass.
+
+        Semantically equivalent to calling ``append`` once per record, but the
+        ledger is read and its hash chain verified once instead of once per
+        record.  Idempotency is preserved per event: an ``event_id`` already
+        present with identical content is skipped and its stored entry returned,
+        while a reused ``event_id`` with different content raises.  Returns one
+        body per input record, in order.
+        """
+        if not records:
+            return []
+        # Validate every record before touching the file, mirroring ``append``.
+        prepared: list[tuple[str, str, str, str, dict[str, Any]]] = []
+        for record in records:
+            event = str(record.get("event", "")).strip()
+            actor = str(record.get("actor", "")).strip()
+            subject = str(record.get("subject", "")).strip()
+            if not event or not actor or not subject:
+                raise ValueError("audit event, actor, and subject must be non-empty")
+            event_id = str(record.get("event_id") or uuid4().hex).strip()
+            if not event_id or len(event_id) > 240 or any(ord(char) < 32 for char in event_id):
+                raise ValueError("audit event_id must be 1-240 printable characters")
+            safe_details = redact_secrets(dict(record.get("details") or {}))
+            bounded_json_dumps(safe_details, max_bytes=256 * 1024)
+            prepared.append((event_id, event, actor, subject, safe_details))
+
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with self.lock:
+            entries = self._entries_unlocked()
+            previous_hash, _, _, chain_error, _ = self._verify_entries(entries)
+            if chain_error is not None:
+                raise ValueError(f"refusing to append to invalid audit ledger: {chain_error}")
+            self._refuse_on_anchor_mismatch(entries, previous_hash)
+            by_id = {str(entry.get("event_id")): entry for entry in entries}
+            results: list[dict[str, Any]] = []
+            appended: list[dict[str, Any]] = []
+            for event_id, event, actor, subject, safe_details in prepared:
+                comparable = {
+                    "event": event[:120],
+                    "actor": actor[:120],
+                    "subject": subject[:200],
+                    "details": safe_details,
+                }
+                existing = by_id.get(event_id)
+                if existing is not None:
+                    if not all(existing.get(key) == value for key, value in comparable.items()):
+                        raise ValueError("audit event_id was already used for different event content")
+                    results.append(existing)
+                    continue
+                if len(entries) + len(appended) >= MAX_AUDIT_ENTRIES:
+                    raise ValueError("audit ledger entry limit reached")
+                body: dict[str, Any] = {
+                    "sequence": len(entries) + len(appended) + 1,
+                    "event_id": event_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "event": event[:120],
+                    "actor": actor[:120],
+                    "subject": subject[:200],
+                    "details": safe_details,
+                    "previous_hash": previous_hash,
+                }
+                if self._active_key_id is not None:
+                    body["entry_key_id"] = self._active_key_id
+                body["entry_hash"] = hashlib.sha256(
+                    previous_hash.encode("ascii") + _canonical(body)
+                ).hexdigest()
+                if self._active_key_id is not None:
+                    body["entry_mac"] = self._mac("audit-entry-v1", body)
+                previous_hash = str(body["entry_hash"])
+                by_id[event_id] = body
+                appended.append(body)
+                results.append(body)
+            if appended:
+                payload = "".join(
+                    json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+                    for body in appended
+                )
+                if len(payload.encode("utf-8")) > MAX_JSONL_RECORD_BYTES * max(len(appended), 1):
+                    raise ValueError("audit ledger batch exceeds its record byte limit")
+                with FileLock(str(self.path) + ".lock"):
+                    if self.path.exists():
+                        _reject_symlink(self.path)
+                    created = not self.path.exists()
+                    with self.path.open("a", encoding="utf-8", newline="\n") as handle:
+                        handle.write(payload)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    try:
+                        self.path.chmod(0o600)
+                    except OSError:
+                        pass
+                    if created:
+                        _fsync_directory(self.path.parent)
+                if self._active_key_id is not None:
+                    self._write_anchor(
+                        sequence=int(appended[-1]["sequence"]), head=str(appended[-1]["entry_hash"])
+                    )
+            self._invalidate_verified_cache()
+            return results
 
     def verify(self) -> dict[str, Any]:
         with self.lock:
             return self._verify_unlocked()
 
+    def _file_signature(self) -> tuple[float, int] | None:
+        """Identity of the ledger file on disk, or None if it does not exist."""
+        try:
+            stat = self.path.stat()
+        except OSError:
+            return None
+        return (stat.st_mtime_ns, stat.st_size)
+
+    def _invalidate_verified_cache(self) -> None:
+        """Drop the cached verify() result; called after every append."""
+        self._verified_signature = None
+        self._verified_cache = None
+
     def _verify_unlocked(self) -> dict[str, Any]:
+        # A caller that verifies after every append makes the chain re-read
+        # O(N) cost become O(N^2). If the file has not changed since the last
+        # verified append, the cached verdict is still authoritative: the
+        # chain is append-only and this process holds the lock.
+        signature = self._file_signature()
+        if (
+            signature is not None
+            and self._verified_signature == signature
+            and self._verified_cache is not None
+        ):
+            return self._verified_cache
+        result = self._compute_verified()
+        # Only cache healthy verdicts; a failure may be a transient read error
+        # (torn final line, concurrent writer) that a retry would resolve.
+        if result.get("valid"):
+            self._verified_signature = signature
+            self._verified_cache = result
+        return result
+
+    def _compute_verified(self) -> dict[str, Any]:
         try:
             entries = self._entries_unlocked()
         except ValueError as exc:
@@ -434,6 +584,24 @@ class AuditLedger:
                 "error": "audit anchor does not match ledger head; truncation or replacement detected",
             }
         return {"valid": True, "sealed": True, "present": True, "key_id": matched}
+
+    def _refuse_on_anchor_mismatch(
+        self, entries: list[dict[str, Any]], previous_hash: str
+    ) -> None:
+        """Fail closed before appending when a present seal no longer matches.
+
+        A missing anchor is legal: the ledger may be chain-only, or sealing may
+        be newly configured over an existing chain.  An anchor that *is* present
+        but no longer matches the chain head, however, is tamper evidence — the
+        sealed tail was truncated or replaced.  Refusing here preserves that
+        evidence instead of letting the next append silently re-pin the anchor.
+        """
+        anchor_status = self._verify_anchor(sequence=len(entries), head=previous_hash)
+        if not anchor_status["valid"] and anchor_status.get("present"):
+            raise ValueError(
+                "refusing to append to invalid audit ledger: "
+                f"{anchor_status['error']}"
+            )
 
     @staticmethod
     def _failure(

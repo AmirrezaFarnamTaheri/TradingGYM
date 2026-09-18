@@ -203,10 +203,17 @@ class LLMDecisionBackend(IntelligenceBackend):
         return status.get("status") in {"reachable", "available"}
 
     def health(self) -> BackendHealth:
-        reachable = self.is_available()
+        if self._explicit_transport:
+            # Injected transports are test/embedded contexts: never probe.
+            return BackendHealth(
+                name=self.name, available=True, device=None, detail="injected"
+            )
+        # Probe once and reuse it: availability and detail come from the same
+        # status, so the local must live in this scope.
+        status = provider_status(self.config, timeout_seconds=3.0)
         return BackendHealth(
             name=self.name,
-            available=reachable,
+            available=status.get("status") in {"reachable", "available"},
             device=None,
             detail=str(status.get("status")),
         )

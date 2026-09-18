@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, test, vi, it } from 'vitest';
-import { renderWithClient, waitForRendered } from '../../test-utils.jsx';
+import { renderWithClient, flushPromises, waitForRendered } from '../../test-utils.jsx';
 
 import AuthzPanel from '../AuthzPanel';
 
@@ -82,6 +82,37 @@ describe('AuthzPanel', () => {
       'k'.repeat(40)
     );
     expect(toastSpies.success).toHaveBeenCalled();
+    cleanup();
+  });
+});
+
+describe('AuthzPanel fetch errors', () => {
+  it('renders an explicit error state with retry, not an empty grant set', async () => {
+    // A failed grants fetch used to fall through to "No active grants", which
+    // is indistinguishable from an empty ledger.  It must read as an error.
+    grantsSpy.mockRejectedValueOnce(new Error('ledger unavailable'));
+
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    await flushPromises();
+
+    const errorBox = await waitForRendered(container, '.error');
+    expect(errorBox.textContent).toContain('Failed to load grants');
+    expect(errorBox.textContent).toContain('ledger unavailable');
+    expect(container.textContent).not.toContain('No active grants');
+
+    // Retrying re-fetches: the mock only rejects once, so the real grant
+    // table appears and the error state is gone.
+    const retry = await waitForRendered(
+      container,
+      'button',
+      (btn) => btn.textContent?.trim() === 'Retry'
+    );
+    retry.click();
+    await flushPromises();
+
+    await waitForRendered(container, 'table.grants-table tbody tr');
+    expect(container.querySelector('.error')).toBeNull();
+
     cleanup();
   });
 });

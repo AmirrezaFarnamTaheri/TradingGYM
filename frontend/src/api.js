@@ -556,6 +556,55 @@ export const playgroundAPI = {
     }),
 };
 
+/**
+ * Agent memory, strategy grammar, and tool nominations (ADR-034).
+ *
+ * Every call is separately scope-gated server-side (`forge.memory.read`,
+ * `forge.memory.write`, `forge.strategy.read`, `forge.strategy.propose`,
+ * `forge.nomination.read`, `forge.nomination.create`); resolving a
+ * nomination additionally requires the operator role. Nothing here applies
+ * a revision or reaches a venue.
+ */
+export const forgeAPI = {
+  kernel: () => api.get('/forge/kernel'),
+  memoryAdvice: (tags, actor, actorKey) =>
+    api.get('/forge/memory/advice', {
+      params: { tags },
+      paramsSerializer: {
+        // FastAPI reads repeated `tags=` query parameters, not `tags[]=`
+        indexes: null,
+      },
+      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+    }),
+  recordExperience: (payload, actor, actorKey) =>
+    api.post('/forge/memory/records', payload, {
+      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+    }),
+  templates: (actor, actorKey, detail = false) =>
+    api.get('/forge/strategies/templates', {
+      params: { detail },
+      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+    }),
+  strategyVariants: (payload, actor, actorKey) =>
+    api.post('/forge/strategies/variants', payload, {
+      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+    }),
+  nominations: (actor, actorKey) =>
+    api.get('/forge/nominations', {
+      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+    }),
+  nominate: (payload, actor, actorKey) =>
+    api.post('/forge/nominations', payload, {
+      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+    }),
+  resolveNomination: (toolName, payload, actor, actorKey) =>
+    api.post(
+      '/forge/nominations/' + encodeURIComponent(toolName) + '/resolve',
+      payload,
+      { headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey } }
+    ),
+};
+
 // =============================================================================
 // Converged Strategy, Research, Governance, and Agent APIs
 // =============================================================================

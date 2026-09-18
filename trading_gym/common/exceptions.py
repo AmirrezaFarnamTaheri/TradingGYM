@@ -65,9 +65,7 @@ class TradingError(Exception):
         }
 
 
-# ============================================================================
-# API Errors
-# ============================================================================
+# --- API Errors ---
 
 
 class AbanAPIError(TradingError):
@@ -136,9 +134,7 @@ class APITimeoutError(AbanAPIError):
             self.context["timeout"] = timeout
 
 
-# ============================================================================
-# Validation Errors
-# ============================================================================
+# --- Validation Errors ---
 
 
 class ValidationError(TradingError):
@@ -187,9 +183,7 @@ class ConfigValidationError(ValidationError):
         super().__init__(message, code="CONFIG_VALIDATION", context=context)
 
 
-# ============================================================================
-# Execution Errors
-# ============================================================================
+# --- Execution Errors ---
 
 
 class ExecutionError(TradingError):
@@ -268,9 +262,7 @@ class OrderRejectedError(ExecutionError):
         super().__init__(message, code="ORDER_REJECTED", context=context, **kwargs)
 
 
-# ============================================================================
-# Risk Errors
-# ============================================================================
+# --- Risk Errors ---
 
 
 class RiskError(TradingError):
@@ -341,9 +333,7 @@ class MarginCallError(RiskError):
         super().__init__(message, code="MARGIN_CALL", context=context, **kwargs)
 
 
-# ============================================================================
-# Data Errors
-# ============================================================================
+# --- Data Errors ---
 
 
 class DataError(TradingError):
@@ -383,9 +373,7 @@ class CorruptDataError(DataError):
         super().__init__(message, code="CORRUPT_DATA", **kwargs)
 
 
-# ============================================================================
-# Model Errors
-# ============================================================================
+# --- Model Errors ---
 
 
 class ModelError(TradingError):
@@ -424,9 +412,7 @@ class ModelInferenceError(ModelError):
         super().__init__(message, code="MODEL_INFERENCE_ERROR", **kwargs)
 
 
-# ============================================================================
-# Utility functions
-# ============================================================================
+# --- Utility functions ---
 
 
 def wrap_api_error(func):
@@ -475,3 +461,30 @@ def is_retryable_error(error: Exception) -> bool:
             return True
 
     return False
+
+
+class StoreLimitExceeded(TradingError):
+    """A durable store refused a write because it would exceed a hard limit.
+
+    Raised by the persistence layer when a document would cross the byte cap,
+    and by stores when a configured capacity limit is reached. Callers can catch
+    this to distinguish "the request was too big" from "the store is corrupt" —
+    a bare ValueError is indistinguishable from a programming error and reaches
+    callers that only handle the domain conflict types.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        limit: Optional[int] = None,
+        attempted: Optional[int] = None,
+        code: str = "STORE_LIMIT_EXCEEDED",
+        context: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        ctx = dict(context or {})
+        if limit is not None:
+            ctx["limit"] = limit
+        if attempted is not None:
+            ctx["attempted"] = attempted
+        super().__init__(message, code=code, context=ctx)

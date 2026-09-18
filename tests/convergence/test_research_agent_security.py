@@ -42,6 +42,51 @@ def test_security_redacts_and_blocks_ssrf_targets() -> None:
     assert validate_base_url("http://127.0.0.1:11434", allow_loopback=True, resolve_dns=False) == "http://127.0.0.1:11434"
 
 
+def test_redaction_covers_api_secret_key_shapes() -> None:
+    """``api_secret``/``apisecret`` were not in the secret-key set and did not
+    match the ``_secret_key`` suffix, so venue credentials under those names
+    flowed into logs and the audit ledger unmasked."""
+    out = redact_secrets(
+        {
+            "api_secret": "KEY",
+            "apisecret": "KEY",
+            "secret": "KEY",
+            "withdrawal_secret": "KEY",
+            "symbol": "BTCUSDT",
+            "quantity": 1.5,
+        }
+    )
+    assert out["api_secret"] == "***"
+    assert out["apisecret"] == "***"
+    assert out["secret"] == "***"
+    assert out["withdrawal_secret"] == "***"
+    # Non-credentials must pass through untouched.
+    assert out["symbol"] == "BTCUSDT"
+    assert out["quantity"] == 1.5
+
+
+def test_redaction_masks_falsy_secret_values() -> None:
+    """``0`` and ``0.0`` compare equal to ``False``, so the old
+    ``item not in (None, "", False)`` guard treated them as empty and leaked
+    them unredacted; ``False`` itself is no less of a credential. Only a
+    genuine placeholder (``None`` or an empty string) stays visible, because
+    that is how "not configured" appears in diagnostics."""
+    out = redact_secrets(
+        {
+            "api_key": 0,
+            "secret": 0.0,
+            "withdrawal_secret": False,
+            "password": "",
+            "token": None,
+        }
+    )
+    assert out["api_key"] == "***"
+    assert out["secret"] == "***"
+    assert out["withdrawal_secret"] == "***"
+    assert out["password"] == ""
+    assert out["token"] is None
+
+
 def test_provider_repository_stores_only_env_reference(tmp_path: Path) -> None:
     repository = ProviderRepository(tmp_path / "providers.json")
     provider = ProviderConfig(

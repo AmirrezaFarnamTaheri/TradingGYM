@@ -27,6 +27,7 @@ from trading_gym.common.audit_outbox import (
     deliver_audit_events,
     ensure_audit_outbox,
     queue_audit_event,
+    verify_outbox_digest,
 )
 from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
 from trading_gym.common.security import bounded_json_dumps, confined_child, redact_secrets
@@ -82,6 +83,12 @@ class PortfolioLedger:
         self.path = path
         self.ledger = ledger or AuditLedger()
         self.lock = FileLock(str(self.path) + ".accounting.lock")
+        # Chain-verification cache. _load() replays and re-validates every
+        # event on each call, which is O(N) per mutation and O(N^2) across N
+        # mutations. A document we verified and then wrote is still valid, so
+        # cache the verdict keyed by file identity and skip the replay while
+        # the file has not changed since.
+        self._verified_signature: tuple[tuple[int, int], int] | None = None
 
     def _genesis_hash(self, opening_cash: dict[str, str]) -> str:
         return hashlib.sha256(
@@ -130,8 +137,41 @@ class PortfolioLedger:
         if len(document["cash"]) > MAX_CURRENCIES or len(document["fees"]) > MAX_CURRENCIES:
             raise ValueError("accounting currency limit exceeded")
         ensure_audit_outbox(document)
+        verify_outbox_digest(document)
+        # Skip the O(N) chain replay when the document on disk is unchanged
+        # since this instance last verified and wrote it: an append-only chain
+        # cannot have become invalid in between. A signature miss (another
+        # writer, or the first load) falls through to the full replay.
+        if self._matches_verified(document):
+            return document
         self._verify_chain_document(document)
+        self._record_verified(document)
         return document
+
+    def _matches_verified(self, document: dict[str, Any]) -> bool:
+        """True when the on-disk file is unchanged since the last verified write.
+
+        Pairs with :meth:`_record_verified`: the signature identifies the file
+        bytes and the revision identifies the content we verified, so a
+        concurrent writer cannot make a stale signature point at new content.
+        """
+        if self._verified_signature is None:
+            return False
+        try:
+            stat = self.path.stat()
+        except OSError:
+            return False
+        signature = (stat.st_mtime_ns, stat.st_size)
+        if self._verified_signature[0] != signature:
+            return False
+        return document.get("revision") == self._verified_signature[1]
+
+    def _record_verified(self, document: dict[str, Any]) -> None:
+        try:
+            stat = self.path.stat()
+        except OSError:
+            return
+        self._verified_signature = ((stat.st_mtime_ns, stat.st_size), document.get("revision"))
 
     @staticmethod
     def _event_fingerprint(event: AccountingEvent) -> str:
@@ -270,9 +310,18 @@ class PortfolioLedger:
                     subject=self.account_id,
                     details={"currencies": sorted(normalised)},
                 )
-                atomic_write_json(self.path, document)
+                self._write(document)
         self.reconcile_audit()
         return self.snapshot()
+
+    def _write(self, document: dict[str, Any]) -> None:
+        """Persist the document and record it as freshly verified.
+
+        Every mutation funnels through here so the O(N) chain replay in
+        ``_load`` is skipped on the next call while the file is unchanged.
+        """
+        atomic_write_json(self.path, document)
+        self._record_verified(document)
 
     def apply(self, event: AccountingEvent, *, actor: str = "accounting-engine") -> AccountSnapshot:
         if event.account_id != self.account_id:
@@ -283,10 +332,38 @@ class PortfolioLedger:
             self._append_event(document, event, actor=actor)
             if int(document["revision"]) == before:
                 return self._snapshot_from(document)
-            atomic_write_json(self.path, document)
+            self._write(document)
             result = self._snapshot_from(document)
         self.reconcile_audit()
         return result
+
+    def apply_events(
+        self, events: list[AccountingEvent], *, actor: str = "accounting-engine"
+    ) -> list[AccountSnapshot]:
+        """Apply a sequence of events to this account in one locked pass.
+
+        Semantically equivalent to calling ``apply`` once per event, but the
+        chain is verified once and the document is written once instead of
+        once per event.  Each event is still applied idempotently: an event
+        whose ``event_id`` is already recorded is skipped (returning the same
+        snapshot it would have produced) and never re-applied.
+        """
+        if not events:
+            return []
+        for event in events:
+            if event.account_id != self.account_id:
+                raise ValueError("event account_id does not match ledger")
+        with self.lock:
+            document = self._load()
+            before = int(document["revision"])
+            results: list[AccountSnapshot] = []
+            for event in events:
+                self._append_event(document, event, actor=actor)
+                results.append(self._snapshot_from(document))
+            if int(document["revision"]) != before:
+                self._write(document)
+        self.reconcile_audit()
+        return results
 
     def _apply_payload(self, document: dict[str, Any], event: AccountingEvent) -> None:
         cash = {key: _decimal(value) for key, value in document["cash"].items()}
@@ -460,7 +537,7 @@ class PortfolioLedger:
             document = self._load()
             delivered = deliver_audit_events(document, self.ledger)
             if delivered:
-                atomic_write_json(self.path, document)
+                self._write(document)
             return {"delivered": delivered, "pending": len(document["audit_outbox"])}
 
 
@@ -495,7 +572,11 @@ class AccountingRepository:
                 continue
             account_ids.append(path.stem)
             if len(account_ids) > self.MAX_ACCOUNTS:
-                raise ValueError("account limit exceeded")
+                # AccountingConflict, not ValueError: this is a durable state
+                # conflict callers can recognise, and every entry point that
+                # lists accounts (create/audit_pending/reconcile_audit) must
+                # surface it rather than a generic error.
+                raise AccountingConflict("account limit exceeded")
         return account_ids
 
     def audit_pending(self) -> int:

@@ -10,6 +10,7 @@ from typing import Annotated, Any
 from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from trading_gym.common.audit_outbox import stamp_outbox_digest, verify_outbox_digest
 from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
 from trading_gym.common.security import bounded_json_dumps, redact_secrets
 from trading_gym.governance.ledger import AuditLedger
@@ -182,6 +183,7 @@ class TriggerRepository:
                 raise ValueError(f"trigger store field {field!r} must be an object")
         if len(document["triggers"]) > self.MAX_TRIGGERS:
             raise ValueError("trigger store record limit exceeded")
+        verify_outbox_digest(document)
         return document
 
     @staticmethod
@@ -217,6 +219,7 @@ class TriggerRepository:
         if existing is not None and existing != record:
             raise TriggerConflict("trigger audit event identity collision")
         document["audit_outbox"][event_id] = record
+        stamp_outbox_digest(document)
 
     def audit_pending(self) -> int:
         with self.lock:
@@ -235,6 +238,7 @@ class TriggerRepository:
                     ) from exc
                 document["audit_outbox"].pop(event_id, None)
                 delivered += 1
+            stamp_outbox_digest(document)
             if delivered:
                 atomic_write_json(self.path, document)
             pending = len(document["audit_outbox"])

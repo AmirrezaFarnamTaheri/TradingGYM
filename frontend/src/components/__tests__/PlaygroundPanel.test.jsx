@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, test, vi, it, beforeEach } from 'vitest';
-import { renderWithClient, waitForRendered } from '../../test-utils.jsx';
+import { renderWithClient, flushPromises, waitForRendered } from '../../test-utils.jsx';
 
 import PlaygroundPanel from '../PlaygroundPanel';
 
@@ -98,5 +98,67 @@ describe('PlaygroundPanel', () => {
     );
     expect(source).toMatch(/playground\.run/);
     expect(source).toMatch(/ADR-028/);
+  });
+});
+
+
+describe('PlaygroundPanel window floor', () => {
+  const inputValue = () =>
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+
+  const setField = (input, value) => {
+    inputValue().call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  beforeEach(() => {
+    runSpy.mockClear();
+    toastSpies.success.mockClear();
+    toastSpies.error.mockClear();
+  });
+
+  it('blocks submission below the 60-bar backend floor and explains why', async () => {
+    // The backend rejects windows shorter than its minimum with an opaque
+    // error; the client must stop the request and say what is wrong instead.
+    const { container, cleanup } = renderWithClient(<PlaygroundPanel />);
+
+    const bars = container.querySelector('input[aria-label="Bars"]');
+    setField(bars, '30');
+    await flushPromises();
+
+    const hint = await waitForRendered(container, '[data-testid="bars-blocked-hint"]');
+    expect(hint.textContent).toContain('60');
+
+    // A valid actor key is not enough while the window is too short.
+    const keyInput = container.querySelector('input[aria-label="Actor key"]');
+    setField(keyInput, 'k'.repeat(32));
+    await flushPromises();
+
+    const submit = container.querySelector('button[type="submit"]');
+    expect(submit.disabled).toBe(true);
+    expect(runSpy).not.toHaveBeenCalled();
+
+    cleanup();
+  });
+
+  it('enables the run once the window meets the 60-bar floor', async () => {
+    const { container, cleanup } = renderWithClient(<PlaygroundPanel />);
+
+    const bars = container.querySelector('input[aria-label="Bars"]');
+    setField(bars, '60');
+    const keyInput = container.querySelector('input[aria-label="Actor key"]');
+    setField(keyInput, 'k'.repeat(32));
+    await flushPromises();
+
+    const submit = container.querySelector('button[type="submit"]');
+    expect(submit.disabled).toBe(false);
+
+    submit.click();
+    await waitForRendered(container, '[data-testid="run-results"]');
+
+    expect(runSpy).toHaveBeenCalledTimes(1);
+    expect(runSpy.mock.calls[0][0].window.timestamps).toHaveLength(60);
+
+    cleanup();
   });
 });

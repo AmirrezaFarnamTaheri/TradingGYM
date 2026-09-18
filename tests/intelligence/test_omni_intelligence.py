@@ -314,3 +314,44 @@ def test_app_config_accepts_optional_intelligence_section():
 
     cfg = AppConfig.model_construct(intelligence=IC(mode=IntelligenceMode.AUTO))
     assert cfg.intelligence.mode is IntelligenceMode.AUTO
+
+
+# ---------------------------------------------------------------------------
+# health() reporting — regression: detail read a `status` local that existed
+# only inside is_available(), so every health() call raised NameError.
+# ---------------------------------------------------------------------------
+
+
+def test_llm_health_with_injected_transport_never_probes():
+    llm, _ = _llm_with("{}")
+    health = llm.health()
+    assert health.available is True
+    assert health.detail == "injected"
+
+
+def test_llm_health_reports_provider_status_without_name_error(monkeypatch):
+    import trading_gym.intelligence.llm_backend as mod
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+
+    probes = []
+
+    def fake_status(config, *, timeout_seconds):
+        probes.append((config.provider_id, timeout_seconds))
+        return {"provider_id": config.provider_id, "status": "unreachable"}
+
+    monkeypatch.setattr(mod, "provider_status", fake_status)
+
+    cfg = ProviderConfig(
+        provider_id="probe-llm",
+        kind=ProviderKind.LOCAL,
+        display_name="t",
+        model="m",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    # No injected transport, so health() must probe the provider itself.
+    llm = mod.LLMDecisionBackend(cfg)
+    health = llm.health()
+
+    assert probes == [("probe-llm", 3.0)]
+    assert health.available is False
+    assert health.detail == "unreachable"

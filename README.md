@@ -95,6 +95,12 @@ See `docs/architecture/ADR-022-replay-safe-automatic-mutation-retry.md` for the 
 | Operational assurance | capacity, failover, change control, dependency impact, forensics and runbook readiness | scaling, failover, deployment, evidence export or runbook execution |
 | Compliance and privacy | adverse-execution/self-trade evidence and data-minimisation review | legal conclusions, enforcement, deletion or disclosure authority |
 | Model and statistical assurance | sequential testing, multiple-comparison control, seed/regime challenge and factor decomposition | model promotion, trading or automated risk acceptance |
+| Agent memory (ADR-034) | bounded in-session cycle history, tighten-only caution over fusion thresholds, consolidated hash-verified long-term experience journal, bounded advice digests | loosening any gate, authority, or persistence outside its own journal |
+| Tool revision (ADR-034) | per-tool usage metering, reasoned runtime revision and retirement, nominations for tools the registry lacks | granting a capability, creating execution authority, or applying a nomination |
+| Strategy forge (ADR-034) | grammar-bounded parameter mutation, sealed-window scoring through the playground, candidate submission to the revision gate chain | emitting code, mutating strategy structure, or approving its own candidates |
+| Simulation kernel (ADR-035) | bit-identical accelerated bar loop behind an optional, parity-tested ctypes seam | new simulation semantics, I/O, randomness or any reachable authority |
+| Federated tool intake | skill-package intake with risk markers, role-separated quarantine, and static assurance over hashes, forbidden capabilities, retries, timeouts and dependency DAGs | activating a skill, granting a capability, or executing remote tool code |
+| Economic actions | payment-metadata normalisation (USDC transfers, Lightning invoices) and x402 challenge parsing with budget reservation | resolving secrets, signing, broadcasting, moving funds, or expanding its own payment authority |
 
 ## Important invariants
 
@@ -111,6 +117,13 @@ See `docs/architecture/ADR-022-replay-safe-automatic-mutation-retry.md` for the 
 - Qualification may only mark a candidate ready for human review; it cannot activate models, start trading, delete data, rotate credentials, restore state, or fail over traffic.
 - Legal holds override purge candidacy; immutable evidence is retained; lifecycle evaluation never mutates storage.
 - Snapshot restore endpoints and recovery-objective reports are plan/evidence-only; mutation requires a separate operator-controlled recovery procedure.
+- Agent memory can only tighten (ADR-034): caution deltas are non-negative and the leverage multiplier is at most 1, validated at construction, so no memory state can lower a fusion threshold or raise exposure above the uncautioned decision.
+- The long-term experience journal hashes every record; an edited, reordered, or truncated journal fails the open instead of silently poisoning retrieval.
+- The strategy forge mutates only inside the declarative grammar and never emits code; structure changes are S-tier revisions, and every candidate is scored by real sealed-window playground runs before the ADR-033 gate chain decides.
+- Tool nomination grants nothing: a nominated tool remains uncallable until human absorption adds it, and retired tools are removed from selection rather than left callable.
+- The Rust simulation kernel (ADR-035) is optional and reference-defined: absent or ABI-mismatched artifacts degrade to the Python loop, and the parity suite asserts bit-identical equity curves and trade ledgers.
+- Federated tool intake stays evidence-only: every package lands quarantined with a content hash and risk markers, risky packages can never be admitted, and quarantine requires a reviewer distinct from the preparer.
+- Economic actions are normalisation only: payment intents carrying secret material are rejected outright, a policy that would allow secret resolution, seed persistence, or execution is refused, and challenge plans are computed without ever granting signing or broadcast authority.
 
 ## Requirements
 
@@ -118,6 +131,17 @@ See `docs/architecture/ADR-022-replay-safe-automatic-mutation-retry.md` for the 
 - Poetry or another environment manager capable of installing `pyproject.toml`
 - Node.js 18+ only for the React operator UI
 - A filesystem and service account that preserve private permissions and atomic replacement semantics
+- Optional: a Rust toolchain (1.80+) to build the ADR-035 simulation kernel. Without it the platform runs the Python reference loop unchanged.
+
+## Optional: build the simulation kernel
+
+The playground's bar loop has a bit-identical Rust implementation. It is loaded through `ctypes` if a compiled artifact is present and ignored otherwise:
+
+```bash
+cd rust/axiom_kernel && cargo build --release
+```
+
+`AXIOM_KERNEL_PATH` points the loader at a specific artifact; `AXIOM_KERNEL_DISABLE=1` forces the Python path. `trading_gym.playground.kernel.kernel_status()` reports availability plus the reason. `tests/playground/test_kernel_parity.py` asserts bitwise parity when an artifact exists and skips the comparison when it does not — the loader-contract tests always run.
 
 ## Installation
 
@@ -190,7 +214,7 @@ The panic endpoint remains available even if audit delivery is degraded: it comm
 
 ## Testing
 
-Current full-suite state (Python 3.12, dependency-complete venv): **1422 passed, 3 skipped, 0 failures** (includes AXIOM-1 authz/arms/fusion/planner/playground/attribution/autonomy/revision/docs-truth suites; paper venue behind the adapter seam). Frontend: Vitest **14/14** plus a green production Vite build. Frontend: Vitest **7/7** via `npm run test:ci` plus a green production Vite build.
+Current full-suite state (Python 3.12, dependency-complete venv): **1668 passed, 3 skipped, 0 failures** (includes AXIOM-1 authz/arms/fusion/planner/playground/attribution/autonomy/revision/memory/tool-revision/forge/forge-API/kernel-parity/docs-truth/OpenAPI-currency suites; paper venue behind the adapter seam; the Rust kernel parity block runs when a compiled artifact is present). Frontend: Vitest **39/39** plus a green production Vite build.
 
 Core hardened matrix used for this release:
 

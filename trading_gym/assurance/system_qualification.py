@@ -1,4 +1,4 @@
-"""Comprehensive evidence-only system qualification.
+"""Evidence-only system qualification.
 
 The report composes research, data, execution, accounting, operational, risk,
 calendar, settlement, lineage, budget, recovery, and supply-chain evidence.  It

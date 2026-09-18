@@ -63,14 +63,19 @@ def evaluate_position_limits(
     cap is ``max_position_fraction × portfolio_value`` minus what it already
     holds, never negative, never above free cash.
     """
-    if not isinstance(cash, Decimal) or cash < ZERO:
-        raise RiskGateError("cash must be non-negative Decimal")
+    # NaN passes every sign comparison (all comparisons with NaN are False),
+    # so an is_finite check is required in addition to the sign check;
+    # portfolio.py/factor.py reject non-finite at the boundary, this must too.
+    if not isinstance(cash, Decimal) or not cash.is_finite() or cash < ZERO:
+        raise RiskGateError("cash must be a finite, non-negative Decimal")
     fraction = max_position_fraction
     if not isinstance(fraction, Decimal) or not ZERO < fraction <= Decimal("1"):
         raise RiskGateError("max_position_fraction must be in (0, 1]")
     for symbol, value in positions_value.items():
-        if not isinstance(value, Decimal) or value < ZERO:
-            raise RiskGateError(f"position value for {symbol} must be non-negative Decimal")
+        if not isinstance(value, Decimal) or not value.is_finite() or value < ZERO:
+            raise RiskGateError(
+                f"position value for {symbol} must be a finite, non-negative Decimal"
+            )
 
     portfolio_value = cash + sum(positions_value.values(), ZERO)
     position_limit = portfolio_value * fraction

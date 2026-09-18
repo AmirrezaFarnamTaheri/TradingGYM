@@ -1688,6 +1688,211 @@ button[title]:hover::after {
 }
 
 /* ============================================================================
+   AXIOM-1 panels: grants (ADR-028), playground (ADR-031), forge (ADR-034)
+   ============================================================================ */
+
+.panel-hint,
+.section-hint {
+  color: #7f8c8d;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.credential-row,
+.check-row,
+.record-form,
+.variant-form,
+.nominate-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.credential-row input,
+.check-row input,
+.record-form input,
+.nominate-form input {
+  flex: 1 1 200px;
+  padding: 8px 10px;
+  border: 1px solid #dfe4ea;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.record-form input,
+.nominate-form input {
+  min-width: 240px;
+}
+
+.grants-table,
+.variants-table,
+.nominations-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.grants-table th,
+.variants-table th,
+.nominations-table th {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 2px solid #ecf0f1;
+  color: #34495e;
+}
+
+.grants-table td,
+.variants-table td,
+.nominations-table td {
+  padding: 8px;
+  border-bottom: 1px solid #f4f6f7;
+  vertical-align: top;
+}
+
+.rationale-cell {
+  max-width: 320px;
+}
+
+.scope-chip {
+  display: inline-block;
+  margin: 0 4px 4px 0;
+  padding: 2px 6px;
+  background: #ecf0f1;
+  border-radius: 3px;
+}
+
+.check-result.allowed,
+.nomination-status.accepted,
+.net-signal.positive {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.check-result.denied,
+.nomination-status.rejected,
+.net-signal.negative {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+.nomination-status.nominated,
+.net-signal.neutral {
+  color: #f39c12;
+  font-weight: 600;
+}
+
+/* Forge panel */
+.forge-section {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #ecf0f1;
+}
+
+.advice-summary {
+  font-size: 12px;
+  color: #7f8c8d;
+}
+
+.advice-lists {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.lesson-group {
+  flex: 1 1 280px;
+}
+
+.lesson-group h4 {
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: #34495e;
+}
+
+.lesson-group ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.lesson-group li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  border-left: 3px solid #bdc3c7;
+  margin-bottom: 6px;
+  font-size: 13px;
+  background: #fbfcfc;
+}
+
+.lesson-group.warning li {
+  border-left-color: #e74c3c;
+}
+
+.lesson-group.confirmation li {
+  border-left-color: #27ae60;
+}
+
+.support-badge {
+  flex: 0 0 auto;
+  color: #7f8c8d;
+  font-variant-numeric: tabular-nums;
+}
+
+.template-detail {
+  font-size: 13px;
+  color: #566573;
+  margin-bottom: 12px;
+}
+
+/* Playground panel */
+.playground-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.playground-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #34495e;
+}
+
+.overlay-group,
+.credential-group {
+  flex: 1 1 100%;
+  border: 1px solid #ecf0f1;
+  border-radius: 4px;
+  padding: 12px;
+}
+
+.overlay-group legend,
+.credential-group legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: #34495e;
+  padding: 0 6px;
+}
+
+.equity-chart {
+  margin-top: 16px;
+}
+
+.chart-caption {
+  font-size: 13px;
+  color: #7f8c8d;
+  margin-top: 6px;
+}
+
+/* ============================================================================
    Print Styles
    ============================================================================ */
 

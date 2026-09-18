@@ -17,6 +17,8 @@ from typing import Any
 
 from filelock import FileLock
 
+from trading_gym.common.exceptions import StoreLimitExceeded
+
 
 MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
 MAX_JSONL_RECORD_BYTES = 1024 * 1024
@@ -56,6 +58,13 @@ def resolve_data_home() -> Path:
     if root.exists() and root.is_symlink():
         raise ValueError("TRADING_GYM_HOME must not be a symbolic link")
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # The symlink rejection above ran before the directory necessarily
+    # existed, so it cannot close the window on its own: a racing caller can
+    # swap the path for a link between the check and the mkdir, and mkdir on
+    # a link-to-directory still succeeds under exist_ok=True. Re-verify once
+    # the entry exists, before anything writes through it.
+    if root.is_symlink():
+        raise ValueError("TRADING_GYM_HOME must not be a symbolic link")
     if not root.is_dir():
         raise ValueError(f"TRADING_GYM_HOME is not a directory: {root}")
     try:
@@ -66,17 +75,21 @@ def resolve_data_home() -> Path:
 
 
 def read_json(path: Path, default: Any, *, max_bytes: int = MAX_DOCUMENT_BYTES) -> Any:
-    if not path.exists():
-        return copy.deepcopy(default)
-    _reject_symlink(path)
+    # The existence check and symlink rejection must run *inside* the same
+    # inter-process lock the writers hold.  Checking first and locking second
+    # leaves a window in which the path can be swapped for a symlink, letting
+    # the read follow a link out of the private data home (TOCTOU).
     with FileLock(str(path) + ".lock"):
+        if not path.exists():
+            return copy.deepcopy(default)
+        _reject_symlink(path)
         try:
             size = path.stat().st_size
             if size > max_bytes:
-                raise ValueError(f"JSON document exceeds {max_bytes} byte limit: {path}")
+                raise StoreLimitExceeded(f"JSON document exceeds {max_bytes} byte limit: {path}", limit=max_bytes, attempted=size)
             raw = path.read_bytes()
             if len(raw) > max_bytes:
-                raise ValueError(f"JSON document exceeds {max_bytes} byte limit: {path}")
+                raise StoreLimitExceeded(f"JSON document exceeds {max_bytes} byte limit: {path}", limit=max_bytes, attempted=size)
         except OSError as exc:
             raise ValueError(f"Unable to read valid JSON from {path}") from exc
         try:
@@ -90,8 +103,16 @@ def atomic_write_json(path: Path, value: Any) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     serialised = json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-    if len(serialised.encode("utf-8")) > MAX_DOCUMENT_BYTES:
-        raise ValueError(f"JSON document exceeds {MAX_DOCUMENT_BYTES} byte limit")
+    encoded_size = len(serialised.encode("utf-8"))
+    if encoded_size > MAX_DOCUMENT_BYTES:
+        # Callers that catch a domain conflict type to trigger compaction or
+        # cleanup would see a bare ValueError instead and treat it as a
+        # programming error. Raise the typed limit exception.
+        raise StoreLimitExceeded(
+            f"JSON document exceeds {MAX_DOCUMENT_BYTES} byte limit",
+            limit=MAX_DOCUMENT_BYTES,
+            attempted=encoded_size,
+        )
     atomic_write_text(path, serialised)
 
 
@@ -106,7 +127,7 @@ def atomic_write_text(
 
     encoded = value.encode("utf-8")
     if len(encoded) > max_bytes:
-        raise ValueError(f"Text document exceeds {max_bytes} byte limit")
+        raise StoreLimitExceeded("Text document exceeds byte limit", limit=max_bytes, attempted=len(encoded))
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with FileLock(str(path) + ".lock"):
         if path.exists():
@@ -139,7 +160,7 @@ def append_jsonl(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     line = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
     if len(line.encode("utf-8")) > MAX_JSONL_RECORD_BYTES:
-        raise ValueError(f"JSONL record exceeds {MAX_JSONL_RECORD_BYTES} byte limit")
+        raise StoreLimitExceeded("JSONL record exceeds byte limit", limit=MAX_JSONL_RECORD_BYTES, attempted=len(line.encode("utf-8")))
     with FileLock(str(path) + ".lock"):
         if path.exists():
             _reject_symlink(path)

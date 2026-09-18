@@ -12,6 +12,7 @@ Contract:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 
 import numpy as np
@@ -96,7 +97,7 @@ def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
             principal="agent-axiom1",
             scopes=("playground.run", "trade.paper.**"),
             ttl_hours=24,
-            issued_at="2026-09-01T00:00:00Z",
+            issued_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             constraints=(),
             issued_by="operator-1",
         )

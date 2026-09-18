@@ -16,6 +16,7 @@ import random
 import re
 import time
 from collections import deque
+from contextlib import suppress
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Awaitable, Callable, Deque, Dict, Optional
@@ -23,7 +24,11 @@ from urllib.parse import urlparse
 
 import websockets
 
-from trading_gym.common.security import bounded_json_dumps, validate_base_url
+from trading_gym.common.security import (
+    bounded_json_dumps,
+    validate_base_url,
+    validate_peer_address,
+)
 
 try:  # websockets >=12 exposes legacy API under websockets.legacy
     from websockets.legacy.client import WebSocketClientProtocol
@@ -234,14 +239,25 @@ class WebSocketClient:
                 self.config.url,
                 **self._connect_kwargs(headers),
             )
+            # The URL was re-validated a moment ago, but the client library
+            # re-resolves the hostname itself when it opens the socket, so DNS
+            # can answer differently between that check and the connection
+            # (TOCTOU). Confirm the peer the socket actually landed on before
+            # sending it credentials or subscriptions.
+            self._verify_peer(self._ws)
             self._connected = True
             self._reconnect_count = 0
             self._last_heartbeat_response = time.monotonic()
             await self._send_subscriptions()
             logger.info("WebSocket connected")
         except Exception as exc:
-            self._ws = None
+            ws, self._ws = self._ws, None
             self._connected = False
+            if ws is not None:
+                # A rejected peer must not be left connected, and neither must
+                # a socket that failed mid-handshake.
+                with suppress(Exception):
+                    await ws.close()
             logger.error("WebSocket connection failed error_type=%s", type(exc).__name__)
             raise
 
@@ -310,6 +326,24 @@ class WebSocketClient:
             raise
         finally:
             await self.disconnect()
+
+    def _verify_peer(self, ws: Any) -> None:
+        """Reject a connection whose *actual* peer address is not allowed."""
+
+        peer = getattr(ws, "remote_address", None)
+        host: str | None = None
+        if isinstance(peer, tuple) and peer:
+            host = peer[0] if isinstance(peer[0], str) else None
+        if not host:
+            # No address to verify (an unusual transport, or a library that
+            # does not expose it). Fail closed rather than trust what cannot
+            # be checked, the same way a missing URL is treated.
+            raise ValueError("WebSocket connection has no verifiable peer address")
+        validate_peer_address(
+            host,
+            allow_private=self.config.allow_private_url,
+            allow_loopback=self.config.allow_private_url,
+        )
 
     async def _send_subscriptions(self) -> None:
         if not self._ws:
@@ -468,9 +502,13 @@ class WebSocketClient:
                         raise
                     except Exception as exc:
                         self._callback_failures[key] = self._callback_failures.get(key, 0) + 1
+                        # The message was already popped, so a callback that
+                        # raises permanently loses it.  Account it as a drop so
+                        # message-loss telemetry is not underreported.
+                        self._dropped_messages[key] = self._dropped_messages.get(key, 0) + 1
                         self._degraded_keys.add(key)
                         logger.error(
-                            "WebSocket callback failed key=%s error_type=%s",
+                            "WebSocket callback failed key=%s error_type=%s; message dropped",
                             key,
                             type(exc).__name__,
                         )

@@ -11,6 +11,7 @@ from trading_gym.monitoring.alerting import (
     Alert,
     AlertLevel,
     AlertManager,
+    SendOutcome,
     TelegramChannel,
     TelegramConfig,
     WebhookChannel,
@@ -242,6 +243,29 @@ class TestDesktopChannel:
         assert config.enabled is True
         assert config.min_level == AlertLevel.ERROR
 
+    def test_failing_notifier_reports_failed_not_delivered(self):
+        """A non-zero exit must surface as FAILED, not DELIVERED.
+
+        ``check=False`` silently counted an undelivered CRITICAL alert as
+        delivered, so an operator's triage signal was wrong.
+        """
+        import subprocess
+
+        config = DesktopConfig(enabled=True, min_level=AlertLevel.CRITICAL)
+        channel = DesktopChannel(config)
+        alert = Alert(
+            level=AlertLevel.CRITICAL, title="halt", message="drawdown", source="risk"
+        )
+        error = subprocess.CalledProcessError(3, "notify-send")
+        with patch("platform.system", return_value="Linux"), patch(
+            "subprocess.run", side_effect=error
+        ):
+            assert channel.send_with_outcome(alert) is SendOutcome.FAILED
+        with patch("platform.system", return_value="Darwin"), patch(
+            "subprocess.run", side_effect=subprocess.CalledProcessError(1, "osascript")
+        ):
+            assert channel.send_with_outcome(alert) is SendOutcome.FAILED
+
 
 class TestAlertManager:
     """Test AlertManager."""
@@ -396,6 +420,72 @@ class TestGlobalAlertManager:
         # Should not raise even with no channels
         count = send_alert("Test", "Message", AlertLevel.INFO)
         assert count == 0  # No channels configured
+
+
+class TestTriStateTelemetry:
+    """Delivered / skipped / failed must be distinguishable, not collapsed."""
+
+    def test_disabled_channel_is_skipped_not_failed(self):
+        channel = TelegramChannel(TelegramConfig(enabled=False))
+        alert = Alert("Test", "Message", AlertLevel.CRITICAL)
+
+        assert channel.send_with_outcome(alert) is SendOutcome.SKIPPED
+        assert channel.send(alert) is False
+
+    def test_below_minimum_level_is_skipped_not_failed(self):
+        channel = TelegramChannel(
+            TelegramConfig(enabled=True, min_level=AlertLevel.ERROR)
+        )
+        alert = Alert("Test", "Message", AlertLevel.INFO)
+
+        assert channel.send_with_outcome(alert) is SendOutcome.SKIPPED
+
+    def test_rate_limited_alert_is_skipped_not_failed(self):
+        """A suppressed alert is an intentional throttling decision, not a
+        delivery failure -- reporting it as one would hide real errors."""
+        channel = TelegramChannel(
+            TelegramConfig(enabled=True, bot_token="123:ABC", chat_id="123")
+        )
+        # Exhaust the ordinary (non-critical) quota.
+        for _ in range(10):
+            assert channel.rate_limiter.should_allow() is True
+
+        alert = Alert("Flood", "Message", AlertLevel.ERROR)
+        assert channel.send_with_outcome(alert) is SendOutcome.SKIPPED
+        assert channel.send(alert) is False
+
+    def test_delivery_error_is_reported_as_failed(self):
+        channel = TelegramChannel(TelegramConfig(enabled=True))  # no token/chat
+        alert = Alert("Test", "Message", AlertLevel.ERROR)
+
+        assert channel.send_with_outcome(alert) is SendOutcome.FAILED
+        assert channel.error_count == 1
+        assert channel.send(alert) is False
+
+    def test_manager_counts_skipped_separately_from_failed(self):
+        """The manager must not bill an intentional suppression as a failure."""
+        channel = TelegramChannel(
+            TelegramConfig(enabled=True, min_level=AlertLevel.ERROR)
+        )
+        manager = AlertManager()
+        manager.add_channel(channel)
+
+        # INFO is below the channel's minimum level: skipped, not failed.
+        manager.send_alert("Test", "Message", AlertLevel.INFO)
+        stats = manager.get_stats()
+        assert stats["TelegramChannel_skipped"] == 1
+        assert "TelegramChannel_failed" not in stats
+        assert "TelegramChannel_success" not in stats
+
+    def test_manager_counts_failures_when_delivery_errors(self):
+        channel = TelegramChannel(TelegramConfig(enabled=True))  # no token/chat
+        manager = AlertManager()
+        manager.add_channel(channel)
+
+        manager.send_alert("Test", "Message", AlertLevel.ERROR)
+        stats = manager.get_stats()
+        assert stats["TelegramChannel_failed"] == 1
+        assert "TelegramChannel_skipped" not in stats
 
 
 if __name__ == "__main__":

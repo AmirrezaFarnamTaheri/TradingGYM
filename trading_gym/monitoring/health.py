@@ -180,8 +180,15 @@ def check_model_loaded(model_path: str) -> bool:
 def check_data_freshness(
     last_update_time: float, max_age_seconds: float = 60.0
 ) -> bool:
-    """Check if data is fresh."""
-    return (time.time() - last_update_time) < max_age_seconds
+    """Check if data is fresh.
+
+    A feed whose clock runs ahead of ours -- or a replay emitting future
+    timestamps -- yields a negative age, which would pass the raw
+    ``< max_age_seconds`` comparison and certify a "fresh" feed that is not.
+    The elapsed window must be non-negative *and* bounded.
+    """
+    elapsed = time.time() - last_update_time
+    return 0.0 <= elapsed < max_age_seconds
 
 
 def check_circuit_breaker(breaker) -> bool:
@@ -195,6 +202,13 @@ def check_memory_usage(max_mb: float = 2000.0) -> bool:
         from trading_gym.utils.memory import get_memory_usage_mb
 
         usage = get_memory_usage_mb()
-        return usage < max_mb if usage > 0 else True
+        # The probe signals "unmeasurable" by value, not by exception: it
+        # returns -1.0 when psutil is unavailable. `usage > 0 else True` lets
+        # that sentinel pass the readiness gate, defeating the fail-closed
+        # handler below. Treat any non-positive reading as unhealthy.
+        return 0.0 < usage < max_mb
     except Exception:
-        return True  # Can't measure, assume OK
+        # Fail closed: a probe we cannot read must not certify the system
+        # ready.  Returning True here would let an unmeasurable host
+        # pass a readiness gate.
+        return False

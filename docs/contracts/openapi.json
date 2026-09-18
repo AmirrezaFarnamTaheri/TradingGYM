@@ -11374,6 +11374,46 @@
         "title": "GenomeOperation",
         "type": "string"
       },
+      "GrantIssueRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "constraints": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Constraints",
+            "type": "object"
+          },
+          "principal": {
+            "maxLength": 64,
+            "minLength": 3,
+            "title": "Principal",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Scopes",
+            "type": "array"
+          },
+          "ttl_hours": {
+            "maximum": 43800.0,
+            "minimum": 1.0,
+            "title": "Ttl Hours",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "principal",
+          "scopes",
+          "ttl_hours"
+        ],
+        "title": "GrantIssueRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -14562,6 +14602,39 @@
         "title": "MemoryRecord",
         "type": "object"
       },
+      "MemoryRecordRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "context_tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Context Tags",
+            "type": "array"
+          },
+          "lesson": {
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Lesson",
+            "type": "string"
+          },
+          "outcome": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "context_tags",
+          "outcome",
+          "lesson"
+        ],
+        "title": "MemoryRecordRequest",
+        "type": "object"
+      },
       "MicrostructureFill": {
         "additionalProperties": false,
         "properties": {
@@ -15217,6 +15290,29 @@
           "evidence_sha256"
         ],
         "title": "MutationCase",
+        "type": "object"
+      },
+      "NominationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "rationale": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "tool_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Tool Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool_name",
+          "rationale"
+        ],
+        "title": "NominationRequest",
         "type": "object"
       },
       "ObservedAccountState": {
@@ -15900,6 +15996,25 @@
         "title": "OrderType",
         "type": "string"
       },
+      "OverlayPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "OverlayPayload",
+        "type": "object"
+      },
       "PlannedRebalanceTrade": {
         "additionalProperties": false,
         "properties": {
@@ -16007,6 +16122,65 @@
           "projected_weight"
         ],
         "title": "PlannedRebalanceTrade",
+        "type": "object"
+      },
+      "PlaygroundRunRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "fee_bps": {
+            "default": 10.0,
+            "minimum": 0.0,
+            "title": "Fee Bps",
+            "type": "number"
+          },
+          "initial_capital": {
+            "default": 10000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Initial Capital",
+            "type": "number"
+          },
+          "overlays": {
+            "items": {
+              "$ref": "#/components/schemas/OverlayPayload"
+            },
+            "maxItems": 16,
+            "title": "Overlays",
+            "type": "array"
+          },
+          "position_fraction": {
+            "default": 1.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Position Fraction",
+            "type": "number"
+          },
+          "strategy": {
+            "additionalProperties": true,
+            "title": "Strategy",
+            "type": "object"
+          },
+          "symbol": {
+            "maxLength": 30,
+            "minLength": 3,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "timeframe": {
+            "pattern": "^(1m|3m|5m|15m|30m|1h|4h|1d)$",
+            "title": "Timeframe",
+            "type": "string"
+          },
+          "window": {
+            "$ref": "#/components/schemas/WindowPayload"
+          }
+        },
+        "required": [
+          "symbol",
+          "timeframe",
+          "window",
+          "strategy"
+        ],
+        "title": "PlaygroundRunRequest",
         "type": "object"
       },
       "PolicyComplianceReport": {
@@ -19338,6 +19512,27 @@
         "title": "ResearchSection",
         "type": "object"
       },
+      "ResolutionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "pattern": "^(accepted|rejected)$",
+            "title": "Decision",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "ResolutionRequest",
+        "type": "object"
+      },
       "RestoreDrillReport": {
         "additionalProperties": false,
         "properties": {
@@ -21071,6 +21266,36 @@
           "evaluated_at"
         ],
         "title": "ScientificLabRequest",
+        "type": "object"
+      },
+      "ScopeCheckRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "principal": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 3,
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{2,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Principal"
+          },
+          "scope": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "title": "ScopeCheckRequest",
         "type": "object"
       },
       "SeedBundle": {
@@ -24466,13 +24691,6 @@
       },
       "ValidationError": {
         "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
           "loc": {
             "items": {
               "anyOf": [
@@ -24607,6 +24825,49 @@
           "fx_path"
         ],
         "title": "ValuedPosition",
+        "type": "object"
+      },
+      "VariantRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "default": 3,
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "max_period": {
+            "default": 50,
+            "maximum": 50.0,
+            "minimum": 2.0,
+            "title": "Max Period",
+            "type": "integer"
+          },
+          "min_period": {
+            "default": 2,
+            "maximum": 50.0,
+            "minimum": 2.0,
+            "title": "Min Period",
+            "type": "integer"
+          },
+          "seed": {
+            "default": 0,
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "strategy": {
+            "additionalProperties": true,
+            "title": "Strategy",
+            "type": "object"
+          }
+        },
+        "required": [
+          "strategy"
+        ],
+        "title": "VariantRequest",
         "type": "object"
       },
       "VendorComparison": {
@@ -24980,6 +25241,79 @@
         ],
         "title": "WidgetKind",
         "type": "string"
+      },
+      "WindowPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "close": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Close",
+            "type": "array"
+          },
+          "high": {
+            "items": {
+              "type": "number"
+            },
+            "title": "High",
+            "type": "array"
+          },
+          "low": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Low",
+            "type": "array"
+          },
+          "open": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Open",
+            "type": "array"
+          },
+          "spread_bps": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread Bps"
+          },
+          "timestamps": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "minItems": 2,
+            "title": "Timestamps",
+            "type": "array"
+          },
+          "volume": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Volume",
+            "type": "array"
+          }
+        },
+        "required": [
+          "timestamps",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume"
+        ],
+        "title": "WindowPayload",
+        "type": "object"
       },
       "WorkAssignment": {
         "additionalProperties": false,
@@ -25432,6 +25766,316 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/authz/check": {
+      "post": {
+        "description": "Evaluate one concrete scope against a principal's grants.\n\nThe principal defaults to the caller's ``X-Actor`` claim; an\nexplicit body principal inspects any principal (read-only).\nWildcards in the requested scope are a 422 \u2014 a check request is\nabout one concrete action, and a wildcard there is a caller bug.",
+        "operationId": "check_scope_api_v1_authz_check_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor",
+            "required": false,
+            "schema": {
+              "default": "api-operator",
+              "title": "X-Actor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScopeCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Check Scope Api V1 Authz Check Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check Scope",
+        "tags": [
+          "authz"
+        ]
+      }
+    },
+    "/api/v1/authz/grants": {
+      "get": {
+        "operationId": "list_grants_api_v1_authz_grants_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Grants Api V1 Authz Grants Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Grants",
+        "tags": [
+          "authz"
+        ]
+      },
+      "post": {
+        "operationId": "issue_grant_api_v1_authz_grants_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor",
+            "required": false,
+            "schema": {
+              "default": "api-operator",
+              "title": "X-Actor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantIssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Issue Grant Api V1 Authz Grants Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Issue Grant",
+        "tags": [
+          "authz"
+        ]
+      }
+    },
+    "/api/v1/authz/grants/{grant_id}/revoke": {
+      "post": {
+        "operationId": "revoke_grant_api_v1_authz_grants__grant_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "grant_id",
+            "required": true,
+            "schema": {
+              "title": "Grant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor",
+            "required": false,
+            "schema": {
+              "default": "api-operator",
+              "title": "X-Actor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Revoke Grant Api V1 Authz Grants  Grant Id  Revoke Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Grant",
+        "tags": [
+          "authz"
+        ]
+      }
+    },
+    "/api/v1/authz/health": {
+      "get": {
+        "operationId": "health_api_v1_authz_health_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Api V1 Authz Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "authz"
+        ]
+      }
+    },
     "/api/v1/config": {
       "get": {
         "description": "Read entire configuration",
@@ -34627,6 +35271,625 @@
         "summary": "Emergency Kill All"
       }
     },
+    "/api/v1/forge/kernel": {
+      "get": {
+        "description": "ADR-035 diagnostic: availability plus the reason (no authority).",
+        "operationId": "kernel_api_v1_forge_kernel_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Kernel Api V1 Forge Kernel Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Kernel",
+        "tags": [
+          "forge"
+        ]
+      }
+    },
+    "/api/v1/forge/memory/advice": {
+      "get": {
+        "operationId": "memory_advice_api_v1_forge_memory_advice_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tags",
+            "required": false,
+            "schema": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 12,
+              "title": "Tags",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "k",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "K",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor",
+            "required": false,
+            "schema": {
+              "default": "api-operator",
+              "title": "X-Actor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Memory Advice Api V1 Forge Memory Advice Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Memory Advice",
+        "tags": [
+          "forge"
+        ]
+      }
+    },
+    "/api/v1/forge/memory/records": {
+      "post": {
+        "operationId": "record_experience_api_v1_forge_memory_records_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor",
+            "required": false,
+            "schema": {
+              "default": "api-operator",
+              "title": "X-Actor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryRecordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Record Experience Api V1 Forge Memory Records Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Experience",
+        "tags": [
+          "forge"
+        ]
+      }
+    },
+    "/api/v1/forge/nominations": {
+      "get": {
+        "operationId": "list_nominations_api_v1_forge_nominations_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor",
+            "required": false,
+            "schema": {
+              "default": "api-operator",
+              "title": "X-Actor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Nominations Api V1 Forge Nominations Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Nominations",
+        "tags": [
+          "forge"
+        ]
+      },
+      "post": {
+        "operationId": "nominate_tool_api_v1_forge_nominations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor",
+            "required": false,
+            "schema": {
+              "default": "api-operator",
+              "title": "X-Actor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NominationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Nominate Tool Api V1 Forge Nominations Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Nominate Tool",
+        "tags": [
+          "forge"
+        ]
+      }
+    },
+    "/api/v1/forge/nominations/{tool_name}/resolve": {
+      "post": {
+        "description": "Record a human decision. Operator role only \u2014 no scope substitutes.",
+        "operationId": "resolve_nomination_api_v1_forge_nominations__tool_name__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tool_name",
+            "required": true,
+            "schema": {
+              "title": "Tool Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor",
+            "required": false,
+            "schema": {
+              "default": "api-operator",
+              "title": "X-Actor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolutionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Resolve Nomination Api V1 Forge Nominations  Tool Name  Resolve Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Nomination",
+        "tags": [
+          "forge"
+        ]
+      }
+    },
+    "/api/v1/forge/strategies/templates": {
+      "get": {
+        "operationId": "list_templates_api_v1_forge_strategies_templates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "detail",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Detail",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor",
+            "required": false,
+            "schema": {
+              "default": "api-operator",
+              "title": "X-Actor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Templates Api V1 Forge Strategies Templates Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Templates",
+        "tags": [
+          "forge"
+        ]
+      }
+    },
+    "/api/v1/forge/strategies/variants": {
+      "post": {
+        "operationId": "strategy_variants_api_v1_forge_strategies_variants_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor",
+            "required": false,
+            "schema": {
+              "default": "api-operator",
+              "title": "X-Actor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Strategy Variants Api V1 Forge Strategies Variants Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Strategy Variants",
+        "tags": [
+          "forge"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "description": "Liveness probe - simple health check",
@@ -36620,6 +37883,50 @@
         ]
       }
     },
+    "/api/v1/intelligence/status": {
+      "get": {
+        "operationId": "status_api_v1_intelligence_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Status Api V1 Intelligence Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Status",
+        "tags": [
+          "intelligence"
+        ]
+      }
+    },
     "/api/v1/metrics": {
       "get": {
         "description": "HTTP endpoint for metrics. Reads from the memory-mapped file.",
@@ -36914,6 +38221,86 @@
         "summary": "Votes",
         "tags": [
           "next-level"
+        ]
+      }
+    },
+    "/api/v1/playground/runs": {
+      "post": {
+        "operationId": "create_run_api_v1_playground_runs_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Actor",
+            "required": false,
+            "schema": {
+              "default": "api-operator",
+              "title": "X-Actor",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaygroundRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Run Api V1 Playground Runs Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Run",
+        "tags": [
+          "playground"
         ]
       }
     },

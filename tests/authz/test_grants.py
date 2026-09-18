@@ -123,6 +123,17 @@ class TestEvaluation:
         assert not decision.allowed
         assert decision.reason == "grant_expired"
 
+    def test_expired_grant_denies_on_default_clock_path(self, tmp_path: Path) -> None:
+        """The default clock must be the present, not issued_at. Comparing
+        issued_at < expires_at is tautologically true, so omitting ``now`` used
+        to keep an expired grant active on every production call path."""
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        grant = ledger.issue(make_request(issued_at=TEST_WINDOW, ttl_hours=1))
+        # No explicit now: evaluated against the wall clock.
+        decision = grant.evaluate("trade.paper.order.submit")
+        assert not decision.allowed
+        assert decision.reason == "grant_expired"
+
     def test_revoked_grant_denies(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         grant = ledger.issue(make_request())

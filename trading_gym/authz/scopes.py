@@ -130,6 +130,13 @@ class ScopePattern:
             return False
         if self.text in RESERVED_SCOPES:
             return False
+        # A pattern that *covers* a reserved scope is as dangerous as the
+        # reserved scope itself: ``audit.*`` matches ``audit.seal``, so granting
+        # it would delegate a capability the principal does not hold. The check
+        # above is text-exact and lets wildcards through. Reserved scopes are
+        # concrete by construction, so ``matches`` cannot raise here.
+        if any(self.matches(reserved) for reserved in RESERVED_SCOPES):
+            return False
         return True
 
     def specificity(self) -> tuple[int, int]:

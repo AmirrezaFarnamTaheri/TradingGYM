@@ -107,6 +107,10 @@ class LiveExecutionAdapter:
         # Concurrency Lock to prevent race conditions during rapid reconcile calls
         self._reconcile_lock = asyncio.Lock()
 
+        # Last flatten failure detail (empty when flatten has not failed);
+        # flatten() returns False with no context otherwise.
+        self._last_flatten_error = ""
+
         # Kraken-style balance reservations: spending mutations lock
         # cost×(1+fee) up front so pending/ambiguous orders cannot
         # double-commit the same funds across reconciles.  Built lazily from
@@ -470,11 +474,11 @@ class LiveExecutionAdapter:
                     "qty": float(qty),
                 }
             except ValueError as exc:
-                logger.error("Reconciliation validation failed error_type=%s", type(exc).__name__)
-                return {"status": "failed", "error_type": type(exc).__name__}
+                logger.error("Reconciliation validation failed: %s", exc)
+                return {"status": "failed", "error_type": type(exc).__name__, "error": str(exc)}
             except Exception as exc:
-                logger.error("Reconciliation failed error_type=%s", type(exc).__name__)
-                return {"status": "failed", "error_type": type(exc).__name__}
+                logger.error("Reconciliation failed: %s", exc)
+                return {"status": "failed", "error_type": type(exc).__name__, "error": str(exc)}
 
     async def flatten(self) -> bool:
         """
@@ -539,7 +543,11 @@ class LiveExecutionAdapter:
             return True
 
         except Exception as exc:
-            logger.critical("Emergency flatten failed error_type=%s", type(exc).__name__)
+            # str(exc) is built from a controlled vocabulary (gate check names
+            # / governance reasons), so it is safe to surface to an operator.
+            # Discarding it made a local gate denial look like a venue failure.
+            logger.critical("Emergency flatten failed: %s", exc)
+            self._last_flatten_error = f"{type(exc).__name__}: {exc}"
             return False
 
     def get_live_equity(self) -> float:

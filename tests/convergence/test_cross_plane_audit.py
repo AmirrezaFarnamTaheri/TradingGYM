@@ -38,6 +38,11 @@ class FlakyLedger(AuditLedger):
             raise OSError("simulated ledger outage")
         return super().append(**kwargs)
 
+    def append_events(self, records):  # type: ignore[no-untyped-def]
+        if self.fail:
+            raise OSError("simulated ledger outage")
+        return super().append_events(records)
+
 
 def _dataset() -> DatasetRegistration:
     start = datetime(2026, 1, 1, tzinfo=timezone.utc)

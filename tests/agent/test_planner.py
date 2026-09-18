@@ -16,6 +16,7 @@ Contract:
 from __future__ import annotations
 
 
+from datetime import datetime, timezone
 from trading_gym.agent.fusion import FusionConfig
 from trading_gym.agent.arms import (
     ArmRegistry,
@@ -131,7 +132,7 @@ def make_grants(tmp_path, scope_text: str | None = "trade.paper.**", principal: 
                 principal=principal,
                 scopes=(scope_text,),
                 ttl_hours=24,
-                issued_at="2026-09-01T00:00:00Z",
+                issued_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 constraints=(),
                 issued_by="operator-1",
             )

@@ -237,6 +237,100 @@ class OrderRepository:
         self.reconcile_audit()
         return new_snapshot
 
+    def append_events(
+        self,
+        events: list[OrderEvent],
+        *,
+        expected_revision: int,
+    ) -> OrderSnapshot:
+        """Append many events to one order in a single locked pass.
+
+        Semantically equivalent to calling ``append`` once per event, but the
+        order record is loaded and its hash chain replayed once instead of once
+        per event, and the store document is written once instead of once per
+        event.  This keeps fill ingestion linear rather than quadratic in the
+        number of events on the order.
+        """
+        if not events:
+            raise ValueError("append_events requires at least one event")
+        with self.lock:
+            document = self._load()
+            order_id = events[0].order_id
+            for event in events:
+                if event.order_id != order_id:
+                    raise ValueError("append_events events must share one order_id")
+            raw = document["orders"].get(order_id)
+            if raw is None:
+                raise KeyError(order_id)
+            snapshot = self._verify_record(raw)
+            if snapshot.revision != expected_revision:
+                raise OrderConflict(
+                    f"expected revision {expected_revision}, found {snapshot.revision}"
+                )
+            intent = OrderIntent.model_validate(raw["intent"])
+            # Mirror append()'s duplicate semantics: an event_id that already
+            # exists with identical content is a no-op replay (return the
+            # stored snapshot), while different content is a conflict.
+            existing_events: dict[str, OrderEvent] = {}
+            for record in raw["events"]:
+                stored = OrderEvent.model_validate(record["event"])
+                existing_events[stored.event_id] = stored
+            for event in events:
+                if event.event_type is OrderEventType.SUBMITTED:
+                    raise OrderConflict("submitted is created by OrderRepository.create")
+                if event.event_id in existing_events:
+                    if existing_events[event.event_id] != event:
+                        raise OrderConflict("order event identity collision")
+                    return snapshot
+                if event.occurred_at < snapshot.updated_at:
+                    raise OrderConflict("order events must be chronological")
+                existing_events[event.event_id] = event
+            if len(raw["events"]) + len(events) > MAX_EVENTS_PER_ORDER:
+                raise OrderConflict("order event limit reached")
+            for event in events:
+                new_snapshot = self._apply_event(intent, snapshot, event)
+                sequence = snapshot.sequence + 1
+                payload = event.model_dump(mode="json")
+                head = _event_hash(snapshot.chain_head, sequence, payload)
+                new_snapshot = new_snapshot.model_copy(
+                    update={
+                        "revision": snapshot.revision + 1,
+                        "sequence": sequence,
+                        "chain_head": head,
+                        "updated_at": event.occurred_at,
+                        "terminal": new_snapshot.state in TERMINAL_ORDER_STATES,
+                    }
+                )
+                raw["events"].append(
+                    {
+                        "sequence": sequence,
+                        "previous_hash": snapshot.chain_head,
+                        "event_hash": head,
+                        "event": payload,
+                    }
+                )
+                snapshot = new_snapshot
+                queue_audit_event(
+                    document,
+                    event_id=f"order:{event.order_id}:event:{event.event_id}:{head[:16]}",
+                    event=f"orders.{event.event_type.value}",
+                    actor=event.actor,
+                    subject=event.order_id,
+                    details={
+                        "state": new_snapshot.state.value,
+                        "revision": new_snapshot.revision,
+                        "sequence": new_snapshot.sequence,
+                        "external_order_id": new_snapshot.external_order_id,
+                        "cumulative_filled_quantity": str(new_snapshot.cumulative_filled_quantity),
+                        "remaining_quantity": str(new_snapshot.remaining_quantity),
+                        "correlation_id": new_snapshot.correlation_id,
+                    },
+                )
+            raw["snapshot"] = snapshot.model_dump(mode="json")
+            atomic_write_json(self.path, document)
+        self.reconcile_audit()
+        return snapshot
+
     @staticmethod
     def _consistent_external(snapshot: OrderSnapshot, event: OrderEvent) -> str | None:
         if snapshot.external_order_id and event.external_order_id:

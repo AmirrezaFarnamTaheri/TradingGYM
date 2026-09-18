@@ -34,6 +34,8 @@ _SECRET_KEYS = frozenset(
         "secretkey",
         "passphrase",
         "secret",
+        "api_secret",
+        "apisecret",
         "password",
         "private_key",
         "privatekey",
@@ -64,6 +66,7 @@ _SECRET_KEY_SUFFIXES = (
     "_bot_token",
     "_private_key",
     "_secret_key",
+    "_secret",
     "_signing_secret",
     "_webhook_secret",
     "_client_secret",
@@ -107,7 +110,9 @@ def redact_secrets(value: Any, *, depth: int = 0, max_depth: int = MAX_REDACTION
         output: dict[str, Any] = {}
         for key, item in value.items():
             text_key = str(key)
-            if _is_secret_key(text_key) and item not in (None, "", False):
+            if _is_secret_key(text_key) and not (
+                item is None or (isinstance(item, str) and item == "")
+            ):
                 output[text_key] = "***"
             else:
                 output[text_key] = redact_secrets(item, depth=depth + 1, max_depth=max_depth)
@@ -199,6 +204,31 @@ def _is_literal_ip(host: str) -> bool:
     except ValueError:
         return False
     return True
+
+
+def validate_peer_address(
+    host: str,
+    *,
+    allow_private: bool = False,
+    allow_loopback: bool = False,
+) -> str:
+    """Classify a *resolved* peer address, rejecting a disallowed one.
+
+    Unlike :func:`validate_base_url` this performs no DNS lookup — the peer is
+    already connected, so ``host`` is the address the socket actually opened.
+    That is exactly the window a pre-connect validation cannot close: the
+    destination was vetted before connect, but a client library re-resolves
+    the hostname itself when it opens the socket and DNS is free to answer
+    differently on the second lookup (TOCTOU). Cloud metadata and link-local
+    destinations are always rejected; private and loopback destinations need
+    the same explicit opt-in as everywhere else.
+    """
+
+    if not host:
+        raise ValueError("Peer address is missing")
+    if _literal_ip_blocked(host, allow_private=allow_private, allow_loopback=allow_loopback):
+        raise ValueError("Peer address is a disallowed network destination")
+    return host
 
 
 def confined_child(

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import mmap
-import os
 import struct
 import subprocess
 import sys
@@ -52,6 +51,11 @@ class FlakyLedger(AuditLedger):
         if self.fail:
             raise OSError("simulated ledger outage")
         return super().append(**kwargs)
+
+    def append_events(self, records):  # type: ignore[no-untyped-def]
+        if self.fail:
+            raise OSError("simulated ledger outage")
+        return super().append_events(records)
 
 
 def test_atomic_json_rejects_symlink_targets(tmp_path: Path) -> None:

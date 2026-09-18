@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from filelock import FileLock
 
+from trading_gym.common.audit_outbox import stamp_outbox_digest, verify_outbox_digest
 from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
 from trading_gym.common.security import bounded_json_dumps, redact_secrets
 from trading_gym.governance.ledger import AuditLedger
@@ -62,6 +63,7 @@ class GovernanceService:
             document.setdefault(key, {})
             if not isinstance(document[key], dict):
                 raise ValueError(f"proposal store field {key!r} must be an object")
+        verify_outbox_digest(document)
         return document
 
     @staticmethod
@@ -106,6 +108,7 @@ class GovernanceService:
         if existing is not None and existing != safe:
             raise GovernanceConflict("audit event identity collision")
         document["audit_outbox"][event_id] = safe
+        stamp_outbox_digest(document)
 
     def reconcile_audit(self) -> dict[str, Any]:
         """Deliver pending audit events exactly once and report ledger health."""
@@ -123,6 +126,7 @@ class GovernanceService:
                     ) from exc
                 document["audit_outbox"].pop(event_id, None)
                 delivered += 1
+            stamp_outbox_digest(document)
             if delivered:
                 atomic_write_json(self.path, document)
             remaining = len(document["audit_outbox"])

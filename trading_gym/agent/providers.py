@@ -18,6 +18,7 @@ from trading_gym.common.audit_outbox import (
     deliver_audit_events,
     ensure_audit_outbox,
     queue_audit_event,
+    verify_outbox_digest,
 )
 from trading_gym.common.security import validate_base_url
 from trading_gym.governance.ledger import AuditLedger
@@ -97,6 +98,7 @@ class ProviderRepository:
         if len(document["providers"]) > self.MAX_PROVIDERS:
             raise ValueError("provider repository record limit exceeded")
         ensure_audit_outbox(document)
+        verify_outbox_digest(document)
         return document
 
     def audit_pending(self) -> int:

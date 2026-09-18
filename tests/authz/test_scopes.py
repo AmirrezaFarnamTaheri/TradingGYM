@@ -127,6 +127,15 @@ class TestGrantability:
         # unrelated audit reads may be granted
         assert ScopePattern.parse("audit.read.**").is_grantable()
 
+    def test_wildcard_covering_reserved_scope_is_not_grantable(self) -> None:
+        # The text-exact check alone admits these: ``audit.*`` and ``audit.**``
+        # both match ``audit.seal``, so granting them would delegate the
+        # reserved capability under a wildcard.
+        assert not ScopePattern.parse("audit.*").is_grantable()
+        assert not ScopePattern.parse("audit.**").is_grantable()
+        # A wildcard that does not reach the reserved scope stays grantable.
+        assert ScopePattern.parse("audit.read.*").is_grantable()
+
     def test_normal_scopes_are_grantable(self) -> None:
         for text in ("trade.paper.**", "trade.live.btcusdt.order", "research.**"):
             assert ScopePattern.parse(text).is_grantable()

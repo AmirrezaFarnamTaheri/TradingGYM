@@ -34,6 +34,7 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass, field
+from filelock import FileLock
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
@@ -261,6 +262,11 @@ class RevisionSurface:
         self._max_per_day = max(1, int(max_revisions_per_day))
         self._events: list[_LedgerEvent] = []
         self._applied_today: list[datetime] = []
+        # Chain lock held across load+verify+append, mirroring AuditLedger.
+        # Without it, concurrent handles both derive seq/prev_hash from state
+        # verified at construction, both append, and the on-disk chain forks
+        # while both callers are told they succeeded.
+        self._chain_lock = FileLock(str(self._path) + ".chain.lock")
         self._load(verify=verify)
 
     @classmethod
@@ -381,6 +387,100 @@ class RevisionSurface:
             revision_id=candidate.revision_id,
         )
 
+    def nominate(
+        self,
+        *,
+        tool_name: str,
+        rationale: str,
+        proposed_by: str,
+    ) -> dict[str, Any]:
+        """Journal an X-tier nomination into the human absorption queue.
+
+        Code is never self-revisable (ADR-033 §1): an agent that wants a
+        new tool can only *nominate* it — this appends a nomination
+        record to the same ledger so the human absorption pipeline has a
+        durable, tamper-evident queue with the proposing agent attached.
+        """
+
+        if not tool_name.strip() or not rationale.strip():
+            raise ValueError("nomination needs a tool name and rationale")
+        self._append(
+            "tool_nomination",
+            {
+                "tool_name": tool_name.strip()[:120],
+                "rationale": rationale.strip()[:2000],
+                "proposed_by": proposed_by,
+                "status": "nominated",
+            },
+        )
+        return self.nominations()[-1]
+
+    def resolve_nomination(
+        self,
+        *,
+        tool_name: str,
+        decision: str,
+        decided_by: str,
+        note: str = "",
+    ) -> dict[str, Any]:
+        """Record a human decision on one open nomination."""
+
+        if decision not in ("accepted", "rejected"):
+            raise ValueError("decision must be accepted or rejected")
+        for index in range(len(self._events) - 1, -1, -1):
+            event = self._events[index]
+            if event.type == "tool_nomination" and event.payload.get(
+                "tool_name"
+            ) == tool_name and event.payload.get("status") == "nominated":
+                resolution = {
+                    "tool_name": tool_name,
+                    "decision": decision,
+                    "decided_by": decided_by,
+                    "note": note[:500],
+                }
+                self._append("tool_nomination_resolution", resolution)
+                return self._latest_nomination(tool_name)
+        raise KeyError(f"no open nomination for {tool_name!r}")
+
+    def _latest_nomination(self, tool_name: str) -> dict[str, Any]:
+        state: dict[str, dict[str, Any]] = {}
+        for event in self._events:
+            if event.type == "tool_nomination":
+                state[event.payload["tool_name"]] = {
+                    **event.payload,
+                    "status": "nominated",
+                }
+            elif event.type == "tool_nomination_resolution":
+                name = event.payload["tool_name"]
+                if name in state:
+                    state[name]["status"] = event.payload["decision"]
+                    state[name]["decided_by"] = event.payload["decided_by"]
+                    state[name]["note"] = event.payload["note"]
+        return state[tool_name]
+
+    def nominations(self) -> tuple[dict[str, Any], ...]:
+        """Replay the nomination queue to its current state."""
+
+        state: dict[str, dict[str, Any]] = {}
+        for event in self._events:
+            if event.type == "tool_nomination":
+                state[event.payload["tool_name"]] = {
+                    "tool_name": event.payload["tool_name"],
+                    "rationale": event.payload["rationale"],
+                    "proposed_by": event.payload["proposed_by"],
+                    "status": event.payload["status"],
+                }
+            elif event.type == "tool_nomination_resolution":
+                name = event.payload["tool_name"]
+                if name in state:
+                    state[name]["status"] = event.payload["decision"]
+                    state[name]["decided_by"] = event.payload["decided_by"]
+                    state[name]["note"] = event.payload["note"]
+        return tuple(
+            state[name]
+            for name in sorted(state)
+        )
+
     def history(self) -> tuple[dict[str, Any], ...]:
         return tuple(event.to_json() for event in self._events)
 
@@ -431,26 +531,38 @@ class RevisionSurface:
         self._append("revision_decision", payload)
 
     def _append(self, type: str, payload: dict[str, Any]) -> None:
+        # Hold the chain lock across re-read + verify + append so seq/prev_hash
+        # come from the real file tail, not state verified at construction.
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        seq = (self._events[-1].seq if self._events else 0) + 1
-        prev_hash = self._events[-1].entry_hash if self._events else _GENESIS_HASH
-        event = _LedgerEvent(seq, now, type, prev_hash, payload)
-        append_jsonl(self._path, event.to_json())
-        self._events.append(event)
-        atomic_write_json(
-            self._anchor_path,
-            {"seq": self._events[-1].seq, "head": self._events[-1].entry_hash},
-        )
+        with self._chain_lock:
+            self._events = []
+            self._load(verify=True)
+            seq = (self._events[-1].seq if self._events else 0) + 1
+            prev_hash = self._events[-1].entry_hash if self._events else _GENESIS_HASH
+            event = _LedgerEvent(seq, now, type, prev_hash, payload)
+            append_jsonl(self._path, event.to_json())
+            self._events.append(event)
+            atomic_write_json(
+                self._anchor_path,
+                {"seq": self._events[-1].seq, "head": self._events[-1].entry_hash},
+            )
 
     def _load(self, *, verify: bool) -> None:
         if not self._path.exists():
             return
-        for line in self._path.read_text(encoding="utf-8").splitlines():
+        for number, line in enumerate(self._path.read_text(encoding="utf-8").splitlines(), start=1):
             if not line.strip():
                 raise RevisionLedgerIntegrityError(
                     "blank line in revision journal"
                 )
-            record = json.loads(line)
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                # A torn final write must surface as the module's integrity
+                # error so callers trigger repair, not as a bare decode error.
+                raise RevisionLedgerIntegrityError(
+                    f"revision journal has invalid JSON at line {number}"
+                ) from exc
             for key in ("seq", "ts", "type", "prev_hash", "entry_hash"):
                 if key not in record:
                     raise RevisionLedgerIntegrityError(

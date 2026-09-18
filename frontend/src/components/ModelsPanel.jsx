@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { modelsAPI } from '../api';
 import useStore from '../store';
@@ -19,23 +19,25 @@ export default function ModelsPanel() {
   const setActiveModel = useStore(state => state.setActiveModel);
 
   // Fetch models
-  const { data: modelsData, isLoading } = useQuery({
+  const { data: modelsData, isLoading, isError, error } = useQuery({
     queryKey: ['models'],
     queryFn: () => modelsAPI.list().then(r => r.data),
     refetchInterval: 5000,
   });
 
-  // Fetch active model
+  // Fetch active model.  TanStack Query v5 removed the useQuery onSuccess
+  // option, so the store is synchronized from the polled data in an effect.
   const { data: activeData } = useQuery({
     queryKey: ['active-model'],
     queryFn: () => modelsAPI.getActive().then(r => r.data),
     refetchInterval: 5000,
-    onSuccess: (data) => {
-      if (data?.active_model) {
-        setActiveModel(data.active_model);
-      }
-    }
   });
+
+  useEffect(() => {
+    if (activeData?.active_model) {
+      setActiveModel(activeData.active_model);
+    }
+  }, [activeData?.active_model, setActiveModel]);
 
   const models = modelsData?.models || [];
 
@@ -77,6 +79,28 @@ export default function ModelsPanel() {
       <div className="panel">
         <h2>📈 Model Registry</h2>
         <div className="loading" role="status" aria-live="polite" aria-busy="true">Loading models...</div>
+      </div>
+    );
+  }
+
+  // A failed fetch must read as an error, not as an empty registry: the empty
+  // state below is grey and passive, this one is red and actionable.
+  if (isError) {
+    return (
+      <div className="panel">
+        <h2>📈 Model Registry</h2>
+        <div className="error" role="alert" aria-live="assertive">
+          Failed to load models: {error?.message || 'Unknown error'}
+        </div>
+        <div style={{ textAlign: 'center', marginTop: '12px' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['models'] })}
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }

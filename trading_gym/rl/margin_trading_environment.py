@@ -2,15 +2,12 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Tuple, Union, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, Union
 from collections import deque
 from decimal import Decimal
 import gymnasium as gym
 import numpy as np
 import pandas as pd
-
-if TYPE_CHECKING:
-    pass
 
 from trading_gym.common.config import EnvConfig, FeatureConfig
 from trading_gym.execution.execution_engine import (
@@ -23,6 +20,12 @@ from trading_gym.margin.stop_out import plan_stop_out
 from trading_gym.risk.circuit_breakers import CircuitBreaker
 
 logger = logging.getLogger(__name__)
+
+#: Features the trading loop reads by index through ``feature_index``.
+#: ``step`` and ``_should_skip_bar`` raise on absence, and the skip path's
+#: KeyError is swallowed into a silent bar skip — so a frame missing one of
+#: these columns trades nothing and says nothing. Fail at construction.
+_REQUIRED_FEATURES = ("spread_ratio", "volatility")
 
 
 @dataclass(slots=True)
@@ -83,6 +86,15 @@ class MarginTradingEnv(gym.Env):
 
         feature_columns = list(features.columns)
         self.feature_index = {name: i for i, name in enumerate(feature_columns)}
+        missing = [
+            name for name in _REQUIRED_FEATURES if name not in self.feature_index
+        ]
+        if missing:
+            raise ValueError(
+                f"MarginTradingEnv requires the "
+                f"{'/'.join(_REQUIRED_FEATURES)} feature columns; missing: "
+                f"{', '.join(missing)}. Available: {feature_columns}"
+            )
         self._centers, self._scales = self._build_normalization_arrays(
             training_stats, feature_columns
         )
@@ -93,17 +105,24 @@ class MarginTradingEnv(gym.Env):
         # (spread, volatility). Normalised z-scores are signed and must never
         # be handed to the execution engine as physical quantities.
         self._raw_features = features.to_numpy(dtype=np.float32, copy=True)
-        if self.live_mode:
-            self._raw_buffer: deque = deque(maxlen=self.T)
         self.price = np.array(prices_mid, dtype=np.float64)
         self.price_high = np.array(prices_high, dtype=np.float64)
         self.price_low = np.array(prices_low, dtype=np.float64)
 
+        # Resolve the shape first: the live-mode buffers size themselves from
+        # self.T, so it must exist before they are constructed.
         self.T, self.n_features = self.features.shape
         if self.live_mode:
+            # Seed BOTH rolling buffers with the historical window: the raw rows
+            # feed microstructure/skip checks (_get_current_raw_features reads
+            # _raw_buffer[-1]) just as the normalised rows feed the observation.
+            # Leaving _raw_buffer empty meant the first step before a live bar
+            # arrived raised IndexError.
+            self._raw_buffer: deque = deque(maxlen=self.T)
             self.feature_buffer: deque = deque(maxlen=self.T)
             for i in range(self.T):
                 self.feature_buffer.append(self.features[i])
+                self._raw_buffer.append(self._raw_features[i])
         self.cfg = cfg
         self.engine = ExecutionEngine(cfg)
         self.breaker = CircuitBreaker(cfg.breaker)
@@ -296,7 +315,20 @@ class MarginTradingEnv(gym.Env):
                 info.to_dict() | {"skipped": True},
             )
 
-        context = {"nav": self.equity, "initial_nav": self.initial_equity}
+        context: dict[str, Any] = {
+            "nav": self.equity,
+            "initial_nav": self.initial_equity,
+        }
+        # The margin_floor rule defaults a *missing* margin_ratio to infinity
+        # (i.e. healthy), so omitting it silently disarmed the rule on the only
+        # production call path. The env already computes this value, so supply
+        # it -- but only when finite: a flat position has no borrowing and
+        # _margin_ratio returns +inf, which the breaker's context validation
+        # rejects. Flat means "no margin risk", and absent is already treated
+        # as healthy by both the validator and the rule.
+        margin_ratio = self._margin_ratio(current_mid)
+        if np.isfinite(margin_ratio):
+            context["margin_ratio"] = margin_ratio
         if self.breaker.check(context, current_time=self.t * 60):
             self.done = True
             info.reason = self.breaker.trip_reason

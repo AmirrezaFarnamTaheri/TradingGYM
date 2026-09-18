@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+import math
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class PositionExposure(BaseModel):
@@ -11,6 +13,16 @@ class PositionExposure(BaseModel):
     instrument_id: str = Field(min_length=1, max_length=120)
     notional: float
     sector: str = Field(default="unknown", min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def finite(self) -> "PositionExposure":
+        # A non-finite notional poisons every downstream comparison: gross
+        # becomes NaN, and ``NaN > limit`` is False, so leverage/concentration
+        # gates silently pass while the exposure is meaningless. Reject it at
+        # the boundary instead of failing open, mirroring risk/factor.py.
+        if not math.isfinite(self.notional):
+            raise ValueError("notional must be finite")
+        return self
 
 
 class PortfolioSnapshot(BaseModel):

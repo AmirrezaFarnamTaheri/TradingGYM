@@ -99,6 +99,11 @@ def ratchet_take_profit(
         raise ValueError("entry_price must be finite and positive")
     if not math.isfinite(current_price):
         raise ValueError("current_price must be finite")
+    # previously_locked is the caller-held high-water mark the ratchet is
+    # stateful across; a NaN here makes every tier comparison False and the
+    # lock silently never advances again.
+    if not math.isfinite(previously_locked):
+        raise ValueError("previously_locked must be finite")
     long = side.strip().lower() == "long"
     reached = [
         t for t in tiers

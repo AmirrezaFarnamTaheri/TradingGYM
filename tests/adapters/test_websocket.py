@@ -1,5 +1,6 @@
 """Tests for WebSocket client."""
 
+from collections import deque
 from unittest.mock import Mock
 
 import pytest
@@ -290,11 +291,120 @@ async def test_callback_execution_is_bounded(ws_client):
         await ws_client._invoke_callback(stalled, message)
 
 
+class _FakeSocket:
+    """Minimal stand-in for a connected websockets protocol object."""
+
+    def __init__(self, peer, *, send_fails: bool = False):
+        self.remote_address = peer
+        self.send_fails = send_fails
+        self.sent: list[str] = []
+        self.closed = False
+
+    async def send(self, payload: str) -> None:
+        if self.send_fails:
+            raise RuntimeError("send failed")
+        self.sent.append(payload)
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+def _client_with_peer_policy(*, allow_private: bool) -> WebSocketClient:
+    config = WebSocketConfig(
+        url="wss://8.8.8.8/ws",
+        api_key="test-key",
+        reconnect_delay_base=0.1,
+        reconnect_delay_max=1.0,
+        heartbeat_interval=0.5,
+        heartbeat_timeout=2.0,
+        allow_private_url=allow_private,
+    )
+    return WebSocketClient(config)
+
+
+@pytest.mark.asyncio
+async def test_connect_rejects_a_private_peer_and_closes_the_socket(monkeypatch):
+    """The pre-connect URL check cannot close the TOCTOU window on its own: the
+    library re-resolves the hostname when it opens the socket, so the peer the
+    connection actually lands on must be re-checked, and must not be left
+    connected when it fails."""
+    socket = _FakeSocket(("127.0.0.1", 443))
+
+    async def fake_connect(*_args, **_kwargs):
+        return socket
+
+    monkeypatch.setattr("trading_gym.adapters.aban_websocket.websockets.connect", fake_connect)
+    client = _client_with_peer_policy(allow_private=False)
+
+    with pytest.raises(ValueError, match="disallowed"):
+        await client.connect()
+
+    assert client._ws is None
+    assert client._connected is False
+    assert socket.closed, "a rejected peer must not be left connected"
+
+
+@pytest.mark.asyncio
+async def test_connect_rejects_an_unverifiable_peer(monkeypatch):
+    """A peer the library will not expose an address for fails closed."""
+    socket = _FakeSocket(None)
+
+    async def fake_connect(*_args, **_kwargs):
+        return socket
+
+    monkeypatch.setattr("trading_gym.adapters.aban_websocket.websockets.connect", fake_connect)
+    client = _client_with_peer_policy(allow_private=True)
+
+    with pytest.raises(ValueError, match="verifiable peer address"):
+        await client.connect()
+    assert socket.closed
+    assert client._ws is None
+
+
+@pytest.mark.asyncio
+async def test_connect_allows_a_public_peer_and_subscribes(monkeypatch):
+    """A peer in an allowed range connects normally and sends subscriptions."""
+    socket = _FakeSocket(("8.8.8.8", 443))  # a public address
+
+    async def fake_connect(*_args, **_kwargs):
+        return socket
+
+    monkeypatch.setattr("trading_gym.adapters.aban_websocket.websockets.connect", fake_connect)
+    client = _client_with_peer_policy(allow_private=False)
+    client.subscribe(ChannelType.TICKER, "BTC", lambda _msg: None)
+
+    await client.connect()
+
+    assert client._connected is True
+    assert client._ws is socket
+    assert len(socket.sent) == 1
+    assert "subscribe" in socket.sent[0]
+    await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_connect_closes_the_socket_when_subscription_send_fails(monkeypatch):
+    """A socket that fails mid-handshake is closed, not orphaned."""
+    socket = _FakeSocket(("8.8.8.8", 443), send_fails=True)
+
+    async def fake_connect(*_args, **_kwargs):
+        return socket
+
+    monkeypatch.setattr("trading_gym.adapters.aban_websocket.websockets.connect", fake_connect)
+    client = _client_with_peer_policy(allow_private=False)
+    client.subscribe(ChannelType.TICKER, "BTC", lambda _msg: None)
+
+    with pytest.raises(RuntimeError, match="send failed"):
+        await client.connect()
+
+    assert client._ws is None
+    assert socket.closed
+
+
 @pytest.mark.asyncio
 async def test_connect_failure_does_not_log_exception_body(ws_client, monkeypatch, caplog):
     async def fail_connect(*_args, **_kwargs):
         raise RuntimeError("authorization=secret-token")
-
     monkeypatch.setattr("trading_gym.adapters.aban_websocket.websockets.connect", fail_connect)
     with caplog.at_level("ERROR"):
         with pytest.raises(RuntimeError):
@@ -308,3 +418,29 @@ def test_connection_kwargs_disable_ambient_proxy(ws_client):
     assert kwargs.get("proxy") is None
     header_key = "additional_headers" if "additional_headers" in kwargs else "extra_headers"
     assert kwargs[header_key]["Authorization"] == "Token secret"
+
+
+@pytest.mark.asyncio
+async def test_callback_failure_accounts_the_dropped_message(ws_client):
+    """A message whose callback raises is already popped and permanently lost;
+    drop telemetry must count it so message loss is not underreported."""
+    def callback(_message: Message) -> None:
+        ws_client._running = False  # let the dispatch loop exit after this cycle
+        raise RuntimeError("boom")
+
+    ws_client.subscribe(ChannelType.TICKER, "BTC", callback)
+    await ws_client._handle_message(
+        {"channel": "ticker", "symbol": "BTC", "data": {"price": 1}}
+    )
+    key = "ticker:BTC"
+    assert len(ws_client._queues[key]) == 1
+
+    ws_client._running = True
+    ws_client._connected = True
+    await ws_client._dispatch_loop()
+
+    assert ws_client._queues[key] == deque()
+    stats = ws_client.get_stats()
+    assert stats["callback_failures"][key] == 1
+    assert stats["dropped_messages"][key] == 1
+    assert key in stats["degraded_subscriptions"]

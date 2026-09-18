@@ -23,7 +23,9 @@ export default function DataPanel() {
   const toast = useToast();
 
   const downloadMutation = useMutation({
-    mutationFn: () => dataAPI.download(symbol, timeframe, startDate, endDate),
+    mutationFn: (params) => dataAPI.download(
+      params.symbol, params.timeframe, params.startDate, params.endDate
+    ),
     onSuccess: (data) => {
       toast.success(`Data download started! Job: ${data.job_key}, PID: ${data.pid}. Check Training panel logs for progress.`);
     },
@@ -41,6 +43,29 @@ export default function DataPanel() {
       toast.error(`Failed to generate features: ${error.response?.data?.detail || error.message}`);
     }
   });
+
+  // Presets hand their own values straight to the mutation.  The mutationFn
+  // closes over render-time state, so calling mutate() with no arguments right
+  // after setState submits the *previous* selection -- the setTimeout that
+  // papered over this was both racy and still stale.
+  const runPreset = (preset) => {
+    const endDate = getToday();
+    const start = new Date();
+    if (preset.years) {
+      start.setFullYear(start.getFullYear() - preset.years);
+    } else {
+      start.setMonth(start.getMonth() - (preset.months || 0));
+    }
+    const startDate = start.toISOString().split('T')[0];
+
+    setSymbol(preset.symbol);
+    setTimeframe(preset.timeframe);
+    setStartDate(startDate);
+    setEndDate(endDate);
+    downloadMutation.mutate({
+      symbol: preset.symbol, timeframe: preset.timeframe, startDate, endDate,
+    });
+  };
 
   return (
     <div className="panel">
@@ -128,7 +153,7 @@ export default function DataPanel() {
         </div>
 
         <button
-          onClick={() => downloadMutation.mutate()}
+          onClick={() => downloadMutation.mutate({ symbol, timeframe, startDate, endDate })}
           disabled={downloadMutation.isPending}
           className="btn btn-primary btn-large"
           aria-label={`Download data for ${symbol} at ${timeframe} timeframe from ${startDate} to ${endDate}`}
@@ -214,17 +239,7 @@ export default function DataPanel() {
 
         <div className="quick-actions" role="group" aria-label="Preset download configurations">
           <button
-            onClick={() => {
-              const today = getToday();
-              const start = new Date();
-              start.setFullYear(start.getFullYear() - 1);
-
-              setSymbol('BTC');
-              setTimeframe('5m');
-              setStartDate(start.toISOString().split('T')[0]);
-              setEndDate(today);
-              setTimeout(() => downloadMutation.mutate(), 100);
-            }}
+            onClick={() => runPreset({ symbol: 'BTC', timeframe: '5m', years: 1 })}
             disabled={downloadMutation.isPending}
             className="btn btn-secondary"
             aria-label="Download Bitcoin data at 5 minute intervals for past year"
@@ -234,17 +249,7 @@ export default function DataPanel() {
           </button>
 
           <button
-            onClick={() => {
-               const today = getToday();
-               const start = new Date();
-               start.setMonth(start.getMonth() - 6);
-
-              setSymbol('BTC');
-              setTimeframe('1h');
-              setStartDate(start.toISOString().split('T')[0]);
-              setEndDate(today);
-              setTimeout(() => downloadMutation.mutate(), 100);
-            }}
+            onClick={() => runPreset({ symbol: 'BTC', timeframe: '1h', months: 6 })}
             disabled={downloadMutation.isPending}
             className="btn btn-secondary"
             aria-label="Download Bitcoin data at 1 hour intervals for 6 months"
@@ -254,17 +259,7 @@ export default function DataPanel() {
           </button>
 
           <button
-            onClick={() => {
-              const today = getToday();
-              const start = new Date();
-              start.setMonth(start.getMonth() - 6);
-
-              setSymbol('ETH');
-              setTimeframe('5m');
-              setStartDate(start.toISOString().split('T')[0]);
-              setEndDate(today);
-              setTimeout(() => downloadMutation.mutate(), 100);
-            }}
+            onClick={() => runPreset({ symbol: 'ETH', timeframe: '5m', months: 6 })}
             disabled={downloadMutation.isPending}
             className="btn btn-secondary"
             aria-label="Download Ethereum data at 5 minute intervals for 6 months"

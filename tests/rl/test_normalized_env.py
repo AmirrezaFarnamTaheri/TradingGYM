@@ -4,15 +4,18 @@ from trading_gym.rl.normalized_env import NormalizedMarginEnv
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
 from gymnasium import spaces
 from dataclasses import dataclass
+from decimal import Decimal
 
 
 @dataclass
 class MockState:
     position: float = 0.0
-    equity: float = 1000.0
-    borrowed_quote: float = 0.0
-    borrowed_base: float = 0.0
-    average_entry_price: float = 100.0
+    # Money fields are Decimal on the real ExecutionState; keep the mock
+    # faithful so any Decimal/float clash fails here, not in production.
+    equity: Decimal = Decimal("1000.0")
+    borrowed_quote: Decimal = Decimal("0.0")
+    borrowed_base: Decimal = Decimal("1.5")
+    average_entry_price: Decimal = Decimal("100.0")
 
 
 class MockEnv(MarginTradingEnv):
@@ -24,14 +27,23 @@ class MockEnv(MarginTradingEnv):
         self._state = MockState()
         self.initial_equity = 1000.0
         self.price = np.array([100.0] * 100)
-        self.spread_bps = np.array([10.0] * 100)
-        self.vol = np.array([0.01] * 100)
-        self.buy_cap = np.array([1e6] * 100)
-        self.sell_cap = np.array([1e6] * 100)
-        self.missing = np.array([0.0] * 100)
+        # Expose the real interface the wrapper reads: feature_index plus the
+        # raw (unnormalised) feature frame, not phantom per-bar attributes.
+        self.feature_index = {
+            "spread_ratio": 0,
+            "volatility": 1,
+            "buy_capacity": 2,
+            "sell_capacity": 3,
+            "missing_rate": 4,
+        }
+        self._raw_features = np.array(
+            [[0.001, 0.02, 1e6, 1e6, 0.0]] * 100, dtype=np.float32
+        )
         self.T = 100
         self.t = 0
-        self._max_leverage = 20.0
+        # The real env exposes per-side limits, not a single _max_leverage.
+        self._long_max_leverage = 20.0
+        self._short_max_leverage = 5.0
 
     @property
     def unwrapped(self):
@@ -68,6 +80,29 @@ def test_normalized_env_step_normalizes_obs():
     obs, reward, terminated, truncated, info = norm_env.step(np.array([0.0]))
     # Enhanced obs is 12 dims
     assert obs.shape == (12,)
+
+
+def test_normalized_env_survives_decimal_money_fields():
+    """Regression: ExecutionState money fields are Decimal.
+
+    Decimal * float raises TypeError, so the wrapper and the step() action
+    clip must coerce to float before mixing them.  A mock with float fields
+    hid this for a long time; keep the mock Decimal and pin the behaviour.
+    """
+    env = MockEnv()
+    # Nonzero borrowed_base exercises the Decimal * current_mid path.
+    env._state.borrowed_base = Decimal("2.5")
+    env._state.borrowed_quote = Decimal("100.0")
+    env._state.equity = Decimal("500.0")
+    norm_env = NormalizedMarginEnv(env)
+
+    obs, reward, terminated, truncated, info = norm_env.step(np.array([0.5]))
+    assert obs.shape == (12,)
+    assert np.isfinite(obs).all()
+
+    obs2, info2 = norm_env.reset()
+    assert obs2.shape == (12,)
+    assert np.isfinite(obs2).all()
 
 
 def test_normalized_env_reset():

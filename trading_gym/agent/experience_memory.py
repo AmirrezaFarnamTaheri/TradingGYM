@@ -28,6 +28,17 @@ class Experience:
     outcome: str  # "profitable" | "loss" | "neutral" | caller-defined
     lesson: str
     created_at: float
+    #: How many times this exact lesson was recorded (consolidation, ADR-034).
+    #: 1 for a single observation; the durable memory folds repeats.
+    support: int = 1
+    #: Timestamp of the most recent observation; ``created_at`` for support 1.
+    last_seen_at: float | None = None
+
+    @property
+    def observed_at(self) -> float:
+        """Most recent observation time (falls back to ``created_at``)."""
+
+        return self.created_at if self.last_seen_at is None else self.last_seen_at
 
     def to_dict(self) -> dict:
         return {
@@ -36,6 +47,8 @@ class Experience:
             "outcome": self.outcome,
             "lesson": self.lesson,
             "created_at": self.created_at,
+            "support": self.support,
+            "last_seen_at": self.last_seen_at,
         }
 
 
@@ -63,9 +76,14 @@ class ExperienceMemory:
         tags = tuple(sorted({t.strip().lower() for t in context_tags if t.strip()}))
         if not tags:
             raise ValueError("at least one non-empty context tag is required")
+        # One clock sample for both the id material and created_at. Two reads
+        # of _now() made the id irreproducible from the record it identifies:
+        # the stored timestamp and the hashed timestamp could differ by a
+        # tick, so an entry rebuilt from to_dict() never recomputed its id.
+        timestamp = float(created_at) if created_at is not None else _now()
         material = json.dumps(
             {"tags": list(tags), "outcome": outcome, "lesson": lesson,
-             "t": created_at if created_at is not None else _now()},
+             "t": timestamp},
             sort_keys=True,
         ).encode()
         memory_id = hashlib.sha256(material).hexdigest()[:16]
@@ -74,7 +92,7 @@ class ExperienceMemory:
             context_tags=tags,
             outcome=outcome,
             lesson=lesson[:400],
-            created_at=float(created_at) if created_at is not None else _now(),
+            created_at=timestamp,
         )
         self._entries.append(entry)
         if len(self._entries) > self.max_entries:
@@ -82,7 +100,14 @@ class ExperienceMemory:
         return entry
 
     def query(self, tags: list[str], *, k: int = 3, now: float | None = None) -> list[Experience]:
-        """Top-k experiences by tag overlap with recency-decay tiebreak."""
+        """Top-k experiences by tag overlap, then recency and support.
+
+        Overlap dominates (weight 10); the tiebreak adds recency decay on
+        the *most recent* observation plus a bounded support bonus, so a
+        lesson confirmed many times outranks a one-off of equal overlap
+        and age. Both tiebreak terms stay below 1.0 — overlap ordering is
+        never inverted by them.
+        """
         wanted = {t.strip().lower() for t in tags if t.strip()}
         if not wanted or k <= 0:
             return []
@@ -92,11 +117,29 @@ class ExperienceMemory:
             overlap = len(wanted & set(e.context_tags))
             if overlap == 0:
                 continue
-            age = max(0.0, now_v - e.created_at)
+            age = max(0.0, now_v - e.observed_at)
             recency = 0.5 ** (age / self.recency_half_life_seconds)
-            scored.append((overlap * 10.0 + recency, e))
-        scored.sort(key=lambda pair: (-pair[0], -pair[1].created_at))
+            support_bonus = min(1.0, (max(1, e.support) - 1) / 4.0)
+            scored.append((overlap * 10.0 + recency + support_bonus, e))
+        scored.sort(key=lambda pair: (-pair[0], -pair[1].observed_at))
         return [e for _, e in scored[:k]]
+
+    def entries(self) -> tuple[Experience, ...]:
+        """Current entries, oldest first."""
+
+        return tuple(self._entries)
+
+    def replace_entries(self, entries: list[Experience]) -> None:
+        """Install a projection built elsewhere, keeping the size bound.
+
+        The durable memory (ADR-034) derives a *consolidated* projection
+        from its journal and installs it here; the newest entries are kept
+        when the projection exceeds ``max_entries``.
+        """
+
+        if len(entries) > self.max_entries:
+            entries = entries[len(entries) - self.max_entries :]
+        self._entries = list(entries)
 
     def to_json(self) -> str:
         return json.dumps([e.to_dict() for e in self._entries], sort_keys=True)
@@ -112,6 +155,12 @@ class ExperienceMemory:
                     outcome=row["outcome"],
                     lesson=row["lesson"],
                     created_at=float(row["created_at"]),
+                    support=int(row.get("support", 1)),
+                    last_seen_at=(
+                        float(row["last_seen_at"])
+                        if row.get("last_seen_at") is not None
+                        else None
+                    ),
                 )
             )
         return mem

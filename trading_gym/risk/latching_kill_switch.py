@@ -11,6 +11,7 @@ human reset.  Two donor bugs are fixed in this port:
 """
 
 from __future__ import annotations
+import math
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -76,6 +77,18 @@ class LatchingKillSwitch:
         """
         if self._latched_reason is not None:
             return KillDecision(halted=True, reason=self._latched_reason)
+
+        # NaN makes every comparison False, so both the daily-loss and the
+        # drawdown checks silently pass and every financial limit is disabled.
+        # Reject non-finite nav inputs before evaluation.
+        for name, value in (
+            ("daily_pnl", daily_pnl),
+            ("daily_start_nav", daily_start_nav),
+            ("nav", nav),
+            ("peak_nav", peak_nav),
+        ):
+            if not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value!r}")
 
         cfg = self.config
 

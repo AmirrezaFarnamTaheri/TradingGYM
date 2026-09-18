@@ -1,4 +1,4 @@
-"""AXIOM-1 routers mounted in the main gateway app (ADR-031 §3)."""
+"""AXIOM-1 routers mounted in the main gateway app (ADR-031 §3, ADR-034)."""
 
 from __future__ import annotations
 
@@ -59,6 +59,23 @@ def test_main_app_mounts_authz_and_playground_routers(
         # at the actor stage with 403 (not 404 — the route exists)
         run = client.post("/api/v1/playground/runs", json={})
         assert run.status_code != 404
+
+        # the forge router (ADR-034) is mounted behind the same key chain:
+        # the kernel diagnostic answers, and the gated routes exist but deny
+        kernel = client.get("/api/v1/forge/kernel")
+        assert kernel.status_code == 200
+        assert set(kernel.json()) == {"available", "abi_version", "detail"}
+
+        advice = client.get(
+            "/api/v1/forge/memory/advice", params={"tags": ["regime:chop"]}
+        )
+        assert advice.status_code == 403  # route exists, no grant
+
+        nominate = client.post(
+            "/api/v1/forge/nominations",
+            json={"tool_name": "t", "rationale": "r"},
+        )
+        assert nominate.status_code == 403
 
 
 def test_main_app_grant_lifecycle_end_to_end(

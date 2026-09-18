@@ -28,7 +28,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
-from typing import Optional, Dict, Any, Literal, Callable, cast
+from typing import Dict, Any, Literal, Callable, TypeVar, cast
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 import asyncio
 import json
@@ -49,7 +49,6 @@ from apps.common.ipc import MetricsReader
 from apps.common.runtime_files import METRICS_FILE, PANIC_FILE
 from apps.api.runtime import (
     BoundedLogBuffer,
-    WS_PROTOCOL,
     capture_process_identity,
     child_environment,
     decode_websocket_auth_protocol,
@@ -278,6 +277,8 @@ app = FastAPI(
     description="Governed RL trading API with evidence-first research and declarative strategy tooling",
     lifespan=lifespan,
 )
+
+T = TypeVar("T")
 
 # CORS middleware - SECURITY: Restrict to necessary methods only
 app.add_middleware(
@@ -546,6 +547,15 @@ async def monitor_process_completion(process_key: str, proc, identity: Dict[str,
                 logger.info(f"{process_key} completed with code {returncode}")
     except Exception as exc:
         logger.error("Process monitor failed key=%s error_type=%s", process_key, type(exc).__name__)
+        # The waiter died without observing an exit code, so the process may
+        # still be running; it must not be left pinned in a live status that
+        # blocks restarts and inflates the active-process count.
+        async with PROCESS_LOCK:
+            current = PROCESSES.get(process_key)
+            if current and current.get("pid") == identity.get("pid") and current.get(
+                "create_time"
+            ) == identity.get("create_time"):
+                current["status"] = "lost"
 
 
 def _active_process_count_unlocked() -> int:
@@ -728,7 +738,11 @@ async def get_system_status(api_key: str = Depends(verify_api_key)):
 @app.post("/api/v1/system/prune")
 async def prune_system(api_key: str = Depends(verify_api_key)):
     """Manually trigger zombie pruning"""
-    prune_zombies()
+    # prune_zombies enumerates every OS process and stats each one's cwd,
+    # which is blocking I/O — running it inline stalls the event loop and
+    # blocks every other request for the duration of the sweep.
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, prune_zombies)
     return {"status": "pruned", "message": "Zombie processes terminated."}
 
 
@@ -737,24 +751,98 @@ async def prune_system(api_key: str = Depends(verify_api_key)):
 # ============================================================================
 
 
+def _read_config_blocking() -> Dict[str, Any]:
+    config_path = CONFIG_PATH
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="Config file not found")
+    if config_path.is_symlink() or config_path.stat().st_size > 2 * 1024 * 1024:
+        raise ValueError("configuration file is invalid")
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
+    validated = AppConfig.model_validate(config)
+    return redact_secrets(validated.model_dump(mode="json"))
+
+
 @app.get("/api/v1/config")
 async def get_config(api_key: str = Depends(verify_api_key)):
     """Read entire configuration"""
     try:
-        config_path = CONFIG_PATH
-        if not config_path.exists():
-            raise HTTPException(status_code=404, detail="Config file not found")
-        if config_path.is_symlink() or config_path.stat().st_size > 2 * 1024 * 1024:
-            raise ValueError("configuration file is invalid")
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-        validated = AppConfig.model_validate(config)
-        return redact_secrets(validated.model_dump(mode="json"))
+        return await _run_blocking(_read_config_blocking)
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Validated configuration read failed error_type=%s", type(e).__name__)
         raise HTTPException(status_code=500, detail="Failed to read configuration") from e
+
+
+def _update_config_blocking(updates: Dict[str, Any]) -> Dict[str, Any]:
+    config_path = CONFIG_PATH
+
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="Config file not found")
+
+    bounded_json_dumps(updates, max_bytes=256 * 1024)
+    # Serialise read/merge/write while the actual replacement remains atomic.
+    with FileLock(f"{config_path}.update.lock", timeout=10):
+        with open(config_path, "r", encoding="utf-8") as f:
+            current = yaml.safe_load(f) or {}
+
+        # Deep merge updates
+        def deep_merge(base, updates):
+            for key, value in updates.items():
+                if isinstance(value, dict) and isinstance(base.get(key), dict):
+                    base[key] = deep_merge(base[key], value)
+                else:
+                    base[key] = value
+            return base
+
+        updated_config = deep_merge(current, updates)
+
+        # Validate against AppConfig schema to prevent corrupt writes
+        try:
+            validated = AppConfig.model_validate(updated_config)
+        except ValidationError as e:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "Config validation failed",
+                    "errors": e.errors(include_input=False, include_context=False),
+                },
+            )
+
+        # Snapshot the exact prior bytes through the same fsync/replace path used
+        # for authoritative state. A partial backup must never masquerade as a
+        # recovery point after power loss.
+        backup_path = config_path.with_suffix(
+            f"{config_path.suffix}.bak.{time.time_ns()}"
+        )
+        original_text = config_path.read_text(encoding="utf-8")
+        atomic_write_text(
+            backup_path,
+            original_text,
+            max_bytes=2 * 1024 * 1024,
+            mode=0o600,
+        )
+
+        serialised = yaml.safe_dump(
+            validated.model_dump(mode="json"),
+            sort_keys=False,
+            allow_unicode=True,
+        )
+        atomic_write_text(config_path, serialised, max_bytes=2 * 1024 * 1024)
+
+        backups = sorted(
+            config_path.parent.glob(f"{config_path.name}.bak.*"),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
+        for obsolete in backups[20:]:
+            try:
+                obsolete.unlink()
+            except OSError:
+                logger.warning("Unable to remove an old config backup error_type=OSError")
+
+    return {"status": "saved", "config": redact_secrets(validated.model_dump(mode="json"))}
 
 
 @app.post("/api/v1/config")
@@ -763,79 +851,28 @@ async def update_config(
 ):
     """Update configuration"""
     try:
-        config_path = CONFIG_PATH
-
-        if not config_path.exists():
-            raise HTTPException(status_code=404, detail="Config file not found")
-
-        bounded_json_dumps(updates, max_bytes=256 * 1024)
-        # Serialise read/merge/write while the actual replacement remains atomic.
-        with FileLock(f"{config_path}.update.lock", timeout=10):
-            with open(config_path, "r", encoding="utf-8") as f:
-                current = yaml.safe_load(f) or {}
-
-            # Deep merge updates
-            def deep_merge(base, updates):
-                for key, value in updates.items():
-                    if isinstance(value, dict) and isinstance(base.get(key), dict):
-                        base[key] = deep_merge(base[key], value)
-                    else:
-                        base[key] = value
-                return base
-
-            updated_config = deep_merge(current, updates)
-
-            # Validate against AppConfig schema to prevent corrupt writes
-            try:
-                validated = AppConfig.model_validate(updated_config)
-            except ValidationError as e:
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "message": "Config validation failed",
-                        "errors": e.errors(include_input=False, include_context=False),
-                    },
-                )
-
-            # Snapshot the exact prior bytes through the same fsync/replace path used
-            # for authoritative state. A partial backup must never masquerade as a
-            # recovery point after power loss.
-            backup_path = config_path.with_suffix(
-                f"{config_path.suffix}.bak.{time.time_ns()}"
-            )
-            original_text = config_path.read_text(encoding="utf-8")
-            atomic_write_text(
-                backup_path,
-                original_text,
-                max_bytes=2 * 1024 * 1024,
-                mode=0o600,
-            )
-
-            serialised = yaml.safe_dump(
-                validated.model_dump(mode="json"),
-                sort_keys=False,
-                allow_unicode=True,
-            )
-            atomic_write_text(config_path, serialised, max_bytes=2 * 1024 * 1024)
-
-            backups = sorted(
-                config_path.parent.glob(f"{config_path.name}.bak.*"),
-                key=lambda item: item.stat().st_mtime,
-                reverse=True,
-            )
-            for obsolete in backups[20:]:
-                try:
-                    obsolete.unlink()
-                except OSError:
-                    logger.warning("Unable to remove an old config backup error_type=OSError")
-
-        return {"status": "saved", "config": redact_secrets(validated.model_dump(mode="json"))}
-
+        # Lock, read, fsync a backup, replace, then glob the backup dir.
+        return await _run_blocking(_update_config_blocking, updates)
     except HTTPException:
         raise
     except Exception as e:
         logger.error("Validated configuration update failed error_type=%s", type(e).__name__)
         raise HTTPException(status_code=500, detail="Failed to update configuration") from e
+
+
+def _read_config_section_blocking(section: str) -> Dict[str, Any]:
+    config_path = CONFIG_PATH
+    if not config_path.exists():
+        raise HTTPException(status_code=404, detail="Config file not found")
+    if config_path.is_symlink() or config_path.stat().st_size > 2 * 1024 * 1024:
+        raise ValueError("configuration file is invalid")
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = AppConfig.model_validate(yaml.safe_load(f) or {}).model_dump(mode="json")
+
+    if section not in config:
+        raise HTTPException(status_code=404, detail="Configuration section not found")
+
+    return redact_secrets(config[section])
 
 
 @app.get("/api/v1/config/{section}")
@@ -844,18 +881,7 @@ async def get_config_section(section: str, api_key: str = Depends(verify_api_key
     try:
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,79}", section):
             raise HTTPException(status_code=400, detail="Invalid configuration section")
-        config_path = CONFIG_PATH
-        if not config_path.exists():
-            raise HTTPException(status_code=404, detail="Config file not found")
-        if config_path.is_symlink() or config_path.stat().st_size > 2 * 1024 * 1024:
-            raise ValueError("configuration file is invalid")
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = AppConfig.model_validate(yaml.safe_load(f) or {}).model_dump(mode="json")
-
-        if section not in config:
-            raise HTTPException(status_code=404, detail="Configuration section not found")
-
-        return redact_secrets(config[section])
+        return await _run_blocking(_read_config_section_blocking, section)
     except HTTPException:
         raise
     except Exception as e:
@@ -991,8 +1017,11 @@ async def download_data(
 async def generate_features(api_key: str = Depends(verify_api_key)):
     """Generate features from raw data"""
     try:
-        # Check if feature pipe exists
-        feature_pipe_path = Path("apps/feature_pipe")
+        # Check if feature pipe exists. The guard is PROJECT_ROOT-relative:
+        # a CWD-relative path silently "passes" when the API is launched from
+        # a checkout root and fails everywhere else, and a stray directory on
+        # the CWD would make the 503 unreliable.
+        feature_pipe_path = PROJECT_ROOT / "apps" / "feature_pipe"
         if not feature_pipe_path.exists():
             logger.warning("Feature pipe module not found at apps/feature_pipe")
             raise HTTPException(
@@ -1022,6 +1051,18 @@ async def generate_features(api_key: str = Depends(verify_api_key)):
 
 def _model_registry() -> ModelRegistry:
     return ModelRegistry(CHECKPOINTS_DIR)
+
+
+async def _run_blocking(func: Callable[..., T], *args: Any) -> T:
+    """Run a blocking callable off the event loop.
+
+    Several handlers build a ``ModelRegistry`` (a directory scan plus per-file
+    hashing), read/write the YAML config under a ``FileLock``, or stat the
+    process table.  All of that is synchronous I/O that would otherwise stall
+    the single-threaded loop and every other request with it.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, func, *args)
 
 
 def _registered_model_artifact(version: str) -> tuple[ModelRegistry, ModelMetadata, Path]:
@@ -1085,52 +1126,158 @@ def _legacy_model_metadata(model_dir: Path) -> dict[str, Any]:
         return {}
 
 
+def _list_models_blocking() -> dict[str, Any]:
+    registry = _model_registry()
+    active = registry.get_active()
+    registered = registry.list_versions()
+    registered_names = {metadata.version for metadata in registered}
+    models = [
+        _model_to_api(metadata, active=bool(active and active.version == metadata.version))
+        for metadata in registered
+    ]
+
+    valid_name = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$")
+    for model_dir in CHECKPOINTS_DIR.iterdir():
+        if (
+            model_dir.is_dir()
+            and not model_dir.is_symlink()
+            and not model_dir.name.startswith(".")
+            and valid_name.fullmatch(model_dir.name)
+            and model_dir.name not in registered_names
+        ):
+            artifact_names = [
+                name
+                for name in ("best_model.zip", "final_model.zip", "model.zip")
+                if (model_dir / name).is_file() and not (model_dir / name).is_symlink()
+            ]
+            models.append({
+                "version": model_dir.name,
+                "created_at": None,
+                "artifact_names": artifact_names,
+                "has_model": bool(artifact_names),
+                "metadata": _legacy_model_metadata(model_dir),
+                "status": "legacy_unregistered",
+                "authoritative": False,
+                "activation_allowed": False,
+            })
+
+    return {
+        "models": models,
+        "active_model": active.version if active else None,
+        "registry_audit_pending": registry.audit_pending(),
+    }
+
+
 @app.get("/api/v1/models")
 async def list_models(api_key: str = Depends(verify_api_key)):
     """List admitted models and non-authoritative legacy checkpoints."""
     try:
-        registry = _model_registry()
-        active = registry.get_active()
-        registered = registry.list_versions()
-        registered_names = {metadata.version for metadata in registered}
-        models = [
-            _model_to_api(metadata, active=bool(active and active.version == metadata.version))
-            for metadata in registered
-        ]
-
-        valid_name = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$")
-        for model_dir in CHECKPOINTS_DIR.iterdir():
-            if (
-                model_dir.is_dir()
-                and not model_dir.is_symlink()
-                and not model_dir.name.startswith(".")
-                and valid_name.fullmatch(model_dir.name)
-                and model_dir.name not in registered_names
-            ):
-                artifact_names = [
-                    name
-                    for name in ("best_model.zip", "final_model.zip", "model.zip")
-                    if (model_dir / name).is_file() and not (model_dir / name).is_symlink()
-                ]
-                models.append({
-                    "version": model_dir.name,
-                    "created_at": None,
-                    "artifact_names": artifact_names,
-                    "has_model": bool(artifact_names),
-                    "metadata": _legacy_model_metadata(model_dir),
-                    "status": "legacy_unregistered",
-                    "authoritative": False,
-                    "activation_allowed": False,
-                })
-
-        return {
-            "models": models,
-            "active_model": active.version if active else None,
-            "registry_audit_pending": registry.audit_pending(),
-        }
+        # Building the registry scans and hashes the checkpoint directory.
+        return await _run_blocking(_list_models_blocking)
     except Exception as e:
         logger.error("Model listing failed error_type=%s", type(e).__name__)
         raise HTTPException(status_code=500, detail="Failed to list models") from e
+
+
+def _set_active_model_blocking(
+    version: str,
+    proposal_id: str,
+    expected_revision: int,
+    actor: str,
+    approval_key: str | None,
+) -> dict[str, Any]:
+    """Registry + governance I/O for critical model activation.
+
+    Building the registry hashes the checkpoint tree, and the governance
+    service does file-locked reads, audit reconciliation and a reservation
+    round-trip — all synchronous. Running it inline blocks the single
+    event loop for every other connection for the whole four-eyes sequence.
+    """
+    registry, metadata, _ = _registered_model_artifact(version)
+    governance = GovernanceService()
+    try:
+        proposal = governance.get(proposal_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Model-activation proposal not found") from exc
+    if proposal.operation != "model.activate" or proposal.risk_tier is not RiskTier.CRITICAL:
+        raise HTTPException(status_code=409, detail="A critical model.activate proposal is required")
+    if proposal.state is not ProposalState.APPROVED:
+        raise HTTPException(status_code=409, detail="Model-activation proposal is not approved")
+    if proposal.payload.get("model_version") != version:
+        raise HTTPException(status_code=409, detail="Approved model version does not match request")
+    expected_key = os.getenv("APPROVAL_API_KEY") or ""
+    if not expected_key:
+        raise HTTPException(status_code=503, detail="APPROVAL_API_KEY is required")
+    if not approval_key or not secrets.compare_digest(approval_key, expected_key):
+        raise HTTPException(status_code=403, detail="Valid X-Approval-Key required")
+    try:
+        governance.audit_health(reconcile=True)
+        registry.reconcile_audit()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Audit reconciliation failed") from exc
+    if registry.audit_pending():
+        raise HTTPException(status_code=503, detail="Model audit outbox is not healthy")
+
+    reservation_id = uuid4().hex
+    previous_active = registry.get_active()
+    activated = False
+    try:
+        reserved = governance.reserve(
+            proposal_id,
+            ReservationRequest(
+                expected_revision=expected_revision,
+                actor=actor.strip(),
+                reservation_id=reservation_id,
+            ),
+        )
+        registry.set_active(
+            version,
+            actor=actor.strip(),
+            reason=f"approved proposal {proposal_id}",
+        )
+        activated = True
+        governance.commit_reservation(
+            proposal_id,
+            ReservationRequest(
+                expected_revision=reserved.revision,
+                actor=actor.strip(),
+                reservation_id=reservation_id,
+            ),
+            details={
+                "model_version": version,
+                "artifact_sha256": metadata.code_hash,
+            },
+        )
+    except GovernanceConflict as exc:
+        if activated:
+            try:
+                if previous_active is None:
+                    registry.clear_active(
+                        actor="model-activation-recovery",
+                        reason=f"rollback after governance conflict for {proposal_id}",
+                    )
+                elif previous_active.version != version:
+                    registry.set_active(
+                        previous_active.version,
+                        actor="model-activation-recovery",
+                        reason=f"rollback after governance conflict for {proposal_id}",
+                    )
+            except Exception as rollback_exc:
+                logger.critical(
+                    "Unable to roll back failed model activation error_type=%s",
+                    type(rollback_exc).__name__,
+                )
+        raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+    except GovernanceAuditPending as exc:
+        raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+
+    logger.info("Activated admitted model %s", version)
+    return {
+        "status": "active",
+        "version": version,
+        "artifact_sha256": metadata.code_hash,
+        "proposal_id": proposal_id,
+    }
 
 
 @app.post("/api/v1/models/set-active")
@@ -1157,91 +1304,14 @@ async def set_active_model(
         )
         if proposal_id is None or expected_revision is None:
             raise HTTPException(status_code=422, detail="Critical model activation approval is required")
-        registry, metadata, _ = _registered_model_artifact(version)
-        governance = GovernanceService()
-        try:
-            proposal = governance.get(proposal_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Model-activation proposal not found") from exc
-        if proposal.operation != "model.activate" or proposal.risk_tier is not RiskTier.CRITICAL:
-            raise HTTPException(status_code=409, detail="A critical model.activate proposal is required")
-        if proposal.state is not ProposalState.APPROVED:
-            raise HTTPException(status_code=409, detail="Model-activation proposal is not approved")
-        if proposal.payload.get("model_version") != version:
-            raise HTTPException(status_code=409, detail="Approved model version does not match request")
-        expected_key = os.getenv("APPROVAL_API_KEY") or ""
-        if not expected_key:
-            raise HTTPException(status_code=503, detail="APPROVAL_API_KEY is required")
-        if not approval_key or not secrets.compare_digest(approval_key, expected_key):
-            raise HTTPException(status_code=403, detail="Valid X-Approval-Key required")
-        try:
-            governance.audit_health(reconcile=True)
-            registry.reconcile_audit()
-        except Exception as exc:
-            raise HTTPException(status_code=503, detail="Audit reconciliation failed") from exc
-        if registry.audit_pending():
-            raise HTTPException(status_code=503, detail="Model audit outbox is not healthy")
-
-        reservation_id = uuid4().hex
-        previous_active = registry.get_active()
-        activated = False
-        try:
-            reserved = governance.reserve(
-                proposal_id,
-                ReservationRequest(
-                    expected_revision=expected_revision,
-                    actor=actor.strip(),
-                    reservation_id=reservation_id,
-                ),
-            )
-            registry.set_active(
-                version,
-                actor=actor.strip(),
-                reason=f"approved proposal {proposal_id}",
-            )
-            activated = True
-            governance.commit_reservation(
-                proposal_id,
-                ReservationRequest(
-                    expected_revision=reserved.revision,
-                    actor=actor.strip(),
-                    reservation_id=reservation_id,
-                ),
-                details={
-                    "model_version": version,
-                    "artifact_sha256": metadata.code_hash,
-                },
-            )
-        except GovernanceConflict as exc:
-            if activated:
-                try:
-                    if previous_active is None:
-                        registry.clear_active(
-                            actor="model-activation-recovery",
-                            reason=f"rollback after governance conflict for {proposal_id}",
-                        )
-                    elif previous_active.version != version:
-                        registry.set_active(
-                            previous_active.version,
-                            actor="model-activation-recovery",
-                            reason=f"rollback after governance conflict for {proposal_id}",
-                        )
-                except Exception as rollback_exc:
-                    logger.critical(
-                        "Unable to roll back failed model activation error_type=%s",
-                        type(rollback_exc).__name__,
-                    )
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
-        except GovernanceAuditPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
-
-        logger.info("Activated admitted model %s", version)
-        return {
-            "status": "active",
-            "version": version,
-            "artifact_sha256": metadata.code_hash,
-            "proposal_id": proposal_id,
-        }
+        return await _run_blocking(
+            _set_active_model_blocking,
+            version,
+            proposal_id,
+            expected_revision,
+            actor,
+            approval_key,
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -1249,19 +1319,23 @@ async def set_active_model(
         raise HTTPException(status_code=500, detail="Failed to set active model") from e
 
 
+def _get_active_model_blocking() -> dict[str, Any]:
+    registry = _model_registry()
+    metadata = registry.get_active()
+    if metadata is None:
+        return {"active_model": None}
+    return {
+        "active_model": metadata.version,
+        "artifact_sha256": metadata.code_hash,
+        "audit_pending": registry.audit_pending(),
+    }
+
+
 @app.get("/api/v1/models/active")
 async def get_active_model(api_key: str = Depends(verify_api_key)):
     """Get the integrity-verified active model."""
     try:
-        registry = _model_registry()
-        metadata = registry.get_active()
-        if metadata is None:
-            return {"active_model": None}
-        return {
-            "active_model": metadata.version,
-            "artifact_sha256": metadata.code_hash,
-            "audit_pending": registry.audit_pending(),
-        }
+        return await _run_blocking(_get_active_model_blocking)
     except Exception as e:
         logger.error("Active-model read failed error_type=%s", type(e).__name__)
         raise HTTPException(status_code=500, detail="Failed to read active model") from e
@@ -1755,7 +1829,8 @@ async def emergency_kill_all(
 async def get_metrics_http(api_key: str = Depends(verify_api_key)):
     """HTTP endpoint for metrics. Reads from the memory-mapped file."""
     reader = MetricsReader(METRICS_FILE)
-    data = reader.read()
+    # The reader opens and stats the metrics file on every call.
+    data = await _run_blocking(reader.read)
     if not data:
         return {"status": "no_data", "message": "No metrics available."}
     return data
@@ -1820,7 +1895,9 @@ async def websocket_metrics(websocket: WebSocket):
 
     try:
         while True:
-            current_data = reader.read()
+            # reader.read() is blocking file I/O; keep it off the event loop
+            # so one slow metrics file cannot stall the other sockets.
+            current_data = await _run_blocking(reader.read)
 
             if current_data and current_data != last_data:
                 await websocket.send_json(current_data)
@@ -1864,8 +1941,13 @@ app.include_router(
 from apps.api.authz_router import create_authz_router  # noqa: E402
 from apps.api.playground_router import create_playground_router  # noqa: E402
 
+# AXIOM-1: agent memory, strategy grammar, and the tool-nomination queue
+# (ADR-034). Read/propose only — no endpoint applies a revision.
+from apps.api.forge_router import create_forge_router  # noqa: E402
+
 app.include_router(create_authz_router(verify_api_key), prefix="/api/v1")
 app.include_router(create_playground_router(verify_api_key), prefix="/api/v1")
+app.include_router(create_forge_router(verify_api_key), prefix="/api/v1")
 
 
 # ============================================================================

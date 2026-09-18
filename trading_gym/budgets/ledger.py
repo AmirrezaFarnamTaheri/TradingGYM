@@ -18,7 +18,12 @@ from typing import Annotated, Any
 from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from trading_gym.common.audit_outbox import deliver_audit_events, ensure_audit_outbox, queue_audit_event
+from trading_gym.common.audit_outbox import (
+    deliver_audit_events,
+    ensure_audit_outbox,
+    queue_audit_event,
+    verify_outbox_digest,
+)
 from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
 from trading_gym.common.security import bounded_json_dumps
 from trading_gym.governance.ledger import AuditLedger
@@ -201,6 +206,7 @@ class BudgetRepository:
         if not isinstance(document.get("revision"), int) or document["revision"] < 0:
             raise ValueError("budget store revision is invalid")
         ensure_audit_outbox(document)
+        verify_outbox_digest(document)
         if len(document["budgets"]) > MAX_BUDGETS or len(document["reservations"]) > MAX_RESERVATIONS:
             raise ValueError("budget store size limit exceeded")
         for key, raw in document["budgets"].items():
@@ -355,10 +361,19 @@ class BudgetRepository:
             for raw in document["reservations"].values():
                 reservation = BudgetReservation.model_validate(raw)
                 if reservation.idempotency_key == request.idempotency_key:
+                    # Replay detection has to be exact: compare every field
+                    # that identifies the operation, including actor and
+                    # metadata.  Comparing only amount/subject/budget would
+                    # accept a replay that changed who performed it or what it
+                    # was annotated with, and would equally reject a genuine
+                    # duplicate whose metadata happened to differ in a way the
+                    # caller never intended to be significant.
                     if (
                         reservation.budget_id == request.budget_id
                         and reservation.amount == request.amount
                         and reservation.subject == request.subject
+                        and reservation.actor == request.actor
+                        and reservation.metadata == request.metadata
                     ):
                         if expired:
                             self._touch(document)
@@ -514,29 +529,48 @@ class BudgetRepository:
         self.reconcile_audit()
         return reservation
 
+    def _expire_and_record(self, document: dict[str, Any], *, now: datetime, actor: str) -> int:
+        """Transition overdue reservations to EXPIRED and record the change.
+
+        Shared by every path that advances the clock over the store.  A budget
+        whose reservation expired gets its ``revision`` bumped — revision is
+        the field callers use for ``expected_revision`` optimistic locking, so
+        only budgets that actually lost a reservation are touched, not every
+        budget in the document — and one ``budgets.expired`` audit event is
+        queued per transition.
+
+        Returns the number of reservations that changed state.  ``0`` means the
+        document is untouched and the caller must persist nothing, which is
+        what keeps an ordinary read from forcing an fsync.
+        """
+        before = {
+            key: BudgetReservation.model_validate(value)
+            for key, value in document["reservations"].items()
+        }
+        expired = self._expire(document, now)
+        if not expired:
+            return 0
+        for reservation_id, previous in before.items():
+            current = BudgetReservation.model_validate(document["reservations"][reservation_id])
+            if previous.state is ReservationState.RESERVED and current.state is ReservationState.EXPIRED:
+                document["budgets"][current.budget_id]["revision"] += 1
+                queue_audit_event(
+                    document,
+                    event_id=f"budget:{current.budget_id}:reservation:{reservation_id}:expired:{current.revision}",
+                    event="budgets.expired",
+                    actor=actor,
+                    subject=reservation_id,
+                    details={"budget_id": current.budget_id, "amount": str(current.amount)},
+                )
+        return expired
+
     def reconcile_expired(self, *, now: datetime | None = None, actor: str = "budget-reconciler") -> dict[str, Any]:
         now = now or datetime.now(timezone.utc)
         _aware(now, "now")
         with self.lock:
             document = self._load()
-            before = {
-                key: BudgetReservation.model_validate(value)
-                for key, value in document["reservations"].items()
-            }
-            expired = self._expire(document, now)
+            expired = self._expire_and_record(document, now=now, actor=actor)
             if expired:
-                for reservation_id, previous in before.items():
-                    current = BudgetReservation.model_validate(document["reservations"][reservation_id])
-                    if previous.state is ReservationState.RESERVED and current.state is ReservationState.EXPIRED:
-                        document["budgets"][current.budget_id]["revision"] += 1
-                        queue_audit_event(
-                            document,
-                            event_id=f"budget:{current.budget_id}:reservation:{reservation_id}:expired:{current.revision}",
-                            event="budgets.expired",
-                            actor=actor,
-                            subject=reservation_id,
-                            details={"budget_id": current.budget_id, "amount": str(current.amount)},
-                        )
                 self._touch(document)
                 atomic_write_json(self.path, document)
         if expired:
@@ -545,20 +579,45 @@ class BudgetRepository:
 
     def get_budget(self, budget_id: str, *, now: datetime | None = None) -> BudgetSnapshot:
         now = now or datetime.now(timezone.utc)
+        _aware(now, "now")
         with self.lock:
             document = self._load()
-            expired = self._expire(document, now)
+            expired = self._expire_and_record(document, now=now, actor="budget-reconciler")
             if expired:
-                for raw in document["budgets"].values():
-                    raw["revision"] += 1
+                # The document changed, so it has to be durable.  An expired
+                # reservation and the audit receipt for it are lost when the
+                # read that observed the expiry never reaches disk, so persist
+                # whenever the expiry actually moved — regardless of which
+                # budget the caller asked about, because the receipt belongs to
+                # the store, not to the budget that was queried.
                 self._touch(document)
                 atomic_write_json(self.path, document)
-            return self._snapshot_from(document, budget_id)
+            snapshot = self._snapshot_from(document, budget_id)
+        if expired:
+            self.reconcile_audit()
+        return snapshot
 
-    def list_budgets(self, *, scope_id: str | None = None) -> list[BudgetSnapshot]:
+    def list_budgets(
+        self,
+        *,
+        scope_id: str | None = None,
+        now: datetime | None = None,
+    ) -> list[BudgetSnapshot]:
+        now = now or datetime.now(timezone.utc)
+        _aware(now, "now")
         with self.lock:
             document = self._load()
+            # Expiry must be applied *before* the snapshot is taken, otherwise a
+            # budget whose reservation just expired still advertises the stale
+            # reserved amount as free capacity.  The observed change is
+            # persisted and audited exactly as get_budget does.
+            expired = self._expire_and_record(document, now=now, actor="budget-reconciler")
+            if expired:
+                self._touch(document)
+                atomic_write_json(self.path, document)
             snapshots = [self._snapshot_from(document, key) for key in document["budgets"]]
+        if expired:
+            self.reconcile_audit()
         if scope_id is not None:
             snapshots = [item for item in snapshots if item.scope_id == scope_id]
         return sorted(snapshots, key=lambda item: item.budget_id)

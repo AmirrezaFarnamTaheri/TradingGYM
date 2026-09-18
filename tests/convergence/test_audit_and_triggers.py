@@ -49,6 +49,44 @@ def test_chain_only_audit_is_explicitly_not_sealed(tmp_path: Path) -> None:
     assert status["mode"] == "chain_only"
 
 
+def test_batch_append_produces_a_valid_chain_and_is_idempotent(tmp_path: Path) -> None:
+    path = tmp_path / "audit.jsonl"
+    ledger = AuditLedger(path, hmac_key=KEY)
+    records = [
+        {
+            "event_id": f"batch:{i}",
+            "event": "batch.event",
+            "actor": "a",
+            "subject": "s",
+            "details": {"index": i},
+        }
+        for i in range(5)
+    ]
+    bodies = ledger.append_events(records)
+    assert len(bodies) == 5
+    assert [body["sequence"] for body in bodies] == [1, 2, 3, 4, 5]
+    status = ledger.verify()
+    assert status["valid"] is status["sealed"] is True
+    assert status["entries"] == 5
+
+    # Replaying the same batch must be a per-event no-op, not a duplicate write.
+    replay = ledger.append_events(records)
+    assert [body["sequence"] for body in replay] == [1, 2, 3, 4, 5]
+    assert ledger.verify()["entries"] == 5
+
+    # A reused event_id with different content must still be rejected.
+    conflict = [dict(records[0], event="different.event")]
+    with pytest.raises(ValueError, match="already used for different event content"):
+        ledger.append_events(conflict)
+
+    # The batch must extend, never re-write, the chain, and stays sealed.
+    more = [dict(records[4], event_id="batch:extra", event="extra.event")]
+    ledger.append_events(more)
+    final = ledger.verify()
+    assert final["entries"] == 6
+    assert final["valid"] is final["sealed"] is True
+
+
 def metric_trigger() -> TriggerCreate:
     return TriggerCreate(
         trigger_id="risk_drawdown",

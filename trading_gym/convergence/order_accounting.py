@@ -83,62 +83,118 @@ class OrderAccountingSyncService:
             raise ValueError("order-accounting checkpoint integrity mismatch")
         return document
 
-    def _checkpoint(self, *, order_id: str, event: Any, account_revision: int, actor: str) -> bool:
-        payload = event.model_dump(mode="json")
-        fingerprint = self._fingerprint(payload)
+    def _checkpoint(
+        self, *, order_id: str, event: Any, account_revision: int, actor: str
+    ) -> bool:
+        """Checkpoint a single event; True if it was newly recorded."""
+        new, _existing = self._checkpoint_many(
+            order_id=order_id,
+            entries=[(event, account_revision)],
+            actor=actor,
+        )
+        return new == 1
+
+    def _checkpoint_many(
+        self,
+        *,
+        order_id: str,
+        entries: list[tuple[Any, int]],
+        actor: str,
+    ) -> tuple[int, int]:
+        """Checkpoint many ``(event, account_revision)`` pairs in one pass.
+
+        Loading, mutating and writing the document once per batch keeps
+        reconciliation O(N) in the number of events rather than O(N^2): a
+        per-fill loop would otherwise rewrite the whole checkpoint map once per
+        event.  Returns ``(newly_checkpointed, already_checkpointed)``.
+        """
+        entries = list(entries)
+        if not entries:
+            return 0, 0
+        now = datetime.now(timezone.utc)
+        new = 0
+        existing = 0
         with self.lock:
             document = self._load()
-            existing = document["checkpoints"].get(event.event_id)
-            if existing is not None:
-                if existing.get("fingerprint") != fingerprint or existing.get("order_id") != order_id:
-                    raise ValueError("order-accounting checkpoint identity collision")
-                return False
-            now = datetime.now(timezone.utc)
-            document["checkpoints"][event.event_id] = {
-                "order_id": order_id,
-                "account_id": event.account_id,
-                "fingerprint": fingerprint,
-                "account_revision": account_revision,
-                "checkpointed_at": now.isoformat(),
-            }
-            document["revision"] += 1
-            queue_audit_event(
-                document,
-                event_id=f"order-accounting:{event.event_id}:checkpointed",
-                event="workflow.order_accounting_checkpointed",
-                actor=actor,
-                subject=order_id,
-                details={
+            for event, account_revision in entries:
+                payload = event.model_dump(mode="json")
+                fingerprint = self._fingerprint(payload)
+                recorded = document["checkpoints"].get(event.event_id)
+                if recorded is not None:
+                    if recorded.get("fingerprint") != fingerprint or recorded.get("order_id") != order_id:
+                        raise ValueError("order-accounting checkpoint identity collision")
+                    existing += 1
+                    continue
+                document["checkpoints"][event.event_id] = {
+                    "order_id": order_id,
                     "account_id": event.account_id,
-                    "accounting_event_id": event.event_id,
+                    "fingerprint": fingerprint,
                     "account_revision": account_revision,
-                },
-            )
-            document["integrity_sha256"] = self._integrity(document)
-            atomic_write_json(self.path, document)
-        return True
+                    "checkpointed_at": now.isoformat(),
+                }
+                document["revision"] += 1
+                queue_audit_event(
+                    document,
+                    event_id=f"order-accounting:{event.event_id}:checkpointed",
+                    event="workflow.order_accounting_checkpointed",
+                    actor=actor,
+                    subject=order_id,
+                    details={
+                        "account_id": event.account_id,
+                        "accounting_event_id": event.event_id,
+                        "account_revision": account_revision,
+                    },
+                )
+                new += 1
+            if new:
+                document["integrity_sha256"] = self._integrity(document)
+                atomic_write_json(self.path, document)
+        return new, existing
 
     def sync(self, order_id: str, *, actor: str = "accounting-reconciler") -> OrderAccountingSyncReport:
         order = self.orders.get(order_id)
         if not self.accounting.exists(order.account_id):
             raise KeyError(f"account:{order.account_id}")
         events = self.orders.accounting_events(order_id)
-        new = 0
-        existing = 0
         account = self.accounting.account(order.account_id)
-        for event in events:
-            with self.lock:
-                current = self._load()["checkpoints"].get(event.event_id)
-                if current is not None:
-                    if current.get("fingerprint") != self._fingerprint(event.model_dump(mode="json")):
+
+        # Verify fingerprints of already-checkpointed events and collect the
+        # events that still need accounting, in a single locked read.
+        with self.lock:
+            checkpoints = self._load()["checkpoints"]
+            pending: list[Any] = []
+            for event in events:
+                recorded = checkpoints.get(event.event_id)
+                if recorded is not None:
+                    if recorded.get("fingerprint") != self._fingerprint(event.model_dump(mode="json")):
                         raise ValueError("order-accounting checkpoint fingerprint mismatch")
-                    existing += 1
-                    continue
-            snapshot = account.apply(event, actor=actor)
-            if self._checkpoint(order_id=order_id, event=event, account_revision=snapshot.revision, actor=actor):
-                new += 1
-            else:
+                else:
+                    pending.append(event)
+
+        # Apply every pending accounting event in one chain-verified pass.
+        # Already-applied events are skipped idempotently inside the ledger,
+        # so a crash before checkpoint publication is recovered on the next
+        # run by replaying the same event.
+        revisions = {
+            event.event_id: snapshot.revision
+            for event, snapshot in zip(pending, account.apply_events(pending, actor=actor))
+        }
+
+        # Checkpoint every newly applied event in one batched write so the cost
+        # of reconciliation stays linear in the number of fills.
+        entries: list[tuple[Any, int]] = []
+        existing = 0
+        for event in events:
+            account_revision = revisions.get(event.event_id)
+            if account_revision is None:
+                # Already checkpointed; no accounting work was needed.
                 existing += 1
+            else:
+                entries.append((event, account_revision))
+        new, batch_existing = self._checkpoint_many(
+            order_id=order_id, entries=entries, actor=actor
+        )
+        existing += batch_existing
         self.reconcile_audit()
         final = account.snapshot()
         with self.lock:

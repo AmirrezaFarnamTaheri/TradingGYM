@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import math
 import os
 import re
@@ -17,7 +16,6 @@ from typing import Any, Dict, List, Optional
 from filelock import FileLock
 
 from trading_gym.common.audit_outbox import (
-    AuditOutboxPending,
     deliver_audit_events,
     ensure_audit_outbox,
     queue_audit_event,

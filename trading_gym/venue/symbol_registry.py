@@ -1,31 +1,12 @@
-"""
-Symbol Registry
-===============
+"""Authoritative tradeable-symbol metadata: decimals, limits, and short/leverage flags.
 
-Maintains authoritative list of tradeable symbols with metadata.
+Backed by ``Leverage_and_Shorting.txt`` for the flags and the venue coin-info
+endpoint for the numeric metadata.
 
-Sources:
-- Leverage_and_Shorting.txt (leverage-enabled symbols)
-- APIDOCS.txt coin-info endpoint (decimals, limits)
-
-Usage:
-    from trading_gym.venue import SymbolRegistry
-    from trading_gym.adapters import RateLimitedAbanSDK
-
-    sdk = RateLimitedAbanSDK(api_key=api_key)
     registry = SymbolRegistry(sdk)
-
-    # Populate from API
     await registry.populate()
-
-    # Get metadata
     btc_meta = registry.get("BTC")
-    if btc_meta.short_enabled:
-        print(f"BTC short cap: {btc_meta.short_cap}")
-
-    # Get filtered lists
     leverage_symbols = registry.get_leverage_symbols()
-    shortable_symbols = registry.get_shortable_symbols()
 """
 
 import json
