@@ -13,6 +13,11 @@ import { useMutation } from '@tanstack/react-query';
 import { playgroundAPI } from '../api';
 import { useToast } from './Toast';
 
+// Mirrors the server-side lake-window floor (_MIN_BARS in
+// trading_gym/playground/lake_windows.py): a shorter window is rejected by the
+// backend with an error the user cannot interpret, so it is blocked here.
+const MIN_WINDOW_BARS = 60;
+
 const EMPTY_FORM = {
   symbol: 'BTCUSDT',
   timeframe: '5m',
@@ -165,6 +170,14 @@ export default function PlaygroundPanel() {
   const metrics = runMutation.data?.data?.metrics;
   const curve = runMutation.data?.data?.equity_curve;
 
+  // Client-side mirror of the backend floor: fewer than MIN_WINDOW_BARS bars
+  // cannot produce a valid backtest window, so the request never leaves the
+  // browser instead of failing opaquely server-side.
+  const barCount = Number(form.bars);
+  const barsTooFew = !Number.isFinite(barCount) || barCount < MIN_WINDOW_BARS;
+  const canSubmit =
+    !runMutation.isPending && Boolean(actorKey) && !barsTooFew;
+
   return (
     <section className="panel playground-panel" aria-label="Playground">
       <h2>Playground</h2>
@@ -190,12 +203,28 @@ export default function PlaygroundPanel() {
           Bars
           <input
             type="number"
-            min="60"
+            min={MIN_WINDOW_BARS}
             max="5000"
             value={form.bars}
             onChange={update('bars')}
             aria-label="Bars"
+            aria-describedby="bars-help"
           />
+          {barsTooFew ? (
+            <small
+              id="bars-help"
+              className="bars-hint"
+              role="note"
+              data-testid="bars-min-hint"
+              style={{ color: '#e74c3c' }}
+            >
+              At least {MIN_WINDOW_BARS} bars are required to run a simulation.
+            </small>
+          ) : (
+            <small id="bars-help" className="bars-hint">
+              Minimum {MIN_WINDOW_BARS} bars.
+            </small>
+          )}
         </label>
         <label>
           Seed
@@ -292,9 +321,19 @@ export default function PlaygroundPanel() {
           />
         </fieldset>
 
-        <button type="submit" disabled={runMutation.isPending || !actorKey}>
+        <button type="submit" disabled={!canSubmit} aria-describedby="bars-help">
           {runMutation.isPending ? 'Running…' : 'Run simulation'}
         </button>
+        {barsTooFew && (
+          <p
+            className="bars-hint"
+            role="alert"
+            data-testid="bars-blocked-hint"
+            style={{ color: '#e74c3c', fontSize: '13px' }}
+          >
+            Increase Bars to {MIN_WINDOW_BARS} or more to enable the run.
+          </p>
+        )}
       </form>
 
       {metrics && (

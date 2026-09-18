@@ -13,7 +13,10 @@ def debate_prompt_pack(dossier: ResearchDossier) -> dict[str, str]:
         "Explicitly identify uncertainty. Do not give personal financial advice and do not request or execute a trade."
     )
     return {
-        "bull": common + " Build the strongest evidence-supported upside case and list falsifiers.",
-        "bear": common + " Build the strongest evidence-supported downside case and list falsifiers.",
-        "moderator": common + " Reconcile agreements and disagreements, score evidence quality, expose unsupported claims, and present conditional scenarios. Do not choose a winner.",
+        "bull": common
+        + " Build the strongest evidence-supported upside case and list falsifiers.",
+        "bear": common
+        + " Build the strongest evidence-supported downside case and list falsifiers.",
+        "moderator": common
+        + " Reconcile agreements and disagreements, score evidence quality, expose unsupported claims, and present conditional scenarios. Do not choose a winner.",
     }

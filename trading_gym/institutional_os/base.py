@@ -1,4 +1,5 @@
 """Shared bounded primitives for the institutional operating-system planes."""
+
 from __future__ import annotations
 
 import hashlib
@@ -43,7 +44,13 @@ def require_aware(value: datetime, label: str = "timestamp") -> datetime:
     return value.astimezone(timezone.utc)
 
 
-def require_finite(value: float, label: str, *, minimum: float | None = None, maximum: float | None = None) -> float:
+def require_finite(
+    value: float,
+    label: str,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float:
     if not math.isfinite(value):
         raise ValueError(f"{label} must be finite")
     if minimum is not None and value < minimum:
@@ -53,7 +60,13 @@ def require_finite(value: float, label: str, *, minimum: float | None = None, ma
     return value
 
 
-def require_decimal(value: Decimal, label: str, *, minimum: Decimal | None = None, maximum: Decimal | None = None) -> Decimal:
+def require_decimal(
+    value: Decimal,
+    label: str,
+    *,
+    minimum: Decimal | None = None,
+    maximum: Decimal | None = None,
+) -> Decimal:
     if not value.is_finite():
         raise ValueError(f"{label} must be finite")
     if minimum is not None and value < minimum:
@@ -70,7 +83,9 @@ def ensure_unique(values: Iterable[str], label: str) -> list[str]:
     return items
 
 
-def bounded_length(values: Iterable[Any], label: str, limit: int = MAX_ITEMS) -> list[Any]:
+def bounded_length(
+    values: Iterable[Any], label: str, limit: int = MAX_ITEMS
+) -> list[Any]:
     items = list(values)
     if len(items) > limit:
         raise ValueError(f"{label} exceeds {limit} item limit")

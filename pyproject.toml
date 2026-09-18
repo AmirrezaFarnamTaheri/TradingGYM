@@ -5,9 +5,15 @@ description = "Governed reinforcement-learning trading platform with evidence-fi
 authors = ["Your Name <you@example.com>"]
 license = "AGPL-3.0-only"
 packages = [{ include = "trading_gym" }, { include = "axiomforge" }, { include = "apps" }]
+include = [
+    { path = "trading_gym/institutional_os/catalog/*.json" },
+    { path = "trading_gym/adapters/*.json" },
+    { path = "evidence/recovered/*.csv" },
+    { path = "evidence/recovered/*.yml" },
+]
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.13"
+python = ">=3.11,<3.13"
 pandas = "^2.2.0"
 numpy = "^1.26.4"
 stable-baselines3 = "^2.2.0"
@@ -23,13 +29,11 @@ numba = "^0.59.0"
 matplotlib = "^3.8.2"
 seaborn = "^0.13.2"
 pydantic = "^2.5.3"
+pydantic-settings = "^2.1.0"
 torch = "^2.2.0"
 requests = "^2.31.0"
 abantether-python-sdk = "^0.1.4"
-scipy = [
-    {version = "^1.11.4", python = ">=3.10,<3.11"},
-    {version = "^1.16.3", python = ">=3.11,<3.13"}
-]
+scipy = "^1.16.3"
 mplfinance = "^0.12.10b0"
 fastapi = "^0.109.0"
 uvicorn = "^0.27.0"
@@ -146,7 +150,3 @@ pythonpath = [".", "trading_gym"]
 markers = [
     "integration: marks tests as integration (deselect with '-m \"not integration\"')"
 ]
-
-
-[tool.poetry.include]
-files = ["trading_gym/institutional_os/catalog/*.json", "trading_gym/adapters/*.json", "evidence/recovered/*.csv", "evidence/recovered/*.yml"]

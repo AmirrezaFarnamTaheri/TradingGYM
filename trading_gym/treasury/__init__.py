@@ -1,4 +1,5 @@
 """Collateral and capital-allocation analysis."""
+
 from .collateral import (
     CollateralAllocationRequest,
     CollateralAllocationReport,
@@ -21,7 +22,10 @@ __all__ = [
 ]
 
 from .counterparty import (
-    CounterpartyExposure, CounterpartyRiskLine, CounterpartyRiskReport, CounterpartyRiskRequest,
+    CounterpartyExposure,
+    CounterpartyRiskLine,
+    CounterpartyRiskReport,
+    CounterpartyRiskRequest,
     evaluate_counterparty_risk,
 )
 
@@ -36,6 +40,11 @@ from .liquidity_forecast import (
 )
 
 __all__ += [
-    "LiquidityBucket", "LiquidityForecastReport", "LiquidityForecastRequest",
-    "TreasuryBalance", "TreasuryCashflow", "TreasuryFxRate", "evaluate_liquidity_forecast",
+    "LiquidityBucket",
+    "LiquidityForecastReport",
+    "LiquidityForecastRequest",
+    "TreasuryBalance",
+    "TreasuryCashflow",
+    "TreasuryFxRate",
+    "evaluate_liquidity_forecast",
 ]

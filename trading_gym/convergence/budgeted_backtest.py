@@ -6,17 +6,21 @@ post-reservation failure it cancels the queued experiment when possible and
 releases the reservation.  It never commits spend, promotes a model, or grants
 execution authority.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from trading_gym.budgets import BudgetRepository, BudgetReservation, BudgetReservationCreate
+from trading_gym.budgets import (
+    BudgetRepository,
+    BudgetReservation,
+    BudgetReservationCreate,
+)
 from trading_gym.convergence.workflows import (
     BacktestExperimentPlan,
     BacktestWorkflowRequest,
@@ -34,7 +38,9 @@ from trading_gym.lineage import (
 
 def _sha(value: Any) -> str:
     return hashlib.sha256(
-        json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        json.dumps(
+            value, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")
     ).hexdigest()
 
 
@@ -43,13 +49,19 @@ class BudgetedBacktestRequest(BaseModel):
 
     backtest: BacktestWorkflowRequest
     budget_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,199}$")]
-    reservation_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,199}$")]
+    reservation_id: Annotated[
+        str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,199}$")
+    ]
     amount: Decimal
     expires_in_seconds: int = Field(default=3600, ge=30, le=86_400)
 
     @model_validator(mode="after")
     def validate_amount(self) -> "BudgetedBacktestRequest":
-        if not self.amount.is_finite() or self.amount <= 0 or self.amount > Decimal("1e30"):
+        if (
+            not self.amount.is_finite()
+            or self.amount <= 0
+            or self.amount > Decimal("1e30")
+        ):
             raise ValueError("amount must be finite, positive, and bounded")
         return self
 
@@ -84,10 +96,16 @@ class BudgetedBacktestWorkflow:
 
     def _lineage(self, plan: BacktestExperimentPlan, *, actor: str) -> LineageSnapshot:
         now = plan.manifest.created_at
-        artifact_by_kind = {(item.kind, item.name): item for item in plan.manifest.artifacts}
-        instrument_artifact = artifact_by_kind.get(("configuration", plan.instrument_id))
+        artifact_by_kind = {
+            (item.kind, item.name): item for item in plan.manifest.artifacts
+        }
+        instrument_artifact = artifact_by_kind.get(
+            ("configuration", plan.instrument_id)
+        )
         if instrument_artifact is None:
-            raise ValueError("backtest manifest is missing instrument artifact evidence")
+            raise ValueError(
+                "backtest manifest is missing instrument artifact evidence"
+            )
         nodes = [
             LineageNodeCreate(
                 node_id=f"strategy:{plan.strategy_id}:{plan.strategy_revision}",
@@ -124,7 +142,9 @@ class BudgetedBacktestWorkflow:
         ]
         snapshot = self.lineage.snapshot()
         for node in nodes:
-            snapshot = self.lineage.add_node(node, expected_revision=snapshot.revision, actor=actor)
+            snapshot = self.lineage.add_node(
+                node, expected_revision=snapshot.revision, actor=actor
+            )
         run_id = nodes[3].node_id
         edges = [
             ("strategy", nodes[0].node_id, run_id, LineageRelationship.USES),
@@ -144,22 +164,28 @@ class BudgetedBacktestWorkflow:
             snapshot = self.lineage.add_edge(edge, expected_revision=snapshot.revision)
         return snapshot
 
-    def plan(self, request: BudgetedBacktestRequest, *, actor: str) -> BudgetedBacktestPlan:
-        reservation = self.budgets.reserve(BudgetReservationCreate(
-            reservation_id=request.reservation_id,
-            budget_id=request.budget_id,
-            amount=request.amount,
-            expires_in_seconds=request.expires_in_seconds,
-            idempotency_key=f"backtest-budget:{request.backtest.idempotency_key}",
-            actor=actor,
-            subject=f"backtest:{request.backtest.idempotency_key}",
-            metadata={"strategy_id": request.backtest.strategy_id},
-        ))
+    def plan(
+        self, request: BudgetedBacktestRequest, *, actor: str
+    ) -> BudgetedBacktestPlan:
+        reservation = self.budgets.reserve(
+            BudgetReservationCreate(
+                reservation_id=request.reservation_id,
+                budget_id=request.budget_id,
+                amount=request.amount,
+                expires_in_seconds=request.expires_in_seconds,
+                idempotency_key=f"backtest-budget:{request.backtest.idempotency_key}",
+                actor=actor,
+                subject=f"backtest:{request.backtest.idempotency_key}",
+                metadata={"strategy_id": request.backtest.strategy_id},
+            )
+        )
         plan: BacktestExperimentPlan | None = None
         try:
             plan = self.base.plan_backtest(request.backtest, actor=actor)
             lineage = self._lineage(plan, actor=actor)
-            return BudgetedBacktestPlan(plan=plan, reservation=reservation, lineage=lineage)
+            return BudgetedBacktestPlan(
+                plan=plan, reservation=reservation, lineage=lineage
+            )
         except Exception as original:
             failures: list[str] = []
             try:
@@ -175,8 +201,14 @@ class BudgetedBacktestWorkflow:
                 failures.append(f"budget_release:{type(exc).__name__}")
             if plan is not None:
                 try:
-                    current_experiment = self.base.experiments.get(plan.experiment.experiment_id)
-                    if current_experiment.state.value not in {"succeeded", "failed", "cancelled"}:
+                    current_experiment = self.base.experiments.get(
+                        plan.experiment.experiment_id
+                    )
+                    if current_experiment.state.value not in {
+                        "succeeded",
+                        "failed",
+                        "cancelled",
+                    }:
                         self.base.experiments.cancel(
                             current_experiment.experiment_id,
                             expected_revision=current_experiment.revision,

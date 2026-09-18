@@ -1,4 +1,5 @@
 """Assumption-explicit causal graph and synthetic-control evidence."""
+
 from __future__ import annotations
 
 import heapq
@@ -33,7 +34,9 @@ class CausalResearchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     treatment_id: Annotated[str, Field(min_length=1, max_length=120)]
-    variables: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(min_length=2, max_length=10_000)
+    variables: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(
+        min_length=2, max_length=10_000
+    )
     edges: list[CausalEdge] = Field(max_length=100_000)
     outcome_variable: Annotated[str, Field(min_length=1, max_length=120)]
     treatment_pre: list[float] = Field(min_length=2, max_length=100_000)
@@ -58,7 +61,10 @@ class CausalResearchRequest(BaseModel):
             if edge.cause not in variables or edge.effect not in variables:
                 raise ValueError("causal edge references unknown variable")
         lengths = {len(self.treatment_pre), *(len(item.pre) for item in self.donors)}
-        post_lengths = {len(self.treatment_post), *(len(item.post) for item in self.donors)}
+        post_lengths = {
+            len(self.treatment_post),
+            *(len(item.post) for item in self.donors),
+        }
         if len(lengths) != 1 or len(post_lengths) != 1:
             raise ValueError("synthetic-control series must be aligned")
         observation_count = len(self.treatment_pre) + len(self.treatment_post)
@@ -119,11 +125,15 @@ def evaluate_causal_research(request: CausalResearchRequest) -> CausalResearchRe
         blockers.append("unobserved_confounding_not_acknowledged")
     errors = []
     for donor in request.donors:
-        mse = sum((a - b) ** 2 for a, b in zip(request.treatment_pre, donor.pre)) / len(request.treatment_pre)
+        mse = sum((a - b) ** 2 for a, b in zip(request.treatment_pre, donor.pre)) / len(
+            request.treatment_pre
+        )
         errors.append((mse, donor))
     inverse = [1.0 / max(item[0], 1e-12) for item in errors]
     total = sum(inverse)
-    weights = {item[1].series_id: inverse[index] / total for index, item in enumerate(errors)}
+    weights = {
+        item[1].series_id: inverse[index] / total for index, item in enumerate(errors)
+    }
     synthetic_pre = [
         sum(weights[donor.series_id] * donor.pre[index] for donor in request.donors)
         for index in range(len(request.treatment_pre))
@@ -132,9 +142,17 @@ def evaluate_causal_research(request: CausalResearchRequest) -> CausalResearchRe
         sum(weights[donor.series_id] * donor.post[index] for donor in request.donors)
         for index in range(len(request.treatment_post))
     ]
-    pre_rmse = math.sqrt(sum((a - b) ** 2 for a, b in zip(request.treatment_pre, synthetic_pre)) / len(synthetic_pre))
-    effects = [actual - counterfactual for actual, counterfactual in zip(request.treatment_post, synthetic_post)]
-    if pre_rmse > max(1e-12, abs(sum(request.treatment_pre) / len(request.treatment_pre)) * 0.2):
+    pre_rmse = math.sqrt(
+        sum((a - b) ** 2 for a, b in zip(request.treatment_pre, synthetic_pre))
+        / len(synthetic_pre)
+    )
+    effects = [
+        actual - counterfactual
+        for actual, counterfactual in zip(request.treatment_post, synthetic_post)
+    ]
+    if pre_rmse > max(
+        1e-12, abs(sum(request.treatment_pre) / len(request.treatment_pre)) * 0.2
+    ):
         warnings.append("weak_pre_treatment_fit")
     payload = {
         "treatment_id": request.treatment_id,

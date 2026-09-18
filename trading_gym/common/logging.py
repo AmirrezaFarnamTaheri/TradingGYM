@@ -1,46 +1,19 @@
-"""
-Logging Utilities for Trading Gym
+"""Process-wide logging configuration and small timing decorators.
 
-This module provides comprehensive logging configuration for the Trading Gym
-application, including:
-
-- Structured logging with consistent formatting
-- Environment-based configuration
-- File and console handlers
-- Log level management
-- Performance logging helpers
-
-Usage:
-    from trading_gym.common.logging import configure_logging, get_logger
-
-    # Configure once at application startup
-    configure_logging(level="INFO")
-
-    # Get a logger for your module
-    logger = get_logger(__name__)
-    logger.info("Application started")
-
-Environment Variables:
-    TG_LOG_LEVEL: Set the log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-    TG_LOG_FILE: Path to log file (optional)
-    TG_LOG_FORMAT: Log format string (optional)
-
-Version: 4.2.0
+Set ``TG_LOG_LEVEL`` / ``TG_LOG_FILE`` / ``TG_LOG_DETAILED`` to configure logging
+from the environment, or call :func:`configure_logging` directly at startup.
 """
 
 from __future__ import annotations
 
 import logging
+import logging.handlers
 import os
 import sys
 from functools import wraps
 from pathlib import Path
 from typing import Optional, Callable, Any
 import time
-
-# =============================================================================
-# Constants
-# =============================================================================
 
 DEFAULT_FORMAT = "[%(asctime)s] [%(levelname)-8s] [%(name)s]: %(message)s"
 DEFAULT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -57,10 +30,6 @@ LEVEL_MAP = {
     "FATAL": logging.CRITICAL,
 }
 
-# =============================================================================
-# Core Functions
-# =============================================================================
-
 
 def configure_logging(
     level: int | str = logging.INFO,
@@ -69,32 +38,7 @@ def configure_logging(
     log_file: Optional[str | Path] = None,
     detailed: bool = False,
 ) -> None:
-    """
-    Configure application-wide logging with a consistent formatter.
-
-    This function sets up the root logger with appropriate handlers and
-    formatting. Call this once at application startup.
-
-    Parameters
-    ----------
-    level : int | str
-        Logging level or level name. Defaults to ``logging.INFO``.
-        Accepted strings: DEBUG, INFO, WARNING, ERROR, CRITICAL
-    force : bool
-        When ``True`` the root handlers are reconfigured even if logging has
-        already been set up elsewhere.
-    log_file : str | Path, optional
-        Path to a log file. If provided, logs will also be written to this file.
-    detailed : bool
-        If ``True``, use a more detailed format including line numbers and
-        function names. Useful for debugging.
-
-    Examples
-    --------
-    >>> configure_logging(level="DEBUG", detailed=True)
-    >>> logger = get_logger(__name__)
-    >>> logger.debug("Debug message")
-    """
+    """Install a consistent formatter on the root logger. Call once at startup."""
     resolved_level = _resolve_level(level)
     log_format = DETAILED_FORMAT if detailed else DEFAULT_FORMAT
 
@@ -104,8 +48,31 @@ def configure_logging(
     # Add file handler if requested
     if log_file:
         file_path = Path(log_file)
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(file_path, encoding="utf-8")
+        # Every other persistence surface in this codebase is 0700 dir / 0600
+        # file because logs carry redacted-but-sensitive operational detail;
+        # the default mkdir/FileHandler modes left both world-readable on POSIX.
+        # Create the log with a restrictive mode BEFORE the handler opens it:
+        # chmod-after-open leaves a world-readable window, and a fresh file
+        # never gets chmodded at all.
+        file_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            descriptor = os.open(
+                file_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600
+            )
+            os.close(descriptor)
+            # os.open honours the mode only on POSIX; on Windows the mode is
+            # not a filesystem property, so also chmod to cover a POSIX mount.
+            file_path.chmod(0o600)
+        except OSError:
+            # The filesystem may ignore the mode (Windows); the handler below
+            # still opens the file for our use only.
+            pass
+        file_handler = logging.handlers.RotatingFileHandler(
+            file_path,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
         handlers.append(file_handler)
 
     # Apply configuration
@@ -128,21 +95,7 @@ def configure_logging_from_env(
     *,
     force: bool = False,
 ) -> None:
-    """
-    Configure logging using environment variables.
-
-    Uses the following environment variables:
-    - TG_LOG_LEVEL: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-    - TG_LOG_FILE: Path to log file (optional)
-    - TG_LOG_DETAILED: If "true", use detailed format
-
-    Parameters
-    ----------
-    default : int | str
-        Default log level if TG_LOG_LEVEL is not set.
-    force : bool
-        Reconfigure even if already configured.
-    """
+    """Configure logging from ``TG_LOG_LEVEL`` / ``TG_LOG_FILE`` / ``TG_LOG_DETAILED``."""
     env_level: Optional[str] = os.getenv("TG_LOG_LEVEL")
     log_file: Optional[str] = os.getenv("TG_LOG_FILE")
     detailed: bool = os.getenv("TG_LOG_DETAILED", "").lower() == "true"
@@ -156,49 +109,12 @@ def configure_logging_from_env(
 
 
 def get_logger(name: str) -> logging.Logger:
-    """
-    Get a logger with the specified name.
-
-    This is a convenience function that returns a properly configured logger.
-    Use it in modules to get a logger with the module name.
-
-    Parameters
-    ----------
-    name : str
-        Logger name, typically ``__name__`` for module-level loggers.
-
-    Returns
-    -------
-    logging.Logger
-        Configured logger instance.
-
-    Examples
-    --------
-    >>> logger = get_logger(__name__)
-    >>> logger.info("Processing started")
-    """
+    """Return a logger for ``name`` (usually ``__name__``)."""
     return logging.getLogger(name)
 
 
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
-
 def _resolve_level(level: int | str) -> int:
-    """
-    Resolve a log level to its integer value.
-
-    Parameters
-    ----------
-    level : int | str
-        Log level as integer or string name.
-
-    Returns
-    -------
-    int
-        Resolved log level integer.
-    """
+    """Resolve a level name or integer to its numeric level."""
     if isinstance(level, int):
         return level
 
@@ -213,32 +129,11 @@ def _resolve_level(level: int | str) -> int:
     return logging.INFO
 
 
-# =============================================================================
-# Performance Logging Decorators
-# =============================================================================
-
-
 def log_execution_time(
     logger: Optional[logging.Logger] = None,
     level: int = logging.DEBUG,
 ) -> Callable:
-    """
-    Decorator to log the execution time of a function.
-
-    Parameters
-    ----------
-    logger : logging.Logger, optional
-        Logger to use. If not provided, uses the module logger.
-    level : int
-        Log level to use for the timing message.
-
-    Examples
-    --------
-    >>> @log_execution_time()
-    ... def slow_function():
-    ...     time.sleep(1)
-    ...     return "done"
-    """
+    """Decorate a function to log its wall-clock execution time."""
 
     def decorator(func: Callable) -> Callable:
         func_logger = logger or logging.getLogger(func.__module__)
@@ -269,20 +164,7 @@ def log_function_call(
     log_args: bool = False,
     log_result: bool = False,
 ) -> Callable:
-    """
-    Decorator to log function calls with optional argument and result logging.
-
-    Parameters
-    ----------
-    logger : logging.Logger, optional
-        Logger to use.
-    level : int
-        Log level to use.
-    log_args : bool
-        If True, log the function arguments.
-    log_result : bool
-        If True, log the function result.
-    """
+    """Decorate a function to log its calls, optionally with arguments and results."""
 
     def decorator(func: Callable) -> Callable:
         func_logger = logger or logging.getLogger(func.__module__)
@@ -317,23 +199,8 @@ def log_function_call(
     return decorator
 
 
-# =============================================================================
-# Structured Logging Context
-# =============================================================================
-
-
 class LogContext:
-    """
-    Context manager for adding context to log messages.
-
-    Useful for adding correlation IDs or other context information
-    to all log messages within a block.
-
-    Examples
-    --------
-    >>> with LogContext(request_id="abc123"):
-    ...     logger.info("Processing request")  # Will include request_id context
-    """
+    """Thread-local-ish context store; read it from your own formatters."""
 
     _context: dict[str, Any] = {}
 
@@ -355,11 +222,6 @@ class LogContext:
         return cls._context.copy()
 
 
-# =============================================================================
-# Specialized Loggers
-# =============================================================================
-
-
 def get_trading_logger() -> logging.Logger:
     """Get a logger specifically for trading operations."""
     return get_logger("trading_gym.trading")
@@ -379,10 +241,6 @@ def get_data_logger() -> logging.Logger:
     """Get a logger specifically for data operations."""
     return get_logger("trading_gym.data")
 
-
-# =============================================================================
-# Exports
-# =============================================================================
 
 __all__ = [
     "configure_logging",

@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import http.client
 import threading
-from types import SimpleNamespace
 
 import pytest
 from fastapi import WebSocketDisconnect
@@ -73,7 +72,9 @@ def test_metrics_endpoint_enforces_bearer_token(monkeypatch):
         connection.close()
 
         connection = http.client.HTTPConnection(host, port, timeout=3)
-        connection.request("GET", "/metrics", headers={"Authorization": f"Bearer {token}"})
+        connection.request(
+            "GET", "/metrics", headers={"Authorization": f"Bearer {token}"}
+        )
         response = connection.getresponse()
         assert response.status == 200
         assert b"# HELP" in response.read()

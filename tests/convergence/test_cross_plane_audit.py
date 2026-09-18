@@ -13,7 +13,11 @@ import apps.api.main as api_main
 from apps.api.convergence import create_convergence_router
 from trading_gym.agent.providers import ProviderConfig, ProviderKind, ProviderRepository
 from trading_gym.common.audit_outbox import AuditOutboxPending
-from trading_gym.experiments import ExperimentCreate, ExperimentRepository, ExperimentState
+from trading_gym.experiments import (
+    ExperimentCreate,
+    ExperimentRepository,
+    ExperimentState,
+)
 from trading_gym.governance.health import audit_outbox_health
 from trading_gym.governance.ledger import AuditLedger
 from trading_gym.market import (
@@ -37,6 +41,11 @@ class FlakyLedger(AuditLedger):
         if self.fail:
             raise OSError("simulated ledger outage")
         return super().append(**kwargs)
+
+    def append_events(self, records):  # type: ignore[no-untyped-def]
+        if self.fail:
+            raise OSError("simulated ledger outage")
+        return super().append_events(records)
 
 
 def _dataset() -> DatasetRegistration:
@@ -110,7 +119,10 @@ def test_all_mutable_planes_commit_audit_intent_before_delivery(tmp_path: Path) 
 
     assert [repository.audit_pending() for repository in repositories] == [1] * 6
     ledger.fail = False
-    assert sum(repository.reconcile_audit()["delivered"] for repository in repositories) == 6
+    assert (
+        sum(repository.reconcile_audit()["delivered"] for repository in repositories)
+        == 6
+    )
     assert [repository.audit_pending() for repository in repositories] == [0] * 6
     assert ledger.verify()["entries"] == 6
 
@@ -141,7 +153,9 @@ def test_experiment_stale_reconciliation_is_audited(tmp_path: Path) -> None:
     assert ledger.tail(1)[0]["event"] == "experiment.lease_stale"
 
 
-def test_cross_plane_audit_health_fails_closed_on_pending_or_corrupt_store(tmp_path: Path) -> None:
+def test_cross_plane_audit_health_fails_closed_on_pending_or_corrupt_store(
+    tmp_path: Path,
+) -> None:
     (tmp_path / "providers.json").write_text(
         json.dumps(
             {

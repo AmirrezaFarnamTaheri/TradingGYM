@@ -67,7 +67,9 @@ def test_registry_rejects_duplicate_or_reused_privileged_secrets(monkeypatch) ->
         ActorCredentialRegistry.from_environment()
 
 
-def test_registry_fails_closed_on_missing_malformed_or_unknown_roles(monkeypatch) -> None:
+def test_registry_fails_closed_on_missing_malformed_or_unknown_roles(
+    monkeypatch,
+) -> None:
     monkeypatch.delenv("ACTOR_CREDENTIALS_JSON", raising=False)
     with pytest.raises(ActorIdentityConfigurationError):
         ActorCredentialRegistry.from_environment()

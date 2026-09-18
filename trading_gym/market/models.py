@@ -28,8 +28,12 @@ class InstrumentSpec(BaseModel):
     venue: Annotated[str, Field(pattern=r"^[A-Z0-9][A-Z0-9_.-]{1,39}$")]
     symbol: Annotated[str, Field(pattern=r"^[A-Z0-9][A-Z0-9_./:-]{0,79}$")]
     asset_class: AssetClass
-    base_asset: Annotated[str | None, Field(pattern=r"^[A-Z0-9][A-Z0-9_.-]{0,39}$")] = None
-    quote_asset: Annotated[str | None, Field(pattern=r"^[A-Z0-9][A-Z0-9_.-]{0,39}$")] = None
+    base_asset: Annotated[str | None, Field(pattern=r"^[A-Z0-9][A-Z0-9_.-]{0,39}$")] = (
+        None
+    )
+    quote_asset: Annotated[
+        str | None, Field(pattern=r"^[A-Z0-9][A-Z0-9_.-]{0,39}$")
+    ] = None
     aliases: Annotated[list[str], Field(max_length=50)] = Field(default_factory=list)
     active: bool = True
     leverage_allowed: bool = False
@@ -42,7 +46,9 @@ class InstrumentSpec(BaseModel):
     price_increment: Annotated[float | None, Field(gt=0.0)] = None
     metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
 
-    @field_validator("instrument_id", "venue", "symbol", "base_asset", "quote_asset", mode="before")
+    @field_validator(
+        "instrument_id", "venue", "symbol", "base_asset", "quote_asset", mode="before"
+    )
     @classmethod
     def uppercase_identity(cls, value: object) -> object:
         return value.strip().upper() if isinstance(value, str) else value

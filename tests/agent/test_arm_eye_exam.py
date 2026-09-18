@@ -21,7 +21,6 @@ stub, and stubs do not field.
 
 from __future__ import annotations
 
-from datetime import timedelta
 
 import pytest
 

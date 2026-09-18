@@ -28,7 +28,9 @@ class ExecutionSimulationPolicy(BaseModel):
 
     fee_bps: Annotated[float, Field(ge=0.0, le=1000.0)] = 10.0
     base_slippage_bps: Annotated[float, Field(ge=0.0, le=5000.0)] = 2.0
-    impact_bps_at_full_participation: Annotated[float, Field(ge=0.0, le=10_000.0)] = 50.0
+    impact_bps_at_full_participation: Annotated[float, Field(ge=0.0, le=10_000.0)] = (
+        50.0
+    )
     volatility_multiplier: Annotated[float, Field(ge=0.0, le=100.0)] = 1.0
     max_participation_fraction: Annotated[float, Field(gt=0.0, le=1.0)] = 0.05
     minimum_fill_fraction: Annotated[float, Field(ge=0.0, le=1.0)] = 0.0
@@ -64,7 +66,9 @@ class ExecutionSimulationRequest(BaseModel):
             self.visible_liquidity_units,
             self.volatility_fraction,
         )
-        if any(value is not None and not math.isfinite(float(value)) for value in numeric):
+        if any(
+            value is not None and not math.isfinite(float(value)) for value in numeric
+        ):
             raise ValueError("simulation inputs must be finite")
         if self.ask_price < self.bid_price:
             raise ValueError("ask_price must be greater than or equal to bid_price")
@@ -97,7 +101,9 @@ class ExecutionSimulationResult(BaseModel):
     execution_authority_granted: bool = False
 
 
-def _rng(policy: ExecutionSimulationPolicy, request: ExecutionSimulationRequest) -> tuple[random.Random, str]:
+def _rng(
+    policy: ExecutionSimulationPolicy, request: ExecutionSimulationRequest
+) -> tuple[random.Random, str]:
     key = hashlib.sha256(
         f"{policy.seed}|{request.order_id}|{request.instrument_id}|{request.side}|{request.quantity}".encode(
             "utf-8"
@@ -173,10 +179,16 @@ def simulate_execution(
 
     participation = filled / max(request.interval_volume_units, 1e-30)
     scaled_participation = min(1.0, participation / policy.max_participation_fraction)
-    impact_bps = policy.impact_bps_at_full_participation * math.sqrt(max(0.0, scaled_participation))
-    volatility_bps = request.volatility_fraction * 10_000.0 * policy.volatility_multiplier
+    impact_bps = policy.impact_bps_at_full_participation * math.sqrt(
+        max(0.0, scaled_participation)
+    )
+    volatility_bps = (
+        request.volatility_fraction * 10_000.0 * policy.volatility_multiplier
+    )
     jitter_bps = rng.uniform(-policy.price_jitter_bps, policy.price_jitter_bps)
-    adverse_bps = max(0.0, policy.base_slippage_bps + impact_bps + volatility_bps + jitter_bps)
+    adverse_bps = max(
+        0.0, policy.base_slippage_bps + impact_bps + volatility_bps + jitter_bps
+    )
     direction = 1.0 if request.side == "buy" else -1.0
     impacted = reference * (1.0 + direction * adverse_bps / 10_000.0)
 
@@ -184,9 +196,7 @@ def simulate_execution(
         assert request.limit_price is not None
         marketable = (
             request.side == "buy" and request.limit_price >= request.ask_price
-        ) or (
-            request.side == "sell" and request.limit_price <= request.bid_price
-        )
+        ) or (request.side == "sell" and request.limit_price <= request.bid_price)
         if not marketable:
             filled = 0.0
             impacted = 0.0
@@ -223,7 +233,11 @@ def simulate_execution(
     fee = notional * policy.fee_bps / 10_000.0
     slippage = filled * abs(impacted - reference)
     spread = filled * spread_cost_per_unit
-    status = SimulatedOrderStatus.FILLED if filled + 1e-15 >= request.quantity else SimulatedOrderStatus.PARTIAL
+    status = (
+        SimulatedOrderStatus.FILLED
+        if filled + 1e-15 >= request.quantity
+        else SimulatedOrderStatus.PARTIAL
+    )
     return ExecutionSimulationResult(
         order_id=request.order_id,
         instrument_id=request.instrument_id,
@@ -264,17 +278,23 @@ def simulate_scenarios(
             "impact_bps_at_full_participation": min(
                 10_000.0, base_policy.impact_bps_at_full_participation * 1.5
             ),
-            "max_participation_fraction": max(1e-6, base_policy.max_participation_fraction * 0.5),
+            "max_participation_fraction": max(
+                1e-6, base_policy.max_participation_fraction * 0.5
+            ),
             "base_latency_ms": min(3_600_000, base_policy.base_latency_ms * 2),
         }
     )
     extreme = base_policy.model_copy(
         update={
-            "base_slippage_bps": min(5000.0, base_policy.base_slippage_bps * 5.0 + 10.0),
+            "base_slippage_bps": min(
+                5000.0, base_policy.base_slippage_bps * 5.0 + 10.0
+            ),
             "impact_bps_at_full_participation": min(
                 10_000.0, base_policy.impact_bps_at_full_participation * 3.0
             ),
-            "max_participation_fraction": max(1e-6, base_policy.max_participation_fraction * 0.2),
+            "max_participation_fraction": max(
+                1e-6, base_policy.max_participation_fraction * 0.2
+            ),
             "base_latency_ms": min(3_600_000, base_policy.base_latency_ms * 5),
         }
     )

@@ -1,14 +1,7 @@
-"""
-Enhanced Margin Trading Environment with Normalization and Improved Rewards.
+"""Observation-normalising, reward-clipping wrapper around ``MarginTradingEnv``.
 
-This module provides a wrapper around MarginTradingEnv that adds:
-- Observation normalization (3-5x faster training)
-- Bounded rewards (2-3x more stable training)
-- Action clipping feedback (better constraint learning)
-- Enhanced state space (12 features instead of 5)
-- Comprehensive logging
-
-This is a non-invasive wrapper approach that can be easily toggled on/off.
+Every behaviour is opt-in through the constructor flags, so the wrapper can be
+removed without touching the base environment.
 """
 
 import logging
@@ -20,29 +13,15 @@ logger = logging.getLogger(__name__)
 
 
 class NormalizedMarginEnv(gym.Wrapper):
-    """
-    Wrapper that adds normalization, bounded rewards, and enhanced features.
+    """Normalise observations, clip rewards, and optionally extend the state space.
 
-    Improvements over base environment:
-    1. Observation normalization - features scaled to similar ranges
-    2. Bounded rewards - clipped to prevent instability
-    3. Action clipping feedback - agent learns about constraints
-    4. Enhanced state space - 12 features with risk metrics
-    5. Comprehensive logging - detailed step information
-
-    Expected improvements:
-    - Training time: 2-4 hours → 40-60 minutes (3-4x faster)
-    - Sharpe ratio: 0.8-1.2 → 1.5-2.0 (50-70% better)
-    - Training stability: High variance → Low variance (2x improvement)
+    Training statistics must be supplied out-of-band (``training_stats``) for
+    offline training; computing them from the episode under test leaks the
+    future into the observation.
 
     Example:
-        >>> from trading_gym.rl.margin_trading_environment import MarginTradingEnv
-        >>> from trading_gym.rl.normalized_env import NormalizedMarginEnv
-        >>>
-        >>> base_env = MarginTradingEnv(...)
-        >>> env = NormalizedMarginEnv(base_env)
+        >>> env = NormalizedMarginEnv(MarginTradingEnv(...))
         >>> obs, info = env.reset()
-        >>> obs, reward, done, truncated, info = env.step(action)
     """
 
     def __init__(
@@ -54,16 +33,10 @@ class NormalizedMarginEnv(gym.Wrapper):
         enable_action_feedback: bool = True,
         training_stats: Optional[Dict[str, float]] = None,
     ):
-        """
-        Initialize the normalized environment wrapper.
-        Args:
-            env: Base MarginTradingEnv to wrap
-            reward_clip: Maximum absolute reward value (default 0.10 = 10% per step)
-            enable_normalization: Whether to normalize observations
-            enable_enhanced_obs: Whether to add enhanced features
-            enable_action_feedback: Whether to penalize action clipping
-            training_stats: Optional dictionary containing pre-computed mean and std
-                            for normalization to prevent data leakage.
+        """Initialise the wrapper.
+
+        ``training_stats`` carries pre-computed normalisation statistics so that
+        offline training never derives them from the episode it is scoring.
         """
         super().__init__(env)
 
@@ -79,8 +52,8 @@ class NormalizedMarginEnv(gym.Wrapper):
                 self._compute_normalization_stats_from_dict(self.training_stats)
             else:
                 logger.warning(
-                    "Normalization is enabled, but no `training_stats` were provided. "
-                    "This is only safe in live_mode. If training, this will lead to data leakage."
+                    "Normalisation is enabled without training_stats; deriving them "
+                    "from the live episode is safe only in live mode."
                 )
                 base_env = self.env.unwrapped
                 price_arr = np.asarray(getattr(base_env, "price", []), dtype=np.float64)
@@ -151,8 +124,6 @@ class NormalizedMarginEnv(gym.Wrapper):
         base_env = self.env.unwrapped
         safe_price_mean = price_mean if abs(price_mean) > 1e-8 else 1.0
 
-        # FIX: Ensure init_eq is defined
-        # Fallback if initial_equity is not available
         init_eq = float(getattr(base_env, "initial_equity", 1000.0))
 
         position_std = (init_eq / safe_price_mean) + 1e-8
@@ -232,11 +203,42 @@ class NormalizedMarginEnv(gym.Wrapper):
 
         # Safely derive sizes and current index
         price_arr = np.asarray(getattr(base_env, "price", []), dtype=np.float64)
-        spread_arr = np.asarray(getattr(base_env, "spread_bps", []), dtype=np.float64)
-        vol_arr = np.asarray(getattr(base_env, "vol", []), dtype=np.float64)
-        buy_cap = np.asarray(getattr(base_env, "buy_cap", []), dtype=np.float64)
-        sell_cap = np.asarray(getattr(base_env, "sell_cap", []), dtype=np.float64)
-        missing_arr = np.asarray(getattr(base_env, "missing", []), dtype=np.float64)
+        # Spread/volatility come from the base env's raw feature frame and its
+        # feature_index, exactly as margin_trading_environment reads them.
+        # The base env does not expose spread_bps/vol/buy_cap/sell_cap/missing
+        # attributes; reading them via getattr defaults silently produced
+        # constants, padding the observation with non-information.
+        feature_index = getattr(base_env, "feature_index", {})
+        # The current raw row comes from the base env's own accessor: a freshly
+        # streamed live bar lands in _raw_buffer, not the historical
+        # _raw_features frame, so indexing that frame returned a stale row in
+        # live mode.
+        if getattr(base_env, "live_mode", False) and hasattr(
+            base_env, "_get_current_raw_features"
+        ):
+            row = np.asarray(base_env._get_current_raw_features(), dtype=np.float64)
+        else:
+            t_now = int(getattr(base_env, "t", 0) or 0)
+            raw = getattr(base_env, "_raw_features", None)
+            if raw is not None and t_now < len(raw):
+                row = np.asarray(raw[t_now], dtype=np.float64)
+            else:
+                row = np.empty(0, dtype=np.float64)
+
+        def _feat(name: str) -> float:
+            idx = feature_index.get(name)
+            if idx is None or idx >= row.size:
+                return 0.0
+            return float(row[idx])
+
+        # Scalars, not one-element arrays: these are per-bar values for the
+        # current bar, and wrapping one only to index it with t again hit the
+        # default for every t > 0, padding the observation with constant zeros.
+        spread_bps = _feat("spread_ratio") * 10000.0
+        volatility = _feat("volatility")
+        buy_cap = _feat("buy_capacity")
+        sell_cap = _feat("sell_capacity")
+        missing_rate = _feat("missing_rate")
 
         T = int(getattr(base_env, "T", len(price_arr)) or len(price_arr))
         t = int(getattr(base_env, "t", 0) or 0)
@@ -253,7 +255,9 @@ class NormalizedMarginEnv(gym.Wrapper):
         borrowed_base = abs(getattr(state, "borrowed_base", 0.0))
         equity = float(getattr(state, "equity", 0.0)) if state else 0.0
 
-        borrowed_val = borrowed_quote + borrowed_base * current_mid
+        # ExecutionState carries Decimal money fields; coerce before mixing
+        # with the float mid price, else Decimal * float raises TypeError.
+        borrowed_val = float(borrowed_quote) + float(borrowed_base) * current_mid
 
         if borrowed_val <= 1e-12:
             margin_ratio = 10.0
@@ -263,7 +267,13 @@ class NormalizedMarginEnv(gym.Wrapper):
         # Calculate leverage utilization
         position = float(getattr(state, "position", 0.0)) if state else 0.0
         exposure = abs(position * current_mid)
-        max_lev = float(getattr(base_env, "_max_leverage", 0.0))
+        # The base env exposes per-side limits (_long/_short_max_leverage),
+        # not a single _max_leverage; fall back to 0 only if neither exists.
+        max_lev = float(
+            getattr(base_env, "_long_max_leverage", None)
+            or getattr(base_env, "_max_leverage", None)
+            or 0.0
+        )
         max_equity = max(equity, 1e-8)
         max_exposure = max_lev * max_equity
         leverage_util = (exposure / max_exposure) if max_exposure > 0 else 0.0
@@ -290,27 +300,19 @@ class NormalizedMarginEnv(gym.Wrapper):
         else:
             unrealized_pnl_pct = 0.0
 
-        # Liquidity available and data quality with safe indexing
+        # Liquidity available and data quality are per-bar scalars too.
         def safe_get(arr, index, default):
             return float(arr[index]) if arr.size > index else default
 
-        liquidity_available = (
-            1.0
-            if (
-                buy_cap.size > idx
-                and sell_cap.size > idx
-                and (buy_cap[idx] > 0 and sell_cap[idx] > 0)
-            )
-            else 0.0
-        )
-        data_quality = safe_get(missing_arr, idx, 0.0)
+        liquidity_available = 1.0 if (buy_cap > 0 and sell_cap > 0) else 0.0
+        data_quality = missing_rate
 
         # Construct enhanced observation with safe values
         obs = np.array(
             [
                 safe_get(price_arr, idx, current_mid),  # 0: Price
-                safe_get(spread_arr, idx, 0.0),  # 1: Spread BPS
-                safe_get(vol_arr, idx, 0.0),  # 2: Volatility
+                spread_bps,  # 1: Spread BPS
+                volatility,  # 2: Volatility
                 position,  # 3: Position
                 leverage_util,  # 4: Leverage utilization
                 equity,  # 5: Equity
@@ -414,9 +416,20 @@ class NormalizedMarginEnv(gym.Wrapper):
             # Fallback to current price or minimal floor
             ref_price = float(max(getattr(base_env, "prev_mid_price", 0.0), 1e-6))
 
-        max_lev = getattr(base_env, "_max_leverage", 1.0)
-        equity = getattr(base_env._state, "equity", 0.0)
-        max_exposure = max_lev * max(equity, 0.0)
+        # Per-side limits on the real env; equity is Decimal and must be
+        # coerced before the float multiply, else float * Decimal raises.
+        # The ceiling follows the requested sign, mirroring the base env's own
+        # _clip_to_leverage: a short target is bounded by the short cap, not
+        # the long cap applied to both sides.
+        long_lev = float(
+            getattr(base_env, "_long_max_leverage", None)
+            or getattr(base_env, "_max_leverage", None)
+            or 1.0
+        )
+        short_lev = float(getattr(base_env, "_short_max_leverage", None) or long_lev)
+        equity = float(getattr(base_env._state, "equity", 0.0))
+        ceiling_lev = long_lev if original_action >= 0 else short_lev
+        max_exposure = ceiling_lev * max(equity, 0.0)
         max_units = max_exposure / max(ref_price, 1e-6)
         clipped_target = float(np.clip(original_action, -max_units, max_units))
 

@@ -119,9 +119,7 @@ def cscv_pbo_analysis(
         # best OOS, 0 means worst).  Ties contribute one half each.  PBO then
         # accumulates every split whose ω fell below the median (λ <= 0).
         worse = int(np.sum(oos_mean < oos_mean[best_config]))
-        tied_excluding_self = int(
-            np.sum(oos_mean == oos_mean[best_config]) - 1
-        )
+        tied_excluding_self = int(np.sum(oos_mean == oos_mean[best_config]) - 1)
         relative_rank = (worse + 0.5 * tied_excluding_self) / (n_configs - 1)
         logits.append(_logit(relative_rank))
 
@@ -137,9 +135,7 @@ def cscv_pbo_analysis(
     pbo = sum(1 for lam in logits if lam <= 0.0) / len(logits)
     logits_arr = np.asarray(logits, dtype=float)
     most_frequent = (
-        max(is_best_counts.items(), key=lambda kv: kv[1])[0]
-        if is_best_counts
-        else None
+        max(is_best_counts.items(), key=lambda kv: kv[1])[0] if is_best_counts else None
     )
     return CSCVResult(
         probability_of_backtest_overfitting=float(pbo),
@@ -152,9 +148,12 @@ def cscv_pbo_analysis(
     )
 
 
-def pbo_summary(result: CSCVResult, *, threshold: float = DEFAULT_PBO_THRESHOLD) -> dict:
+def pbo_summary(
+    result: CSCVResult, *, threshold: float = DEFAULT_PBO_THRESHOLD
+) -> dict:
     """JSON-safe summary with the pass flag against ``threshold``."""
     logits_sorted = sorted(result.logits)
+
     def quantile(q: float) -> float:
         if not logits_sorted:
             return float("nan")
@@ -163,6 +162,7 @@ def pbo_summary(result: CSCVResult, *, threshold: float = DEFAULT_PBO_THRESHOLD)
         high = min(low + 1, len(logits_sorted) - 1)
         frac = position - low
         return logits_sorted[low] * (1 - frac) + logits_sorted[high] * frac
+
     return {
         "pbo": result.probability_of_backtest_overfitting,
         "overfit_flag": bool(result.probability_of_backtest_overfitting > threshold),

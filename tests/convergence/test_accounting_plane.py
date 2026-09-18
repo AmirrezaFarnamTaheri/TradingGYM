@@ -137,7 +137,9 @@ def test_accounting_reconciliation_is_explicit_and_non_mutating(tmp_path):
     )
     before = ledger.snapshot()
     report = ledger.reconcile(
-        ObservedAccountState(cash={"USD": Decimal("899")}, positions={"BTC-USD": Decimal("0.5")})
+        ObservedAccountState(
+            cash={"USD": Decimal("899")}, positions={"BTC-USD": Decimal("0.5")}
+        )
     )
     after = ledger.snapshot()
     assert not report.matched

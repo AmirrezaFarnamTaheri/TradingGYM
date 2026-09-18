@@ -120,6 +120,10 @@ artifacts/
 reports/
 mlruns/
 checkpoints/
+# Source-release archives from scripts/build_source_release.py (default
+# output lands in the parent dir; manual exports land here too).
+*-source.zip
+*AxiomForge-*-SOURCE.zip
 
 # OS
 .DS_Store
@@ -136,3 +140,13 @@ node_modules/
 .ruff_cache/
 .serena/
 frontend/dist/
+
+# Rust kernel build artifacts (ADR-035). The crate source is tracked; the
+# compiled cdylib is a per-platform build product, and the Python loader
+# treats an absent artifact as a supported state.
+rust/*/target/
+
+# Lockfile from the uv venv used for verification; the
+# project and CI resolve dependencies through poetry.lock.
+uv.lock
+scratchpad/

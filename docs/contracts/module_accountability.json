@@ -3,57 +3,57 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/__init__.py",
-      "sha256": "09a7360e6aaff24ae2ad8994965868ca4c43c0e94d611a93299471c8c2af7596"
+      "sha256": "e3e11f3bb277b0af2b4fae7baeed2ffdc4e30831ce73cf67ff7287a9f311368d"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/accounting/__init__.py",
-      "sha256": "e322f61a781921bb09636a8d44a84b782de25e96a53a95180eebdbd9c57b47e3"
+      "sha256": "559e33c9c46060a89362dbebfc5f0215c558a3b520be2f00da9082785b6a2a62"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/accounting/controls.py",
-      "sha256": "bab237a989526fa0d63efd8876d2879ce5efe39c45d9ad7ee955a89eb9066403"
+      "sha256": "b1914590e25fe5d7fec5cbb6589ecc50e570d5232385e0c0849a3cf75ab0cefe"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/accounting/corporate_actions.py",
-      "sha256": "ab00772eeb82fcf7680b26b4d4f55a698a349f820f893558c13b4aa8ead364c6"
+      "sha256": "96e363c473edde20f3fbb74ea4b6cfd412f5ab4c8aa51d78efe5ce269fee5421"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/accounting/ledger.py",
-      "sha256": "c7dcfb0bb8cd57b49ce8b3426e8c49d727b1c793f3603f20e6e7587f2f3efd3c"
+      "sha256": "c4085e20c9ead9436083bc0e616142fcd4023f2bdd068f8cca30da36a007308e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/accounting/models.py",
-      "sha256": "a3bc7e3bc7bede86006a09aa5b93728833c98424c31eae613e8eaf4b92f48082"
+      "sha256": "bf86c6e3aea64a23e38a8ff13c2bca8b8876f5923e8c8724b31ecfda385194c3"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/accounting/pnl_decomposition.py",
-      "sha256": "0fc4da9ce5b6b624965aaca3e73264c745fd510f0a7b2783483d8992fe479e7b"
+      "sha256": "525dc34313ed2ff0455d8ab4a67f3ddceb522bb91884e40fb8ffca4b61bb6ea8"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/accounting/settlement.py",
-      "sha256": "7ef1801ab4f9c4daf2c3fd5ec6ccdf7707fb7dfe879db684d583251621b9dbe1"
+      "sha256": "002c0377131f9978040963594c2a5e8bd73467ff093affccfefe1d3c460e60a6"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/accounting/valuation.py",
-      "sha256": "1f905a48374ca01291087ed960920b7d67ccbee45de1d21485395e27e7643dc3"
+      "sha256": "fd597dd700b6b16bcd6a2b70fd24e63e9d4284f128b3e31178658f3305cc8a28"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/__init__.py",
-      "sha256": "c213fa7761b50c1c146bafb93ab050f0b115326e12439b93e8e10a1a20a88528"
+      "sha256": "ef7917fc9b0df5e42512964e15da0fab2d99273204826e209aad09b263e687bb"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/aban_sdk_wrapper.py",
-      "sha256": "f3a347c7fbcb38023ee541d8f93aa5f534c49bdab73b1c53291d3f7ab41a1b8d"
+      "sha256": "65913f8f93b021a4750537c77f0e4395e1da5dc4346d33d1eca78653f994a0d7"
     },
     {
       "owner": "trading_gym",
@@ -63,27 +63,27 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/aban_websocket.py",
-      "sha256": "f2022b2c29b8ea1106fb595fb1030e22118b6ea3515d5e92ec1c7535abe9f571"
+      "sha256": "888feffa1a204a434469240150e79b34825d1e9412716e930dc9f5832b449161"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/backup.py",
-      "sha256": "38a3a019048418607a27648f176d431acb1a2e4743473147c4a3fd7a7fe48c8d"
+      "sha256": "516fec8e6dd3f8552657e8b15fa813a02425c7ba78eb718c0bfcbe1d7fd5fbf4"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/enhanced_aban_client.py",
-      "sha256": "73db0d8743377ec7558e2ca0af5555ef4fdbef0a4dbcd7633d2d39a83352ce6e"
+      "sha256": "49637910bbdfe043e3c0e92b2f085d490c8e3850216069313cdf6782d9567816"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/order_status_normalization.py",
-      "sha256": "befd3760728e7e279bd2730f5a37a6c477d0e919c2f33e27312fd9304df8ca5c"
+      "sha256": "930a5e74911d71c4bbfb7504591a97deeb26810ab9cfdf4a43f13e3efeeac386"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/orderbook_integrity.py",
-      "sha256": "69c401a51e86b76db3882b62ecb5f14344aefef84d7937f4185f2425c7d82a2f"
+      "sha256": "5d5de7eeb3e16e747880252f7ac1b134094dde8fb0e3d3ee11c52cbee8f91fa9"
     },
     {
       "owner": "trading_gym",
@@ -98,17 +98,17 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/arms/base.py",
-      "sha256": "c87d02ffd77b9129bc33f88141fcdef39c0eaf71ae510e6e24d74bd381ae77c1"
+      "sha256": "ea92a88fd4723d35ff024c191ffafdb6bb611e29b7b7d3d7d246cddb29ab58ec"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/arms/factory.py",
-      "sha256": "ee9d9c306928cb85cc8886410c6b241de938dda7bf37189c7f5fc0519b991a84"
+      "sha256": "31b185d53e20a7a4256c7b520bb5a3ec7aaf38ef47c2771f348b3b9a9d90ddea"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/autonomy_ladder.py",
-      "sha256": "5f061eb99b47d28ab20b3f3b5856c6114ec80b52d78b4bd60b41b52544f7c4b2"
+      "sha256": "c334ff408639f3b1eda2d96ad24aacac278a1621550291ded7a09207aa01c634"
     },
     {
       "owner": "trading_gym",
@@ -118,67 +118,87 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/degradation_ladder.py",
-      "sha256": "5133cc3cecbc2552a2b3fc2304844983c7eb458ebd7fa94ac3f1602dd8ff6806"
+      "sha256": "2ddfcca53f77e3ccd800d11dabd89bbab9d54be8023abb0613293e1f99686bfc"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/ensemble_correlation.py",
-      "sha256": "cd60d0fd49320d72cfee62d4fa2fa31009d55869b775c910ddfe06061f75ec01"
+      "sha256": "b7374df7e28abf57e471849fefc8926d68eedd3d898d66f7cf31997c5fcb91b5"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/experience_memory.py",
-      "sha256": "f43c67c61ee8d0e6e427ccc9a5b43f000127b3a8476e5b5acca44ac0ddd61ac4"
+      "sha256": "e5e3dab0846f743d070a4781cdb0c37831812982d93f91ce43d0508016117853"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/federation.py",
-      "sha256": "904b0c2dfa1b295a031cb810440489050f7c50e3a2c4ffa3fe990102c125ee84"
+      "sha256": "5bd19ab643573f71cc3af0aadfd5e41500e543814461c5801ba53892e59588d8"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/agent/forge.py",
+      "sha256": "72bdfb171ff9f3dd08f68a2e2d2b8ccaeb38fed8d5962e2f4530195161359f66"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/fusion.py",
-      "sha256": "415fb7f2e99e2a1fa5f37407e12fe7e25fb0560cabb0238cc83dcb09d14d384f"
+      "sha256": "bea2fb3e8ae7fcfa55111b2edb88d4f14afe5039ef4cd4d829c51e01c4d33daa"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/harness.py",
-      "sha256": "fe15dcda1af5504f55c50ff2cc515e481e201106b7830fd31482102eb20d61fd"
+      "sha256": "52fe78a1f06b637665492a0d2757472b607911adcd4c858b7b4488a25f1b4055"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/mcp.py",
-      "sha256": "8ef0eb1d6ef45684dd84b003f7bc63a803625a9bcdb2dd37cedae064ec4cde84"
+      "sha256": "c8aa4828754804347157302ccafb0793c5a92987fb2ffa7a6975cfcf71ac104f"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/agent/persistent_experience.py",
+      "sha256": "275e5a15979db78087c7af8cede785787054a2972f70c7e16fecd505e04b8164"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/planner.py",
-      "sha256": "104cc1ad8ae0198fe2a757eee17b2f4c0a47647eb985e6d7962e9b9449b97fa4"
+      "sha256": "30c0bc1c56e32e9d6a30c8e0e088932bb49de4bb218ca43b70d265b0b92db703"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/providers.py",
-      "sha256": "6ea0e5a127e04331c6ff902035434a7cf648afe4ca03a3875467b880401112aa"
+      "sha256": "012f300b1283b15cda3dc747a82f31cb3a10cf9893f7b33dcafe799b6ec5a7f9"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/recovery.py",
-      "sha256": "3c6d34c9da825f798bf9a19ad2e55d7c871beffa365e8cff0266d22614839d81"
+      "sha256": "f451c4b2b79bf1c73b9b5032a0f8d2fd1072a9b20859007059e06097fece9cf6"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/revision.py",
-      "sha256": "9c2a43ef98409d2cfd36b72aa25283ff405f1c8f8e54379e721e09b66a31fbcd"
+      "sha256": "20e7b7702e82c72db5ce52e34f1ee844af738814e479c3dd682c15ed17e27059"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/risk_gate.py",
-      "sha256": "13ae67efd45efde391cbbb77494d8b86dbd4c81f2f3382770f01de3fcf0ab188"
+      "sha256": "a37e336cb7594587424b22eb50a3eb31067a60311d2f6e6430d900ee472501e8"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/agent/strategy_variants.py",
+      "sha256": "183655553ad8ab421fb2b290d30d0c31b475211f82126ddb447f738f55f0ee9c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/tools.py",
-      "sha256": "3148493db3a93845093bb024fc91378850113dc50755cad64e60fea6dcbfb633"
+      "sha256": "f8f4c08b08b01abbe2130d6ed2a1f73e7f7dc98d4120647dc2a7d5bab887b5d4"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/agent/working_memory.py",
+      "sha256": "0d8b49dee1e8b5c263b6ab4ff9712b23c092f06b203d2ca839df08e8fa311556"
     },
     {
       "owner": "trading_gym",
@@ -188,17 +208,17 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/assurance/expanded_qualification.py",
-      "sha256": "00994c6a8e0afadfc20c79d5f866012ce061e1a6db5dda49573140e288233e94"
+      "sha256": "d8fe9fdf747b9ad3f76e96a3dc1f3897a2e71aab07500bf406e11ff6b99e2082"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/assurance/qualification.py",
-      "sha256": "8afb30bf31766f1714582e847d1b4325a5a45f48185fc235d0fc3ff25cff4a2b"
+      "sha256": "29fdf5dc9d71e66d48fa5422789ed887070e61356610c5e025c5fb15768a8336"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/assurance/system_qualification.py",
-      "sha256": "6617efd345d20279d1b55f49535497dcfed468b885ddbfb5070d49d06334ffc8"
+      "sha256": "b744c09404159ce9fc327d7c7eeeba414415a7d72002598b1ee06cee5cfd2612"
     },
     {
       "owner": "trading_gym",
@@ -208,17 +228,17 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/authz/grants.py",
-      "sha256": "e88f3721ad51788d9795e679b8b579c0982ad1203c72d0c8c6f5c13812ce40f7"
+      "sha256": "2da590e53194d2bbb4224d460c207fe1861ddacdef9db73710d1950d92511c58"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/authz/scopes.py",
-      "sha256": "e68a1b741fb615ab1df12939e5c1f5a030b395e18882b295d42a97380b49cccb"
+      "sha256": "37c21a37bfb883fe9d25f3f4f07ce8ebdb5bc986d1efca8f9acbc269b3182827"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/baselines/strategies.py",
-      "sha256": "a804e4866f23389309e4df5b6ee3525acfd02c6dc64be5800d3a952a96136a15"
+      "sha256": "056924045b4e90214a878bb256fe344477e0597e8c279ef74b1d1184305de267"
     },
     {
       "owner": "trading_gym",
@@ -228,22 +248,22 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/budgets/ledger.py",
-      "sha256": "4cd26b5657041aceca574f147fd952044fef96fae603e2a9cab8de232716d12d"
+      "sha256": "69423542b1fc7af96a26e8caa8476c76cef2a38c0ce9ced7a357adc77b8f69af"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/audit_outbox.py",
-      "sha256": "ea9213c0c01bcf89006ac3bdeb8a0e3451fb023fa5efb7e8c30117c7b08b2f14"
+      "sha256": "5490cdd6728d9ba58dcffbb0fc856dbd31d84407b6d679a723e0561d0b0d1d47"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/circuit_breaker.py",
-      "sha256": "fee6be688a849c2c2844e675191b4968b929dfc3616ee74ec4b165b655f9129d"
+      "sha256": "d7ec289c86c3d2f6a27ee34061d0f19ab98ed400fbe742fbb695bce388cbd75d"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/config.py",
-      "sha256": "c7e544a40af54b90d3bf24264df0d0d3da4dcd9057d81ff74766763d7d93e9af"
+      "sha256": "1a1301422d959d0e01936c1b6aeee4fcc96890502842208f28977bc40f7280a2"
     },
     {
       "owner": "trading_gym",
@@ -253,112 +273,112 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/exceptions.py",
-      "sha256": "7d4b35edeca6aa9cc3243628382a6adc02ccffd3f703d7b24ae7f3dcd0c11117"
+      "sha256": "2426c1646443dfbfa2ca9bcb1446b1cf17327fc50cfa911a60d2a9214853989a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/intelligence_config.py",
-      "sha256": "560f0562369ecc85468b3f7831c4603bd3225b4d18d3bf15f445e3d5b8ce2459"
+      "sha256": "170c3ee1ba3e8fced952757c9858bf31e2b889d77d2f73bcebc6194a7b9fba0b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/logging.py",
-      "sha256": "1dd95911bea3432065b3939bda54221898e73e8a9a30e9bc63a18a54c9cf4734"
+      "sha256": "9e27264febd57008e6a1e57b5cd4733671fab6bf6eddd805afc7309b360dfb81"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/master_config.py",
-      "sha256": "2725a55dc1a006c1afbfb4c951c576f355268668d2028ff896d09bf0f65e528d"
+      "sha256": "f8e4c067b9512da441fff145790450dddefff9508017d0ca457b50b86fd2c0f3"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/operational_utils.py",
-      "sha256": "bfdc22de4debab05c4d474dc1f82fcd7a89098aa8f9398c73d2f8030aa4da636"
+      "sha256": "42b90bac2c035bb96c176a1e301f437b6f1c12df449bc303e2e61fc29dca510e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/persistence.py",
-      "sha256": "a4d4b47bf5631515de8219966a60a7ddafd1c1e407b66ffc2531026e3f48496e"
+      "sha256": "b20fb7cdeb409cd86cdfd6f77919d03256a0dabcb0ab217f64b223e07599c7ce"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/rate_limit.py",
-      "sha256": "02c8430c5130f6b100912862f14a4802a488ef612b5d1f14e60efaad39295e2e"
+      "sha256": "aad32f482ae4bae6eb97aabb42c85399e67cd6e9d4706e0bcf17a1491bf56cbb"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/security.py",
-      "sha256": "967f05fa4c29e20a2ce8118c3b2bc3914460ba2919f46fc824ec88e82b9b079f"
+      "sha256": "fbf7f9797872787d99099ba5aa557ac64406b608d42a82ffaa59858b34f5b68a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/supply_chain.py",
-      "sha256": "58b8da8a72081b9e39ca70217847fa8f498e6b7d5d3d2c7d4c975dd9e48bb91d"
+      "sha256": "dd910d493a794894c2c359ace65b4a6e6edda181052f9058a0c8e726ebbb4c7d"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/utils.py",
-      "sha256": "8dc1d03b1067c66dd2d76842a3d0267b13943da65ba66d3396829c1e1f0947b3"
+      "sha256": "61c2c5e201b0f73202b9f39857881d98336c32d70d5c766c19d27693fcb0f73c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/compliance/__init__.py",
-      "sha256": "9852ce54eceb853a8bc35a7e79ec246c03a3c65cd18b5d020c79decf0e4c2923"
+      "sha256": "844c7f76ca324dd6baf195033880a52e18727aef44019fb6228c8af092674d86"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/compliance/surveillance.py",
-      "sha256": "0bb6d4aae71b1700f020cd86234202642626fd57e3e6655a52a7c941ff1e7780"
+      "sha256": "0326bb5ca019cabc33c91109ccc893b0a568635f3424f8eac77f8963e9e0f02c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/contracts/__init__.py",
-      "sha256": "9ed50b7320a3aef05d80ad560f02e36d7a90b4770f253aec929de57e2bc33ba3"
+      "sha256": "ab5c53af642ab8d4e8b2f887834584066a197caa620dd33d9dd92218a73ee8e8"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/contracts/openapi.py",
-      "sha256": "eb80ef8ebc96fc9a49568755236828c27de1717d97e8a393df10f225f1d6e5e3"
+      "sha256": "6d7db374b9630283777b4123dcec325b7807b8dee9dcb52131ac4374f6ccce69"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/contracts/schema.py",
-      "sha256": "a289974ff1f8f6ce8a40a30aad860a25dfb4cf44faffbd0ce1cbab04c73cc28b"
+      "sha256": "558755f920ee17904079e9f26d994287d7ce0187b6972ec74d7476e3d530d480"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/convergence/__init__.py",
-      "sha256": "763f2ed0aaf8ba24d8ef3e17b2bbb5e7c686b141985d79c76f1fb26abfacbced"
+      "sha256": "db460523cbc37f072182b9fb33af7531c155c2ebdeed95fb2cf96469d3d34dc1"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/convergence/budgeted_backtest.py",
-      "sha256": "91fcebc360f9dd7113bb7b56cd78fa2d6c3a56db938462b700918ca289d532e7"
+      "sha256": "8c391e073c4b3e90c43f08b4fd3e4fd8e6e150e15821ee0a5440cbfc71e84e1d"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/convergence/order_accounting.py",
-      "sha256": "ecb1e2ac36de422df3ef51ff0efca19dc565806da6b435329eda0f6d12661031"
+      "sha256": "cb2fbf387ae61e18d0d240e53eee3d2997183ef31aaf4dbd93d0770f234e2719"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/convergence/workflows.py",
-      "sha256": "e79c74efdc957fb17a6625f7547fcbf66e1d55923d71386aa01f96eecf852b07"
+      "sha256": "58d5b2387d7533d17bc13820da019f653a1d8d2e0b6157112f2cbd0039fe65dc"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/coordination/__init__.py",
-      "sha256": "d39dbe55e01a71991b1c3765f3c39730710319319cd622f042393b27db1fdda5"
+      "sha256": "b64e706ccafa9f2c496736bc50b9443c462c7ee9f5fd2eb7fdf1a167d8b4ebde"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/coordination/leases.py",
-      "sha256": "51e3a7411d9c28b9ee302c9d45f6019d623f72574b0fff2bd300980866a79e9d"
+      "sha256": "54cf6173624e0a0a9492242823a4b70da61588e9eb110bc85d5fa522e014b288"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/crypto/assurance.py",
-      "sha256": "d2ab62c721a6825e1813c4bad829270925d2f30adf866e22d9dd7c80f43112c7"
+      "sha256": "262f19c251be070d52c1ed22165b755df62f6588302d7dbc7bbc03328d92f2f6"
     },
     {
       "owner": "trading_gym",
@@ -368,27 +388,27 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/data/data_loader.py",
-      "sha256": "96288f5f07d6eed938e1d920f8cca1e9ac00dea5337003714061043e505581b3"
+      "sha256": "658d0651d93ec33315236f4b50f80e380bd0c7f85b8ef7511435b94e3802d072"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/economic/payment_rails.py",
-      "sha256": "7491f45736ed7eb35e00d13b267c2005b3025822f301e83ac93506cc23b2dde1"
+      "sha256": "03e4e7a93b4f7088f3885ff3b37413eb4b4029c3886f7ffad412ed4a2e7c8340"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/economic/x402.py",
-      "sha256": "a1a5f1d2478dd620ea95da7a0d61218373632258dc2f56c449e3e9def449ceda"
+      "sha256": "f2e72d52eb78b86613a39fa125f0eb566f74f921888c8cade65b81f6f6fff18b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/events/__init__.py",
-      "sha256": "a8811179fbf69649040010156394f28b6f94a56a9da8b278bb5f6a12c2f79703"
+      "sha256": "d7ee8d95bdc6aac58639e22ef7acc735ffeed4bed010796e2f6b555cbe1229a9"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/events/replay.py",
-      "sha256": "1b8952f996a878318c6a3dc2f7049dae3fbef8a31d56edadaaacb58fa5e4d8c5"
+      "sha256": "5b474c1f8e9f013a01955d62fad4949ced62c3e7c79226e2ccc42eee1c58e5f8"
     },
     {
       "owner": "trading_gym",
@@ -398,17 +418,17 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/calibration.py",
-      "sha256": "9282d50d40de4504a7ca8c640b07b5c37edb8627d9d856352d910f4a3e6dd1cd"
+      "sha256": "80e08c3d73f6c3708d5b6dbb1b556d3d1d192537232224f61d66b67f09549968"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/engine.py",
-      "sha256": "f2721a7fedc2e0876c82fa298a4aeca1b7f50bf779ceb31850befea1aa68c058"
+      "sha256": "f18ea6a528e8d898c8226a617bcf43d21a887a46765e5b80946df7399ea054c7"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/execution_engine.py",
-      "sha256": "4483d975d922c4941a03f2dbd46d077dcd54c26f4bc4651744ce2f78e31cc99b"
+      "sha256": "028f84e03ddd0e43cbdf782ec504b2d4f21b7f96c1ef933be063fd0117900050"
     },
     {
       "owner": "trading_gym",
@@ -418,32 +438,32 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/live_execution_adapter.py",
-      "sha256": "18463beb8430f9a14260e169f817155182f780b5609949cb2b1a1b43608d0c84"
+      "sha256": "0185e93e09cb2e683c3a7b1c7f4a5b1f81aacc82e886c2f0f4e5903c50606f8c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/simulation.py",
-      "sha256": "417a873aff3ed7a529adb2cbf27a0da5b84d76543b8ce750382001441729f256"
+      "sha256": "a9413b3bac08ca75fdb48ded6e252fc45b8d4d94d6deef0678ca5f837034b5bb"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/experiments/__init__.py",
-      "sha256": "729143e7384ca36fcec37e61f3b30db30b4ba6a7f50e3fd791deb50a6328d5f9"
+      "sha256": "a03e3a20c02e680c21f502d3b7d58edd71d961427a9259cfcc62791e57d4bafc"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/experiments/leakage.py",
-      "sha256": "64477e43b0cbf137cd567c8a4c90f102ac93806f2e4677528001dffdc2897ba2"
+      "sha256": "6f26ca20a3ecdfd7973ede417bb718fc95ab2274e014465fd50359e62f31a2ac"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/experiments/model_risk.py",
-      "sha256": "0291773df912850af7290cf35a4e35d536b730b6af992c682e4f72526f3ea275"
+      "sha256": "dde31a6ac998d544f8e1f05cf53eae0d93bb651c30d1b62f03e96e45dc67fb57"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/experiments/models.py",
-      "sha256": "db31a91b0d626379fb6ecaa2a88aa9815de2035a7b8c54741e0a426b4de5646c"
+      "sha256": "be4d0609ae3e026ced6266957a5c6667be7fb0c43cc24f56141fe6cfc9b61ad6"
     },
     {
       "owner": "trading_gym",
@@ -453,62 +473,62 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/experiments/repository.py",
-      "sha256": "b4aa735ff7e099da7ecc8ffd560a42dc223f0ec7e105bf806e1c6edbb280d9fd"
+      "sha256": "3b4d5d379997d926bcaf13d531930b50f8edba0c30a4029dfeac01506b899119"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/experiments/reproducibility.py",
-      "sha256": "d1a5fbeb241a820a17c59da58824ecb63d309119c3b4a8e555a13a4a46ee2042"
+      "sha256": "e3d9da9cec5d2911beca777dd4a68478b22c02a85bea898ba27a2ab955ef5784"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/experiments/sealed_spec.py",
-      "sha256": "629da67e01ff29d108232ca27b45a9bfd98bc0e82a33abfd2461ca9819544ddd"
+      "sha256": "0a1041493e50420ba06807373e1cba1fd512c51a4b1323ffb72f160a8c61d577"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/experiments/sequential.py",
-      "sha256": "43c8d52e2834eb011ae8808b9adf01f974ff2d489493657f841f9d72b9def12e"
+      "sha256": "278663a0a308f66bd5b5bd584ae411fa61c75f0a592931421f774938d86485b0"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/features/feature_assembler.py",
-      "sha256": "bcc92f73841a46309aa9dcc7bd246867ecfb0992aecb7c9d3157e989890325da"
+      "sha256": "5550a73ab960f53502d4fa4cb22239fccf4cf458711076248dba7f4bc26932e9"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/features/feature_fusion.py",
-      "sha256": "103b7a546ec6cbec4a08f24f832bdbc62d24a6c895c64218683a2101308e510d"
+      "sha256": "e10a6e6d1d643d1eaa96496531d9a333cbb83d640e8aebf56176ac4278f3f7db"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/features/lookahead_cache.py",
-      "sha256": "1aaeca9737c2c60b199970c522131ec4120f88df8df281cf8baf1dd16b8d5eab"
+      "sha256": "dd08233f9d1d36aa8146a03bb4fd269f5948f4a4d633ebd7921d57f906fa2bb1"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/governance/__init__.py",
-      "sha256": "785649b5cac9988e8b251b20f5e893629cd338107d936c259517f46a155a269c"
+      "sha256": "21945d52946db8bb03cc8d4eded73fd4a053155c668816fc0ddbe39eff368040"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/governance/controls.py",
-      "sha256": "d1d9113c5860b20441be0a05a753e6dc0ec34095cc61b6758dc3e6dd86b08e6b"
+      "sha256": "48e5706a60bc8d337dd84ee5a0195ee288860ef390d2852d8a6329964460263a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/governance/credential_rotation.py",
-      "sha256": "b8c4c6b8bd95f4acea57632e500ebecc9c5e931e6d42f273725cb1aad4b65a72"
+      "sha256": "d8045379d3143a675efcd557dc61c051e575a5f86c849411854f667c965c4aad"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/governance/data_lifecycle.py",
-      "sha256": "31094c8be9f56f862f155a46632e81f098ed32a90b7336d432c7dcf46a0d6546"
+      "sha256": "40e2174962056136097722c2979baf7f6461abd4820fde824a0a4ad0906a8168"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/governance/deployment.py",
-      "sha256": "fc3339bcbf329177f371dd54bc5541f835829455dfda898bb3d67e68b0b49f88"
+      "sha256": "35910c08ec53ecfb0ebadd083528f41294793f84ab8cfc9f0667af88d0724aa7"
     },
     {
       "owner": "trading_gym",
@@ -518,12 +538,12 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/governance/identity.py",
-      "sha256": "e6ec535d94bc57d6c019adea5d78f0f08d7a8595fbbffe22708ae4658cde0641"
+      "sha256": "1e8cda2a99985919c1112327ef1982bc80563ac2ca0d257127729daf9ff55606"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/governance/ledger.py",
-      "sha256": "7c938e0b804026b9b0bb38812c4ac0ad4815e1b2d59001a0fa56e8204b2630b5"
+      "sha256": "094f0acd5bcc9e7038ee57b2b39514bfe586e22e478222ecd9e5de182571bede"
     },
     {
       "owner": "trading_gym",
@@ -533,317 +553,317 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/governance/policy_change.py",
-      "sha256": "022ad5fea0758ea11c3a3930440f6bb84ca9ca13b7b3628df8947243c4f80ff7"
+      "sha256": "b81ddc770389198213fd3e4e89600c1d65a312d68ff2b6cc8722c03f3a7823a0"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/governance/runtime_authorization.py",
-      "sha256": "94ccbaab4360848585c5b2160303f60fb731184e8bce81f8f166493ac70b4314"
+      "sha256": "ef7595fb6d3d6572366c57f57bea9799d42569d63fa352f99ce1186c0832df91"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/governance/service.py",
-      "sha256": "bcfe71c61bc92c4bd52d9a46ec353c702b288ec691bf29b29c130f427252dfc8"
+      "sha256": "471d1849b620fcc5fa33420d30a3d79e44bdb334139ddd4aa8ad0ed0eeef5987"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/governance/triggers.py",
-      "sha256": "bbc440cb218c4da97102efe94d385f34bae3b5a7c8adacbc0d6a0b7e7b540e4a"
+      "sha256": "0041f3544f4c7998398a92694a6c03419aeb86514ddc979e8f912757d8d7f9fa"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/__init__.py",
-      "sha256": "8eb6c0bdd5195e50d1d6e334903955f6b6a1a7151d726da9c5d270ad50857435"
+      "sha256": "6be9ee66e8b302466f005e84d4342a05954d265b4eae8f72196ebb581226a324"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/agent_architecture_profile_assurance.py",
-      "sha256": "d4bb95cb673aae9e6dc2992c15e2ae2c2c00bf40ba3a0c93c1e89d31aaa28906"
+      "sha256": "5b0f46567c99360412d85d69c2be404390c1f1f521c2cf30bdf2c36d62a84675"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/agent_memory.py",
-      "sha256": "14886c2cece525deec94d3b1824cc874f23700dd6c4079f6f3291ecfa087b296"
+      "sha256": "da68e3a08385c8d8ae9724af3a58aedecf80427256c4f0dba2e819fe651fc431"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/agent_mesh_routing_assurance.py",
-      "sha256": "f41d8362600ec819c0da884cd9c04eff6efbff473b4aa845ee83ee0c52188795"
+      "sha256": "02b1a6ce88f77d2082b353b70b4b1217f25e1858028a3aef64f6b62d845dda7a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/agent_operator_projection_assurance.py",
-      "sha256": "41c5429e892b3e3b8d4efca61fab6bcee00662f8512e0688e504e8be60be860f"
+      "sha256": "71a86bab8b7a751b2e7d0be4c69c020c0601be90d03dd879e15b1d43e8c77e0a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/agent_workforce.py",
-      "sha256": "d7b55b530157ca6ac95df58c0a745275cc2587c0e34ca8714eb6aef461636d7d"
+      "sha256": "4198d0905c77cb034cc255bb9fb45ac5b1e720694ba3fdc9f8201f58956feea1"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/agent_workspace_lease_assurance.py",
-      "sha256": "0ffce807571b17479deee47e38a250c4149b72b668a0ee3a1cf3d65a5ada37e2"
+      "sha256": "2392e75c64cc63b0728e91a652f52e845c21ec8eb21538a50407142a0782a817"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/alpha_factory.py",
-      "sha256": "3c5910d892d575287257110e66cb8ee60b75040677dd18c41f869ce9fcdbb169"
+      "sha256": "2f423375b888bc7c5d660c64cbe6e5777168cb82cbc5ab324a5783a06ca2ca4e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/alternative_market_evidence_assurance.py",
-      "sha256": "543e8cca61d2de56e9b5452de2a893f92b9b43da67b5f3eb39148d52947122d9"
+      "sha256": "9dcbf52f73c2543182ef3e0e19a68fa347a3994fcf043397bce5f994e3cf73a0"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/archaeology.py",
-      "sha256": "d921fbf448db66acc97ac95a33755c2bd90a0090233ccc0d6d5eb361781db2be"
+      "sha256": "3a92d4005a70eb582cee73ca02f15e0ddd2387626e12fa7d6331fe5094102ba1"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/assurance_contract.py",
-      "sha256": "8af85bfc09d397a0608cd08d1cce9c155a850794c4d11f69b347b120867cbc6b"
+      "sha256": "156567a0905c91f6389bf00bab8b51e0ff830bd325b3b9bd15785661bc2cfc2a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/base.py",
-      "sha256": "eca612ac8375bcf65499c699936ac67eeba6f119313af8325ba9a40a6796e552"
+      "sha256": "afc871302a2b534919e2c014dd0522501fd3e7c5c6298279f902c02f7094cc64"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/causal_research.py",
-      "sha256": "b56606795419ba5551ece6863128b1366e4cb968520cc0e2f8fe4856e1f4da52"
+      "sha256": "61d727041103c9d381ec7a77ef7fefc4b4606fefe1e24325771de212a81e700b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/complete_convergence.py",
-      "sha256": "275113df765b6b728dad924e8e1847423200a5be5f3d3b61e341c9353f1be87c"
+      "sha256": "90c4c430755f8e16f7ef5dbcac95ee6a3496ff98fc514f48e9b51ec818285246"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/convergence_registry.py",
-      "sha256": "5a1baea45a128224f611cfff914d61e12cc1706a198dd013b9b29f83aeff5783"
+      "sha256": "97399403a457c100f402b38f80599af056e24de16e77b24663094bda8476ad61"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/crypto_signal_pack_assurance.py",
-      "sha256": "206e8d8f1d0305d39911fa101279e529c8713f1b1ce81fcb9292a8b8b85d4a07"
+      "sha256": "fdad15229c4558a3d6a407fac19dacc4647b8859e19ad028a073288f538d65cc"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/data_platform.py",
-      "sha256": "a6d7dcabc8a1966cdac72ab0823db2d58666e7357c70f7acebb2280c856be81a"
+      "sha256": "008987ec1b012e354c468ae70672bbfd52e67a3738c9bd744c43f4d005b09318"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/data_provider_contract_assurance.py",
-      "sha256": "9f4a9cdc6d188058cc281b161982c2fd4387a2b9c42d67783160189620bfe480"
+      "sha256": "da9f682b39031383b4496e0f89dea286e4cf0dda9750c149223fe1b4389a9036"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/distributed_chaos.py",
-      "sha256": "0864f035405b2eff61c01a4e452a62852f060cb762e8d0edb4ecf4e884473e17"
+      "sha256": "5f0d18d9bd90ae368c979034b314a1c87f7acb5b274c44a74cb7afe8c45c2f86"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/embedded_widget_assurance.py",
-      "sha256": "6cdbe0943343794f94e3f98759f31648064296fb1ef977e726a3ebceb99f842f"
+      "sha256": "a01aa610b104083d49e9d9723bf14c6505be3aa0a8c093a81f204d5997d0843d"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/enterprise_risk.py",
-      "sha256": "d07cac18813c0c18ed3a8dad7c9a8b26c05ddc93bc48adf9022a9da670d8967d"
+      "sha256": "bcb3ece3486aa8c57aa2465b0a8bc09875582a1de9d79d78a61a45897d03dab3"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/equity_research_assembly_assurance.py",
-      "sha256": "6c58ffc3a53f9e6feb78d9ac3a3fbbbe9a19c4c416fb664a83433d062916078a"
+      "sha256": "cda1e4a6783c8498ad6f771cd51b1c1f622b7aad1a99c85e61785fa98ec64702"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/execution_quality.py",
-      "sha256": "c6e75030aca9dcff7eefb18c4012063d745d8044cdc2baed471814516adbfd29"
+      "sha256": "53e567abd40a4f7e2b491cbb3a4193f41f94c971c71e69312d220b39f95ce140"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/explainability.py",
-      "sha256": "2d87c4e62a2f700cd01c7005a86cbd2238552ef33e82934df56ef5f12ea36bcb"
+      "sha256": "903377c2e4c157f2c5f69cbf099792c92ea12f182ea7cfc1369a92cc4a993cd2"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/final_absorption.py",
-      "sha256": "8c38d98f7e4c6efd972b680565f150e1b454d0b59eef9fd56557216ea95a6bf9"
+      "sha256": "cdff02b944e11e8a279dbd4dfa76bc15ddec61a473d5affe4813e96444d9a05a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/finance_evaluation_campaign_assurance.py",
-      "sha256": "ddb889b33567e825575f315ef4414ea91f8da4560310e9c1745ba639930148b4"
+      "sha256": "2ed98ae8ef082d9729939731d73ef205095307006a07f754c90abe44da95bf0b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/finance_skill_chain_assurance.py",
-      "sha256": "e57e951fc84205d103187dadf8879327fcf47aac40e2ef8dda43df30bdc04b09"
+      "sha256": "c4bcac7dcc998a9504c56ba22421f113969ae9aec1088007ec7ab4a8635c67c5"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/financial_ui_projection_assurance.py",
-      "sha256": "3b883f29c3b6820522ac2eb6bba5ffbec1ae14380f8d2a57abe8e5b98577de87"
+      "sha256": "ed144dcff2a17383834fa25c6799d0e81eb4618d10c9d7e8f7ca278d188eeb22"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/financial_workspace_assurance.py",
-      "sha256": "9762eda7fab9c8d1fae67cdf54653360b4c13f11002c03a56eac725b993a20cf"
+      "sha256": "eb719750cf2f33e7259d68b2305f10778ae6871e0c404a8cfb07b204b72ec62b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/forecast_experiment_comparison_assurance.py",
-      "sha256": "b9e2c314a5f0b802ca0e8b20ab7ff444a1d52d7d9667d41b67adf5927d72be5e"
+      "sha256": "39883f14131f94a2d241eaa067baee2b1e4022598e4de6afb8d9fab900d4e71c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/formal_harness_trace_assurance.py",
-      "sha256": "924143c011e74711afec43a99839987a637846d3e886e047d5a10eb432f0c077"
+      "sha256": "b361044069452e586c8011a61ade77164448173ed03781bd288f18130b8750fe"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/harness_benchmark_assurance.py",
-      "sha256": "eb8e56f0a845e9f68a9a069212477a73e4fc8382bb69ab5db7d8df1d6a787d95"
+      "sha256": "4d77e8d2d56b8e388e2f4b410b7aece2b0e9ae76c3faae2a0598b1ed3df42231"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/household_debt_stress_assurance.py",
-      "sha256": "4804ca6c0762588226f9c455b5d97bc60fa2409037b5746e3e40bcb5f1acab7a"
+      "sha256": "6194b07e0bdda85553f3e8306effa84cf51c271011b085b97e1b573dad80d49a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/investment_research_pipeline_assurance.py",
-      "sha256": "cefcdc7eec43e01c2c4b409ed9222bc0937deccdc9d49ed36aabcc9e490b58bb"
+      "sha256": "b1cd587ffdb18667720ee149789f1bce2fd071bf16389b9ee527a00fbc354405"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/journal_quality.py",
-      "sha256": "70184eb833e7a3159869bea23ba2bc86e95f8f34152c82e6ef12a07f95b23905"
+      "sha256": "d6a1df760951420ffbb2a5d25eb30da71d2cb96da3acc0d16e163c27cbdd2a88"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/ledger_ingestion_plan_assurance.py",
-      "sha256": "4b90ccb17c554c04a5fdcadd99f1fc29be1b6a5162db4734df197cef3cbfd0ea"
+      "sha256": "531d41fed9e2d5b0abfd3a008c970b8e201f88478bcbe22b6750915da91855e7"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/market_intelligence.py",
-      "sha256": "bd44d7a1f7e3d80e0983720794c7bfc191c7006dd7dca7e35c9d72d2a4e7ee6a"
+      "sha256": "317d456f51b5543e6fe9fd4fe384c433eedbe54f92e95e58204de8c74fbee224"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/mcp_runtime_profile_assurance.py",
-      "sha256": "28816f61ae5711215b3d5124f152b363d1604eebaef4981ec675ed867119b5aa"
+      "sha256": "85fccc9bdbb3268157192f80dce6a5a522cddc48b97e64d1dbbbe624ee7823ba"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/microstructure.py",
-      "sha256": "c9625adcc636cae5a9f8bac68db0686368892275b76d0ab4ce88595944987c88"
+      "sha256": "7e3827c27f82d4db015d5e725e1471d184dca580ef313df7d1ae6fb5e1d9d826"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/model_lifecycle.py",
-      "sha256": "1309f00961c0bd0c2cb3578015e78f900a1d2f826d616fa21ffb99e28fa67e48"
+      "sha256": "eb4cdebff55a3232a802460baa85e026f34ed3d021f2859b8c956f174b09e3cf"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/multi_stage_contest_assurance.py",
-      "sha256": "e1e1a03a74cfccbb4587f0bfb961985bb9ad71ea1505c8bd8563e9d9ff3f24ba"
+      "sha256": "fb4a1f6b5d3fe0467a9be79a67283e7b00ba1bd229c51882d28ed6660e6613bf"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/multi_venue_trade_plan_assurance.py",
-      "sha256": "edb7d296da37f5e4509701636c60a9712787fb14cf2a1230fdd2973800fa994f"
+      "sha256": "2fa8592e3b6538ae2819da9a6ab8202cbbab480ffe7d8394d72e922242284e14"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/peer_wave14.py",
-      "sha256": "a4f27bae15e07192cd58bd3e3296caaf4e4e3643575a75ed07a15c190b051b31"
+      "sha256": "23803ed10b43a250c2eaf37279a58ede9af29f9ad8b9c4a104049d1b4192a293"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/peer_wave15.py",
-      "sha256": "43e15e9aa0c52866f11ce23b1ee15f849ab7fc89dc7dce6585244428a83c50d7"
+      "sha256": "c3f402be3702b029ef3ed57b0f2ce9a7df41f55ed03ab8e4b735388f758bce9b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/peer_wave16.py",
-      "sha256": "232a21e025a24e56bc1f64f622e5acfc5544c8c34b9ebf7a062de5a85fa0b78a"
+      "sha256": "2d0c9e827dbccfe31e98efece9f802583873500936a34623bd4decf6c8288d04"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/peer_wave17.py",
-      "sha256": "7aa49743086a81822dea8b980cad7b8365da4f14c7ab0064f7d8091615f4c224"
+      "sha256": "42f9b1d62de58d6f204ba02ee7143b41cfe178bd9ec8887606e9c4071188d1fa"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/peer_wave18.py",
-      "sha256": "5085d2fe9578f8276fa2f087f8c91bdf8f04096f174801803bf47d3a17c767c0"
+      "sha256": "73a76ad3420ce764530c66585d0a29fd26c884fb20f5cce6bd8c49363a53545e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/policy_compliance.py",
-      "sha256": "f557f38d35b7342a65cb0a1167b9282fcc62fe13e3077bd89da4bc9c75a10503"
+      "sha256": "540dc5f84b1b1b4ce9a73f52e4b997e671b73217da6a5a71674ac5184c40cb92"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/portfolio_construction.py",
-      "sha256": "26586a1a58aee5945069722f2315f7f55c21c46ab7edd178d22ae9280833fa56"
+      "sha256": "6f49c7789f5bd4dacf683bdd5c77c9e20761f007bdaf7e43c3121c3c18ad579a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/portfolio_twin.py",
-      "sha256": "7b643ef7e3a97ddc4274eb42458112b93c5cd075a7cd9609a90114f32e9ce0df"
+      "sha256": "3ffb44b5073841994009fb55306061ae63558eb2ca7303b47689ff68abb02d05"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/product_collaboration.py",
-      "sha256": "316ad081b0dc8367b8077bca6ac0f7db5f87f47d9def7234157f80a4458182fe"
+      "sha256": "0b4ec8ff829f7348a28126c0a38cc5d70e0a9ed761b426183e5fe1013190ed46"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/publication_profile_assurance.py",
-      "sha256": "13e289a5c5d50201a34dddbb2e031970cac13544393cafafb62f00c1f1530945"
+      "sha256": "bc264ff3d75d963e78863142d0686518bfa692f1ec02e4c2d934855223f7886e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/repository.py",
-      "sha256": "8ce94356361738039cd0db00516bff5843dd6f9faa080da00a5f17abb08a9025"
+      "sha256": "f840d0b3e0c1ce0d4459e99f3fe94caeba91bba55c45b65f2f77a75ffcb96c3a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/routing.py",
-      "sha256": "e1968cdcf9f4de0f59535ad75694a16c9f81138ac77ed4ba395fdc5a617cf177"
+      "sha256": "666cd336ad631a9e60013e0969098a265f2a69eeda6d963d10fa8de2d8f01e0e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/scientific_lab.py",
-      "sha256": "eb0aa669c3968c778395bbcc680d799b9ae9c026934780d7b33b94cf6644fd9d"
+      "sha256": "6c2fc7bb984b0d0cdab5c19868097cbacef804c73c9d447f3537c5db3f264f6c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/signal_graph.py",
-      "sha256": "6323126a1ceab7e0b2529acb19fbaec5ba86e83b2140c1dff8aa33ddd3f8aa9a"
+      "sha256": "93b8682aa4754238a1520d906110d49424888b8455391b82be89d530955a3fb5"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/source_mining.py",
-      "sha256": "cdd68d01e919e7eba739e4ee770d05970facd12e92670bc73c8169dc16ed47cf"
+      "sha256": "ea211fcf9beebd478351a20001d528a3459da3ca3cf0bd29450861632c9bb3bd"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/terminal_command_admission_assurance.py",
-      "sha256": "6957303006328ed23bb507142555cd74bdbd8f9229c36d7e97ea48330c270bc8"
+      "sha256": "fd376b0fe60127da8a66700c48d561daa2100d7ae8809b5f47f6d7c0186ac02d"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/wallet_action_assurance.py",
-      "sha256": "a822e2edc514d7565a69ae0c21aea23c96e5314e378c5a5f3816421cfd00b1ac"
+      "sha256": "9106adb0fdcf7078617ecd4dc31042c8da9fbe7fe72829a58ba4cceed321aca3"
     },
     {
       "owner": "trading_gym",
@@ -858,37 +878,37 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/factory.py",
-      "sha256": "56bdbd6b794999ca7328661264895f853b4f0dacedfeaecbd1bc26ec1969b1ff"
+      "sha256": "f7141eced3530df28edba41e476a33cce81da13fe7b610545b5029ab2515856a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/fusion_backend.py",
-      "sha256": "8c51e5bb02d97068e7215ed0752689eb78ef60b96c8834b63cdb0450f56d3d11"
+      "sha256": "0dad22622798fd4e76b78ba9a54431fb0f1886486513bb078d9513a03f810169"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/llm_backend.py",
-      "sha256": "18a17a13ac187a855cff3131d54ad4dec33f0ae35e67a5704977df928a53821c"
+      "sha256": "87cd7ea8ccbc698b43b87d43b4b69997669baba420d95715ce38cfe927a55978"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/policy_adapter.py",
-      "sha256": "94bc83b2461a64a82b29ded1bee72eb3348fc86c701f5badf1a6489edb4f5b5b"
+      "sha256": "226e908acf65652d33bafa0c4000d3e3033ba7d6e33f8780e19538879b2ce20f"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/registry.py",
-      "sha256": "a33940d16905a65cd935e8e732381d9d8a0aa5e0d0db74da761570482f8c9c8f"
+      "sha256": "b38d79f67203a38e01c2f78ecfd13036c000fddd734ef63099426fa8ec53a594"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/rl_backend.py",
-      "sha256": "f2bfa75660be8b91f8768d960a849fb6ed23115dfdc758f1f1f4ace71e3d23a8"
+      "sha256": "9e3b1b2bc85bb1340d84a7181c8403eb1b0871ab790373e42274f8d50d223eeb"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/rule_backend.py",
-      "sha256": "a84d14e5253e72602f2d5e4202393a21e9ff994919a330811a67b8f83795ab31"
+      "sha256": "0b2d2355e9c5e746bc32d5e158cee962ee8d573164d7978117376166c81bd8c3"
     },
     {
       "owner": "trading_gym",
@@ -908,17 +928,17 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/lineage/graph.py",
-      "sha256": "768b73ceff1c84c0e5a08a7d095f64e57f784bcef5ade27cae022a7d4f68b886"
+      "sha256": "1f57e82b0ccc2da3b0a8df39144cf844b62f5e4dfae76a3ff7dc7eaab81be419"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/margin/__init__.py",
-      "sha256": "1e9a500d5357f79237a4bc79cd2753a5dd242cf9d881338533913f800f56e3b5"
+      "sha256": "6a348f3a02897fd3a545219e3d6ce1fed570f0ca4d3b51ce9b346e4f6303c756"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/margin/borrow_caps.py",
-      "sha256": "517d68fd460e3b060bbfe998a621c9b08fc81cdb9958611924dd3bdadcd5f7a1"
+      "sha256": "a99f56885119b73e3f9055d9e34beace5618bc9145f7a2f4b970fe93dd88dd49"
     },
     {
       "owner": "trading_gym",
@@ -928,172 +948,172 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/margin/financing_manager.py",
-      "sha256": "c1718575fb528ce6e1136bc01d2f4861298bbf3e15d0b854beb768d7a0ac0357"
+      "sha256": "a69952cb9b795725bdc26659f5e28832cd4aa2e450d4853a95d725d822f82b73"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/margin/lot_positions.py",
-      "sha256": "b11fbcbc9244f3fd6378917207fb2eb91218493f04cdf29b62ba8bf6566f6786"
+      "sha256": "6c4fa624efd8c9bc28e7acd4583e4a00a889c67a0221299dafc127f8e96d9821"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/margin/stop_out.py",
-      "sha256": "b647fec7df59dbf73bfbe6592697788eb2ece0a9736a1f1e5b889a7bb4f841a0"
+      "sha256": "2e468f6e81009edc8072116dfcb82e2e10fffed2a1aaea17278ecc25a7ef2208"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/__init__.py",
-      "sha256": "c35dd208b762132683cd418db1ec533448c60f9fb04bf40e4f1f1f87af13aa13"
+      "sha256": "6bfc574affb317e7be51b64167ada1f394bfe4bc3fa9c6798f4d9a8ad5df3d52"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/backtest_policy.py",
-      "sha256": "847adbdb03c77f97856fcb62a705bad1403198b7a49d1c3440f8ff3280bdfc1d"
+      "sha256": "698e32647368c2c29bca031c991cfe646c9554d46ffcddb290166d5f1bad4862"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/calendar.py",
-      "sha256": "cec7ad25914fd454b3f4859f4bf08daae44d820780ac04ae2ae746715af01baa"
+      "sha256": "8350f9a098f6ac36888215ca8249fe401820b5d4e832a676f8256499f165faae"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/catalog.py",
-      "sha256": "850c46fa966c4234384c50b82d91f2a69a7318da5fc430cf55809abb04b14edb"
+      "sha256": "1e8940175a3c4931c9a4ff2d360ebaf19869df93f7283c01823205ff9ec92b83"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/data_router.py",
-      "sha256": "796a603dd9ce537f64911dc187e358a6cb8e551f1657643bb6aea0c1754bba49"
+      "sha256": "e4493663418c073ebeb1d911082e5e540390407023f5bfca8c2a5a6a03ce5cab"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/models.py",
-      "sha256": "10be5e4a96359144f1274c4c28dca763ea3771167a17be1ec37e06bdae96ca0c"
+      "sha256": "e486a87e2956df8720e4dd915b9ef146b13c2b56a52db3cabee3b1b0a2fe5ef4"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/orderbook.py",
-      "sha256": "19c4294249f0880f804852c6f508e1ad46b48355237b9b54ae4f27434dac7716"
+      "sha256": "1ce0ce7dae10fb1a6b12922d59dc8057e40f8e924f5accf1fe7c61a63c3a7742"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/registry.py",
-      "sha256": "38313a1d702d977725c6f56bd432d74bb51ee4de5b36d4c793e2edba81700d0c"
+      "sha256": "c9acdcf34faef8740f2e6a99b095e7cd6756ce2ad5935348984887f1c3a02910"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/models/__init__.py",
-      "sha256": "3689b2550f3cb3bfb7cc373b37034259620dedd442912bc5064c590b317e1e80"
+      "sha256": "febcb93f36c4139580bae7d5fd0d917f950053dd6b30abce1a37cd9a2b627eda"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/models/promotion.py",
-      "sha256": "ce3b2f22e40c73d7b7e5bd205e94427fd71ac69b28a279c7c30b4fc4bb4c2bbd"
+      "sha256": "f0e4319f1d45200815090af2dc668d3b7c2dc6d713b754a86086ffc5c28cec15"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/models/versioning.py",
-      "sha256": "9de7910c612912defd038f964eca58a971442affd97178fe2127501c03028530"
+      "sha256": "0394ffa787a119c492eb22a3d5287ca2c2eb0715a8d7213404f7d52e4a7c07fb"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/monitoring/__init__.py",
-      "sha256": "ad893bdb9868daa910059273b5f44bfc78d69b22e185537dfaaf44956423b966"
+      "sha256": "da129c95e1c9cce7d739c7d9418c8ef393a4c63caccb67ef30dfdecab49326a2"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/monitoring/alerting.py",
-      "sha256": "0f85869cfe88d4a41a72a131a215da279bd38e56a355790fbf2a390da86c6f1b"
+      "sha256": "e3ccb5a36b3a7c41fac093e6762c5c504455f4cdf2dde3fbbf3d01da911cc38e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/monitoring/drift.py",
-      "sha256": "c1d7feeec546b127f08d122e644d9bd40c9a9f28e559c372ce05838a8ecb704a"
+      "sha256": "da23c82fbf33de69fca63ddb7400298e95f764a1f626ce5ea32ef822caf6dcfb"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/monitoring/health.py",
-      "sha256": "fc06d15aa3f64cb92a73dc608190941639304f1a8b734a2ca24cbbad73497ef0"
+      "sha256": "d045e427a847b01dcfe76efa6ef825c0731caf3cdf146d65e6c48d4d3c264980"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/monitoring/metrics.py",
-      "sha256": "8529348bc08f63ef9e4c8e917bf8d34ddc40458b9c8c95734525e982c955d044"
+      "sha256": "c2eee939ddebdcf4d01b8b1174deca93e55e2ce3deec24a041b769e9d6ef3835"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/__init__.py",
-      "sha256": "9b3df6e63fcf7bcc068e18781499c050e89eaff2a9e7d377e205aac058e231b0"
+      "sha256": "a63c3febb9aa9ba83f9dc6ca19432fd2d980368afe229f1ecad61a47be1adc4c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/attestation.py",
-      "sha256": "5ca1a2af84120ffa8bc1171a46aa9018c3724bc2b8575a6e4dee21166932c42a"
+      "sha256": "a79804017d82e1785ab6232589321529fe861c0cc1a06004c38ad2899295cf91"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/capacity.py",
-      "sha256": "d13095c6671aa79258f0301d6a5986bb85a02cc735986af815a8e47b801bb4e4"
+      "sha256": "ba36f752d2571e8638a345050cf63d649f130f5cdcd9df79abd98f9a3dfc8610"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/change_control.py",
-      "sha256": "3068a4e4f1b353cabe06d36a49d4a8e1ded1734ebae6f2e102d69f5079203a74"
+      "sha256": "ff5211c0af4b98f33c932e8e73790454e8df83d0f5658859d3a2b0eafe9adf14"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/clock.py",
-      "sha256": "ae937107d9f7cb076ef7a5c5c2f5a689dbedb1ca3a91200b24985e247f79fb06"
+      "sha256": "700f1590b0555e22ba2c40a4c167f87fb349750956c93b77189665792f77d805"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/dependency_impact.py",
-      "sha256": "b2420e97119b0d7adb8b002370d7499e8e6e7139c9e48ae05ac7591b23c1ed20"
+      "sha256": "76ed64782e49be7c841d82d5ff75ba912534b5c739c06e7fd2ab9a934832ec96"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/failover.py",
-      "sha256": "46b97f53024721940e8f589ec2b0162e3805dbc240b8b046cf4c8886617d7975"
+      "sha256": "cc6996eea5abdd3f866927ce8789e5764778d1de417f1ccdb1a5c0f695818f22"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/forensics.py",
-      "sha256": "87243546927ee76f5b07043fee70553e5e13e13c34a357e47e5fad8bd4c36a5c"
+      "sha256": "4492ebdd41bee9e8c5df60a94f630e69f75d9c62c83a860a3bb4ddf65e54e8ee"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/incidents.py",
-      "sha256": "5461d42e0f8df4c95b9f0b71d05a6091b7b3d720fef32c9ca4ba68eddb154145"
+      "sha256": "0ebac232adf5df66e8edea67c4bccdd92b0947fc6dc61b1c88a8a224e6122fbe"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/migrations.py",
-      "sha256": "1f31d4bd32c2bb2fe6d2372c8197db2d12630dc3fd83ea6d61a2ae00b735272d"
+      "sha256": "0b2e7aad85e8e1efff45cb9012664d30a9f4602291fb4684eadebfdbbf7bf33b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/recovery_objectives.py",
-      "sha256": "3c82679e86c981815130b2cc7d47f7a7ec2234ad6260490e7cf622d1b90ee6fe"
+      "sha256": "70094852259d3d75639efe859b13d6d939a75578e9625781fffc81744476900c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/resilience.py",
-      "sha256": "675adc250f6114439ad5aa29de5c662f112a4e0ec5bebbe0eaf536cbd21c99d7"
+      "sha256": "78b1910e233beba2c600221408f96d264ec3329f3ab9c7f19183d1895c3edacc"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/runbook.py",
-      "sha256": "eb307e9f5a48b60fd48a7c24f9bf303158da2f833a9fb1810ef5335a70680762"
+      "sha256": "75f623b9adbbb8da491be9f77641ef3ab314cc0e343b9ce3d081bf148f0d9bb5"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/slo.py",
-      "sha256": "2d46a2431d012d4fa6f3c725a744efbdb6d7d2b601fbc35f30745b7f9b6a86bf"
+      "sha256": "398fbd15b345b89da65eda3f15c781880af564b3839d43542c22bea15eb793ab"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/operations/validation_orchestrator.py",
-      "sha256": "6c676a7b001af8b714ea9ff392c9c2ed8f42868e688789831e7230c9cd791bd9"
+      "sha256": "3563be5b90d0a7b4210bb1f67f675406ea4dea6d41e44b9fb73a9b63887674b2"
     },
     {
       "owner": "trading_gym",
@@ -1103,12 +1123,12 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/orders/models.py",
-      "sha256": "a9162b9599d89e47bd085a0405971846d10eaf603c82e7b6b9eb56d9fbcab1f3"
+      "sha256": "6ecd533df36e3c45737f38b53fe90b89c6f99719f2e70ae86ace2c01747cbc64"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/orders/repository.py",
-      "sha256": "3d0c2504a3b3eb111414a39b808f60f7859b60e186d55bf8278914a6f973794f"
+      "sha256": "6e557e99275985c6be67841e28931cdfed1089fec384562e5593634bdd8be73e"
     },
     {
       "owner": "trading_gym",
@@ -1118,22 +1138,22 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/performance/lots.py",
-      "sha256": "912fce6f026465b37a4b9196ae3f6e9f5f5554925673f345ff3280f117c1998e"
+      "sha256": "a4d4a43a6148fed5d7aceace6c62d7f43cf1a2087685a77fcf2af5422b7d297b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/pipelines/environment.py",
-      "sha256": "bed2b98b4e6d8fbcd3d1042353bd43f54c2dfded44e89b3b935bec7281f843c6"
+      "sha256": "7f081a79ceeae66ba4f3eac91811499882514abea808951718bb93c01359b715"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/pipelines/evaluation.py",
-      "sha256": "861e3b76e9ab6ffb806de57d5aeccca3e47e7e7b017ea2f073167521f7e7701b"
+      "sha256": "b7c2ac31d7ac54fdc7016ad5d06bc432a93fa89de5aeafca067987c34bfcd9b3"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/pipelines/feature_pipeline.py",
-      "sha256": "28e9baa106ec7b04ae2b6801054a37c3df848402fedeeb7fa923a10024e17359"
+      "sha256": "488fc42a5eeb0f9f8af5650c2a5a7488455ee3d47bfeca18ba0d037397e7484b"
     },
     {
       "owner": "trading_gym",
@@ -1143,7 +1163,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/pipelines/training.py",
-      "sha256": "63516bf706cc8026d068a81f85ebeb67cf0c2e5fd5a1e2d22a2418dfb12157a3"
+      "sha256": "3d5d2f74a63de6c2845ff281c5b393baf696ac9c180c62ade8e01e8a669715e5"
     },
     {
       "owner": "trading_gym",
@@ -1153,82 +1173,87 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/playground/attribution.py",
-      "sha256": "1f6beb701808bcfd6836fb9dff814ef30cd950fb15b843ae2522c81bd2c87e1c"
+      "sha256": "b546b12e7bec29a9f3f85e003ccdc7c4080cb617dd5b679fd183ca3876b63f0c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/playground/bridge.py",
-      "sha256": "a59767b254eaf80f26b012c86d859b31604467c48c66733519c1cc67cff8545e"
+      "sha256": "0f1301cb8ce04dba35dc84b7f3efc5ffa6254ca82428bb464d3221319eadf0e8"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/playground/kernel.py",
+      "sha256": "01fd6804eef20e816903d398530e2ed944be4448b508777878cf99e07a7e9b29"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/playground/lake_windows.py",
-      "sha256": "2f07f068a980c17edb02b919f5ed3e62637ff600ae5770c60d8d188d8737e7fd"
+      "sha256": "01485c18b190a705fa37b048a316af5d479399f42b0649d0aac09da5d3ea804e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/playground/runner.py",
-      "sha256": "a716e7985488c0ca19fbebce63d443868adc1a53678d02bfd1942ba1437473f5"
+      "sha256": "fbe092fe15dacd1552ca05ec617d53efb453b3c15d2ab6ae8a0910a7d162db03"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/playground/scenarios.py",
-      "sha256": "9f927ce9362086d6a3e63ebbd7e09c3856f0e178fd95744361f323fb5b626f7e"
+      "sha256": "5934479e6d0aa4c1ccb5b0415df89a3f81f98fbc0f93ae77c7877c15de1d7620"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/portfolio/__init__.py",
-      "sha256": "d440128cdb5cbce3120dc6289abaa7f74fe12f58d384f593877d891fd3406b49"
+      "sha256": "77e2a8c0e5e6eaddbdd3bd3d6832ff404c089ffaa35ea1b49fd5eb4739b2fd91"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/portfolio/rebalance.py",
-      "sha256": "e424104bffb5d235d2741be81d224692408ed30c4860caa64c5e80cb31c90595"
+      "sha256": "8e9772d4c6ff969f5c070970ac7ade9ae6c3d407100ed35fb768faceb6fa59e0"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/privacy/__init__.py",
-      "sha256": "d0f5c4abe2513b91016d87cc2cd57e5d7d51cbdfc71df203a83a57590ccf432f"
+      "sha256": "3fe6b35944231d76e531a493dbfd4c6ff791f6df4c5bad82eb06a2a2b1c219f4"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/privacy/minimisation.py",
-      "sha256": "81fd913838eb5693a970434b4d9b17954ccefde3aed65125cdaadab49198aa77"
+      "sha256": "e51ce915a8e28ce32cc22f224818f79e158915315858206f1393fe71693742cb"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/chain.py",
-      "sha256": "6d7e212a8293b5e5920cf67617b379213c82eb3633c6c5eba33e3df76420237e"
+      "sha256": "b3f62efaf71db63076cb80a4184431f17ba93a665297651b6eaf7db1df8c63c4"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/emergency.py",
-      "sha256": "76f6b4834056700c444a84e60fdd8f880a406f27cfaa4b107cca3eb0cdc0acd9"
+      "sha256": "04e78238ea969241d4658a4151db6794717f3058fb2e7646f36be7aa5e8a9b55"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/mutation_retry.py",
-      "sha256": "1db0e9cb9a45c8ff7f4f220e40261aafa7f1bb5c85c506b89277b194e2c36440"
+      "sha256": "c840916ca0f5274caaf6992700a04a954fad357d113ba4bfb2c4f1d26d223204"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/paper_venue.py",
-      "sha256": "36de4f67bfa8c15e369665146c660068e8766f6336f37f5a64e99a0f555d9548"
+      "sha256": "0c90ddad90a08c889a8dcd7d8f45a1cdab49066a3062c0c025e819ac2ca14645"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/pre_trade_gate.py",
-      "sha256": "85cd06a7369a289d339f1c1d33a07fe2d054d27ae824f2486a767d4b2b2d6751"
+      "sha256": "201e95bd6c618f76df54526dea3c9b2ceff2cbdf128748c70c495aa49e0a4f6c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/runtime.py",
-      "sha256": "58b3f8ae838b357a9760f079c7ac2d18d0cfdd2ab472287a36d37d567ba3c2de"
+      "sha256": "5b8300066cbbcbc208b849034012d7f9132885444efb1c98e9f61ae04fc67e1b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/status.py",
-      "sha256": "240fd5cfa0d0233a16fdc6a2c2158fa3afea070972432a501c04ede424581904"
+      "sha256": "3b14af02a95f0c9fa613c7f232200cef67b4d256abf1a853c51d5b284eab83c2"
     },
     {
       "owner": "trading_gym",
@@ -1238,22 +1263,22 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/wallets.py",
-      "sha256": "bcbbbeb843072109197ad2a407019f1b2ec751a1ff95cad61682a4c6416c57e7"
+      "sha256": "3f62ece6f92fd59d0dc021f96fc174bd979fefa97b2e2a08e8ff492aad27864b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/rate_limit/__init__.py",
-      "sha256": "32874b04f7c55646afdbe8b436c9eb61fa37e44ee06514a50be909c3fd9ad828"
+      "sha256": "1fe3a918f9bc98a5ddba82feebf3afccbf3686383b88b6bc298e7436d6b2500c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/rate_limit/global_limiter.py",
-      "sha256": "c5fd65d601c85d7bff6a01c4fc8de01baba8831b2a7aba9f6b5bbd459c32d3d4"
+      "sha256": "bf2b8faf0f173acd48667a7aca19cf06a147e4ac304f8cbd8b69ca4702e3c60b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/rate_limit/models.py",
-      "sha256": "46dde4c64d81eab5be041d24e4bdb0850229cfac65a1a1b60f88667e0e59f2b4"
+      "sha256": "dabedb674f4e814ba51fdfb99a19606cd94109a55ca02e250cf2c7a95a329f0a"
     },
     {
       "owner": "trading_gym",
@@ -1263,52 +1288,52 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/bootstrap_ci.py",
-      "sha256": "c5a5b075711e54de928ced937acf2660529da64edac1af205578d6186a23efb1"
+      "sha256": "5a85664f4c5548fd7789141971a9f1f47694163703d9395fad1b54810444b0fb"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/cscv_pbo.py",
-      "sha256": "20c8ed1dff2519864f0e58b98244df4d988362ecfe3f3ee3465216ec35da1a51"
+      "sha256": "59e73c9879c3f47514d5c7edf09553894634fd56acb633ad2011567b314c4e79"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/debate.py",
-      "sha256": "074952838f04c04237a7b3e6112afe2e2ddc9c76bcade57100700bf9339e9f9d"
+      "sha256": "9ec74dbcb91047c2acf286e0595da964947361929cd21a1ac7a7b5a649dd5e4d"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/dossier.py",
-      "sha256": "79af2897deafd074b954d76fdd206051fdc989516060dfabe0b76813e9d069b1"
+      "sha256": "d849fc8f3a6b14aaa9da857d0cf5137622e0c73b59dc2bb735be2e80e60b50ae"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/finance_shapes.py",
-      "sha256": "d86a506998e08e28d69ec0617e0f12d323350e64d34fdadd553f94a1d29f958a"
+      "sha256": "f905bcc6fa3ad0a4d59c35ce1f7de3c7deb709b4074bd613f62aea5fe3b73427"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/models.py",
-      "sha256": "5b034eb2fea7c100c082d15bc30c2f54f3967a2540f79e8275fc9eb49119732b"
+      "sha256": "4deadd6ed68f4eb87561b538ea568418387af14924e5e346c719f5da6801490e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/onchain.py",
-      "sha256": "f5176bec58114d8d861b099cbd0b4fc00a314c318384ab89e2f2ecd717875348"
+      "sha256": "e813a9ce8f95e8a9de68a79df14095caa0200b9feb53a3f2eff837defd6c0e40"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/quality.py",
-      "sha256": "82419085a0f54a90d6ca6310f04979194104fd3a6bb6d1ce2f15d551a70b7814"
+      "sha256": "c9d204fc86ce7a63139868a941f95445f7f9b37eef38e80acfbbf58ddd2cf53e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/reflection.py",
-      "sha256": "c8b02a7365b70c3a812d2d855c7ca9f18d830d1a17692fa75c3a94417802f539"
+      "sha256": "ad40c27de1b82c0dc166df7fb83700e5e03a6486ef7a41be19ec5fbd1b21a215"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/sources.py",
-      "sha256": "71fd21de7867725e9cb569c2be60ac6b0db3363d01eef503f8616d840da3ec19"
+      "sha256": "47c152e17b483152125b27b1aa3b218e8d71f0dc62e463538a9a9d4d707feee0"
     },
     {
       "owner": "trading_gym",
@@ -1318,62 +1343,62 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/validation_stats.py",
-      "sha256": "21abe870c58e37f9ead5e8ecdbe3ad6664ff0484c99cb13f7c8e5e7e4b5f23ff"
+      "sha256": "e2a2523c176d5d0811d411e07d6d8e949382007b01c84713c770d320e49637e1"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/workspace.py",
-      "sha256": "3d831673c6527f066f6aedfb9facf1d0bb3df3f2d9cf5fe8dc9158e13d5fb90b"
+      "sha256": "d5dfbddcb9c21d11023abff18dbc36dbad94b770cdd13475b8f40b7f4b5abfdd"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/__init__.py",
-      "sha256": "a9569d8b573cebeeb0df6c6e5b40251ef8578955b22e877d639862ae773b3a49"
+      "sha256": "7a14026bbd8db3d37c711a3952a390e6bc9f6d96989708557d72c823e2166df5"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/analytics.py",
-      "sha256": "0d8f73bc9a1b527675f20fc9dc70a54370bc0f1d3db6798f5c86458453401b09"
+      "sha256": "03e7ecf8f366a60b58fe487d9049bbf6e1bec5f28c455a72e330e5c1431909fc"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/circuit_breakers.py",
-      "sha256": "ea514da7a05c31ad1ffe5acff00c0439f90b482447e68bff923af81a76879f31"
+      "sha256": "e1bc37cb832f5213e061ab20b8ddf63c992646a4ec009ef988b7264be4d7f6f3"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/conformal_var.py",
-      "sha256": "270814ee9d24eed967324b14842965736642c280a1e6ac1106297f9e4f33fe21"
+      "sha256": "924b57dfe91696736927fb3aa6e754c6728b4fe399b3f13e39f34edccdfe00b3"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/derivatives.py",
-      "sha256": "6c758f21db4e8f802797e0a779795cea8a24001b7a94e59328c0925beee4c8d4"
+      "sha256": "c5164e9e65c03bb5f6af4f50e67428f455f5948fb72fc282b36e05bbf97fc54b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/dynamic_stops.py",
-      "sha256": "1b4fcac12445fa676a34dc7ddaa27fd74c1bd10db3a57b4a73b84687a341ba82"
+      "sha256": "6034303deb4f2b1c57cabf94a802d01cebd086f1837462f798cad604d79b85aa"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/factor.py",
-      "sha256": "301d6a0e1b59b5f73776b1d914d78a5d091b2342aec7ea11adac9e8158c612da"
+      "sha256": "2b72b7d0c18ea7afb16e54ed89173996be03fc9f92b65609e82cec46327ab0ea"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/latching_kill_switch.py",
-      "sha256": "3a76d71c0e631977a9c9c9a4b89a7b49becb050be0c74a554483fd61efac4b4b"
+      "sha256": "048dd08abe96430713f9b0a147710c10a43cbf93097b7d27aa5ed1dae911b47e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/liquidity.py",
-      "sha256": "5c1187b39d53defdd4b2990fbbc326682ff7fab21dabefddac3f170b6fae94a3"
+      "sha256": "b5401b15b6e34c203ac5f67c00bc6582184d911d87b41cea44715633be49215a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/portfolio.py",
-      "sha256": "7fe29345d4aec787d173f72ebd49cdca5cc654676ac2c12760612f8551eeebca"
+      "sha256": "12680ff31b1bc2e8295406379c3265c8ec68e000ec740863b1bc5926ad5f14be"
     },
     {
       "owner": "trading_gym",
@@ -1383,282 +1408,282 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/sizing.py",
-      "sha256": "ac3d7088e8d15f242ee962784deebcc0843ff7158a157f6e9c4aa5b6dcd7a9cd"
+      "sha256": "948e8a1496661657440e5a4664b8ca4d3f897a5649aa7430acd667a5383189ed"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/stress.py",
-      "sha256": "0f33e5b9960daa9b84dca45da04142155895617dcd1dc8fcf933dddbcc284139"
+      "sha256": "1bfb6b6e92ec629c8a12824c4b18595afc50bcf542d00c02a43ecffc00fbd47e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/rl/__init__.py",
-      "sha256": "e860cd15cd0dd03417b88a0e337e886859826ff7cb503a543693851151618833"
+      "sha256": "afac5c2d827b114f8a4df30e1eb00437081e91a62c683a9118b5622e3fea5e02"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/rl/borrow_cap_wrapper.py",
-      "sha256": "ebaf4037f9484a05df3c0588ef6b59c128b6d83d9b27bedf6aeaf1188da86eba"
+      "sha256": "005b9561b9faba80c03109c7ed59d929080f02d3f805ee120b17a4d099a39a0a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/rl/episode_registry.py",
-      "sha256": "01640114989fa014eb9ef8bbdf374851cc1e24634aa02a8878ba2d24e7747566"
+      "sha256": "e46169746b385dd2fa5ff5bbe260c1d9d150770b4f1793c19b8770e93dabbecd"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/rl/forward_outcomes.py",
-      "sha256": "ff9403b673d67eabc3ba5e5a52ae4bcbfae7a6275233ebdb7b4472646f9847e5"
+      "sha256": "93f193be9b9a5cfd565a2c81b29789035f7b9f58d528aca33d25fb9705b7329a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/rl/margin_trading_environment.py",
-      "sha256": "4384502b54b308028c99a63670e0d1a8f725cfc3b996e49befbcc7f98958bf4f"
+      "sha256": "299466ca372c2595d56227e716f402798c16a604b67aa5988a04fb91ecde4778"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/rl/normalized_env.py",
-      "sha256": "b5108aa51e54da405d2fbe614b98c5dca508b67aa8548ac58c2f5e6bdf6257a4"
+      "sha256": "36fc80edf287bdf630006f3787c8b46a1599c2439ca37eb8ac5d03727f829b42"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/rl/rewards.py",
-      "sha256": "4a1c73b444f9007cff427bdc795b532a7e7430111c1ef5e5b5b71cc4f0cf83d1"
+      "sha256": "77fb01d77b1187c67cd99e2e5b9812d4ee3118705dae9af149054095a9a144fd"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/scheduling/__init__.py",
-      "sha256": "4c7288ca597b917d54a537e37f25139f9901de045a9503db23dafcda429a874c"
+      "sha256": "47a965ea3470e0d07279f1985ac7d3173a6d031d4ec3799ec310b9d5b350725a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/scheduling/planner.py",
-      "sha256": "6b1e918d19d009cc2da0acd85c531e409d63cceb6334ed2c077ee4ff68210d53"
+      "sha256": "c9516a927805db3fb5f608432dfde6eb632145ff0d2ce0133e27acbd47b1cef8"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/skills/intake.py",
-      "sha256": "ea478d789902a79c5c2b40736f6732123315486e6df3fadc63df1db3b81a3c4c"
+      "sha256": "73b5b8e3f143aa3605d42326cb2f9c5bee3b3c94bf496096e717b6384094e6a5"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/skills/quarantine.py",
-      "sha256": "f1e66675b54491fe9b19132b3e961c1f0a6eb54fde5aba46a2c3e06bd5162a2b"
+      "sha256": "6c335b5f5ff60ae7521db5c13dcd99043eca081e545d0e7c5d5aac117645d0da"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/skills/static_assurance.py",
-      "sha256": "0130293b1818b9d8c9e5c6a746a31be1bc9d9004e7cfe16fa1a98ebc5a318b30"
+      "sha256": "8633c569dfc3926f40cb6bcca4896a1336b87f130a7b24c77aa0fc081fd722bc"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/__init__.py",
-      "sha256": "0850fcc6dcb7b346b4c6ae337cd5f76d82aa337bcbedecce46a3af7cfe191863"
+      "sha256": "69412cce759cdb3eac7272a057a10a785c0229bfc3367ecdc851888b3a4926eb"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/evaluator.py",
-      "sha256": "1ca3b5108907bed9213dc84623df2b75ce3f9e32f041c4493687e35ef5c7182f"
+      "sha256": "1881397cc796d675f943c6fe0f938cdcbedab5ea070515b59632a1ece2b3ddd1"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/indicators.py",
-      "sha256": "ab89a5f7c8586c4a8d125a74b0e05662ee6d0060b4771fdbeac3c362e1580d08"
+      "sha256": "3c4813cab04bae202bbacb1be043e3e3a25501736079dee9e2356eba3c9bfd9f"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/models.py",
-      "sha256": "e8f78076d49b0a5ca7fe9fa6615b6c003f4e55636023a78f858e4380d3e0767a"
+      "sha256": "4786653aa0fb285e26536326dd7f2283f7ae62637cf012079622bbec09577486"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/overfitting.py",
-      "sha256": "e3b1209febfc9b0925dcf5149e8651976965e2c5be7f82764e6e14abcfc77208"
+      "sha256": "093384cd4cd0ec181263c402c892ea971ed3a3bf3f2e95486da4411a99788858"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/parity.py",
-      "sha256": "c3363303400e869b0bfac90cbde5f61b437a269827d9a88e97e0f202a4ff3a79"
+      "sha256": "7d8e6f80c3375756baeff7e7d183132558205ba3873f33d94e6c132e14706ae5"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/repository.py",
-      "sha256": "58dd6c224043a025e7762fabc9c52c12538bbda1e887ac8bcd00bfa343e1f3d2"
+      "sha256": "deeafa40c8551f56127fba667924dc3d5a766e294e66a01371a93bcac7488b39"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/templates.py",
-      "sha256": "1694e80cdaf07b35d6464c0b60f4378a1b361dae75d79867172bf7ca08b78863"
+      "sha256": "40838167157e2db200ecab78d8bc25f6aa29926abb48c474ed1f46c442388cf8"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/validation.py",
-      "sha256": "9a644811e67d277dc141a4e1d1b85742c17df41051411614bf3d94f810638aed"
+      "sha256": "307beb34e37ca42d371dbe1308add7eeeef075e4350b36ee73e072033d548f98"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/treasury/__init__.py",
-      "sha256": "83f437f918cc60f04048ccf8909581886e756c0df32bc3c146338741f63b6478"
+      "sha256": "b006ef479cbf085674e97698edacf6f59ea0fc60f5a14138fedd96e25f023338"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/treasury/collateral.py",
-      "sha256": "c551e77971a4ee3d749e026ad71012627ad83acfe403f515b59db572b69c4918"
+      "sha256": "3761b450a7a747769f2c5da93ea1c01d547d3ae67a2b0aff06e6d14aeb5f7c2e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/treasury/counterparty.py",
-      "sha256": "9ebf2c4331a735da4196e313e1c7e06c2a62bc989ca7040287719a7652367a44"
+      "sha256": "b5b5f99d5d93e0b44f957375f7472741a5e3a7cf7afb02c0a9859a8534a26950"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/treasury/imports.py",
-      "sha256": "ffa2d70e160707c81f97fe2852f6cb1311424e44d94ae3664a88b90f264514d1"
+      "sha256": "b23ab19ab100d707d8afe4f9774fc3e49d4b2d1279e759373055319be54e8bcf"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/treasury/liquidity_forecast.py",
-      "sha256": "2ca59556745f5177fe2dbbfbc39985d6e172f3857ab1f3942bb61fc627a971ce"
+      "sha256": "8f8dbd09a600b280841cf47686a11515c84e0aa200736cf8ccb2e19bb063235a"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/treasury/reservations.py",
-      "sha256": "6cdcce324dc518b8b1c50dfd74681390156a9dd3273433f9e5118295dc6c1209"
+      "sha256": "15a8e1bd4c3bcfaf231c61e43dac99fbaa3076f1dea2126125398aeeb8daed12"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/utils/__init__.py",
-      "sha256": "dcaf8ce2723431e9af9500d87c8bdddefd933243db023efdc2df0d570e2e95e1"
+      "sha256": "e51d25aa98db7e54782131735b0b93ce20713eb1aecd3019fdd0bbe59ea16e91"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/utils/config_validator.py",
-      "sha256": "ef5fc35b68ae9a1ca9d19a3d84793469f6cb25e76563c7bc7bccb32ed230b1d1"
+      "sha256": "2013f8abbddb1bbedc20bf5038873b5dc8a738da4e497f7307fd674599e6564b"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/utils/memory.py",
-      "sha256": "ba9a391a47054062e631889c23cce9d0f77940ce990f2ae78a63b381b031bcc8"
+      "sha256": "38d9b0e0cb2c255b2b9a4d674dc9ac6426369727eec6a31484ce5bfefda72e5c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/utils/metrics.py",
-      "sha256": "f619e8d88752af017a28011ae58eae03686b3e620bd0ee1e5e94c4b3888974b3"
+      "sha256": "8604923706345f6536223d805f02e92be79d7b3f13aa82c786d726fbde92c40c"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/venue/__init__.py",
-      "sha256": "af2565ea9354d76fc18c2dd86dbe9b192f6c4afc8ad1ac2575f05547d9cf7c42"
+      "sha256": "763bca107979111056ad2370924ab377320d59a85c23f683a581a6f4f662d7d4"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/venue/asset_registry.py",
-      "sha256": "0bf2fb75e5bf332b7026e2b9cfcb681fa2b989e475b19fcfb75ff49f3431a612"
+      "sha256": "18d2abceb0511c8dda8b175d20df2188f4b6cbbae93d8ef4ba73f6cda7d7467f"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/venue/symbol_registry.py",
-      "sha256": "524278d8eb3ae3e3633de0574cec6582ac235ad04dfd624250e36c0bb1dfdb50"
+      "sha256": "4d679a02437a8fb104c9ff8a67e576967369979b471dc1ef0bee21556d0eb5b4"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/visualization/__init__.py",
-      "sha256": "9248c52211dc89fc3789444f1ce55f87dcec39223998e2361e39ed6420d06002"
+      "sha256": "6003cf3679b39b55ab3af82b588185e365b1aae1f2a76984b47ed42e92634ed8"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/visualization/terminal_blocks.py",
-      "sha256": "94a11d2aaee3afd7ec57c8d29b7eea5db4f6b7c1c924aa61d14e0941d12ead81"
+      "sha256": "d1ac279556da29f4f3da080ac829e58a4b78423d56885e1a6933261be0c7e482"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/visualization/training_plots.py",
-      "sha256": "9755d291ffb4ff34f56463e034534ab97319862ea82354c4f3f0c359032e357c"
+      "sha256": "08325e6b40dacd3a47133f816a0191888b79e53de5e3763277e77df18c7ebbf1"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/__init__.py",
-      "sha256": "a0261b3950510ffbe1820f97469676e86a6cf0ee5de447f8600f755a527ad141"
+      "sha256": "84c8bfd10ad3f5ea512dcdb505d33f2604c8e7aec6e3c4b7a8ec4a363c8ffa77"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/decision_lifecycle.py",
-      "sha256": "ecbd4b66377258d992d8d9f86a40ddb4a2626f453478375e0d5f2e9f68366b05"
+      "sha256": "492f932da8507ef3228e8caab7310914dbdb7c49828f72c8a74c844755fbc9db"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/live_trading.py",
-      "sha256": "14a59ea2082e79e8da66966628094361f5d449ce7406a6d61fd0d157c11d8fc5"
+      "sha256": "68dc556d47466766706ce23dbb2c23e28c86057cfaa492b6dd3f33636db2419f"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/next_level/agent_lab.py",
-      "sha256": "497b083686e0bf744c61829f5d11a3bc879c6f2825f0f69165755d87e133e35f"
+      "sha256": "71567ef43bdce047ea4bc094d212e666f24f05b64debaae2b4057a47b7f5e734"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/analytics.py",
-      "sha256": "4d86e8569d85f82e964c12ccabafdd4e5323e311823b2336b904b69005d63bb9"
+      "sha256": "1fa9f1a996091e9bf3842290f8b477a1a37d826b937d6f7833739078b15da192"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/artifacts.py",
-      "sha256": "ea1c5806f8fd63951ff6146323fee2d6e035c3fac738421d810bb3a4a1476e46"
+      "sha256": "4140528aa03f8cbbc120636d294ec9e1921a35b451bee4a1d1aac21ccf9cfb95"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/base.py",
-      "sha256": "b85c193a578e37871a17f3d0f9bb75080b90b1d82f1d177df75421affd7e6ad7"
+      "sha256": "2cd143a56d59026606e706e5e588edcf8ddc7cfe1e1c78ba5a360ff5d023b62b"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/conditional.py",
-      "sha256": "a7a18fcac9e3af87d6db42d2d37dd7525fe0cc077acc62892f26dd218167c46e"
+      "sha256": "dbdf46a3d9e24b0f3ce589cc51992352a0760350dacebd70fbf0c060cc60b5b2"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/durable_execution.py",
-      "sha256": "84850b1aabad71dbea02ae1a9ebbefcd7e6a02c616edff0cc8569246b53099b0"
+      "sha256": "f888e42b9f06787f337cf8ebe01da7379701d36afe4a891c40df8e50651de7fb"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/external_state.py",
-      "sha256": "367c5e0df91266f631d28464b4468829b39cba930139bbf19e9162b4c489d36c"
+      "sha256": "46330d1a0cc94df99763bf6460454b80783755cd84514c47327e4e53bb93f6f2"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/finance.py",
-      "sha256": "2fa1c7e339d677f7b22fc149232561bf152d7ca643bfba5a6118add6935a444c"
+      "sha256": "e9778d6552b4fefea311d9a185718e970b8ff8ef2fc12b1aba827c411ee43ad4"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/lineage.py",
-      "sha256": "4de4ea81fb59ab58951a83d626da332935afea61662e1e54589ca744c13f3b35"
+      "sha256": "45f583c7d6b7494fada3084e6462e5de94dbf9544bce80f63a3a4d8986e19fe6"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/model_evidence.py",
-      "sha256": "ab1cf714193daa05f0bebdbae21ef9a32999b55b0e972eb0939a1b24e70ce1bd"
+      "sha256": "0c2b813eca69dbe49db575c34c6ba614d391a83cc936282e3cff0e6c15f7c0d8"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/policy.py",
-      "sha256": "1c632c775eb646d93841bbe48f58ba47b94265a3b30960cfdcce0fc2b05e5268"
+      "sha256": "540effd144fba5156a7a321babca3729454eef5f1cb78dd6a4d59f2423cdf0a3"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/supply_chain.py",
-      "sha256": "6e51b9d3890713fcced32e6e91d424e4e3f0c4264739daac022a4eb8584ed07c"
+      "sha256": "6c138f2481d68a9a648eb0bb54bbc6fac0cb88ba2adc0bb1296cd57e6b4c8dd4"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/telemetry.py",
-      "sha256": "ab41fc8655a7fd7962a3e14c17b609653cccdbc4a56e83d6edfad5f1783e7e95"
+      "sha256": "9524e076e20a234a2d167a82b29c40c51a7384558a0a4ccaf3dcbaa012005373"
     },
     {
       "owner": "axiomforge",
       "path": "axiomforge/oss_integrations/validation.py",
-      "sha256": "4e33087dc04be1c52ab973d5258004ddcb0952b220b6d816349c1af35991d509"
+      "sha256": "3ad742e87d088227ee550b4a19edb31bac60dd92ed2a46b134808643eb424222"
     }
   ]
 }

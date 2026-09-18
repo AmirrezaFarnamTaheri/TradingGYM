@@ -1,4 +1,5 @@
 """Generate or verify the authoritative OpenAPI document from the FastAPI app."""
+
 from __future__ import annotations
 
 import json
@@ -12,7 +13,9 @@ if str(ROOT) not in sys.path:
 OUT = ROOT / "docs" / "contracts" / "openapi.json"
 OUT.parent.mkdir(parents=True, exist_ok=True)
 
-from apps.api.main import app  # noqa: E402  (root path is deliberately established first)
+from apps.api.main import (  # noqa: E402  (root path is deliberately established first)
+    app,
+)
 
 data = app.openapi()
 if not data.get("paths"):

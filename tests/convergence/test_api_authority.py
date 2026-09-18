@@ -26,7 +26,9 @@ def test_router_inherits_gateway_authentication(tmp_path: Path, monkeypatch) -> 
     assert response.status_code == 401
 
 
-def test_worker_transitions_require_independent_worker_key(tmp_path: Path, monkeypatch) -> None:
+def test_worker_transitions_require_independent_worker_key(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
     monkeypatch.delenv("WORKER_API_KEY", raising=False)
     client = TestClient(_app())
@@ -64,7 +66,9 @@ def test_worker_transitions_require_independent_worker_key(tmp_path: Path, monke
     assert claimed.json()["claimed_by"] == "worker-a"
 
 
-def test_high_risk_approval_requires_key_and_sealed_audit(tmp_path: Path, monkeypatch) -> None:
+def test_high_risk_approval_requires_key_and_sealed_audit(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path / "unsealed"))
     monkeypatch.setenv("APPROVAL_API_KEY", "approval-secret")
     monkeypatch.setenv(
@@ -105,19 +109,25 @@ def test_high_risk_approval_requires_key_and_sealed_audit(tmp_path: Path, monkey
         "decision": "approve",
         "reason": "validated",
     }
-    assert client.post(
-        f"/api/v1/convergence/governance/proposals/{created['proposal_id']}/decision",
-        headers={"X-Actor-Key": "human-reviewer-secret-0000000001"},
-        json=decision,
-    ).status_code == 403
-    assert client.post(
-        f"/api/v1/convergence/governance/proposals/{created['proposal_id']}/decision",
-        headers={
-            "X-Approval-Key": "approval-secret",
-            "X-Actor-Key": "human-reviewer-secret-0000000001",
-        },
-        json=decision,
-    ).status_code == 503
+    assert (
+        client.post(
+            f"/api/v1/convergence/governance/proposals/{created['proposal_id']}/decision",
+            headers={"X-Actor-Key": "human-reviewer-secret-0000000001"},
+            json=decision,
+        ).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            f"/api/v1/convergence/governance/proposals/{created['proposal_id']}/decision",
+            headers={
+                "X-Approval-Key": "approval-secret",
+                "X-Actor-Key": "human-reviewer-secret-0000000001",
+            },
+            json=decision,
+        ).status_code
+        == 503
+    )
 
     monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path / "sealed"))
     monkeypatch.setenv("AUDIT_HMAC_KEY", "a" * 32)
@@ -161,7 +171,11 @@ def test_convergence_planes_do_not_expose_dynamic_code_execution() -> None:
         Path("apps/api/convergence.py"),
     ]
     forbidden_names = {"eval", "exec"}
-    forbidden_attributes = {("os", "system"), ("subprocess", "run"), ("subprocess", "Popen")}
+    forbidden_attributes = {
+        ("os", "system"),
+        ("subprocess", "run"),
+        ("subprocess", "Popen"),
+    }
     violations: list[str] = []
     files = [root for root in roots if root.is_file()]
     files.extend(path for root in roots if root.is_dir() for path in root.rglob("*.py"))
@@ -172,7 +186,9 @@ def test_convergence_planes_do_not_expose_dynamic_code_execution() -> None:
                 continue
             if isinstance(node.func, ast.Name) and node.func.id in forbidden_names:
                 violations.append(f"{path}:{node.lineno}:{node.func.id}")
-            elif isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+            elif isinstance(node.func, ast.Attribute) and isinstance(
+                node.func.value, ast.Name
+            ):
                 key = (node.func.value.id, node.func.attr)
                 if key in forbidden_attributes:
                     violations.append(f"{path}:{node.lineno}:{'.'.join(key)}")

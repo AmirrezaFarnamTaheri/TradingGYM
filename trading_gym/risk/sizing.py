@@ -39,11 +39,15 @@ class PositionSizingRequest(BaseModel):
         if self.method is SizingMethod.RISK_PER_TRADE and (
             self.risk_fraction is None or self.stop_distance_fraction is None
         ):
-            raise ValueError("risk_per_trade requires risk_fraction and stop_distance_fraction")
+            raise ValueError(
+                "risk_per_trade requires risk_fraction and stop_distance_fraction"
+            )
         if self.method is SizingMethod.VOLATILITY_TARGET and (
             self.observed_volatility is None or self.target_volatility is None
         ):
-            raise ValueError("volatility_target requires observed_volatility and target_volatility")
+            raise ValueError(
+                "volatility_target requires observed_volatility and target_volatility"
+            )
         if self.method is SizingMethod.CAPPED_KELLY and (
             self.win_rate is None or self.payoff_ratio is None
         ):
@@ -75,11 +79,21 @@ def size_position(request: PositionSizingRequest) -> PositionSizingResult:
     if request.method is SizingMethod.FIXED_FRACTION:
         desired_notional = request.equity * request.max_position_fraction
     elif request.method is SizingMethod.RISK_PER_TRADE:
-        desired_notional = request.equity * float(request.risk_fraction) / float(request.stop_distance_fraction)
+        desired_notional = (
+            request.equity
+            * float(request.risk_fraction)
+            / float(request.stop_distance_fraction)
+        )
     elif request.method is SizingMethod.VOLATILITY_TARGET:
-        desired_notional = request.equity * float(request.target_volatility) / float(request.observed_volatility)
+        desired_notional = (
+            request.equity
+            * float(request.target_volatility)
+            / float(request.observed_volatility)
+        )
     else:
-        raw_kelly = float(request.win_rate) - (1.0 - float(request.win_rate)) / float(request.payoff_ratio)
+        raw_kelly = float(request.win_rate) - (1.0 - float(request.win_rate)) / float(
+            request.payoff_ratio
+        )
         desired_notional = request.equity * max(0.0, raw_kelly) * request.kelly_fraction
 
     if desired_notional > max_notional:

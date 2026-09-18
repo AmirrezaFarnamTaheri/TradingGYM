@@ -2,7 +2,9 @@ import pytest
 import pandas as pd
 from trading_gym.data.data_loader import load_data_from_lake, load_symbol_timeframe
 
-pytest.importorskip("pyarrow", reason="Parquet loader tests require the declared pyarrow dependency")
+pytest.importorskip(
+    "pyarrow", reason="Parquet loader tests require the declared pyarrow dependency"
+)
 
 
 @pytest.fixture

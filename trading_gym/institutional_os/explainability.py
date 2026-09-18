@@ -1,4 +1,5 @@
 """Deterministic local explanation, uncertainty, and counterfactual evidence."""
+
 from __future__ import annotations
 
 import math
@@ -38,7 +39,9 @@ class ExplainabilityRequest(BaseModel):
             raise ValueError("explainability inputs must be finite")
         if any(abs(item) > MAX_EXPLAINABILITY_MAGNITUDE for item in values):
             raise ValueError("explainability inputs exceed the numeric magnitude bound")
-        if any(not math.isfinite(item.value * item.coefficient) for item in self.features):
+        if any(
+            not math.isfinite(item.value * item.coefficient) for item in self.features
+        ):
             raise ValueError("explainability contribution overflow")
         names = [item.feature for item in self.features]
         if len(names) != len(set(names)):
@@ -66,7 +69,9 @@ class ExplainabilityReport(BaseModel):
 
 
 def explain_prediction(request: ExplainabilityRequest) -> ExplainabilityReport:
-    contributions = {item.feature: item.value * item.coefficient for item in request.features}
+    contributions = {
+        item.feature: item.value * item.coefficient for item in request.features
+    }
     score = math.fsum([request.bias, *contributions.values()])
     if not math.isfinite(score):
         raise ValueError("explainability score overflow")
@@ -76,7 +81,13 @@ def explain_prediction(request: ExplainabilityRequest) -> ExplainabilityReport:
     candidates = []
     for item in request.features:
         if item.coefficient != 0:
-            candidates.append((abs(required / item.coefficient), item.feature, required / item.coefficient))
+            candidates.append(
+                (
+                    abs(required / item.coefficient),
+                    item.feature,
+                    required / item.coefficient,
+                )
+            )
     if candidates:
         _, feature, change = min(candidates)
         counterfactual = {feature: change}
@@ -91,7 +102,10 @@ def explain_prediction(request: ExplainabilityRequest) -> ExplainabilityReport:
             stddev = 0.0
         else:
             normalized_mean = mean / scale
-            normalized_variance = math.fsum((item / scale - normalized_mean) ** 2 for item in request.predictive_samples) / len(request.predictive_samples)
+            normalized_variance = math.fsum(
+                (item / scale - normalized_mean) ** 2
+                for item in request.predictive_samples
+            ) / len(request.predictive_samples)
             stddev = scale * math.sqrt(max(normalized_variance, 0.0))
         if not math.isfinite(mean) or not math.isfinite(stddev):
             raise ValueError("predictive uncertainty overflow")

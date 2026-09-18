@@ -142,10 +142,16 @@ def gap_injection(
         open_scale = 1.0 + scale * decay
         close_scale = 1.0 + scale * decay * 0.5
         for column, series_scale in (("open", open_scale), ("close", close_scale)):
-            out.iloc[position : position + span, out.columns.get_loc(column)] *= series_scale
+            out.iloc[
+                position : position + span, out.columns.get_loc(column)
+            ] *= series_scale
         # keep the envelope consistent: recompute the band around OHLC
-        inner_low = out.iloc[position : position + span][["open", "close", "low"]].min(axis=1)
-        inner_high = out.iloc[position : position + span][["open", "close", "high"]].max(axis=1)
+        inner_low = out.iloc[position : position + span][["open", "close", "low"]].min(
+            axis=1
+        )
+        inner_high = out.iloc[position : position + span][
+            ["open", "close", "high"]
+        ].max(axis=1)
         out.iloc[position : position + span, out.columns.get_loc("high")] = inner_high
         out.iloc[position : position + span, out.columns.get_loc("low")] = inner_low
 
@@ -198,7 +204,11 @@ def liquidity_drought(
     base = frame
     out = frame.copy()
     position = _resolve_start(out, start)
-    end = len(out) if duration_bars is None else min(len(out), position + int(duration_bars))
+    end = (
+        len(out)
+        if duration_bars is None
+        else min(len(out), position + int(duration_bars))
+    )
     if end <= position:
         raise OverlayError("liquidity window is empty")
     out.iloc[position:end, out.columns.get_loc("volume")] *= float(depth_multiplier)
@@ -373,9 +383,7 @@ class Scenario:
             timeframe=str(window_spec.get("timeframe", "5m")),
             frame=window_spec["frame"],
         )
-        overlays = tuple(
-            build_overlay(item) for item in (spec.get("overlays") or ())
-        )
+        overlays = tuple(build_overlay(item) for item in (spec.get("overlays") or ()))
         seed = spec.get("seed")
         if isinstance(seed, bool) or not isinstance(seed, int):
             raise OverlayError("scenario seed must be an integer")

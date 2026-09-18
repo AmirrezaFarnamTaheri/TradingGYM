@@ -51,14 +51,21 @@ class SLOEvaluation(BaseModel):
     violations: list[str]
 
 
-def evaluate_slo(objective: ServiceLevelObjective, window: SLOObservationWindow) -> SLOEvaluation:
+def evaluate_slo(
+    objective: ServiceLevelObjective, window: SLOObservationWindow
+) -> SLOEvaluation:
     if window.total_events < objective.minimum_events:
         return SLOEvaluation(
             name=objective.name,
             status="insufficient_data",
-            success_fraction=(window.successful_events / window.total_events if window.total_events else 0.0),
+            success_fraction=(
+                window.successful_events / window.total_events
+                if window.total_events
+                else 0.0
+            ),
             latency_good_fraction=0.0,
-            allowed_failures=window.total_events * (1.0 - objective.target_success_fraction),
+            allowed_failures=window.total_events
+            * (1.0 - objective.target_success_fraction),
             observed_failures=window.total_events - window.successful_events,
             error_budget_remaining=0.0,
             violations=["minimum_events"],
@@ -67,7 +74,9 @@ def evaluate_slo(objective: ServiceLevelObjective, window: SLOObservationWindow)
     observed_failures = window.total_events - window.successful_events
     allowed_failures = window.total_events * (1.0 - objective.target_success_fraction)
     if window.latency_ms:
-        latency_good = sum(value <= objective.latency_threshold_ms for value in window.latency_ms)
+        latency_good = sum(
+            value <= objective.latency_threshold_ms for value in window.latency_ms
+        )
         latency_fraction = latency_good / len(window.latency_ms)
     else:
         latency_fraction = 0.0
@@ -78,7 +87,9 @@ def evaluate_slo(objective: ServiceLevelObjective, window: SLOObservationWindow)
         violations.append("latency_fraction")
     remaining = allowed_failures - observed_failures
     if violations:
-        status: Literal["healthy", "at_risk", "breached", "insufficient_data"] = "breached"
+        status: Literal["healthy", "at_risk", "breached", "insufficient_data"] = (
+            "breached"
+        )
     elif remaining <= max(1.0, allowed_failures * 0.25):
         status = "at_risk"
     else:

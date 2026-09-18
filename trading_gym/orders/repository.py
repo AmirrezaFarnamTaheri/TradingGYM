@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -17,9 +16,16 @@ from typing import Any
 from filelock import FileLock
 
 from trading_gym.accounting.models import AccountingEvent, AccountingEventType, FillSide
-from trading_gym.common.audit_outbox import deliver_audit_events, ensure_audit_outbox, queue_audit_event
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
-from trading_gym.common.security import bounded_json_dumps
+from trading_gym.common.audit_outbox import (
+    deliver_audit_events,
+    ensure_audit_outbox,
+    queue_audit_event,
+)
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.governance.ledger import AuditLedger
 from trading_gym.orders.models import (
     OrderEvent,
@@ -35,7 +41,6 @@ from trading_gym.orders.models import (
     TERMINAL_ORDER_STATES,
 )
 
-
 MAX_ORDERS = 50_000
 MAX_EVENTS_PER_ORDER = 5_000
 
@@ -45,7 +50,9 @@ class OrderConflict(RuntimeError):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
 
 
 def _decimal(value: Any) -> Decimal:
@@ -57,12 +64,16 @@ def _decimal(value: Any) -> Decimal:
 
 def _event_hash(previous_hash: str, sequence: int, event: dict[str, Any]) -> str:
     return hashlib.sha256(
-        _canonical({"previous_hash": previous_hash, "sequence": sequence, "event": event})
+        _canonical(
+            {"previous_hash": previous_hash, "sequence": sequence, "event": event}
+        )
     ).hexdigest()
 
 
 class OrderRepository:
-    def __init__(self, path: Path | None = None, ledger: AuditLedger | None = None) -> None:
+    def __init__(
+        self, path: Path | None = None, ledger: AuditLedger | None = None
+    ) -> None:
         self.path = path or resolve_data_home() / "orders.json"
         self.ledger = ledger or AuditLedger()
         self.lock = FileLock(str(self.path) + ".orders.lock")
@@ -228,7 +239,9 @@ class OrderRepository:
                     "revision": new_snapshot.revision,
                     "sequence": new_snapshot.sequence,
                     "external_order_id": new_snapshot.external_order_id,
-                    "cumulative_filled_quantity": str(new_snapshot.cumulative_filled_quantity),
+                    "cumulative_filled_quantity": str(
+                        new_snapshot.cumulative_filled_quantity
+                    ),
                     "remaining_quantity": str(new_snapshot.remaining_quantity),
                     "correlation_id": new_snapshot.correlation_id,
                 },
@@ -236,6 +249,104 @@ class OrderRepository:
             atomic_write_json(self.path, document)
         self.reconcile_audit()
         return new_snapshot
+
+    def append_events(
+        self,
+        events: list[OrderEvent],
+        *,
+        expected_revision: int,
+    ) -> OrderSnapshot:
+        """Append many events to one order in a single locked pass.
+
+        Semantically equivalent to calling ``append`` once per event, but the
+        order record is loaded and its hash chain replayed once instead of once
+        per event, and the store document is written once instead of once per
+        event.  This keeps fill ingestion linear rather than quadratic in the
+        number of events on the order.
+        """
+        if not events:
+            raise ValueError("append_events requires at least one event")
+        with self.lock:
+            document = self._load()
+            order_id = events[0].order_id
+            for event in events:
+                if event.order_id != order_id:
+                    raise ValueError("append_events events must share one order_id")
+            raw = document["orders"].get(order_id)
+            if raw is None:
+                raise KeyError(order_id)
+            snapshot = self._verify_record(raw)
+            if snapshot.revision != expected_revision:
+                raise OrderConflict(
+                    f"expected revision {expected_revision}, found {snapshot.revision}"
+                )
+            intent = OrderIntent.model_validate(raw["intent"])
+            # Mirror append()'s duplicate semantics: an event_id that already
+            # exists with identical content is a no-op replay (return the
+            # stored snapshot), while different content is a conflict.
+            existing_events: dict[str, OrderEvent] = {}
+            for record in raw["events"]:
+                stored = OrderEvent.model_validate(record["event"])
+                existing_events[stored.event_id] = stored
+            for event in events:
+                if event.event_type is OrderEventType.SUBMITTED:
+                    raise OrderConflict(
+                        "submitted is created by OrderRepository.create"
+                    )
+                if event.event_id in existing_events:
+                    if existing_events[event.event_id] != event:
+                        raise OrderConflict("order event identity collision")
+                    return snapshot
+                if event.occurred_at < snapshot.updated_at:
+                    raise OrderConflict("order events must be chronological")
+                existing_events[event.event_id] = event
+            if len(raw["events"]) + len(events) > MAX_EVENTS_PER_ORDER:
+                raise OrderConflict("order event limit reached")
+            for event in events:
+                new_snapshot = self._apply_event(intent, snapshot, event)
+                sequence = snapshot.sequence + 1
+                payload = event.model_dump(mode="json")
+                head = _event_hash(snapshot.chain_head, sequence, payload)
+                new_snapshot = new_snapshot.model_copy(
+                    update={
+                        "revision": snapshot.revision + 1,
+                        "sequence": sequence,
+                        "chain_head": head,
+                        "updated_at": event.occurred_at,
+                        "terminal": new_snapshot.state in TERMINAL_ORDER_STATES,
+                    }
+                )
+                raw["events"].append(
+                    {
+                        "sequence": sequence,
+                        "previous_hash": snapshot.chain_head,
+                        "event_hash": head,
+                        "event": payload,
+                    }
+                )
+                snapshot = new_snapshot
+                queue_audit_event(
+                    document,
+                    event_id=f"order:{event.order_id}:event:{event.event_id}:{head[:16]}",
+                    event=f"orders.{event.event_type.value}",
+                    actor=event.actor,
+                    subject=event.order_id,
+                    details={
+                        "state": new_snapshot.state.value,
+                        "revision": new_snapshot.revision,
+                        "sequence": new_snapshot.sequence,
+                        "external_order_id": new_snapshot.external_order_id,
+                        "cumulative_filled_quantity": str(
+                            new_snapshot.cumulative_filled_quantity
+                        ),
+                        "remaining_quantity": str(new_snapshot.remaining_quantity),
+                        "correlation_id": new_snapshot.correlation_id,
+                    },
+                )
+            raw["snapshot"] = snapshot.model_dump(mode="json")
+            atomic_write_json(self.path, document)
+        self.reconcile_audit()
+        return snapshot
 
     @staticmethod
     def _consistent_external(snapshot: OrderSnapshot, event: OrderEvent) -> str | None:
@@ -268,18 +379,29 @@ class OrderRepository:
                 OrderState.CANCEL_REQUESTED,
             }:
                 raise OrderConflict("fill is not valid in the current state")
-            assert event.fill_id and event.fill_quantity is not None and event.fill_price is not None
+            assert (
+                event.fill_id
+                and event.fill_quantity is not None
+                and event.fill_price is not None
+            )
             if any(fill.fill_id == event.fill_id for fill in snapshot.fills):
                 raise OrderConflict("fill_id already exists on this order")
             new_cumulative = snapshot.cumulative_filled_quantity + event.fill_quantity
-            if event.cumulative_filled_quantity is not None and event.cumulative_filled_quantity != new_cumulative:
-                raise OrderConflict("cumulative fill quantity disagrees with admitted fills")
+            if (
+                event.cumulative_filled_quantity is not None
+                and event.cumulative_filled_quantity != new_cumulative
+            ):
+                raise OrderConflict(
+                    "cumulative fill quantity disagrees with admitted fills"
+                )
             if new_cumulative > snapshot.requested_quantity:
                 raise OrderConflict("cumulative fills exceed requested quantity")
-            previous_notional = (
-                snapshot.cumulative_filled_quantity * (snapshot.average_fill_price or Decimal("0"))
+            previous_notional = snapshot.cumulative_filled_quantity * (
+                snapshot.average_fill_price or Decimal("0")
             )
-            average = (previous_notional + event.fill_quantity * event.fill_price) / new_cumulative
+            average = (
+                previous_notional + event.fill_quantity * event.fill_price
+            ) / new_cumulative
             fills = list(snapshot.fills)
             fills.append(
                 OrderFill(
@@ -295,7 +417,9 @@ class OrderRepository:
             fees = dict(snapshot.fees)
             if event.fee_amount:
                 assert event.fee_currency is not None
-                fees[event.fee_currency] = fees.get(event.fee_currency, Decimal("0")) + event.fee_amount
+                fees[event.fee_currency] = (
+                    fees.get(event.fee_currency, Decimal("0")) + event.fee_amount
+                )
             updates.update(
                 {
                     "state": (
@@ -334,7 +458,9 @@ class OrderRepository:
                 raise OrderConflict("rejected is only valid before any fill")
             if snapshot.cumulative_filled_quantity:
                 raise OrderConflict("partially filled order cannot become rejected")
-            updates.update({"state": OrderState.REJECTED, "rejection_reason": event.reason})
+            updates.update(
+                {"state": OrderState.REJECTED, "rejection_reason": event.reason}
+            )
         elif event.event_type is OrderEventType.EXPIRED:
             if snapshot.state not in {
                 OrderState.SUBMITTED,
@@ -356,7 +482,11 @@ class OrderRepository:
         if raw.get("genesis_hash") != genesis:
             raise ValueError("order genesis hash mismatch")
         records = raw.get("events")
-        if not isinstance(records, list) or not records or len(records) > MAX_EVENTS_PER_ORDER:
+        if (
+            not isinstance(records, list)
+            or not records
+            or len(records) > MAX_EVENTS_PER_ORDER
+        ):
             raise ValueError("order event history is invalid")
         previous = genesis
         snapshot: OrderSnapshot | None = None
@@ -364,19 +494,29 @@ class OrderRepository:
         for expected_sequence, record in enumerate(records, start=1):
             if not isinstance(record, dict):
                 raise ValueError("order event record must be an object")
-            if record.get("sequence") != expected_sequence or record.get("previous_hash") != previous:
+            if (
+                record.get("sequence") != expected_sequence
+                or record.get("previous_hash") != previous
+            ):
                 raise ValueError("order event sequence or previous hash mismatch")
             event = OrderEvent.model_validate(record.get("event"))
             if event.order_id != intent.order_id or event.event_id in event_ids:
                 raise ValueError("order event identity is invalid")
             event_ids.add(event.event_id)
-            calculated = _event_hash(previous, expected_sequence, event.model_dump(mode="json"))
+            calculated = _event_hash(
+                previous, expected_sequence, event.model_dump(mode="json")
+            )
             if record.get("event_hash") != calculated:
                 raise ValueError("order event hash mismatch")
             if expected_sequence == 1:
-                if event.event_type is not OrderEventType.SUBMITTED or event.occurred_at != intent.created_at:
+                if (
+                    event.event_type is not OrderEventType.SUBMITTED
+                    or event.occurred_at != intent.created_at
+                ):
                     raise ValueError("first order event must be the intent submission")
-                snapshot = OrderSnapshot.model_validate(self._initial_snapshot(intent, calculated))
+                snapshot = OrderSnapshot.model_validate(
+                    self._initial_snapshot(intent, calculated)
+                )
             else:
                 assert snapshot is not None
                 if event.occurred_at < snapshot.updated_at:
@@ -396,7 +536,9 @@ class OrderRepository:
         assert snapshot is not None
         persisted = OrderSnapshot.model_validate(raw.get("snapshot"))
         if persisted != snapshot:
-            raise ValueError("order materialized snapshot does not match replayed events")
+            raise ValueError(
+                "order materialized snapshot does not match replayed events"
+            )
         return snapshot
 
     def get(self, order_id: str) -> OrderSnapshot:
@@ -419,7 +561,9 @@ class OrderRepository:
             snapshots = [item for item in snapshots if item.account_id == account_id]
         if state is not None:
             snapshots = [item for item in snapshots if item.state is state]
-        return sorted(snapshots, key=lambda item: (item.updated_at, item.order_id), reverse=True)
+        return sorted(
+            snapshots, key=lambda item: (item.updated_at, item.order_id), reverse=True
+        )
 
     def verify(self, order_id: str) -> dict[str, Any]:
         snapshot = self.get(order_id)
@@ -448,7 +592,10 @@ class OrderRepository:
                     observed=observation.state.value,
                 )
             )
-        if snapshot.cumulative_filled_quantity != observation.cumulative_filled_quantity:
+        if (
+            snapshot.cumulative_filled_quantity
+            != observation.cumulative_filled_quantity
+        ):
             differences.append(
                 OrderReconciliationDifference(
                     field="cumulative_filled_quantity",
@@ -461,7 +608,9 @@ class OrderRepository:
             differences.append(
                 OrderReconciliationDifference(
                     field="average_fill_price",
-                    expected="null" if expected_average is None else str(expected_average),
+                    expected=(
+                        "null" if expected_average is None else str(expected_average)
+                    ),
                     observed=(
                         "null"
                         if observation.average_fill_price is None
@@ -494,13 +643,19 @@ class OrderRepository:
                 raise KeyError(order_id)
             intent = OrderIntent.model_validate(raw["intent"])
             self._verify_record(raw)
-            events = [OrderEvent.model_validate(item["event"]) for item in raw["events"]]
+            events = [
+                OrderEvent.model_validate(item["event"]) for item in raw["events"]
+            ]
         side = FillSide.BUY if intent.side is OrderSide.BUY else FillSide.SELL
         result: list[AccountingEvent] = []
         for event in events:
             if event.event_type is not OrderEventType.FILL:
                 continue
-            assert event.fill_id and event.fill_quantity is not None and event.fill_price is not None
+            assert (
+                event.fill_id
+                and event.fill_quantity is not None
+                and event.fill_price is not None
+            )
             result.append(
                 AccountingEvent(
                     event_id=f"order:{order_id}:fill:{event.fill_id}",

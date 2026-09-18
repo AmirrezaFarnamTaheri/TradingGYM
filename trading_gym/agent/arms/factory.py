@@ -9,10 +9,12 @@ ADR-028 pre-flight.
 
 Roster (tier order):
 - α ``rules`` (T1): deterministic momentum with defence floor; the
-  always-available decision floor from ADR-023.
+  always-available decision floor from ADR-023. Votes *through* δ, so a
+  guard veto is the channel's own HOLD.
 - δ ``risk-guard`` (T1): :class:`RiskGuardBackend` wrapping α — veto to
   HOLD above the drawdown floor or the position cap, halve leverage
-  above the warn level.
+  above the warn level. Shares its guarded backend with α; the two arms
+  are one channel seen twice, once raw-named and once guard-named.
 - β ``rl`` (T3): present only when an RL model object is injected.
 - γ ``llm`` (T4): present only when an LLM backend is injected; declares
   ``research.llm.invoke`` because it reaches the network.
@@ -63,9 +65,7 @@ class RiskGuardBackend(IntelligenceBackend):
         max_position_units: float = 10.0,
     ) -> None:
         if not 0.0 < drawdown_warn < drawdown_floor < 1.0:
-            raise ValueError(
-                "require 0 < drawdown_warn < drawdown_floor < 1"
-            )
+            raise ValueError("require 0 < drawdown_warn < drawdown_floor < 1")
         if max_position_units <= 0:
             raise ValueError("max_position_units must be positive")
         self.inner = inner
@@ -171,9 +171,7 @@ class StatisticsArmBackend(IntelligenceBackend):
         return True
 
     def health(self) -> BackendHealth:
-        return BackendHealth(
-            name=self.name, available=True, detail="psr-battery"
-        )
+        return BackendHealth(name=self.name, available=True, detail="psr-battery")
 
     def decide(self, context: MarketContext) -> DecisionSignal:
         from trading_gym.research.statistical_validation import (
@@ -181,9 +179,7 @@ class StatisticsArmBackend(IntelligenceBackend):
             probabilistic_sharpe_ratio,
         )
 
-        returns = tuple(
-            float(value) for value in context.recent_returns
-        )
+        returns = tuple(float(value) for value in context.recent_returns)
         if any(not math.isfinite(value) for value in returns):
             raise ValueError("recent_returns contain non-finite values")
         if len(returns) < self.min_history:
@@ -244,8 +240,7 @@ class StatisticsArmBackend(IntelligenceBackend):
                 target_leverage=0.0,
                 confidence=0.25,
                 rationale=(
-                    f"warmup: MinTRL {min_trl:.0f} > {len(returns)} bars; "
-                    "abstaining"
+                    f"warmup: MinTRL {min_trl:.0f} > {len(returns)} bars; " "abstaining"
                 ),
             )
         return DecisionSignal(
@@ -297,9 +292,7 @@ class RegimeArmBackend(IntelligenceBackend):
             return "chop"
         direction = 1.0 if net > 0 else -1.0
         against = sum(
-            1
-            for value in recent_returns
-            if value * direction < -self.flip_tolerance
+            1 for value in recent_returns if value * direction < -self.flip_tolerance
         )
         if against > 0:
             return "chop"
@@ -337,9 +330,17 @@ def default_registry(
     registry = ArmRegistry()
     rules = rule_backend or DeterministicRuleBackend()
 
+    # The rules channel votes *through* its guard rather than alongside it.
+    # Registered as two arms sharing one guarded backend, a veto becomes the
+    # channel's own HOLD: both arms report flat, so the guarded vote cannot
+    # reach fusion. Registered side-by-side with the raw backend instead, the
+    # guard's HOLD was a neutral vote while the unguarded rules LONG still
+    # decided the bar — the guard guarded nothing.
+    guarded = RiskGuardBackend(rules)
     registry.register(
         BackendArm(
-            backend=rules,
+            backend=guarded,
+            name="rules",
             tier=ArmTier.T1_RULES,
             cost=_cost(0.1, 0.5),
             required_scopes=frozenset({"trade.paper.order.submit"}),
@@ -347,7 +348,7 @@ def default_registry(
     )
     registry.register(
         BackendArm(
-            backend=RiskGuardBackend(rules),
+            backend=guarded,
             tier=ArmTier.T1_RULES,
             cost=_cost(0.2, 1.0),
             required_scopes=frozenset({"trade.paper.order.submit"}),

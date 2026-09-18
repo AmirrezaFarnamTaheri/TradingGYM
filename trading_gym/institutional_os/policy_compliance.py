@@ -1,4 +1,5 @@
 """Declarative policy-as-code, RFC readiness, and compliance mapping evidence."""
+
 from __future__ import annotations
 
 import operator
@@ -49,7 +50,9 @@ class PolicyRule(BaseModel):
     def validate_expected(self) -> "PolicyRule":
         payload = {"expected": self.expected}
         if redact_secrets(payload) != payload:
-            raise ValueError("policy rule expected value contains credential-like fields")
+            raise ValueError(
+                "policy rule expected value contains credential-like fields"
+            )
         bounded_json_dumps(payload, max_bytes=64 * 1024)
         return self
 
@@ -59,7 +62,9 @@ class RFCArtifact(BaseModel):
 
     artifact_type: Annotated[str, Field(min_length=2, max_length=80)]
     sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-    approved_by: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(default_factory=list, max_length=100)
+    approved_by: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(
+        default_factory=list, max_length=100
+    )
 
     @model_validator(mode="after")
     def validate_approvers(self) -> "RFCArtifact":
@@ -87,9 +92,13 @@ class PolicyComplianceRequest(BaseModel):
     rules: list[PolicyRule] = Field(max_length=10_000)
     rfc_id: Annotated[str, Field(min_length=2, max_length=128)]
     rfc_artifacts: list[RFCArtifact] = Field(max_length=1000)
-    required_rfc_artifacts: list[Annotated[str, Field(min_length=2, max_length=80)]] = Field(max_length=100)
+    required_rfc_artifacts: list[Annotated[str, Field(min_length=2, max_length=80)]] = (
+        Field(max_length=100)
+    )
     control_mappings: list[ComplianceControlMapping] = Field(max_length=100_000)
-    required_frameworks: list[Annotated[str, Field(min_length=2, max_length=80)]] = Field(default_factory=list, max_length=100)
+    required_frameworks: list[Annotated[str, Field(min_length=2, max_length=80)]] = (
+        Field(default_factory=list, max_length=100)
+    )
     evaluated_at: datetime
 
     @model_validator(mode="after")
@@ -105,10 +114,15 @@ class PolicyComplianceRequest(BaseModel):
             raise ValueError("required RFC artifact types must be unique")
         if len(self.required_frameworks) != len(set(self.required_frameworks)):
             raise ValueError("required compliance frameworks must be unique")
-        artifact_keys = [(item.artifact_type, item.sha256) for item in self.rfc_artifacts]
+        artifact_keys = [
+            (item.artifact_type, item.sha256) for item in self.rfc_artifacts
+        ]
         if len(artifact_keys) != len(set(artifact_keys)):
             raise ValueError("RFC artifacts must be unique")
-        control_keys = [(item.internal_control_id, item.framework, item.framework_control) for item in self.control_mappings]
+        control_keys = [
+            (item.internal_control_id, item.framework, item.framework_control)
+            for item in self.control_mappings
+        ]
         if len(control_keys) != len(set(control_keys)):
             raise ValueError("compliance control mappings must be unique")
         return self
@@ -150,7 +164,9 @@ def _resolve(context: dict[str, Any], path: str) -> tuple[bool, Any]:
     return True, current
 
 
-def evaluate_policy_compliance(request: PolicyComplianceRequest) -> PolicyComplianceReport:
+def evaluate_policy_compliance(
+    request: PolicyComplianceRequest,
+) -> PolicyComplianceReport:
     results: list[PolicyRuleResult] = []
     blockers: list[str] = []
     warnings: list[str] = []
@@ -165,22 +181,36 @@ def evaluate_policy_compliance(request: PolicyComplianceRequest) -> PolicyCompli
             except (TypeError, ValueError):
                 passed = False
                 warnings.append(f"policy_type_mismatch:{rule.rule_id}")
-        results.append(PolicyRuleResult(rule_id=rule.rule_id, passed=passed, message=rule.message, hard_veto=rule.hard_veto))
+        results.append(
+            PolicyRuleResult(
+                rule_id=rule.rule_id,
+                passed=passed,
+                message=rule.message,
+                hard_veto=rule.hard_veto,
+            )
+        )
         if not passed and rule.hard_veto:
             blockers.append(f"policy_veto:{rule.rule_id}")
     available_artifacts = {item.artifact_type for item in request.rfc_artifacts}
-    missing_artifacts = sorted(set(request.required_rfc_artifacts) - available_artifacts)
+    missing_artifacts = sorted(
+        set(request.required_rfc_artifacts) - available_artifacts
+    )
     if missing_artifacts:
         blockers.append("rfc_artifacts_missing")
     for item in request.rfc_artifacts:
-        if item.artifact_type in request.required_rfc_artifacts and not item.approved_by:
+        if (
+            item.artifact_type in request.required_rfc_artifacts
+            and not item.approved_by
+        ):
             blockers.append(f"rfc_artifact_unapproved:{item.artifact_type}")
     coverage: dict[str, int] = {}
     failed_controls: list[str] = []
     for item in request.control_mappings:
         coverage[item.framework] = coverage.get(item.framework, 0) + 1
         if not item.tested or not item.passed:
-            failed_controls.append(f"{item.internal_control_id}:{item.framework}:{item.framework_control}")
+            failed_controls.append(
+                f"{item.internal_control_id}:{item.framework}:{item.framework_control}"
+            )
     for framework in request.required_frameworks:
         if coverage.get(framework, 0) == 0:
             blockers.append(f"framework_unmapped:{framework}")

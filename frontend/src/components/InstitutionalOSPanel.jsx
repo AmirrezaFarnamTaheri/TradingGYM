@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { institutionalAPI } from '../api';
 import { useToast } from './Toast';
 
@@ -75,13 +75,14 @@ function newIdempotencyKey() {
   return `institutional-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function DomainCard({ path, title, description, active, onSelect }) {
+function DomainCard({ path, title, description, active, onSelect, disabled }) {
   return (
     <button
       type="button"
       className={`status-card ${active ? 'active' : ''}`}
       onClick={() => onSelect(path)}
-      style={{ textAlign: 'left', cursor: 'pointer', minHeight: 145 }}
+      disabled={disabled}
+      style={{ textAlign: 'left', cursor: disabled ? 'not-allowed' : 'pointer', minHeight: 145 }}
       aria-pressed={active}
     >
       <div className="status-label">{title}</div>
@@ -102,15 +103,28 @@ export default function InstitutionalOSPanel() {
   const [artifacts, setArtifacts] = useState([]);
   const [artifactId, setArtifactId] = useState('market-intelligence-review');
   const [actor, setActor] = useState('gui-operator');
+  // Generation counters: every request stamps the current value and only
+  // applies its result if it is still the latest.  A slow response that lands
+  // after a newer request (or a domain switch) started is dropped instead of
+  // overwriting fresher state.
+  const evaluateSeq = useRef(0);
+  const artifactsSeq = useRef(0);
+  const [loadingArtifacts, setLoadingArtifacts] = useState(false);
   const selectedDomain = useMemo(() => DOMAINS.find(([path]) => path === selected), [selected]);
   const domain = selected.split('/')[0];
 
   const loadArtifacts = async () => {
+    const seq = ++artifactsSeq.current;
+    setLoadingArtifacts(true);
     try {
       const response = await institutionalAPI.artifacts(domain, 100);
+      if (seq !== artifactsSeq.current) return;
       setArtifacts(response.data);
     } catch (requestError) {
+      if (seq !== artifactsSeq.current) return;
       setError(requestError.message || 'Could not load institutional artefacts.');
+    } finally {
+      if (seq === artifactsSeq.current) setLoadingArtifacts(false);
     }
   };
 
@@ -119,6 +133,10 @@ export default function InstitutionalOSPanel() {
   }, [domain]);
 
   const selectDomain = (path) => {
+    // Invalidate any review or artefact request still in flight for the
+    // previous domain: its response belongs to a stale selection.
+    evaluateSeq.current += 1;
+    artifactsSeq.current += 1;
     setSelected(path);
     setPayload(JSON.stringify(SAMPLE[path] || {}, null, 2));
     setArtifactId(`${path.replaceAll('/', '-')}-review`);
@@ -137,14 +155,19 @@ export default function InstitutionalOSPanel() {
       return;
     }
     setRunning(true);
+    const seq = ++evaluateSeq.current;
     try {
       const response = await institutionalAPI.evaluate(selected, parsed);
+      // Only the latest request's response may update the panel; an older,
+      // slower one is discarded so it can never overwrite fresher state.
+      if (seq !== evaluateSeq.current) return;
       setResult(response.data);
       toast.success('Bounded institutional review completed.');
     } catch (requestError) {
+      if (seq !== evaluateSeq.current) return;
       setError(requestError.message || 'Institutional review failed.');
     } finally {
-      setRunning(false);
+      if (seq === evaluateSeq.current) setRunning(false);
     }
   };
 
@@ -201,6 +224,7 @@ export default function InstitutionalOSPanel() {
             description={description}
             active={selected === path}
             onSelect={selectDomain}
+            disabled={running}
           />
         ))}
       </div>
@@ -251,7 +275,15 @@ export default function InstitutionalOSPanel() {
             <h3>Durable review history</h3>
             <p>CAS-versioned, hash-chained reports for the selected domain. These records remain non-authoritative.</p>
           </div>
-          <button type="button" className="btn" onClick={loadArtifacts}>Refresh</button>
+          <button
+            type="button"
+            className="btn"
+            onClick={loadArtifacts}
+            disabled={loadingArtifacts}
+            aria-busy={loadingArtifacts}
+          >
+            {loadingArtifacts ? 'Refreshing…' : 'Refresh'}
+          </button>
         </div>
         {artifacts.length === 0 ? (
           <p>No saved reports for <code>{domain}</code>.</p>

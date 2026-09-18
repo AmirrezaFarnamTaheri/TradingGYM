@@ -16,7 +16,6 @@ from trading_gym.experiments.reproducibility import (
 )
 from trading_gym.governance.ledger import AuditLedger
 
-
 HASH_A = "a" * 64
 HASH_B = "b" * 64
 
@@ -26,7 +25,11 @@ def create_request():
         experiment_id="experiment-001",
         code_sha256=HASH_A,
         configuration={"market": "BTC-USD", "token": "must-redact"},
-        artifacts=[ArtifactReference(name="dataset", kind="dataset", sha256=HASH_B, size_bytes=123)],
+        artifacts=[
+            ArtifactReference(
+                name="dataset", kind="dataset", sha256=HASH_B, size_bytes=123
+            )
+        ],
         seeds=SeedBundle(python=1, numpy=2, torch=3, environment=4),
         dependency_names=["pydantic", "definitely-not-installed-package"],
     )
@@ -37,7 +40,10 @@ def test_manifest_is_hash_verified_and_secrets_are_redacted():
     result = verify_manifest(manifest)
     assert result["valid"]
     assert manifest.configuration["token"] == "***"
-    assert manifest.environment.dependencies["definitely-not-installed-package"] == "unavailable"
+    assert (
+        manifest.environment.dependencies["definitely-not-installed-package"]
+        == "unavailable"
+    )
     tampered = RunManifest.model_validate(
         {**manifest.model_dump(mode="json"), "configuration": {"market": "ETH-USD"}}
     )
@@ -45,7 +51,9 @@ def test_manifest_is_hash_verified_and_secrets_are_redacted():
 
 
 def test_manifest_repository_is_immutable_and_detects_storage_tampering(tmp_path):
-    repo = RunManifestRepository(tmp_path / "manifests.json", AuditLedger(tmp_path / "audit.jsonl"))
+    repo = RunManifestRepository(
+        tmp_path / "manifests.json", AuditLedger(tmp_path / "audit.jsonl")
+    )
     manifest = repo.create(create_request())
     assert repo.get(manifest.manifest_id) == manifest
     assert repo.list_for_experiment("experiment-001") == [manifest]
@@ -61,7 +69,9 @@ def test_source_tree_identity_is_deterministic_and_rejects_symlinks(tmp_path):
 
     (tmp_path / "package").mkdir()
     (tmp_path / "package" / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
-    (tmp_path / "pyproject.toml").write_text("[project]\nname='sample'\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        "[project]\nname='sample'\n", encoding="utf-8"
+    )
     first = hash_source_tree(tmp_path)
     assert first == hash_source_tree(tmp_path)
     (tmp_path / "package" / "module.py").write_text("VALUE = 2\n", encoding="utf-8")

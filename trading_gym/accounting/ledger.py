@@ -27,11 +27,19 @@ from trading_gym.common.audit_outbox import (
     deliver_audit_events,
     ensure_audit_outbox,
     queue_audit_event,
+    verify_outbox_digest,
 )
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
-from trading_gym.common.security import bounded_json_dumps, confined_child, redact_secrets
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
+from trading_gym.common.security import (
+    bounded_json_dumps,
+    confined_child,
+    redact_secrets,
+)
 from trading_gym.governance.ledger import AuditLedger
-
 
 MAX_EVENTS = 100_000
 MAX_POSITIONS = 10_000
@@ -43,7 +51,9 @@ class AccountingConflict(RuntimeError):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
 
 
 def _decimal(value: Any) -> Decimal:
@@ -82,6 +92,12 @@ class PortfolioLedger:
         self.path = path
         self.ledger = ledger or AuditLedger()
         self.lock = FileLock(str(self.path) + ".accounting.lock")
+        # Chain-verification cache. _load() replays and re-validates every
+        # event on each call, which is O(N) per mutation and O(N^2) across N
+        # mutations. A document we verified and then wrote is still valid, so
+        # cache the verdict keyed by file identity and skip the replay while
+        # the file has not changed since.
+        self._verified_signature: tuple[tuple[int, int], Any | None] | None = None
 
     def _genesis_hash(self, opening_cash: dict[str, str]) -> str:
         return hashlib.sha256(
@@ -127,11 +143,50 @@ class PortfolioLedger:
             raise ValueError("accounting event limit exceeded")
         if len(document["positions"]) > MAX_POSITIONS:
             raise ValueError("accounting position limit exceeded")
-        if len(document["cash"]) > MAX_CURRENCIES or len(document["fees"]) > MAX_CURRENCIES:
+        if (
+            len(document["cash"]) > MAX_CURRENCIES
+            or len(document["fees"]) > MAX_CURRENCIES
+        ):
             raise ValueError("accounting currency limit exceeded")
         ensure_audit_outbox(document)
+        verify_outbox_digest(document)
+        # Skip the O(N) chain replay when the document on disk is unchanged
+        # since this instance last verified and wrote it: an append-only chain
+        # cannot have become invalid in between. A signature miss (another
+        # writer, or the first load) falls through to the full replay.
+        if self._matches_verified(document):
+            return document
         self._verify_chain_document(document)
+        self._record_verified(document)
         return document
+
+    def _matches_verified(self, document: dict[str, Any]) -> bool:
+        """True when the on-disk file is unchanged since the last verified write.
+
+        Pairs with :meth:`_record_verified`: the signature identifies the file
+        bytes and the revision identifies the content we verified, so a
+        concurrent writer cannot make a stale signature point at new content.
+        """
+        if self._verified_signature is None:
+            return False
+        try:
+            stat = self.path.stat()
+        except OSError:
+            return False
+        signature = (stat.st_mtime_ns, stat.st_size)
+        if self._verified_signature[0] != signature:
+            return False
+        return document.get("revision") == self._verified_signature[1]
+
+    def _record_verified(self, document: dict[str, Any]) -> None:
+        try:
+            stat = self.path.stat()
+        except OSError:
+            return
+        self._verified_signature = (
+            (stat.st_mtime_ns, stat.st_size),
+            document.get("revision"),
+        )
 
     @staticmethod
     def _event_fingerprint(event: AccountingEvent) -> str:
@@ -145,7 +200,8 @@ class PortfolioLedger:
 
     def _verify_chain_document(self, document: dict[str, Any]) -> None:
         opening_cash = {
-            _currency(key): str(_decimal(value)) for key, value in document["opening_cash"].items()
+            _currency(key): str(_decimal(value))
+            for key, value in document["opening_cash"].items()
         }
         if len(opening_cash) != len(document["opening_cash"]):
             raise ValueError("opening cash contains duplicate normalised currencies")
@@ -173,7 +229,9 @@ class PortfolioLedger:
                 event = AccountingEvent.model_validate(record.get("payload"))
             except Exception as exc:
                 raise ValueError("accounting event payload is invalid") from exc
-            if event.event_id != event_id or event.event_type.value != record.get("event_type"):
+            if event.event_id != event_id or event.event_type.value != record.get(
+                "event_type"
+            ):
                 raise ValueError("accounting event payload does not match its record")
             if self._event_fingerprint(event) != record.get("payload_sha256"):
                 raise ValueError("accounting event payload hash mismatch")
@@ -186,16 +244,22 @@ class PortfolioLedger:
             raise ValueError("accounting chain head does not match events")
         for field in ("cash", "fees", "positions"):
             if replay[field] != document[field]:
-                raise ValueError(f"accounting materialized {field} does not match event replay")
+                raise ValueError(
+                    f"accounting materialized {field} does not match event replay"
+                )
 
-    def _append_event(self, document: dict[str, Any], event: AccountingEvent, *, actor: str) -> None:
+    def _append_event(
+        self, document: dict[str, Any], event: AccountingEvent, *, actor: str
+    ) -> None:
         payload = redact_secrets(event.model_dump(mode="json"))
         bounded_json_dumps(payload, max_bytes=256 * 1024)
         fingerprint = self._event_fingerprint(event)
         existing = document["event_index"].get(event.event_id)
         if existing is not None:
             if existing != fingerprint:
-                raise AccountingConflict("event_id was reused for a different accounting event")
+                raise AccountingConflict(
+                    "event_id was reused for a different accounting event"
+                )
             return
         if len(document["events"]) >= MAX_EVENTS:
             raise AccountingConflict("accounting event limit reached")
@@ -233,7 +297,12 @@ class PortfolioLedger:
             },
         )
 
-    def create(self, initial_cash: dict[str, Decimal] | None = None, *, actor: str = "api-operator") -> AccountSnapshot:
+    def create(
+        self,
+        initial_cash: dict[str, Decimal] | None = None,
+        *,
+        actor: str = "api-operator",
+    ) -> AccountSnapshot:
         initial_cash = initial_cash or {}
         if len(initial_cash) > MAX_CURRENCIES:
             raise ValueError("too many initial cash currencies")
@@ -242,7 +311,9 @@ class PortfolioLedger:
             currency = _currency(key)
             amount = _decimal(value)
             if currency in normalised:
-                raise ValueError("initial cash contains a duplicate normalised currency")
+                raise ValueError(
+                    "initial cash contains a duplicate normalised currency"
+                )
             if amount != 0:
                 normalised[currency] = amount
         if any(value < 0 for value in normalised.values()):
@@ -251,9 +322,12 @@ class PortfolioLedger:
             if self.path.exists():
                 existing = self._load()
                 if {
-                    key: _decimal(value) for key, value in existing["opening_cash"].items()
+                    key: _decimal(value)
+                    for key, value in existing["opening_cash"].items()
                 } != normalised:
-                    raise AccountingConflict("account already exists with different state")
+                    raise AccountingConflict(
+                        "account already exists with different state"
+                    )
                 document = existing
             else:
                 document = self._empty()
@@ -270,11 +344,22 @@ class PortfolioLedger:
                     subject=self.account_id,
                     details={"currencies": sorted(normalised)},
                 )
-                atomic_write_json(self.path, document)
+                self._write(document)
         self.reconcile_audit()
         return self.snapshot()
 
-    def apply(self, event: AccountingEvent, *, actor: str = "accounting-engine") -> AccountSnapshot:
+    def _write(self, document: dict[str, Any]) -> None:
+        """Persist the document and record it as freshly verified.
+
+        Every mutation funnels through here so the O(N) chain replay in
+        ``_load`` is skipped on the next call while the file is unchanged.
+        """
+        atomic_write_json(self.path, document)
+        self._record_verified(document)
+
+    def apply(
+        self, event: AccountingEvent, *, actor: str = "accounting-engine"
+    ) -> AccountSnapshot:
         if event.account_id != self.account_id:
             raise ValueError("event account_id does not match ledger")
         with self.lock:
@@ -283,10 +368,38 @@ class PortfolioLedger:
             self._append_event(document, event, actor=actor)
             if int(document["revision"]) == before:
                 return self._snapshot_from(document)
-            atomic_write_json(self.path, document)
+            self._write(document)
             result = self._snapshot_from(document)
         self.reconcile_audit()
         return result
+
+    def apply_events(
+        self, events: list[AccountingEvent], *, actor: str = "accounting-engine"
+    ) -> list[AccountSnapshot]:
+        """Apply a sequence of events to this account in one locked pass.
+
+        Semantically equivalent to calling ``apply`` once per event, but the
+        chain is verified once and the document is written once instead of
+        once per event.  Each event is still applied idempotently: an event
+        whose ``event_id`` is already recorded is skipped (returning the same
+        snapshot it would have produced) and never re-applied.
+        """
+        if not events:
+            return []
+        for event in events:
+            if event.account_id != self.account_id:
+                raise ValueError("event account_id does not match ledger")
+        with self.lock:
+            document = self._load()
+            before = int(document["revision"])
+            results: list[AccountSnapshot] = []
+            for event in events:
+                self._append_event(document, event, actor=actor)
+                results.append(self._snapshot_from(document))
+            if int(document["revision"]) != before:
+                self._write(document)
+        self.reconcile_audit()
+        return results
 
     def _apply_payload(self, document: dict[str, Any], event: AccountingEvent) -> None:
         cash = {key: _decimal(value) for key, value in document["cash"].items()}
@@ -305,7 +418,9 @@ class PortfolioLedger:
             cash[event.currency] = cash.get(event.currency, Decimal("0")) + event.amount
             if event.instrument_id and event.instrument_id in positions:
                 raw = positions[event.instrument_id]
-                raw["funding_pnl"] = str(_decimal(raw.get("funding_pnl", 0)) + event.amount)
+                raw["funding_pnl"] = str(
+                    _decimal(raw.get("funding_pnl", 0)) + event.amount
+                )
         elif event.event_type is AccountingEventType.MARK:
             assert event.instrument_id is not None and event.mark_price is not None
             if event.instrument_id not in positions:
@@ -316,9 +431,20 @@ class PortfolioLedger:
             raw["mark_price"] = str(event.mark_price)
             raw["unrealized_pnl"] = str((event.mark_price - average) * quantity)
         elif event.event_type is AccountingEventType.FILL:
-            assert event.instrument_id and event.quote_currency and event.side and event.quantity and event.price
-            signed_quantity = event.quantity if event.side is FillSide.BUY else -event.quantity
-            cash[event.quote_currency] = cash.get(event.quote_currency, Decimal("0")) - signed_quantity * event.price
+            assert (
+                event.instrument_id
+                and event.quote_currency
+                and event.side
+                and event.quantity
+                and event.price
+            )
+            signed_quantity = (
+                event.quantity if event.side is FillSide.BUY else -event.quantity
+            )
+            cash[event.quote_currency] = (
+                cash.get(event.quote_currency, Decimal("0"))
+                - signed_quantity * event.price
+            )
             raw = positions.get(
                 event.instrument_id,
                 {
@@ -341,7 +467,11 @@ class PortfolioLedger:
             if old_quantity == 0 or _sign(old_quantity) == _sign(signed_quantity):
                 total_abs = abs(old_quantity) + abs(signed_quantity)
                 new_average = (
-                    (abs(old_quantity) * old_average + abs(signed_quantity) * event.price) / total_abs
+                    (
+                        abs(old_quantity) * old_average
+                        + abs(signed_quantity) * event.price
+                    )
+                    / total_abs
                     if total_abs
                     else Decimal("0")
                 )
@@ -357,14 +487,24 @@ class PortfolioLedger:
             raw["quantity"] = str(new_quantity)
             raw["average_entry_price"] = str(new_average)
             raw["realized_pnl"] = str(realized)
-            mark = _decimal(raw["mark_price"]) if raw.get("mark_price") is not None else event.price
+            mark = (
+                _decimal(raw["mark_price"])
+                if raw.get("mark_price") is not None
+                else event.price
+            )
             raw["mark_price"] = str(mark)
-            raw["unrealized_pnl"] = str((mark - new_average) * new_quantity if new_quantity else Decimal("0"))
+            raw["unrealized_pnl"] = str(
+                (mark - new_average) * new_quantity if new_quantity else Decimal("0")
+            )
             positions[event.instrument_id] = raw
             if event.fee_amount:
                 assert event.fee_currency is not None
-                cash[event.fee_currency] = cash.get(event.fee_currency, Decimal("0")) - event.fee_amount
-                fees[event.fee_currency] = fees.get(event.fee_currency, Decimal("0")) + event.fee_amount
+                cash[event.fee_currency] = (
+                    cash.get(event.fee_currency, Decimal("0")) - event.fee_amount
+                )
+                fees[event.fee_currency] = (
+                    fees.get(event.fee_currency, Decimal("0")) + event.fee_amount
+                )
         else:  # pragma: no cover - exhaustive enum guard
             raise ValueError("unsupported accounting event type")
 
@@ -414,10 +554,16 @@ class PortfolioLedger:
             if abs(delta) > tolerance.absolute_cash:
                 differences.append(
                     ReconciliationDifference(
-                        kind="cash", key=currency, expected=expected, observed=actual, difference=delta
+                        kind="cash",
+                        key=currency,
+                        expected=expected,
+                        observed=actual,
+                        difference=delta,
                     )
                 )
-        expected_positions = {key: value.quantity for key, value in snapshot.positions.items()}
+        expected_positions = {
+            key: value.quantity for key, value in snapshot.positions.items()
+        }
         for instrument_id in sorted(set(expected_positions) | set(observed.positions)):
             expected = expected_positions.get(instrument_id, Decimal("0"))
             actual = observed.positions.get(instrument_id, Decimal("0"))
@@ -460,7 +606,7 @@ class PortfolioLedger:
             document = self._load()
             delivered = deliver_audit_events(document, self.ledger)
             if delivered:
-                atomic_write_json(self.path, document)
+                self._write(document)
             return {"delivered": delivered, "pending": len(document["audit_outbox"])}
 
 
@@ -469,7 +615,9 @@ class AccountingRepository:
 
     MAX_ACCOUNTS = 10_000
 
-    def __init__(self, root: Path | None = None, ledger: AuditLedger | None = None) -> None:
+    def __init__(
+        self, root: Path | None = None, ledger: AuditLedger | None = None
+    ) -> None:
         self.root = root or resolve_data_home() / "accounting" / "accounts"
         if self.root.exists() and self.root.is_symlink():
             raise ValueError("accounting root must not be a symbolic link")
@@ -477,14 +625,27 @@ class AccountingRepository:
         self.ledger = ledger or AuditLedger()
 
     def account(self, account_id: str) -> PortfolioLedger:
-        return PortfolioLedger(account_id, path=confined_child(self.root, f"{account_id}.json", allow_symlinks=False), ledger=self.ledger)
+        return PortfolioLedger(
+            account_id,
+            path=confined_child(self.root, f"{account_id}.json", allow_symlinks=False),
+            ledger=self.ledger,
+        )
 
     def exists(self, account_id: str) -> bool:
         path = confined_child(self.root, f"{account_id}.json", allow_symlinks=False)
         return path.is_file() and not path.is_symlink()
 
-    def create(self, account_id: str, initial_cash: dict[str, Decimal] | None = None, *, actor: str = "api-operator") -> AccountSnapshot:
-        if len(self.list_account_ids()) >= self.MAX_ACCOUNTS and not (self.root / f"{account_id}.json").exists():
+    def create(
+        self,
+        account_id: str,
+        initial_cash: dict[str, Decimal] | None = None,
+        *,
+        actor: str = "api-operator",
+    ) -> AccountSnapshot:
+        if (
+            len(self.list_account_ids()) >= self.MAX_ACCOUNTS
+            and not (self.root / f"{account_id}.json").exists()
+        ):
             raise AccountingConflict("account limit reached")
         return self.account(account_id).create(initial_cash, actor=actor)
 
@@ -495,11 +656,18 @@ class AccountingRepository:
                 continue
             account_ids.append(path.stem)
             if len(account_ids) > self.MAX_ACCOUNTS:
-                raise ValueError("account limit exceeded")
+                # AccountingConflict, not ValueError: this is a durable state
+                # conflict callers can recognise, and every entry point that
+                # lists accounts (create/audit_pending/reconcile_audit) must
+                # surface it rather than a generic error.
+                raise AccountingConflict("account limit exceeded")
         return account_ids
 
     def audit_pending(self) -> int:
-        return sum(self.account(account_id).audit_pending() for account_id in self.list_account_ids())
+        return sum(
+            self.account(account_id).audit_pending()
+            for account_id in self.list_account_ids()
+        )
 
     def reconcile_audit(self) -> dict[str, int]:
         delivered = 0

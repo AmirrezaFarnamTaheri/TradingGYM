@@ -66,14 +66,18 @@ def httpx_transport(
         )
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if config.api_key_env:
-            headers["Authorization"] = f"Bearer {os.environ.get(config.api_key_env, '')}"
+            headers["Authorization"] = (
+                f"Bearer {os.environ.get(config.api_key_env, '')}"
+            )
         body = {
             "model": config.model,
             "messages": messages,
             "temperature": 0.2,
             "max_tokens": 300,
         }
-        with httpx.Client(timeout=timeout_seconds, follow_redirects=False, trust_env=False) as client:
+        with httpx.Client(
+            timeout=timeout_seconds, follow_redirects=False, trust_env=False
+        ) as client:
             response = client.post(
                 urljoin(base.rstrip("/") + "/", "chat/completions"),
                 headers=headers,
@@ -193,7 +197,9 @@ class LLMDecisionBackend(IntelligenceBackend):
                 validator=lambda o: o is not None,
             ),
         ]
-        self._ladder: DegradationLadder[dict[str, Any] | None] = DegradationLadder(ladder_modes)
+        self._ladder: DegradationLadder[dict[str, Any] | None] = DegradationLadder(
+            ladder_modes
+        )
 
     def is_available(self) -> bool:
         if self._explicit_transport:
@@ -203,10 +209,17 @@ class LLMDecisionBackend(IntelligenceBackend):
         return status.get("status") in {"reachable", "available"}
 
     def health(self) -> BackendHealth:
-        reachable = self.is_available()
+        if self._explicit_transport:
+            # Injected transports are test/embedded contexts: never probe.
+            return BackendHealth(
+                name=self.name, available=True, device=None, detail="injected"
+            )
+        # Probe once and reuse it: availability and detail come from the same
+        # status, so the local must live in this scope.
+        status = provider_status(self.config, timeout_seconds=3.0)
         return BackendHealth(
             name=self.name,
-            available=reachable,
+            available=status.get("status") in {"reachable", "available"},
             device=None,
             detail=str(status.get("status")),
         )

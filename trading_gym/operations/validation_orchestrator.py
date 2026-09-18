@@ -79,7 +79,11 @@ def run_validation(
             detail = f"{type(exc).__name__} at phase boundary"
             failures.append(f"{phase.name}:phase_crashed:{type(exc).__name__}")
 
-        reports.append(PhaseReport(name=phase.name, passed=not crashed, detail=detail, crashed=crashed))
+        reports.append(
+            PhaseReport(
+                name=phase.name, passed=not crashed, detail=detail, crashed=crashed
+            )
+        )
 
         for criterion in phase.criteria:
             try:

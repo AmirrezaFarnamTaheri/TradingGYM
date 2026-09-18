@@ -1,4 +1,5 @@
 """Fifth-pass system qualification across coordination and governance evidence."""
+
 from __future__ import annotations
 
 import hashlib
@@ -31,7 +32,9 @@ from trading_gym.privacy import PrivacyAssessmentReport
 from trading_gym.risk.liquidity import LiquidityRiskReport
 from trading_gym.risk.factor import FactorRiskReport
 from trading_gym.treasury import (
-    CollateralAllocationReport, CounterpartyRiskReport, LiquidityForecastReport,
+    CollateralAllocationReport,
+    CounterpartyRiskReport,
+    LiquidityForecastReport,
 )
 
 
@@ -88,10 +91,14 @@ class ExpandedQualificationRequest(BaseModel):
     factor_risk_reports: list[FactorRiskReport] = Field(max_length=10_000)
     model_challenge_reports: list[ModelChallengeReport] = Field(max_length=10_000)
     forensic_reports: list[ForensicReadinessReport] = Field(max_length=10_000)
-    control_effectiveness_reports: list[ControlEffectivenessReport] = Field(max_length=10_000)
+    control_effectiveness_reports: list[ControlEffectivenessReport] = Field(
+        max_length=10_000
+    )
     dependency_impact_reports: list[DependencyImpactReport] = Field(max_length=10_000)
     runbook_reports: list[RunbookReadinessReport] = Field(max_length=10_000)
-    policy: ExpandedQualificationPolicy = Field(default_factory=ExpandedQualificationPolicy)
+    policy: ExpandedQualificationPolicy = Field(
+        default_factory=ExpandedQualificationPolicy
+    )
 
     @model_validator(mode="after")
     def validate_time(self) -> "ExpandedQualificationRequest":
@@ -117,7 +124,9 @@ class ExpandedQualificationReport(BaseModel):
     mutation_performed: bool = False
 
 
-def qualify_expanded_system(request: ExpandedQualificationRequest) -> ExpandedQualificationReport:
+def qualify_expanded_system(
+    request: ExpandedQualificationRequest,
+) -> ExpandedQualificationReport:
     base = qualify_system(request.base)
     blockers = list(base.blockers)
     warnings = list(base.warnings)
@@ -169,7 +178,9 @@ def qualify_expanded_system(request: ExpandedQualificationRequest) -> ExpandedQu
     }
     for name, minimum in minimums.items():
         if counts[name] < minimum:
-            blockers.append(f"expanded_evidence_missing:{name}:{counts[name]}/{minimum}")
+            blockers.append(
+                f"expanded_evidence_missing:{name}:{counts[name]}/{minimum}"
+            )
     ages: dict[str, int] = {}
     required_timestamps = {"base", *minimums.keys()}
     for name in sorted(required_timestamps):
@@ -213,7 +224,11 @@ def qualify_expanded_system(request: ExpandedQualificationRequest) -> ExpandedQu
     for item in request.collateral_reports:
         if item.blockers or item.shortfall > 0:
             blockers.append(f"collateral_incomplete:{item.requirement_id}")
-        if item.transfer_authority_granted or item.execution_authority_granted or item.mutation_performed:
+        if (
+            item.transfer_authority_granted
+            or item.execution_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"collateral_authority_violation:{item.requirement_id}")
     for item in request.policy_reports:
         if policy.require_policy_review_ready and not item.ready_for_governance_review:
@@ -228,12 +243,21 @@ def qualify_expanded_system(request: ExpandedQualificationRequest) -> ExpandedQu
     for index, item in enumerate(request.surveillance_reports):
         if item.blockers:
             blockers.append(f"surveillance_failed:{index}")
-        if item.legal_conclusion_reached or item.enforcement_authority_granted or item.execution_authority_granted or item.mutation_performed:
+        if (
+            item.legal_conclusion_reached
+            or item.enforcement_authority_granted
+            or item.execution_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"surveillance_authority_violation:{index}")
     for index, item in enumerate(request.privacy_reports):
         if item.blockers:
             blockers.append(f"privacy_failed:{index}")
-        if item.legal_conclusion_reached or item.mutation_performed or item.subject_request_plan.deletion_authority_granted:
+        if (
+            item.legal_conclusion_reached
+            or item.mutation_performed
+            or item.subject_request_plan.deletion_authority_granted
+        ):
             blockers.append(f"privacy_authority_violation:{index}")
     for index, item in enumerate(request.failover_reports):
         if policy.require_failover_ready and not item.ready_for_failover_review:
@@ -243,7 +267,11 @@ def qualify_expanded_system(request: ExpandedQualificationRequest) -> ExpandedQu
     for item in request.sequential_reports:
         if policy.require_sequential_review_ready and not item.ready_for_human_review:
             blockers.append(f"sequential_not_ready:{item.experiment_id}")
-        if item.stopping_authority_granted or item.promotion_authority_granted or item.mutation_performed:
+        if (
+            item.stopping_authority_granted
+            or item.promotion_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"sequential_authority_violation:{item.experiment_id}")
 
     for index, item in enumerate(request.liquidity_reports):
@@ -254,53 +282,96 @@ def qualify_expanded_system(request: ExpandedQualificationRequest) -> ExpandedQu
     for index, item in enumerate(request.counterparty_reports):
         if not item.allowed or item.violations:
             blockers.append(f"counterparty_risk_failed:{index}")
-        if item.settlement_authority_granted or item.transfer_authority_granted or item.mutation_performed:
+        if (
+            item.settlement_authority_granted
+            or item.transfer_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"counterparty_risk_authority_violation:{index}")
     for item in request.change_control_reports:
         if not item.ready_for_governance_review or item.blockers:
             blockers.append(f"change_control_not_ready:{item.change_id}")
-        if item.deployment_authority_granted or item.rollback_authority_granted or item.mutation_performed:
+        if (
+            item.deployment_authority_granted
+            or item.rollback_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"change_control_authority_violation:{item.change_id}")
 
     for index, item in enumerate(request.schema_reports):
         if not item.compatible:
-            blockers.append(f"schema_incompatible:{item.contract_id}:{item.candidate_version}")
-        if item.registration_authority_granted or item.migration_authority_granted or item.mutation_performed:
+            blockers.append(
+                f"schema_incompatible:{item.contract_id}:{item.candidate_version}"
+            )
+        if (
+            item.registration_authority_granted
+            or item.migration_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"schema_authority_violation:{index}")
     for index, item in enumerate(request.liquidity_forecast_reports):
         if not item.ready_for_treasury_review or item.blockers:
             blockers.append(f"liquidity_forecast_failed:{index}")
-        if item.transfer_authority_granted or item.withdrawal_authority_granted or item.mutation_performed:
+        if (
+            item.transfer_authority_granted
+            or item.withdrawal_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"liquidity_forecast_authority_violation:{index}")
     for index, item in enumerate(request.factor_risk_reports):
         if not item.allowed or item.violations:
             blockers.append(f"factor_risk_failed:{index}")
-        if item.hedge_authority_granted or item.execution_authority_granted or item.mutation_performed:
+        if (
+            item.hedge_authority_granted
+            or item.execution_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"factor_risk_authority_violation:{index}")
     for item in request.model_challenge_reports:
         if not item.ready_for_model_risk_review or item.blockers:
             blockers.append(f"model_challenge_failed:{item.model_id}")
-        if item.promotion_authority_granted or item.deployment_authority_granted or item.mutation_performed:
+        if (
+            item.promotion_authority_granted
+            or item.deployment_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"model_challenge_authority_violation:{item.model_id}")
     for index, item in enumerate(request.forensic_reports):
         if not item.ready_for_forensic_review or item.blockers:
             blockers.append(f"forensic_readiness_failed:{index}")
-        if item.export_authority_granted or item.deletion_authority_granted or item.legal_conclusion_reached or item.mutation_performed:
+        if (
+            item.export_authority_granted
+            or item.deletion_authority_granted
+            or item.legal_conclusion_reached
+            or item.mutation_performed
+        ):
             blockers.append(f"forensic_authority_violation:{index}")
     for index, item in enumerate(request.control_effectiveness_reports):
         if not item.ready_for_governance_review or item.blockers:
             blockers.append(f"control_effectiveness_failed:{index}")
-        if item.remediation_authority_granted or item.policy_authority_granted or item.mutation_performed:
+        if (
+            item.remediation_authority_granted
+            or item.policy_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"control_effectiveness_authority_violation:{index}")
     for item in request.dependency_impact_reports:
         if not item.ready_for_change_review or item.blockers:
             blockers.append(f"dependency_impact_failed:{item.change_id}")
-        if item.deployment_authority_granted or item.scaling_authority_granted or item.mutation_performed:
+        if (
+            item.deployment_authority_granted
+            or item.scaling_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"dependency_impact_authority_violation:{item.change_id}")
     for item in request.runbook_reports:
         if not item.ready_for_operational_review or item.blockers:
             blockers.append(f"runbook_readiness_failed:{item.runbook_id}")
-        if item.execution_authority_granted or item.rollback_authority_granted or item.mutation_performed:
+        if (
+            item.execution_authority_granted
+            or item.rollback_authority_granted
+            or item.mutation_performed
+        ):
             blockers.append(f"runbook_authority_violation:{item.runbook_id}")
 
     blockers = sorted(set(blockers))

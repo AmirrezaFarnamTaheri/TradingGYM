@@ -1,7 +1,7 @@
 """Enterprise market, credit, operational risk aggregation and explanations."""
+
 from __future__ import annotations
 
-import math
 from decimal import Decimal
 from enum import Enum
 from typing import Annotated
@@ -33,8 +33,18 @@ class RiskExposure(BaseModel):
 
     @model_validator(mode="after")
     def validate_values(self) -> "RiskExposure":
-        require_decimal(self.gross_loss_base, "gross_loss_base", minimum=Decimal("0"), maximum=Decimal("1e30"))
-        require_decimal(self.mitigated_fraction, "mitigated_fraction", minimum=Decimal("0"), maximum=Decimal("1"))
+        require_decimal(
+            self.gross_loss_base,
+            "gross_loss_base",
+            minimum=Decimal("0"),
+            maximum=Decimal("1e30"),
+        )
+        require_decimal(
+            self.mitigated_fraction,
+            "mitigated_fraction",
+            minimum=Decimal("0"),
+            maximum=Decimal("1"),
+        )
         return self
 
 
@@ -48,9 +58,24 @@ class EnterpriseRiskPolicy(BaseModel):
 
     @model_validator(mode="after")
     def validate_policy(self) -> "EnterpriseRiskPolicy":
-        require_decimal(self.maximum_expected_loss_base, "maximum_expected_loss_base", minimum=Decimal("0"), maximum=Decimal("1e30"))
-        require_decimal(self.maximum_single_exposure_base, "maximum_single_exposure_base", minimum=Decimal("0"), maximum=Decimal("1e30"))
-        require_decimal(self.maximum_domain_fraction, "maximum_domain_fraction", minimum=Decimal("0"), maximum=Decimal("1"))
+        require_decimal(
+            self.maximum_expected_loss_base,
+            "maximum_expected_loss_base",
+            minimum=Decimal("0"),
+            maximum=Decimal("1e30"),
+        )
+        require_decimal(
+            self.maximum_single_exposure_base,
+            "maximum_single_exposure_base",
+            minimum=Decimal("0"),
+            maximum=Decimal("1e30"),
+        )
+        require_decimal(
+            self.maximum_domain_fraction,
+            "maximum_domain_fraction",
+            minimum=Decimal("0"),
+            maximum=Decimal("1"),
+        )
         return self
 
 
@@ -96,8 +121,12 @@ def evaluate_enterprise_risk(request: EnterpriseRiskRequest) -> EnterpriseRiskRe
             unowned += 1
         net = item.gross_loss_base * (Decimal("1") - item.mitigated_fraction)
         expected = net * Decimal(str(item.probability))
-        domain[item.domain.value] = domain.get(item.domain.value, Decimal("0")) + expected
-        groups[item.correlation_group] = groups.get(item.correlation_group, Decimal("0")) + expected
+        domain[item.domain.value] = (
+            domain.get(item.domain.value, Decimal("0")) + expected
+        )
+        groups[item.correlation_group] = (
+            groups.get(item.correlation_group, Decimal("0")) + expected
+        )
         individual.append((expected, item))
         if net > request.policy.maximum_single_exposure_base:
             blockers.append(f"single_exposure_limit:{item.exposure_id}")
@@ -107,20 +136,27 @@ def evaluate_enterprise_risk(request: EnterpriseRiskRequest) -> EnterpriseRiskRe
     if expected_total > request.policy.maximum_expected_loss_base:
         blockers.append("expected_loss_limit")
     for name, value in domain.items():
-        if expected_total > 0 and value / expected_total > request.policy.maximum_domain_fraction:
+        if (
+            expected_total > 0
+            and value / expected_total > request.policy.maximum_domain_fraction
+        ):
             blockers.append(f"domain_concentration:{name}")
     tail_proxy = sum(sorted(groups.values(), reverse=True)[:3], Decimal("0"))
     ranked = sorted(individual, key=lambda item: (-item[0], item[1].exposure_id))
     top = [item.exposure_id for _, item in ranked[:10]]
     explanations = []
     if ranked:
-        explanations.append(f"largest_expected_loss={ranked[0][1].exposure_id}:{ranked[0][0]}")
+        explanations.append(
+            f"largest_expected_loss={ranked[0][1].exposure_id}:{ranked[0][0]}"
+        )
     if domain:
         largest_domain = max(domain, key=domain.get)  # type: ignore[arg-type]
         explanations.append(f"largest_domain={largest_domain}:{domain[largest_domain]}")
     if groups:
         largest_group = max(groups, key=groups.get)  # type: ignore[arg-type]
-        explanations.append(f"largest_correlation_group={largest_group}:{groups[largest_group]}")
+        explanations.append(
+            f"largest_correlation_group={largest_group}:{groups[largest_group]}"
+        )
     payload = {
         "expected_loss_base": expected_total,
         "tail_proxy_base": tail_proxy,

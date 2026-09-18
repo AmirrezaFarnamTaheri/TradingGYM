@@ -67,14 +67,14 @@ class SealMismatch(RuntimeError):
     """Verification failed: the artifact does not match its seal."""
 
 
-def verify_seal(sealed: SealedExperiment, *, name: str, spec: dict, tape_sha256: str) -> None:
+def verify_seal(
+    sealed: SealedExperiment, *, name: str, spec: dict, tape_sha256: str
+) -> None:
     """Raise :class:`SealMismatch` on any mismatch; return None on success.
 
     Name mismatches are damage, not a different experiment (kraken rule).
     """
-    expected = seal_experiment(
-        name=name, spec=spec, tape_sha256=tape_sha256
-    )
+    expected = seal_experiment(name=name, spec=spec, tape_sha256=tape_sha256)
     if expected.seal_id != sealed.seal_id:
         field_hits = []
         if expected.name != sealed.name:

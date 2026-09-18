@@ -8,7 +8,11 @@ import pandas as pd
 import pytest
 
 from trading_gym.common.config import BorrowCapConfig, load_env_config
-from trading_gym.execution.execution_engine import ExecutionEngine, ExecutionState, MarketSnapshot
+from trading_gym.execution.execution_engine import (
+    ExecutionEngine,
+    ExecutionState,
+    MarketSnapshot,
+)
 from trading_gym.margin.borrow_caps import BorrowCapValidator, clip_short_quantity
 from trading_gym.market.data_router import DataProviderRouter, MarketDataRequest
 

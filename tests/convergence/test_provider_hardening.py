@@ -48,12 +48,16 @@ def test_provider_health_path_rejects_traversal() -> None:
         )
 
 
-def test_provider_status_re_resolves_and_blocks_private_destination(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_provider_status_re_resolves_and_blocks_private_destination(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "not-returned")
 
     def private_resolution(*args: object, **kwargs: object) -> list[tuple[object, ...]]:
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))]
 
-    monkeypatch.setattr("trading_gym.common.security.socket.getaddrinfo", private_resolution)
+    monkeypatch.setattr(
+        "trading_gym.common.security.socket.getaddrinfo", private_resolution
+    )
     with pytest.raises(ValueError, match="disallowed"):
         provider_status(config())

@@ -29,7 +29,6 @@ from trading_gym.playground.bridge import (
     evaluate_sealed_windows,
 )
 from trading_gym.playground.runner import PlaygroundRunSpec
-from trading_gym.playground.scenarios import Scenario
 
 from test_runner import make_frame, momentum_strategy  # fixture reuse
 
@@ -147,5 +146,7 @@ class TestBuildRevisionCandidate:
         )
         from trading_gym.playground.bridge import seal_window
 
-        assert seal_window(tampered["hold-a"]) != revision.seeded_holdout_seals["hold-a"]
+        assert (
+            seal_window(tampered["hold-a"]) != revision.seeded_holdout_seals["hold-a"]
+        )
         assert set(rebuilt) == {"hold-a"}

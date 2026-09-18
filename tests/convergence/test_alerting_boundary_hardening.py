@@ -39,7 +39,9 @@ def test_alert_payload_redacts_metadata_and_carries_stable_event_id() -> None:
 
 
 def test_channel_config_representations_hide_credentials() -> None:
-    telegram = TelegramConfig(enabled=True, bot_token="telegram-secret", chat_id="chat-secret")
+    telegram = TelegramConfig(
+        enabled=True, bot_token="telegram-secret", chat_id="chat-secret"
+    )
     webhook = WebhookConfig(
         enabled=True,
         url="https://example.test/hook",
@@ -66,8 +68,7 @@ def test_rate_limiter_is_thread_safe_and_parameter_bounded() -> None:
 def test_critical_alerts_remain_bounded() -> None:
     channel = RecordingChannel(alerting.AlertChannelConfig(enabled=True))
     results = [
-        channel.send(Alert("Risk", "Limit", AlertLevel.CRITICAL))
-        for _ in range(35)
+        channel.send(Alert("Risk", "Limit", AlertLevel.CRITICAL)) for _ in range(35)
     ]
     assert sum(results) == 30
     assert results[-1] is False
@@ -83,7 +84,9 @@ def test_webhook_metadata_is_redacted_and_event_id_is_forwarded(
         "validate_base_url",
         lambda *args, **kwargs: "https://example.test/hook",
     )
-    channel = WebhookChannel(WebhookConfig(enabled=True, url="https://example.test/hook"))
+    channel = WebhookChannel(
+        WebhookConfig(enabled=True, url="https://example.test/hook")
+    )
     alert = Alert(
         "Risk",
         "Limit",

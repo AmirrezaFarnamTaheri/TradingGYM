@@ -19,7 +19,10 @@ from apps.lake.manifest import write_daily_merkle, write_partition_manifest
 from trading_gym.adapters.enhanced_aban_client import EnhancedAbanClient
 from trading_gym.common.persistence import atomic_write_text
 from trading_gym.common.security import confined_child
-from trading_gym.data.data_loader import _normalise_timestamp_index, validate_market_frame
+from trading_gym.data.data_loader import (
+    _normalise_timestamp_index,
+    validate_market_frame,
+)
 
 app = typer.Typer(no_args_is_help=True)
 logger = logging.getLogger(__name__)
@@ -50,6 +53,12 @@ def _timeframe_seconds(value: str) -> int:
 
 
 def _fsync_directory(path: Path) -> None:
+    # Directory fsync is a POSIX durability primitive. Windows has no
+    # directory file descriptor to open, so the returned handle is
+    # invalid and closing it raised EBADF, failing every batch save; off
+    # POSIX the step is a no-op because os.replace is already atomic.
+    if os.name != "posix":
+        return
     flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
     try:
         descriptor = os.open(path, flags)
@@ -60,7 +69,8 @@ def _fsync_directory(path: Path) -> None:
     except OSError:
         pass
     finally:
-        os.close(descriptor)
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 class Poller:
@@ -79,7 +89,9 @@ class Poller:
         self.symbol = _safe_component(symbol, "symbol")
         self.timeframe = _safe_component(timeframe, "timeframe")
         self.timeframe_seconds = _timeframe_seconds(self.timeframe)
-        if not isinstance(client, EnhancedAbanClient) and not hasattr(client, "get_klines"):
+        if not isinstance(client, EnhancedAbanClient) and not hasattr(
+            client, "get_klines"
+        ):
             raise TypeError("client must provide get_klines")
         if not math.isfinite(default_spread_bps) or default_spread_bps < 0:
             raise ValueError("default_spread_bps must be finite and non-negative")
@@ -89,7 +101,11 @@ class Poller:
             raise ValueError("data_dir must not be a symlink")
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.data_dir = root.resolve(strict=True)
-        manifest_root = Path(manifests_dir).expanduser() if manifests_dir else self.data_dir.parent / "manifests"
+        manifest_root = (
+            Path(manifests_dir).expanduser()
+            if manifests_dir
+            else self.data_dir.parent / "manifests"
+        )
         if manifest_root.exists() and manifest_root.is_symlink():
             raise ValueError("manifests_dir must not be a symlink")
         manifest_root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -123,11 +139,21 @@ class Poller:
                 limit=min(_MAX_BATCH_CANDLES, expected),
             )
         except Exception as exc:
-            logger.error("Historical batch request failed error_type=%s", type(exc).__name__)
+            logger.error(
+                "Historical batch request failed error_type=%s", type(exc).__name__
+            )
             raise
         if not data:
             return pd.DataFrame(
-                columns=["timestamp", "open", "high", "low", "close", "volume", "spread_bps"]
+                columns=[
+                    "timestamp",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "spread_bps",
+                ]
             )
         if not isinstance(data, list) or len(data) > _MAX_BATCH_CANDLES:
             raise ValueError("Kline response is invalid or unbounded")
@@ -155,9 +181,16 @@ class Poller:
         )
         # Resolution-independent epoch seconds: pandas 3 may build second- or
         # microsecond-resolution indexes, so normalise through datetime64[s].
-        epoch = frame.index.tz_convert("UTC").to_numpy().astype("datetime64[s]").astype(np.int64)
+        epoch = (
+            frame.index.tz_convert("UTC")
+            .to_numpy()
+            .astype("datetime64[s]")
+            .astype(np.int64)
+        )
         if (epoch < start_ts).any() or (epoch > end_ts).any():
-            raise ValueError("Kline response contains timestamps outside the requested interval")
+            raise ValueError(
+                "Kline response contains timestamps outside the requested interval"
+            )
         if len(frame) > expected:
             raise ValueError("Kline response exceeds the requested interval capacity")
         return frame
@@ -182,8 +215,12 @@ class Poller:
             try:
                 existing = pd.read_parquet(destination)
             except Exception as exc:
-                raise ValueError("existing partition artifact cannot be validated") from exc
-            frames.insert(0, _normalise_timestamp_index(existing, source=destination.name))
+                raise ValueError(
+                    "existing partition artifact cannot be validated"
+                ) from exc
+            frames.insert(
+                0, _normalise_timestamp_index(existing, source=destination.name)
+            )
         merged = pd.concat(frames, axis=0, ignore_index=False, copy=False)
         merged, _, _ = validate_market_frame(
             merged,
@@ -231,8 +268,10 @@ class Poller:
                     try:
                         merged.reset_index(drop=True).to_parquet(temp, index=False)
                         if temp.is_symlink() or not temp.is_file():
-                            raise ValueError("parquet writer did not create a regular file")
-                        with temp.open("rb") as handle:
+                            raise ValueError(
+                                "parquet writer did not create a regular file"
+                            )
+                        with temp.open("r+b") as handle:
                             os.fsync(handle.fileno())
                         os.replace(temp, destination)
                         _fsync_directory(partition)
@@ -242,7 +281,10 @@ class Poller:
                     written.append(destination)
 
                 with FileLock(str(self.manifests_dir / ".manifest.lock")):
-                    manifest_path = self.manifests_dir / f"{self.symbol}__{self.timeframe}.manifest.json"
+                    manifest_path = (
+                        self.manifests_dir
+                        / f"{self.symbol}__{self.timeframe}.manifest.json"
+                    )
                     root_path = self.manifests_dir / "daily.merkle.json"
                     write_partition_manifest(
                         partition,
@@ -275,7 +317,9 @@ def download(
     end_date: str = typer.Option(..., help="Exclusive end date YYYY-MM-DD"),
     api_key: Optional[str] = typer.Option(None, envvar="ABAN_API_KEY", help="API key"),
     data_dir: Path = typer.Option(Path("trading_gym/data/lake"), help="Lake root"),
-    manifests_dir: Optional[Path] = typer.Option(None, help="Integrity manifest directory"),
+    manifests_dir: Optional[Path] = typer.Option(
+        None, help="Integrity manifest directory"
+    ),
 ) -> None:
     """Download complete daily batches and stop on the first failed interval."""
     logging.basicConfig(level=logging.INFO)
@@ -301,7 +345,9 @@ def download(
     current = start
     while current < end:
         next_boundary = min(current + pd.Timedelta(days=1), end)
-        frame = poller.fetch_batch(int(current.timestamp()), int(next_boundary.timestamp()))
+        frame = poller.fetch_batch(
+            int(current.timestamp()), int(next_boundary.timestamp())
+        )
         if frame.empty:
             raise RuntimeError(
                 f"Provider returned no candles for {current.isoformat()} to {next_boundary.isoformat()}"

@@ -5,6 +5,7 @@ Checking is the default. Mutation requires ``--apply``. The command never
 prints generated secret material and does not handle actor/audit keyrings,
 provider credentials, or broker credentials.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -16,7 +17,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from trading_gym.common.persistence import atomic_write_text
-
 
 MAX_ENV_BYTES = 1024 * 1024
 SUPPORTED_KEYS = {
@@ -66,7 +66,9 @@ def _records(content: str) -> dict[str, list[tuple[int, str]]]:
     for index, line in enumerate(content.splitlines()):
         match = LINE_RE.match(line)
         if match:
-            records.setdefault(match.group("key"), []).append((index, match.group("value")))
+            records.setdefault(match.group("key"), []).append(
+                (index, match.group("value"))
+            )
     return records
 
 
@@ -115,8 +117,12 @@ def rotate_env_key(
         for name, values in records.items()
         if name in SUPPORTED_KEYS and name != key_name and len(values) == 1
     }
-    if generated in other_values:  # cryptographically implausible, but authority reuse still fails closed
-        raise SecretRotationError("generated key collides with another control credential")
+    if (
+        generated in other_values
+    ):  # cryptographically implausible, but authority reuse still fails closed
+        raise SecretRotationError(
+            "generated key collides with another control credential"
+        )
 
     lines = content.splitlines()
     if matches:
@@ -146,8 +152,12 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--key-name", choices=sorted(SUPPORTED_KEYS), default="API_KEY")
-    parser.add_argument("--apply", action="store_true", help="perform an atomic rotation")
-    parser.add_argument("--create", action="store_true", help="create a missing key (requires --apply)")
+    parser.add_argument(
+        "--apply", action="store_true", help="perform an atomic rotation"
+    )
+    parser.add_argument(
+        "--create", action="store_true", help="create a missing key (requires --apply)"
+    )
     parser.add_argument("--token-bytes", type=int, default=48)
     args = parser.parse_args()
     if args.create and not args.apply:
@@ -169,7 +179,9 @@ def main() -> int:
     if result.changed:
         print(f"{result.key_name}: rotated atomically; restart dependent services")
     else:
-        print(f"{result.key_name}: {'secure' if result.secure else 'rotation required'}; no change performed")
+        print(
+            f"{result.key_name}: {'secure' if result.secure else 'rotation required'}; no change performed"
+        )
     return 0 if result.secure else 3
 
 

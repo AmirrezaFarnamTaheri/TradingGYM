@@ -206,6 +206,15 @@ class TestFinancingRateManager:
         with pytest.raises(ValueError):
             manager.update_rate("BTC", -0.01)
 
+    @pytest.mark.parametrize("bad_rate", [float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_rate_update_is_rejected(self, real_config, bad_rate):
+        # A NaN passes a `rate < 0` guard (all NaN comparisons are False) and
+        # then poisons every financing cost derived from it; pin the rejection.
+        manager = FinancingRateManager(real_config)
+        with pytest.raises(ValueError):
+            manager.update_rate("BTC", bad_rate)
+        assert "BTC" not in manager.rates
+
     def test_zero_borrow_or_time(self, real_config):
         manager = FinancingRateManager(real_config)
         assert manager.calculate_financing("BTC", 0, 100) == 0.0

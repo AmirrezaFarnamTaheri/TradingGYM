@@ -28,7 +28,12 @@ import numpy as np
 from trading_gym.playground.runner import PlaygroundRunSpec, run_playground
 from trading_gym.playground.scenarios import Scenario
 
-__all__ = ["AttributionBreakdown", "MonteCarloReport", "attribute_overlays", "run_monte_carlo"]
+__all__ = [
+    "AttributionBreakdown",
+    "MonteCarloReport",
+    "attribute_overlays",
+    "run_monte_carlo",
+]
 
 
 @dataclass(frozen=True)

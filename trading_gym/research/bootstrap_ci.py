@@ -109,11 +109,9 @@ def bca_interval(
         jackknife[i] = statistic(data[keep])
     j_mean = float(jackknife.mean())
     diffs = j_mean - jackknife
-    denom = 6.0 * float((diffs ** 2).sum()) ** 1.5
+    denom = 6.0 * float((diffs**2).sum()) ** 1.5
     acceleration = (
-        float((diffs ** 3).sum() / denom)
-        if denom > 0.0 and np.isfinite(denom)
-        else 0.0
+        float((diffs**3).sum() / denom) if denom > 0.0 and np.isfinite(denom) else 0.0
     )
 
     boot_sorted = np.sort(boot)
@@ -201,9 +199,7 @@ def block_bootstrap_interval(
         resample = np.concatenate(pieces)[:n]
         value = float(statistic(resample))
         if not np.isfinite(value):
-            raise ValueError(
-                "statistic produced a non-finite value on a resample"
-            )
+            raise ValueError("statistic produced a non-finite value on a resample")
         boot[b] = value
 
     sorted_boot = np.sort(boot)

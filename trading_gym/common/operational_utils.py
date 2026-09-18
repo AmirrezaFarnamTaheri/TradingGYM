@@ -21,8 +21,11 @@ class FillReconciliation:
     tolerance: float
 
     def to_dict(self) -> dict:
-        return {"matched": self.matched, "delta": str(self.delta),
-                "tolerance": str(self.tolerance)}
+        return {
+            "matched": self.matched,
+            "delta": str(self.delta),
+            "tolerance": str(self.tolerance),
+        }
 
 
 def reconcile_fill(
@@ -34,14 +37,14 @@ def reconcile_fill(
     """Match when |delta| <= tolerance × max(expected, tiny)."""
     if tolerance_fraction < 0:
         raise ValueError("tolerance_fraction must be >= 0")
-    if not all(
-        np_isfinite(v) for v in (expected_quantity, filled_quantity)
-    ):
+    if not all(np_isfinite(v) for v in (expected_quantity, filled_quantity)):
         raise ValueError("quantities must be finite")
     base = max(abs(expected_quantity), 1e-12)
     delta = filled_quantity - expected_quantity
     matched = abs(delta) <= tolerance_fraction * base
-    return FillReconciliation(matched=matched, delta=delta, tolerance=tolerance_fraction)
+    return FillReconciliation(
+        matched=matched, delta=delta, tolerance=tolerance_fraction
+    )
 
 
 def np_isfinite(value: float) -> bool:

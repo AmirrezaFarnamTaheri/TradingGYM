@@ -6,7 +6,14 @@ import numpy as np
 import pandas as pd
 
 from trading_gym.strategy_lab.indicators import compute_indicators
-from trading_gym.strategy_lab.models import Condition, ConditionGroup, LogicMode, Operand, Operator, StrategySpec
+from trading_gym.strategy_lab.models import (
+    Condition,
+    ConditionGroup,
+    LogicMode,
+    Operand,
+    Operator,
+    StrategySpec,
+)
 
 REQUIRED_COLUMNS = ("open", "high", "low", "close", "volume")
 MAX_BARS = 2_000_000

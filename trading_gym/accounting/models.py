@@ -11,11 +11,10 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 import re
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 
 MAX_ABS_AMOUNT = Decimal("1e30")
 
@@ -33,7 +32,13 @@ class FillSide(str, Enum):
     SELL = "sell"
 
 
-def _finite(value: Decimal | None, name: str, *, positive: bool = False, non_negative: bool = False) -> None:
+def _finite(
+    value: Decimal | None,
+    name: str,
+    *,
+    positive: bool = False,
+    non_negative: bool = False,
+) -> None:
     if value is None:
         return
     if not value.is_finite() or abs(value) > MAX_ABS_AMOUNT:
@@ -72,7 +77,8 @@ class AccountingEvent(BaseModel):
             _finite(
                 value,
                 name,
-                positive=name in {"quantity", "price", "mark_price"} and value is not None,
+                positive=name in {"quantity", "price", "mark_price"}
+                and value is not None,
                 non_negative=name == "fee_amount",
             )
         if len(self.metadata) > 100:
@@ -93,7 +99,9 @@ class AccountingEvent(BaseModel):
                 raise ValueError("fee_currency is required when fee_amount is non-zero")
         elif self.event_type is AccountingEventType.CASH_ADJUSTMENT:
             if self.currency is None or self.amount is None or self.amount == 0:
-                raise ValueError("cash adjustment requires currency and non-zero amount")
+                raise ValueError(
+                    "cash adjustment requires currency and non-zero amount"
+                )
         elif self.event_type is AccountingEventType.FUNDING:
             if self.currency is None or self.amount is None or self.amount == 0:
                 raise ValueError("funding event requires currency and non-zero amount")
@@ -121,11 +129,17 @@ class PositionState(BaseModel):
     @model_validator(mode="after")
     def finite_values(self) -> "PositionState":
         for name in (
-            "quantity", "average_entry_price", "mark_price", "realized_pnl",
-            "unrealized_pnl", "funding_pnl",
+            "quantity",
+            "average_entry_price",
+            "mark_price",
+            "realized_pnl",
+            "unrealized_pnl",
+            "funding_pnl",
         ):
             _finite(getattr(self, name), name)
-        if self.average_entry_price < 0 or (self.mark_price is not None and self.mark_price <= 0):
+        if self.average_entry_price < 0 or (
+            self.mark_price is not None and self.mark_price <= 0
+        ):
             raise ValueError("position prices must be non-negative and marks positive")
         return self
 

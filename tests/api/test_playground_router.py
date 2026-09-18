@@ -12,6 +12,7 @@ Contract:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 
 import numpy as np
@@ -22,7 +23,6 @@ from fastapi.testclient import TestClient
 
 from apps.api.playground_router import create_playground_router
 from trading_gym.authz.grants import GrantLedger, GrantRequest
-
 
 OPERATOR_SECRET = "operator-secret-0123456789abcdef0123"
 AGENT_SECRET = "agent-secret-0123456789abcdef0123456"
@@ -96,7 +96,7 @@ def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
             principal="agent-axiom1",
             scopes=("playground.run", "trade.paper.**"),
             ttl_hours=24,
-            issued_at="2026-09-01T00:00:00Z",
+            issued_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             constraints=(),
             issued_by="operator-1",
         )
@@ -161,9 +161,7 @@ class TestPlaygroundRuns:
         assert "playground.run" in response.json()["detail"]
 
     def test_run_with_unauthenticated_caller_denied(self, auth_env) -> None:  # type: ignore[no-untyped-def]
-        response = _client().post(
-            "/api/v1/playground/runs", json=_run_payload()
-        )
+        response = _client().post("/api/v1/playground/runs", json=_run_payload())
         assert response.status_code == 403
 
     def test_invalid_window_rejected(self, auth_env) -> None:  # type: ignore[no-untyped-def]

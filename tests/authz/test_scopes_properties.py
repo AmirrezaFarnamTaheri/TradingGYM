@@ -13,13 +13,32 @@ from hypothesis import given, settings
 import pytest
 from hypothesis import strategies as st
 
-from trading_gym.authz.scopes import ScopePattern, ScopeSet, ScopeError
+from trading_gym.authz.scopes import (
+    RESERVED_FIRST_SEGMENTS,
+    RESERVED_SCOPES,
+    ScopeError,
+    ScopePattern,
+    ScopeSet,
+)
 
 SAFE_SEGMENT_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789_-"
 
+#: Namespaces a grantable pattern may never name. The property tests below
+#: assert matching/specificity *grammar* invariants, not grantability, so the
+#: generated namespaces must stay out of reserved space — otherwise
+#: ``ScopeSet.parse`` correctly raises ScopeError and the property is
+#: measuring the wrong thing.
+_RESERVED_NAMESPACES = RESERVED_FIRST_SEGMENTS | {
+    scope.split(".", 1)[0] for scope in RESERVED_SCOPES
+}
+
+
+def not_reserved(segment: str) -> bool:
+    return segment not in _RESERVED_NAMESPACES
+
 
 segments = st.lists(
-    st.text(alphabet=SAFE_SEGMENT_CHARS, min_size=1, max_size=8),
+    st.text(alphabet=SAFE_SEGMENT_CHARS, min_size=1, max_size=8).filter(not_reserved),
     min_size=1,
     max_size=5,
     unique=True,
@@ -52,7 +71,9 @@ class TestScopeGrammarProperties:
 
     @settings(max_examples=200, deadline=None)
     @given(segments)
-    def test_first_segment_literal_anchors_matching(self, segs: tuple[str, ...]) -> None:
+    def test_first_segment_literal_anchors_matching(
+        self, segs: tuple[str, ...]
+    ) -> None:
         scope = concrete(segs)
         decoy = "zz" + scope  # different first segment
         pattern = ScopePattern.parse(segs[0] + ".**")

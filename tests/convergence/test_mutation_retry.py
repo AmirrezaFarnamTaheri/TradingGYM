@@ -58,7 +58,10 @@ def test_policy_rejects_out_of_range_attempts():
 
 def test_backoff_is_exponential_capped_and_deterministic_with_rng():
     policy = _policy()
-    delays = [delay_for_attempt(policy, attempt, rng=__import__("random").Random(7)) for attempt in (1, 2, 3, 4)]
+    delays = [
+        delay_for_attempt(policy, attempt, rng=__import__("random").Random(7))
+        for attempt in (1, 2, 3, 4)
+    ]
     assert delays[1] >= delays[0]
     assert all(delay <= policy.max_delay_s + 1e-9 for delay in delays)
 
@@ -149,7 +152,11 @@ class CountingVenue(VenueAdapter):
 
     def submit(self, intent: VenueOrderIntent):
         self.calls.append(intent)
-        action = self.script.pop(0) if self.script else {"order_id": f"venue-{len(self.calls)}"}
+        action = (
+            self.script.pop(0)
+            if self.script
+            else {"order_id": f"venue-{len(self.calls)}"}
+        )
         if isinstance(action, BaseException):
             raise action
         return action
@@ -182,9 +189,13 @@ def _coordinator_intent(key: str) -> VenueOrderIntent:
     )
 
 
-def _bound_submit(coordinator: LiveExecutionCoordinator, intent: VenueOrderIntent, consent):
+def _bound_submit(
+    coordinator: LiveExecutionCoordinator, intent: VenueOrderIntent, consent
+):
     def submit():
-        authorization = coordinator.bind_authorization(intent, consent=consent, proposal_id="p-1")
+        authorization = coordinator.bind_authorization(
+            intent, consent=consent, proposal_id="p-1"
+        )
         return coordinator.execute(intent, authorization, consent=consent)
 
     return submit
@@ -254,13 +265,17 @@ def test_unknown_outcome_without_replay_support_escalates_fail_closed():
 
 def test_emergency_halt_is_never_retried():
     controller = EmergencyController(path=None)
-    coordinator = LiveExecutionCoordinator({"counting": CountingVenue()}, emergency_controller=controller)
+    coordinator = LiveExecutionCoordinator(
+        {"counting": CountingVenue()}, emergency_controller=controller
+    )
 
     class HaltedController(EmergencyController):
         def snapshot(self):  # noqa: D102 - test double
             from trading_gym.production.emergency import EmergencyState
 
-            return EmergencyState(halted=True, revision=1, reason="test", actor="a", approver="b")
+            return EmergencyState(
+                halted=True, revision=1, reason="test", actor="a", approver="b"
+            )
 
     coordinator.emergency_controller = HaltedController()
 

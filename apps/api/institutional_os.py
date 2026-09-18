@@ -4,6 +4,7 @@ All endpoints return bounded analysis or review artefacts.  This router exposes
 no live-order, fund-transfer, model-promotion, deployment, shell, or arbitrary
 code execution route.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -88,7 +89,6 @@ def create_institutional_os_router(auth_dependency: Callable[..., Any]) -> APIRo
         dependencies=[Depends(auth_dependency)],
     )
 
-
     @router.get("/artifacts")
     def list_artifacts(
         domain: str | None = Query(default=None, max_length=80),
@@ -97,11 +97,15 @@ def create_institutional_os_router(auth_dependency: Callable[..., Any]) -> APIRo
         return artifacts.list(domain=domain, limit=limit)
 
     @router.get("/artifacts/{artifact_id}")
-    def get_artifact(artifact_id: str, revision: int | None = Query(default=None, ge=1)) -> dict[str, Any]:
+    def get_artifact(
+        artifact_id: str, revision: int | None = Query(default=None, ge=1)
+    ) -> dict[str, Any]:
         try:
             return artifacts.get(artifact_id, revision)
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Institutional artifact not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Institutional artifact not found"
+            ) from exc
 
     @router.post("/artifacts")
     def save_artifact(request: InstitutionalArtifactCreate) -> dict[str, Any]:
@@ -205,7 +209,9 @@ def create_institutional_os_router(auth_dependency: Callable[..., Any]) -> APIRo
     @router.post("/convergence/assurances/{slug}")
     def convergence_assurance(slug: str, evidence: dict[str, Any]) -> dict[str, Any]:
         try:
-            return evaluate_convergence_assurance(slug, evidence).model_dump(mode="json")
+            return evaluate_convergence_assurance(slug, evidence).model_dump(
+                mode="json"
+            )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 

@@ -4,10 +4,11 @@ The gate is deliberately non-authoritative.  It validates that every requested
 institutional capability has current, internally consistent evidence and that
 none of the reports claims mutation or operational authority.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -33,7 +34,6 @@ from .scientific_lab import ScientificLabReport
 from .signal_graph import SignalGraphReport
 from .source_mining import SourceMiningReport
 from .base import require_aware, sha256_payload
-
 
 DOMAIN_FIELDS = (
     "source_mining",
@@ -96,7 +96,9 @@ AUTHORITY_TRUE_FIELDS = {
 class CompleteConvergencePolicy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    maximum_evidence_age_seconds: Annotated[int, Field(ge=60, le=10 * 365 * 86400)] = 86400
+    maximum_evidence_age_seconds: Annotated[int, Field(ge=60, le=10 * 365 * 86400)] = (
+        86400
+    )
     maximum_future_skew_seconds: Annotated[int, Field(ge=0, le=86400)] = 60
     require_unique_report_hashes: bool = True
     require_base_qualification_ready: bool = True
@@ -162,7 +164,8 @@ def _report_hash(report: BaseModel) -> str | None:
 
 def _computed_report_hash(report: BaseModel) -> str:
     defaulted_top_level_fields = {
-        name for name, field in type(report).model_fields.items()
+        name
+        for name, field in type(report).model_fields.items()
         if not field.is_required()
     }
     data = report.model_dump(
@@ -181,13 +184,17 @@ def _inspect_authority(report: BaseModel, domain: str) -> list[str]:
     return violations
 
 
-def qualify_complete_convergence(request: CompleteConvergenceRequest) -> CompleteConvergenceReport:
+def qualify_complete_convergence(
+    request: CompleteConvergenceRequest,
+) -> CompleteConvergenceReport:
     blockers: list[str] = []
     warnings: list[str] = []
     ages: dict[str, int] = {}
     hashes: dict[str, str] = {}
     invalid_domains: set[str] = set()
-    reports: dict[str, BaseModel] = {name: getattr(request, name) for name in DOMAIN_FIELDS}
+    reports: dict[str, BaseModel] = {
+        name: getattr(request, name) for name in DOMAIN_FIELDS
+    }
     required_timestamps = {"base", *DOMAIN_FIELDS}
     for name in sorted(required_timestamps):
         observed = request.evidence_observed_at.get(name)
@@ -212,11 +219,17 @@ def qualify_complete_convergence(request: CompleteConvergenceRequest) -> Complet
         warnings.append(f"unrecognised_evidence_timestamp:{name}")
     base_data = request.base_qualification.model_dump(mode="python")
     base_ready = bool(base_data.get("ready_for_human_review"))
-    for key in AUTHORITY_TRUE_FIELDS | {"failover_authority_granted", "restore_authority_granted", "budget_consumption_authority_granted"}:
+    for key in AUTHORITY_TRUE_FIELDS | {
+        "failover_authority_granted",
+        "restore_authority_granted",
+        "budget_consumption_authority_granted",
+    }:
         if base_data.get(key) is True:
             blockers.append(f"base_authority_violation:{key}")
     base_blockers = list(base_data.get("blockers") or [])
-    if request.policy.require_base_qualification_ready and (not base_ready or base_blockers):
+    if request.policy.require_base_qualification_ready and (
+        not base_ready or base_blockers
+    ):
         blockers.append("base_qualification_not_ready")
     base_hash = _report_hash(request.base_qualification)
     if base_hash:
@@ -230,11 +243,25 @@ def qualify_complete_convergence(request: CompleteConvergenceRequest) -> Complet
         if report_blockers:
             blockers.append(f"domain_blocked:{name}")
             domain_invalid = True
-        readiness_fields = [key for key in data if key.startswith("ready_for_") or key.endswith("_reached") or key == "converged" or key == "saturation_reached"]
+        readiness_fields = [
+            key
+            for key in data
+            if key.startswith("ready_for_")
+            or key.endswith("_reached")
+            or key == "converged"
+            or key == "saturation_reached"
+        ]
         for key in readiness_fields:
             if key == "compliance_conclusion_reached":
                 continue
-            if data.get(key) is False and key in {"ready_for_human_review", "ready_for_peer_review", "ready_for_governance_review", "ready_for_scientific_review", "saturation_reached", "converged"}:
+            if data.get(key) is False and key in {
+                "ready_for_human_review",
+                "ready_for_peer_review",
+                "ready_for_governance_review",
+                "ready_for_scientific_review",
+                "saturation_reached",
+                "converged",
+            }:
                 blockers.append(f"domain_not_ready:{name}:{key}")
                 domain_invalid = True
         authority_violations = _inspect_authority(report, name)
@@ -253,7 +280,9 @@ def qualify_complete_convergence(request: CompleteConvergenceRequest) -> Complet
         hashes[name] = digest
         if domain_invalid:
             invalid_domains.add(name)
-    if request.policy.require_unique_report_hashes and len(set(hashes.values())) != len(hashes):
+    if request.policy.require_unique_report_hashes and len(set(hashes.values())) != len(
+        hashes
+    ):
         blockers.append("duplicate_report_hashes")
         by_digest: dict[str, list[str]] = {}
         for name, digest in hashes.items():

@@ -35,9 +35,7 @@ def seal_window(window: pd.DataFrame) -> str:
     """Content seal for a holdout window (stable across runs)."""
 
     digest = hashlib.sha256()
-    digest.update(
-        pd.util.hash_pandas_object(window, index=True).to_numpy().tobytes()
-    )
+    digest.update(pd.util.hash_pandas_object(window, index=True).to_numpy().tobytes())
     for column in window.columns:
         digest.update(str(column).encode("utf-8"))
     return digest.hexdigest()

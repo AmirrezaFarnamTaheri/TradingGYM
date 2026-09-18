@@ -30,7 +30,10 @@ class DeterministicRuleBackend(IntelligenceBackend):
     ) -> None:
         if momentum_window < 1:
             raise ValueError("momentum_window must be >= 1")
-        if not 0.0 < abs(long_leverage) <= 20.0 or not 0.0 < abs(short_leverage) <= 20.0:
+        if (
+            not 0.0 < abs(long_leverage) <= 20.0
+            or not 0.0 < abs(short_leverage) <= 20.0
+        ):
             raise ValueError("leverage hints must be within (0, 20]")
         if not 0.0 < defence_drawdown < 1.0:
             raise ValueError("defence_drawdown must be within (0, 1)")
@@ -48,9 +51,7 @@ class DeterministicRuleBackend(IntelligenceBackend):
     def decide(self, context: MarketContext) -> DecisionSignal:
         window = list(context.recent_returns[: self.momentum_window])
         momentum = (
-            sum(window) / len(window)
-            if len(window) >= self.momentum_window
-            else 0.0
+            sum(window) / len(window) if len(window) >= self.momentum_window else 0.0
         )
 
         if (

@@ -16,7 +16,9 @@ def _statement() -> BuildAttestationStatement:
         subject_version="8.0.0",
         source_tree_sha256="1" * 64,
         dependency_inventory_sha256="2" * 64,
-        artifacts=[AttestedArtifact(name="release.zip", sha256="3" * 64, size_bytes=42)],
+        artifacts=[
+            AttestedArtifact(name="release.zip", sha256="3" * 64, size_bytes=42)
+        ],
         tests_passed=10,
         tests_failed=0,
         builder_id="builder:local-0001",
@@ -29,7 +31,9 @@ def test_attestation_detects_payload_signature_and_key_tampering():
     signed = sign_attestation(_statement(), key=key)
     assert verify_attestation(signed, key=key)["valid"] is True
     assert verify_attestation(signed, key="x" * 32)["valid"] is False
-    tampered = signed.model_copy(update={"statement": signed.statement.model_copy(update={"tests_passed": 11})})
+    tampered = signed.model_copy(
+        update={"statement": signed.statement.model_copy(update={"tests_passed": 11})}
+    )
     result = verify_attestation(tampered, key=key)
     assert result["valid"] is False and result["digest_valid"] is False
     assert result["promotion_authority_granted"] is False
@@ -58,7 +62,10 @@ def test_restore_drill_rejects_corrupt_snapshot(tmp_path: Path):
     (source / "state" / "record.json").write_text("ok", encoding="utf-8")
     service = SnapshotService(source_root=source, backup_root=backup)
     manifest = service.create(["state"], snapshot_id="snapshot-drill-0002")
-    (backup / manifest.snapshot_id / "data" / "state" / "record.json").write_text("bad", encoding="utf-8")
+    (backup / manifest.snapshot_id / "data" / "state" / "record.json").write_text(
+        "bad", encoding="utf-8"
+    )
     import pytest
+
     with pytest.raises(ValueError, match="verification failed"):
         service.drill_restore(manifest.snapshot_id)

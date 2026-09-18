@@ -27,6 +27,8 @@ from unittest.mock import patch, MagicMock, AsyncMock  # noqa: E402
 from collections import deque  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from apps.api import main as main_module  # noqa: E402
+
 
 # We need to mock the psutil and subprocess functionality
 @pytest.fixture
@@ -183,6 +185,47 @@ training:
         response = client.get("/api/v1/config/env", headers=auth_headers)
         assert response.status_code in [200, 404, 500]
 
+    def test_update_config_persists_to_disk(
+        self, client, auth_headers, tmp_path, monkeypatch
+    ):
+        """POST /api/v1/config must actually write the merged config.
+
+        Regression guard: an earlier refactor registered a dead
+        ``@app.post("/api/v1/config")`` shell before the real handler, and
+        Starlette matches the first route — so the endpoint returned 200 with
+        a null body and never touched the file. No test exercised the write.
+        """
+        import shutil
+
+        # Seed from the repository's own canonical, schema-valid config so the
+        # test is not coupled to the full set of required sub-models.
+        config_file = tmp_path / "app.yaml"
+        shutil.copy(main_module.PROJECT_ROOT / "config" / "app.yaml", config_file)
+        monkeypatch.setattr(main_module, "CONFIG_PATH", config_file)
+
+        before = client.get("/api/v1/config", headers=auth_headers)
+        assert before.status_code == 200
+        original_symbol = before.json()["env"]["symbol"]
+
+        # A symbol that appears nowhere else in the seed config.
+        probe_symbol = "PROBEUSDT"
+        response = client.post(
+            "/api/v1/config",
+            headers=auth_headers,
+            json={"env": {"symbol": probe_symbol}},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "saved"
+
+        # The persisted bytes must carry the merge, not just the response.
+        assert probe_symbol in config_file.read_text(encoding="utf-8")
+
+        # And a subsequent read must observe it.
+        readback = client.get("/api/v1/config", headers=auth_headers)
+        assert readback.status_code == 200
+        assert readback.json()["env"]["symbol"] == probe_symbol
+        assert probe_symbol != original_symbol
+
 
 class TestTrainingEndpoints:
     """Tests for training control."""
@@ -301,7 +344,9 @@ class TestEmergencyEndpoints:
         )
         assert response.status_code == 422
 
-    def test_emergency_kill_with_confirmation(self, client, auth_headers, tmp_path, monkeypatch):
+    def test_emergency_kill_with_confirmation(
+        self, client, auth_headers, tmp_path, monkeypatch
+    ):
         """Should succeed with correct confirmation."""
         from apps.api import main as api_main
 
@@ -428,6 +473,7 @@ class TestAPIIntegration:
         response = client.post("/api/v1/trading/stop", headers=auth_headers)
         assert response.status_code == 404
 
+
 def test_start_training(client, auth_headers):
     # Mock the bounded process supervisor rather than inventing an invalid PID.
     with patch(
@@ -438,11 +484,12 @@ def test_start_training(client, auth_headers):
         response = client.post(
             "/api/v1/train/start",
             headers=auth_headers,
-            json={"config_name": "app.yaml", "model_version": "candidate-v1"}
+            json={"config_name": "app.yaml", "model_version": "candidate-v1"},
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "started"
+
 
 def test_start_trading(client, auth_headers, tmp_path, monkeypatch):
     # Unregistered checkpoints must not acquire paper/live authority.
@@ -455,10 +502,11 @@ def test_start_trading(client, auth_headers, tmp_path, monkeypatch):
         response = client.post(
             "/api/v1/trading/start",
             headers=auth_headers,
-            json={"mode": "paper", "model_version": "v1"}
+            json={"mode": "paper", "model_version": "v1"},
         )
         assert response.status_code == 409
         assert "registered" in response.json()["detail"].lower()
+
 
 def test_stream_subprocess_logs_mock(client, auth_headers):
     # The API delegates log/process lifecycle to the bounded supervisor.
@@ -470,7 +518,7 @@ def test_stream_subprocess_logs_mock(client, auth_headers):
         response = client.post(
             "/api/v1/train/start",
             headers=auth_headers,
-            json={"config_name": "app.yaml", "model_version": "candidate-v1"}
+            json={"config_name": "app.yaml", "model_version": "candidate-v1"},
         )
         assert response.status_code == 200
         mock_start.assert_awaited_once()

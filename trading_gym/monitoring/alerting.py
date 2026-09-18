@@ -39,7 +39,11 @@ from urllib.parse import urlencode
 
 import httpx
 
-from trading_gym.common.security import bounded_json_dumps, redact_secrets, validate_base_url
+from trading_gym.common.security import (
+    bounded_json_dumps,
+    redact_secrets,
+    validate_base_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -151,14 +155,20 @@ class Alert:
         self.message = str(self.message)
         self.source = str(self.source).strip()
         if not self.title or len(self.title) > MAX_ALERT_TITLE_CHARS:
-            raise ValueError(f"Alert title must be 1-{MAX_ALERT_TITLE_CHARS} characters")
+            raise ValueError(
+                f"Alert title must be 1-{MAX_ALERT_TITLE_CHARS} characters"
+            )
         if len(self.message) > MAX_ALERT_MESSAGE_CHARS:
-            raise ValueError(f"Alert message exceeds {MAX_ALERT_MESSAGE_CHARS} characters")
+            raise ValueError(
+                f"Alert message exceeds {MAX_ALERT_MESSAGE_CHARS} characters"
+            )
         if not self.source or len(self.source) > 120:
             raise ValueError("Alert source must be 1-120 characters")
         self.event_id = str(self.event_id).strip().lower()
         if not re.fullmatch(r"[a-f0-9]{32}", self.event_id):
-            raise ValueError("Alert event_id must be 32 lowercase hexadecimal characters")
+            raise ValueError(
+                "Alert event_id must be 32 lowercase hexadecimal characters"
+            )
         # Validate serialisability and bound metadata before it reaches any channel.
         bounded_json_dumps(self.metadata, max_bytes=MAX_ALERT_PAYLOAD_BYTES)
 
@@ -270,6 +280,20 @@ class RateLimiter:
             return count
 
 
+class SendOutcome(str, Enum):
+    """Tri-state result of one delivery attempt.
+
+    A ``SKIPPED`` alert was deliberately not sent -- the channel is disabled,
+    the alert is below the channel's minimum level, or it was suppressed by the
+    rate limiter.  That is an intentional suppression, not a delivery failure,
+    and reporting it as one would drown genuine errors in noise.
+    """
+
+    DELIVERED = "delivered"
+    SKIPPED = "skipped"
+    FAILED = "failed"
+
+
 class AlertChannel:
     """Base class for alert channels."""
 
@@ -295,15 +319,16 @@ class AlertChannel:
 
         return self.rate_limiter.should_allow()
 
-    def send(self, alert: Alert) -> bool:
+    def send_with_outcome(self, alert: Alert) -> SendOutcome:
         """
-        Send alert through this channel.
+        Send alert through this channel, reporting a tri-state outcome.
 
         Returns:
-            True if successful, False otherwise.
+            DELIVERED on success, SKIPPED when deliberately not sent (disabled,
+            below the minimum level, or rate-limited), FAILED on error.
         """
         if not self.should_send(alert):
-            return False
+            return SendOutcome.SKIPPED
 
         try:
             self._send_impl(alert)
@@ -315,7 +340,7 @@ class AlertChannel:
                 alert.source,
                 alert.event_id,
             )
-            return True
+            return SendOutcome.DELIVERED
         except Exception as exc:
             self.error_count += 1
             self.last_error_time = time.time()
@@ -325,7 +350,16 @@ class AlertChannel:
                 self.error_count,
                 type(exc).__name__,
             )
-            return False
+            return SendOutcome.FAILED
+
+    def send(self, alert: Alert) -> bool:
+        """
+        Send alert through this channel.
+
+        Returns:
+            True if delivered, False if skipped or failed.
+        """
+        return self.send_with_outcome(alert) is SendOutcome.DELIVERED
 
     def _send_impl(self, alert: Alert) -> None:
         """Implement in subclass."""
@@ -410,7 +444,9 @@ class TelegramChannel(AlertChannel):
                 timeout=10,
             )
             if response.status_code != 200:
-                raise RuntimeError(f"Telegram API returned status {response.status_code}")
+                raise RuntimeError(
+                    f"Telegram API returned status {response.status_code}"
+                )
         except Exception as e:
             # The Telegram token is embedded in the URL, so never log exception text.
             logger.error("Failed to send Telegram alert: %s", type(e).__name__)
@@ -480,7 +516,11 @@ class WebhookChannel(AlertChannel):
                     time.sleep(backoff_time)
 
         # Surface the last exception after exhausting retries
-        logger.error("Webhook failed after %d attempts (%s)", attempts, type(last_exc).__name__ if last_exc else "unknown")
+        logger.error(
+            "Webhook failed after %d attempts (%s)",
+            attempts,
+            type(last_exc).__name__ if last_exc else "unknown",
+        )
         raise last_exc if last_exc else RuntimeError("Webhook send failed")
 
 
@@ -553,9 +593,10 @@ class DesktopChannel(AlertChannel):
         safe_message = escape_applescript(alert.message[:256])
 
         script = f'display notification "{safe_message}" with title "{safe_title}"'
+        # check=True: a failing notifier must surface as FAILED, not DELIVERED.
         subprocess.run(
             ["osascript", "-e", script],
-            check=False,
+            check=True,
             timeout=5,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -580,10 +621,12 @@ class DesktopChannel(AlertChannel):
         safe_title = sanitize_notify_arg(title)
         safe_message = sanitize_notify_arg(alert.message)
 
-        # Use -- separator for defense-in-depth against option injection
+        # Use -- separator for defense-in-depth against option injection.
+        # check=True so a failing notifier surfaces as FAILED to the caller:
+        # check=False silently counted an undelivered CRITICAL as DELIVERED.
         subprocess.run(
             ["notify-send", "--", safe_title, safe_message],
-            check=False,
+            check=True,
             timeout=5,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -718,14 +761,29 @@ class AlertManager:
         }[level]
         log_func(alert.format_short())
 
-        # Send through channels
+        # Send through channels.  A skipped channel (disabled, below the minimum
+        # level, or rate-limited) is deliberately not a failure: reporting it as
+        # one would hide real delivery errors behind intentional suppressions.
         success_count = 0
         for channel in self.channels:
-            if channel.send(alert):
+            name = channel.__class__.__name__
+            outcome = channel.send_with_outcome(alert)
+            if outcome is SendOutcome.DELIVERED:
                 success_count += 1
-                self.stats[f"{channel.__class__.__name__}_success"] += 1
+                self.stats[f"{name}_success"] += 1
+            elif outcome is SendOutcome.SKIPPED:
+                self.stats[f"{name}_skipped"] += 1
+                # A suppressed CRITICAL is operationally invisible otherwise:
+                # the alert is neither delivered nor failed, so nothing emits
+                # and the only trace is a counter nobody watches.  Log it.
+                if level is AlertLevel.CRITICAL:
+                    logger.warning(
+                        "Critical alert suppressed by channel %s: %s",
+                        name,
+                        alert.format_short(),
+                    )
             else:
-                self.stats[f"{channel.__class__.__name__}_failed"] += 1
+                self.stats[f"{name}_failed"] += 1
 
         return success_count
 

@@ -121,7 +121,11 @@ class FusionBackend(IntelligenceBackend):
             )
 
         # Size-scale: governor leverage relative to cap scales RL magnitude.
-        scale = min(1.0, abs(gov.target_leverage) / self.leverage_cap) if gov.target_leverage else 1.0
+        scale = (
+            min(1.0, abs(gov.target_leverage) / self.leverage_cap)
+            if gov.target_leverage
+            else 1.0
+        )
         scaled = rl_signal.target_leverage * scale
         agree_bonus = 0.05 if gov.action_kind == rl_signal.action_kind else 0.0
         return DecisionSignal(

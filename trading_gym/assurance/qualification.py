@@ -53,8 +53,12 @@ class QualificationRequest(BaseModel):
     candidate_id: Annotated[str, Field(min_length=1, max_length=200)]
     manifest: RunManifest
     drift: list[DriftEvaluation] = Field(default_factory=list, max_length=10_000)
-    execution_scenarios: list[ScenarioResult] = Field(default_factory=list, max_length=10_000)
-    reconciliations: list[ReconciliationReport] = Field(default_factory=list, max_length=10_000)
+    execution_scenarios: list[ScenarioResult] = Field(
+        default_factory=list, max_length=10_000
+    )
+    reconciliations: list[ReconciliationReport] = Field(
+        default_factory=list, max_length=10_000
+    )
     slos: list[SLOEvaluation] = Field(default_factory=list, max_length=10_000)
     audit: AuditEvidence
     policy: QualificationPolicy = Field(default_factory=QualificationPolicy)
@@ -74,7 +78,9 @@ class QualificationReport(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
 
 
 def qualify_candidate(request: QualificationRequest) -> QualificationReport:
@@ -94,8 +100,14 @@ def qualify_candidate(request: QualificationRequest) -> QualificationReport:
 
     required_counts = {
         "drift": (len(request.drift), policy.minimum_drift_reports),
-        "execution_scenarios": (len(request.execution_scenarios), policy.minimum_execution_scenarios),
-        "reconciliations": (len(request.reconciliations), policy.minimum_reconciliations),
+        "execution_scenarios": (
+            len(request.execution_scenarios),
+            policy.minimum_execution_scenarios,
+        ),
+        "reconciliations": (
+            len(request.reconciliations),
+            policy.minimum_reconciliations,
+        ),
         "slos": (len(request.slos), policy.minimum_slo_evaluations),
     }
     for name, (observed, minimum) in required_counts.items():

@@ -55,6 +55,20 @@ class BreakerRule:
     priority: int = 0  # Higher priority trips first
 
 
+# Context keys each default rule consumes.  A rule listed here can be enabled
+# and still never fire if the execution layer supplies none of its keys; see
+# ``CircuitBreaker.get_status()["unwired_rules"]``.  Rules absent from this map
+# read only state the breaker itself accumulates (nav history, margin ratios)
+# and are always wired once any check has run.
+_RULE_CONTEXT_KEYS: Dict[str, tuple[str, ...]] = {
+    "single_trade_loss": ("trade_loss_pct",),
+    "slippage_breach": ("slippage_breach",),
+    "api_error_burst": ("api_error",),
+    "rejection_rate": ("order_attempt", "order_rejected"),
+    "stall": ("fill",),
+}
+
+
 @dataclass
 class BreakerMetrics:
     """Metrics tracked by circuit breakers."""
@@ -136,7 +150,9 @@ class CircuitBreaker:
         if not description or len(description) > 500:
             raise ValueError("rule description must be 1-500 characters")
         if not isinstance(priority, int) or not -10_000 <= priority <= 10_000:
-            raise ValueError("rule priority must be an integer between -10000 and 10000")
+            raise ValueError(
+                "rule priority must be an integer between -10000 and 10000"
+            )
         rule = BreakerRule(
             name=name,
             check_func=check_func,
@@ -165,7 +181,11 @@ class CircuitBreaker:
             raise TypeError("circuit-breaker context must be a dictionary")
         now = float(current_time if current_time is not None else time.time())
         if not math.isfinite(now):
-            self._trip("invalid_context", "Current time is not finite", current_time=time.time())
+            self._trip(
+                "invalid_context",
+                "Current time is not finite",
+                current_time=time.time(),
+            )
             return True
 
         if self.state == BreakerState.DISABLED:
@@ -272,7 +292,16 @@ class CircuitBreaker:
         return self.state == BreakerState.TRIPPED
 
     def get_status(self) -> Dict[str, Any]:
-        """Get current breaker status."""
+        """Get current breaker status.
+
+        ``enabled_rules`` names rules that are switched on.  A rule can be
+        enabled yet never fire because the execution layer supplies none of
+        the context keys it reads — the protection surface is then narrower
+        than the config and this status imply.  Those rules are reported
+        separately as ``unwired_rules`` so an operator reading this status
+        cannot mistake a configured knob (notably ``max_no_fill_minutes``)
+        for a protection that is actually in force.
+        """
         return {
             "state": self.state.value,
             "trip_time": self.trip_time,
@@ -280,8 +309,33 @@ class CircuitBreaker:
             "persistence_degraded": self.persistence_degraded,
             "alert_delivery_degraded": self.alert_delivery_degraded,
             "enabled_rules": [r.name for r in self.rules if r.enabled],
+            "unwired_rules": self._unwired_rule_names(),
             "metrics": self._get_metrics_summary(),
         }
+
+    def _unwired_rule_names(self) -> List[str]:
+        """Enabled rules whose context keys have never been supplied.
+
+        A rule counts as wired once its key has been observed at least once,
+        so a live deployment that does feed these keys reports them as wired
+        and only a genuinely non-producing path is flagged.
+        """
+        observed = {
+            "trade_loss_pct": bool(self.metrics.trade_losses),
+            "slippage_breach": bool(self.metrics.slippage_breaches),
+            "api_error": bool(self.metrics.api_errors),
+            "order_attempt": bool(self.metrics.order_attempts),
+            "order_rejected": bool(self.metrics.order_rejections),
+            "fill": self.metrics.last_fill_time is not None,
+        }
+        unwired = []
+        for rule in self.rules:
+            if not rule.enabled:
+                continue
+            keys = _RULE_CONTEXT_KEYS.get(rule.name)
+            if keys and not all(observed.get(key) for key in keys):
+                unwired.append(rule.name)
+        return unwired
 
     # ------------------------------------------------------------------ #
     # Internal methods
@@ -523,7 +577,18 @@ class CircuitBreaker:
         self.handle_trip()
 
     def _reset(self, current_time: Optional[float] = None) -> None:
-        """Reset circuit breaker to normal state."""
+        """Reset circuit breaker to normal state.
+
+        The rolling evidence that tripped a rule is cleared as well.  Without
+        that the cooldown is pointless: ``check`` falls straight through to the
+        rules again and the stale burst still sitting in the window re-trips on
+        the very next sample, so a breaker with ``auto_reset`` configured can
+        never actually recover.  Every window is repopulated from the live
+        context on the next check, so clearing costs one sample of history
+        rather than any protection.  ``initial_nav`` and ``last_fill_time`` are
+        deliberately kept: an absolute drawdown and a liveness stall are states
+        rather than bursts, and a cooldown must not forgive them.
+        """
         logger.info("Resetting circuit breaker from %s", self.state)
         previous = (self.state, self.trip_time, self.trip_reason)
         self.state = BreakerState.CLOSED
@@ -533,6 +598,20 @@ class CircuitBreaker:
         if self.config.state_file and not self._save_state():
             self.state, self.trip_time, self.trip_reason = previous
             raise RuntimeError("Circuit breaker reset was not durably persisted")
+
+        # Only clear once the reset is durable, so a failed save leaves the
+        # tripped breaker with its evidence intact.
+        for window in (
+            self.metrics.nav_history,
+            self.metrics.loss_events,
+            self.metrics.trade_losses,
+            self.metrics.slippage_breaches,
+            self.metrics.api_errors,
+            self.metrics.order_rejections,
+            self.metrics.order_attempts,
+            self.metrics.margin_ratios,
+        ):
+            window.clear()
 
     def _send_alert(self) -> None:
         """Send alert notification via configured alert channels."""
@@ -590,7 +669,9 @@ class CircuitBreaker:
             )
         except Exception as exc:
             self.alert_delivery_degraded = True
-            logger.error("Circuit breaker alert failed error_type=%s", type(exc).__name__)
+            logger.error(
+                "Circuit breaker alert failed error_type=%s", type(exc).__name__
+            )
 
     def _save_state(self) -> bool:
         """Persist breaker state to disk atomically."""
@@ -614,7 +695,9 @@ class CircuitBreaker:
             return True
         except Exception as exc:
             self.persistence_degraded = True
-            logger.critical("Failed to save breaker state error_type=%s", type(exc).__name__)
+            logger.critical(
+                "Failed to save breaker state error_type=%s", type(exc).__name__
+            )
             return False
 
     def _load_state(self) -> None:
@@ -635,7 +718,9 @@ class CircuitBreaker:
 
             self.state = BreakerState(state.get("state", "closed"))
             self.trip_time = (
-                float(state["trip_time"]) if state.get("trip_time") is not None else None
+                float(state["trip_time"])
+                if state.get("trip_time") is not None
+                else None
             )
             self.trip_reason = (
                 str(state["trip_reason"])[:1000]
@@ -671,9 +756,46 @@ class CircuitBreaker:
                 type(exc).__name__,
             )
 
+    def _last_observed_time(self) -> float:
+        """The clock the metrics were stamped with.
+
+        Falls back to wall clock when no context has been observed yet, so a
+        breaker that never saw a ``check()`` still reports a sane summary.
+        """
+        candidates = [
+            self.metrics.last_fill_time,
+            self.metrics.api_errors[-1] if self.metrics.api_errors else None,
+            (
+                self.metrics.slippage_breaches[-1]
+                if self.metrics.slippage_breaches
+                else None
+            ),
+            self.metrics.order_attempts[-1] if self.metrics.order_attempts else None,
+            (
+                self.metrics.order_rejections[-1]
+                if self.metrics.order_rejections
+                else None
+            ),
+            self.metrics.trade_losses[-1][0] if self.metrics.trade_losses else None,
+            self.metrics.nav_history[-1][0] if self.metrics.nav_history else None,
+        ]
+        observed = [c for c in candidates if c is not None]
+        if observed:
+            return float(max(observed))
+        # No event has ever been recorded; the summary windows are empty
+        # regardless of the clock, so wall clock is a harmless default.
+        return time.time()
+
     def _get_metrics_summary(self) -> Dict[str, Any]:
-        """Get summary of current metrics."""
-        now = time.time()
+        """Get summary of current metrics.
+
+        Rolling windows are filtered against the same clock that stamped the
+        events: ``_update_metrics`` records with the caller's ``current_time``
+        (a replay/backtest passes simulation time), so filtering with
+        ``time.time()`` reports zero recent events and a 29-million-minute
+        stall right after two fills.
+        """
+        now = self._last_observed_time()
 
         return {
             "nav_samples": len(self.metrics.nav_history),

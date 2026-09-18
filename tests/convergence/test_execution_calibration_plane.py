@@ -29,10 +29,30 @@ def test_passive_queue_model_tracks_ahead_cancels_and_partial_fills():
         order_quantity=5,
         initial_quantity_ahead=10,
         events=[
-            QueueEvent(event_id="queue:event-0001", event_type=QueueEventType.CANCEL_AHEAD, quantity=4, occurred_at=now),
-            QueueEvent(event_id="queue:event-0002", event_type=QueueEventType.TRADE_THROUGH, quantity=8, occurred_at=now + timedelta(seconds=1)),
-            QueueEvent(event_id="queue:event-0003", event_type=QueueEventType.NEW_AHEAD, quantity=3, occurred_at=now + timedelta(seconds=2)),
-            QueueEvent(event_id="queue:event-0004", event_type=QueueEventType.TRADE_THROUGH, quantity=4, occurred_at=now + timedelta(seconds=3)),
+            QueueEvent(
+                event_id="queue:event-0001",
+                event_type=QueueEventType.CANCEL_AHEAD,
+                quantity=4,
+                occurred_at=now,
+            ),
+            QueueEvent(
+                event_id="queue:event-0002",
+                event_type=QueueEventType.TRADE_THROUGH,
+                quantity=8,
+                occurred_at=now + timedelta(seconds=1),
+            ),
+            QueueEvent(
+                event_id="queue:event-0003",
+                event_type=QueueEventType.NEW_AHEAD,
+                quantity=3,
+                occurred_at=now + timedelta(seconds=2),
+            ),
+            QueueEvent(
+                event_id="queue:event-0004",
+                event_type=QueueEventType.TRADE_THROUGH,
+                quantity=4,
+                occurred_at=now + timedelta(seconds=3),
+            ),
         ],
     )
     result = simulate_queue(request)
@@ -68,8 +88,15 @@ def test_queue_model_rejects_duplicates_and_non_chronological_events():
             order_quantity=1,
             initial_quantity_ahead=0,
             events=[
-                duplicate.model_copy(update={"event_id": "queue:event-late1", "occurred_at": now + timedelta(seconds=1)}),
-                duplicate.model_copy(update={"event_id": "queue:event-early", "occurred_at": now}),
+                duplicate.model_copy(
+                    update={
+                        "event_id": "queue:event-late1",
+                        "occurred_at": now + timedelta(seconds=1),
+                    }
+                ),
+                duplicate.model_copy(
+                    update={"event_id": "queue:event-early", "occurred_at": now}
+                ),
             ],
         )
 
@@ -148,9 +175,15 @@ def test_calibration_fails_review_on_insufficient_or_bad_evidence():
                 observed_at=now,
             )
         ],
-        thresholds=CalibrationThresholds(minimum_samples=5, max_fill_fraction_mae=0.05, max_latency_bias_ms=100),
+        thresholds=CalibrationThresholds(
+            minimum_samples=5, max_fill_fraction_mae=0.05, max_latency_bias_ms=100
+        ),
     )
-    assert set(report.violations) >= {"insufficient_samples", "fill_fraction_error", "latency_bias"}
+    assert set(report.violations) >= {
+        "insufficient_samples",
+        "fill_fraction_error",
+        "latency_bias",
+    }
     assert report.ready_for_human_review is False
 
 

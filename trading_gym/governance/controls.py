@@ -1,4 +1,5 @@
 """Evidence-only governance control design and operating-effectiveness review."""
+
 from __future__ import annotations
 
 import hashlib
@@ -8,7 +9,9 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-ControlFrequency = Literal["continuous", "daily", "weekly", "monthly", "quarterly", "annual", "event"]
+ControlFrequency = Literal[
+    "continuous", "daily", "weekly", "monthly", "quarterly", "annual", "event"
+]
 ControlResult = Literal["pass", "fail", "not_tested"]
 
 
@@ -33,7 +36,9 @@ class ControlTestEvidence(BaseModel):
     sample_size: int = Field(ge=0, le=10_000_000)
     exceptions: int = Field(ge=0, le=10_000_000)
     result: ControlResult
-    evidence_sha256: Annotated[str | None, Field(default=None, pattern=r"^[0-9a-f]{64}$")]
+    evidence_sha256: Annotated[
+        str | None, Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    ]
 
     @model_validator(mode="after")
     def coherent(self) -> "ControlTestEvidence":
@@ -86,11 +91,15 @@ class ControlEffectivenessReport(BaseModel):
     mutation_performed: bool = False
 
 
-def evaluate_control_effectiveness(request: ControlEffectivenessRequest) -> ControlEffectivenessReport:
+def evaluate_control_effectiveness(
+    request: ControlEffectivenessRequest,
+) -> ControlEffectivenessReport:
     blockers: list[str] = []
     warnings: list[str] = []
     controls = {item.control_id: item for item in request.controls}
-    grouped: dict[str, list[ControlTestEvidence]] = {control_id: [] for control_id in controls}
+    grouped: dict[str, list[ControlTestEvidence]] = {
+        control_id: [] for control_id in controls
+    }
     for test in request.tests:
         if test.control_id not in controls:
             blockers.append(f"test_unknown_control:{test.test_id}:{test.control_id}")
@@ -100,7 +109,9 @@ def evaluate_control_effectiveness(request: ControlEffectivenessRequest) -> Cont
     ineffective: list[str] = []
     untested: list[str] = []
     for control_id, control in controls.items():
-        evidence = sorted(grouped[control_id], key=lambda item: item.tested_at, reverse=True)
+        evidence = sorted(
+            grouped[control_id], key=lambda item: item.tested_at, reverse=True
+        )
         if not evidence:
             untested.append(control_id)
             blockers.append(f"control_untested:{control_id}")
@@ -111,17 +122,27 @@ def evaluate_control_effectiveness(request: ControlEffectivenessRequest) -> Cont
             blockers.append(f"control_test_in_future:{control_id}")
         if age > timedelta(seconds=request.maximum_test_age_seconds):
             blockers.append(f"control_test_stale:{control_id}")
-        if request.require_independent_tester and latest.tester_role == control.owner_role:
+        if (
+            request.require_independent_tester
+            and latest.tester_role == control.owner_role
+        ):
             blockers.append(f"control_tester_not_independent:{control_id}")
         if latest.sample_size < request.minimum_sample_size:
             blockers.append(f"control_sample_insufficient:{control_id}")
         if control.evidence_required and not latest.evidence_sha256:
             blockers.append(f"control_evidence_missing:{control_id}")
-        if latest.result == "pass" and not any(item.startswith((
-            f"control_test_in_future:{control_id}", f"control_test_stale:{control_id}",
-            f"control_tester_not_independent:{control_id}", f"control_sample_insufficient:{control_id}",
-            f"control_evidence_missing:{control_id}",
-        )) for item in blockers):
+        if latest.result == "pass" and not any(
+            item.startswith(
+                (
+                    f"control_test_in_future:{control_id}",
+                    f"control_test_stale:{control_id}",
+                    f"control_tester_not_independent:{control_id}",
+                    f"control_sample_insufficient:{control_id}",
+                    f"control_evidence_missing:{control_id}",
+                )
+            )
+            for item in blockers
+        ):
             effective.append(control_id)
         else:
             ineffective.append(control_id)
@@ -134,10 +155,18 @@ def evaluate_control_effectiveness(request: ControlEffectivenessRequest) -> Cont
     blockers.extend(f"risk_uncovered:{risk}" for risk in uncovered)
     duplicate_objectives: dict[str, int] = {}
     for control in request.controls:
-        duplicate_objectives[control.objective] = duplicate_objectives.get(control.objective, 0) + 1
-    warnings.extend(f"duplicate_control_objective:{objective}" for objective, count in duplicate_objectives.items() if count > 1)
+        duplicate_objectives[control.objective] = (
+            duplicate_objectives.get(control.objective, 0) + 1
+        )
+    warnings.extend(
+        f"duplicate_control_objective:{objective}"
+        for objective, count in duplicate_objectives.items()
+        if count > 1
+    )
     payload = request.model_dump(mode="json")
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return ControlEffectivenessReport(
         control_count=len(request.controls),
         tested_controls=len(request.controls) - len(untested),

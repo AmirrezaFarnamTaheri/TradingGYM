@@ -26,7 +26,9 @@ def _hash_file(path: Path) -> str:
         raise ValueError(f"Lake artifact must be a regular file: {path.name}")
     size = path.stat().st_size
     if size > MAX_PARQUET_BYTES:
-        raise ValueError(f"Lake artifact exceeds {MAX_PARQUET_BYTES} bytes: {path.name}")
+        raise ValueError(
+            f"Lake artifact exceeds {MAX_PARQUET_BYTES} bytes: {path.name}"
+        )
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -48,7 +50,10 @@ def _validate_partition_name(value: str) -> str:
         not raw
         or path.is_absolute()
         or len(path.parts) > 8
-        or any(part in {"", ".", ".."} or not _PARTITION_SEGMENT.fullmatch(part) for part in path.parts)
+        or any(
+            part in {"", ".", ".."} or not _PARTITION_SEGMENT.fullmatch(part)
+            for part in path.parts
+        )
     ):
         raise ValueError("Partition name is unsafe")
     return path.as_posix()
@@ -106,17 +111,23 @@ def _merkle_tree(hashes: list[str]) -> str:
         for index in range(0, len(level), 2):
             left = level[index]
             right = level[index + 1] if index + 1 < len(level) else left
-            next_level.append(hashlib.sha256(bytes.fromhex(left) + bytes.fromhex(right)).hexdigest())
+            next_level.append(
+                hashlib.sha256(bytes.fromhex(left) + bytes.fromhex(right)).hexdigest()
+            )
         level = next_level
     return level[0]
 
 
-def _manifest_paths(manifests_dir: Path, merkle_root_path: Path | None = None) -> list[Path]:
+def _manifest_paths(
+    manifests_dir: Path, merkle_root_path: Path | None = None
+) -> list[Path]:
     if manifests_dir.is_symlink() or not manifests_dir.is_dir():
         raise ValueError("Manifest directory must be a regular directory")
     paths = []
     for path in sorted(manifests_dir.glob("*.manifest.json")):
-        if merkle_root_path is not None and path.resolve(strict=False) == merkle_root_path.resolve(strict=False):
+        if merkle_root_path is not None and path.resolve(
+            strict=False
+        ) == merkle_root_path.resolve(strict=False):
             continue
         if path.is_symlink() or not path.is_file():
             raise ValueError("Manifest paths must be regular files")
@@ -130,7 +141,9 @@ def _load_manifests(paths: Iterable[Path]) -> list[dict[str, Any]]:
     manifests: list[dict[str, Any]] = []
     seen: set[str] = set()
     for path in paths:
-        manifest = _normalise_manifest(read_json(path, {}, max_bytes=MAX_MANIFEST_BYTES))
+        manifest = _normalise_manifest(
+            read_json(path, {}, max_bytes=MAX_MANIFEST_BYTES)
+        )
         partition = manifest["partition"]
         if partition in seen:
             raise ValueError(f"Duplicate partition manifest: {partition}")
@@ -229,7 +242,9 @@ def verify_lake(lake_dir: Path, manifests_dir: Path, merkle_root_path: Path) -> 
         root = read_json(merkle_root_path, {}, max_bytes=64 * 1024)
         if not isinstance(root, dict) or root.get("schema_version") != SCHEMA_VERSION:
             return False
-        if root.get("manifest_count") != len(manifests) or root.get("file_count") != len(leaves):
+        if root.get("manifest_count") != len(manifests) or root.get(
+            "file_count"
+        ) != len(leaves):
             return False
         actual_root = root.get("merkle_root")
         return isinstance(actual_root, str) and actual_root == _merkle_tree(leaves)

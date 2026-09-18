@@ -10,8 +10,17 @@ from trading_gym.execution.simulation import (
     simulate_scenarios,
 )
 from trading_gym.experiments import RunManifestCreate, SeedBundle, build_manifest
-from trading_gym.monitoring.drift import DriftBaselineCreate, DriftEvaluationRequest, build_baseline, evaluate_drift
-from trading_gym.operations import SLOObservationWindow, ServiceLevelObjective, evaluate_slo
+from trading_gym.monitoring.drift import (
+    DriftBaselineCreate,
+    DriftEvaluationRequest,
+    build_baseline,
+    evaluate_drift,
+)
+from trading_gym.operations import (
+    SLOObservationWindow,
+    ServiceLevelObjective,
+    evaluate_slo,
+)
 
 
 def manifest():
@@ -28,10 +37,14 @@ def manifest():
 
 def healthy_request() -> QualificationRequest:
     baseline = build_baseline(
-        DriftBaselineCreate(feature_name="returns", values=[float(i) for i in range(100)]),
+        DriftBaselineCreate(
+            feature_name="returns", values=[float(i) for i in range(100)]
+        ),
         now=datetime(2026, 7, 27, tzinfo=timezone.utc),
     )
-    drift = evaluate_drift(baseline, DriftEvaluationRequest(values=[float(i) for i in range(100)]))
+    drift = evaluate_drift(
+        baseline, DriftEvaluationRequest(values=[float(i) for i in range(100)])
+    )
     scenarios = simulate_scenarios(
         ExecutionSimulationRequest(
             order_id="qualification-order-001",
@@ -53,8 +66,12 @@ def healthy_request() -> QualificationRequest:
         differences=[],
     )
     slo = evaluate_slo(
-        ServiceLevelObjective(name="paper-loop", target_success_fraction=0.99, minimum_events=100),
-        SLOObservationWindow(total_events=1000, successful_events=1000, latency_ms=[10.0] * 1000),
+        ServiceLevelObjective(
+            name="paper-loop", target_success_fraction=0.99, minimum_events=100
+        ),
+        SLOObservationWindow(
+            total_events=1000, successful_events=1000, latency_ms=[10.0] * 1000
+        ),
     )
     return QualificationRequest(
         candidate_id="candidate-001",
@@ -92,7 +109,9 @@ def test_qualification_fails_closed_across_independent_planes() -> None:
             "slos": [
                 evaluate_slo(
                     ServiceLevelObjective(name="live-loop", minimum_events=100),
-                    SLOObservationWindow(total_events=5, successful_events=5, latency_ms=[1.0] * 5),
+                    SLOObservationWindow(
+                        total_events=5, successful_events=5, latency_ms=[1.0] * 5
+                    ),
                 )
             ],
         }

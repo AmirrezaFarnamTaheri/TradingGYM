@@ -1,16 +1,4 @@
-"""
-Training Visualization Tools
-=============================
-
-Comprehensive visualization tools for analyzing and presenting training results,
-including:
-- Episode reward curves
-- Performance metrics over time
-- Trading behavior analysis
-- Portfolio value evolution
-- Sharpe ratio and risk metrics
-- Loss curves for model training
-"""
+"""Matplotlib plotters for training curves, equity, and return diagnostics."""
 
 from __future__ import annotations
 
@@ -312,18 +300,7 @@ class TrainingVisualizer:
         save_path: Optional[Union[str, Path]] = None,
         show: bool = True,
     ) -> Figure:
-        """
-        Analyze and visualize Sharpe ratio and return distribution.
-
-        Args:
-            returns: Array of returns
-            periods_per_year: Number of periods per year (e.g., 252 for daily)
-            save_path: Optional path to save the figure
-            show: Whether to display the plot
-
-        Returns:
-            Matplotlib Figure object
-        """
+        """Plot cumulative returns, rolling Sharpe, drawdown, and the return histogram."""
         logger.info("Plotting Sharpe analysis for %d returns", len(returns))
 
         fig, axes = plt.subplots(2, 2, figsize=self.figsize)

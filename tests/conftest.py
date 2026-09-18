@@ -50,6 +50,7 @@ if "torch" not in sys.modules:
         cuda_module.amp = amp_module  # type: ignore
 
         torch_module.cuda = cuda_module  # type: ignore
+        torch_module.Tensor = type("Tensor", (), {})  # type: ignore
         torch_module.nn = types.SimpleNamespace(  # type: ignore
             utils=types.SimpleNamespace(clip_grad_norm_=lambda *a, **k: None)
         )

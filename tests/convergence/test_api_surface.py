@@ -32,4 +32,6 @@ def test_convergence_router_exposes_bounded_planes_without_live_trade_route() ->
         "/api/v1/convergence/governance/deployment/health",
     }
     assert required.issubset(paths)
-    assert all("trade/execute" not in path and "live-order" not in path for path in paths)
+    assert all(
+        "trade/execute" not in path and "live-order" not in path for path in paths
+    )

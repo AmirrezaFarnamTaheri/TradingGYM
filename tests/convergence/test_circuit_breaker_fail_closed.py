@@ -48,7 +48,10 @@ def test_rule_exception_trips_instead_of_failing_open() -> None:
     instance.register_rule("broken_rule", broken_rule, "must fail closed", priority=100)
     assert instance.check({"nav": 100.0}, current_time=100.0) is True
     assert instance.state is BreakerState.TRIPPED
-    assert instance.trip_reason == "rule_error.broken_rule: Rule evaluation failed (RuntimeError)"
+    assert (
+        instance.trip_reason
+        == "rule_error.broken_rule: Rule evaluation failed (RuntimeError)"
+    )
     assert "sensitive downstream body" not in instance.trip_reason
 
 

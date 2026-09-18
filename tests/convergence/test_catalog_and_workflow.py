@@ -38,7 +38,9 @@ def dataset(hash_value: str, *, supersedes: str | None = None) -> DatasetRegistr
     )
 
 
-def test_dataset_catalogue_deduplicates_supersedes_and_quarantines(tmp_path: Path) -> None:
+def test_dataset_catalogue_deduplicates_supersedes_and_quarantines(
+    tmp_path: Path,
+) -> None:
     catalog = DatasetCatalog(tmp_path / "datasets.json")
     first = catalog.register(dataset("a" * 64), expected_catalog_revision=0)
     duplicate = catalog.register(dataset("a" * 64), expected_catalog_revision=1)
@@ -64,7 +66,9 @@ def test_dataset_catalogue_deduplicates_supersedes_and_quarantines(tmp_path: Pat
         )
 
 
-def test_backtest_workflow_composes_strategy_instrument_job_and_audit(tmp_path: Path) -> None:
+def test_backtest_workflow_composes_strategy_instrument_job_and_audit(
+    tmp_path: Path,
+) -> None:
     strategies = StrategyRepository(tmp_path / "strategies.json")
     instruments = InstrumentRegistry(tmp_path / "instruments.json")
     experiments = ExperimentRepository(tmp_path / "experiments.json")

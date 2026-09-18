@@ -232,3 +232,27 @@ def test_truncation_at_max_steps(
 
     assert truncated
     assert not terminated
+
+
+def test_live_mode_constructs(minimal_env_config, minimal_feature_config, mock_inputs):
+    """live_mode buffers size themselves from self.T, so the shape must be
+    resolved before they are built. Constructing with live_mode=True used to
+    raise AttributeError: 'MarginTradingEnv' object has no attribute 'T'."""
+    env = MarginTradingEnv(
+        features=mock_inputs["features"],
+        prices_mid=mock_inputs["prices_mid"],
+        prices_high=mock_inputs["prices_high"],
+        prices_low=mock_inputs["prices_low"],
+        cfg=minimal_env_config,
+        features_cfg=minimal_feature_config,
+        training_stats={"mean": 0.0, "std": 1.0},
+        live_mode=True,
+    )
+    assert env.T == len(mock_inputs["prices_mid"])
+    assert env._raw_buffer.maxlen == env.T
+
+    env.reset()
+    obs, reward, terminated, truncated, info = env.step(
+        np.array([0.0], dtype=np.float32)
+    )
+    assert isinstance(obs, np.ndarray)

@@ -20,7 +20,9 @@ from typing import Dict, FrozenSet
 # SHORTABLE ASSETS (max 5x leverage for shorts)
 # Only BTC and ETH can be short sold on Abantether
 # =============================================================================
-_ABAN_POLICY_PATH = Path(__file__).resolve().parents[1] / "adapters" / "aban_tether_policy.json"
+_ABAN_POLICY_PATH = (
+    Path(__file__).resolve().parents[1] / "adapters" / "aban_tether_policy.json"
+)
 with _ABAN_POLICY_PATH.open("r", encoding="utf-8") as _policy_file:
     _ABAN_POLICY = json.load(_policy_file)
 
@@ -247,7 +249,9 @@ def get_max_leverage(symbol: str, is_short: bool = False) -> float:
     base = symbol.replace("USDT", "").replace("-USDT", "")
 
     if is_short:
-        return _MAX_SHORT_LEVERAGE if base in SHORTABLE_ASSETS else 0.0  # Can't short non-shortable
+        return (
+            _MAX_SHORT_LEVERAGE if base in SHORTABLE_ASSETS else 0.0
+        )  # Can't short non-shortable
 
     if base in CREDIT_TRADABLE_ASSETS:
         return _MAX_CREDIT_LEVERAGE

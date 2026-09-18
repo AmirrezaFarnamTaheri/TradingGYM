@@ -25,7 +25,9 @@ def _atomic_model_save(model, destination: str | Path) -> Path:
     """Save one authoritative SB3 model through same-filesystem atomic replace."""
 
     requested = Path(destination).expanduser()
-    final_path = requested if requested.suffix == ".zip" else Path(str(requested) + ".zip")
+    final_path = (
+        requested if requested.suffix == ".zip" else Path(str(requested) + ".zip")
+    )
     final_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     if final_path.exists() and final_path.is_symlink():
         raise ValueError("model destination must not be a symbolic link")
@@ -39,30 +41,34 @@ def _atomic_model_save(model, destination: str | Path) -> Path:
             candidates = [stage_target, Path(str(stage_target) + ".zip")]
             generated = [candidate for candidate in candidates if candidate.is_file()]
             if len(generated) != 1 or generated[0].is_symlink():
-                raise RuntimeError("model save did not produce exactly one regular artifact")
+                raise RuntimeError(
+                    "model save did not produce exactly one regular artifact"
+                )
             artifact = generated[0]
             size = artifact.stat().st_size
             if size <= 0 or size > 8 * 1024 * 1024 * 1024:
                 raise RuntimeError("model artifact is empty or exceeds its size limit")
-            with artifact.open("rb") as handle:
+            with artifact.open("r+b") as handle:
                 os.fsync(handle.fileno())
             os.replace(artifact, final_path)
             try:
                 final_path.chmod(0o600)
             except OSError:
                 pass
-            flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
-            try:
-                directory = os.open(final_path.parent, flags)
-            except OSError:
-                directory = None
-            if directory is not None:
+            if os.name == "posix":
+                flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
                 try:
-                    os.fsync(directory)
+                    directory = os.open(final_path.parent, flags)
                 except OSError:
-                    pass
-                finally:
-                    os.close(directory)
+                    directory = None
+                if directory is not None:
+                    try:
+                        os.fsync(directory)
+                    except OSError:
+                        pass
+                    finally:
+                        if directory >= 0:
+                            os.close(directory)
     return final_path
 
 
@@ -214,7 +220,9 @@ def train(
         artifact = _atomic_model_save(
             model, Path(cfg.training.checkpoint_dir) / "final_model.zip"
         )
-        logger.info("Training complete; authoritative model artifact published atomically")
+        logger.info(
+            "Training complete; authoritative model artifact published atomically"
+        )
         if model_version:
             registry = ModelRegistry(registry_dir or cfg.training.checkpoint_dir)
             registry.register(

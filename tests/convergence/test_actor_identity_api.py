@@ -55,7 +55,9 @@ def _proposal(client: TestClient, *, actor_key: str | None) -> object:
     )
 
 
-def test_critical_proposal_creation_requires_verified_proposer(tmp_path: Path, monkeypatch) -> None:
+def test_critical_proposal_creation_requires_verified_proposer(
+    tmp_path: Path, monkeypatch
+) -> None:
     client = _client(tmp_path, monkeypatch)
     assert _proposal(client, actor_key=None).status_code == 403
     assert _proposal(client, actor_key="wrong" * 10).status_code == 403
@@ -69,7 +71,9 @@ def test_approval_key_cannot_impersonate_an_approver_or_bypass_four_eyes(
 ) -> None:
     client = _client(tmp_path, monkeypatch)
     created = _proposal(client, actor_key="alice-principal-secret-000000000001").json()
-    endpoint = f"/api/v1/convergence/governance/proposals/{created['proposal_id']}/decision"
+    endpoint = (
+        f"/api/v1/convergence/governance/proposals/{created['proposal_id']}/decision"
+    )
     decision = {
         "expected_revision": created["revision"],
         "actor": "bob",
@@ -132,16 +136,21 @@ def test_consumption_requires_verified_executor(tmp_path: Path, monkeypatch) -> 
             "reason": "reviewed",
         },
     ).json()
-    endpoint = f"/api/v1/convergence/governance/proposals/{created['proposal_id']}/consume"
+    endpoint = (
+        f"/api/v1/convergence/governance/proposals/{created['proposal_id']}/consume"
+    )
     body = {"expected_revision": decision["revision"], "actor": "gateway"}
-    assert client.post(
-        endpoint,
-        headers={
-            "X-Approval-Key": "shared-approval-factor",
-            "X-Actor-Key": "bob-principal-secret-0000000000002",
-        },
-        json=body,
-    ).status_code == 403
+    assert (
+        client.post(
+            endpoint,
+            headers={
+                "X-Approval-Key": "shared-approval-factor",
+                "X-Actor-Key": "bob-principal-secret-0000000000002",
+            },
+            json=body,
+        ).status_code
+        == 403
+    )
     consumed = client.post(
         endpoint,
         headers={

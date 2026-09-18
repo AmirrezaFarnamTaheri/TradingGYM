@@ -216,14 +216,20 @@ class RegimeWeightedConformalVaR:
             for key, value in regime_probabilities.items():
                 key_s = str(key)
                 if key_s not in self._counts:
-                    raise ConformalVaRError(f"unknown regime in probabilities: {key_s!r}")
+                    raise ConformalVaRError(
+                        f"unknown regime in probabilities: {key_s!r}"
+                    )
                 value_f = float(value)
                 if not np.isfinite(value_f) or value_f < 0.0:
-                    raise ConformalVaRError("regime probabilities must be finite and >= 0")
+                    raise ConformalVaRError(
+                        "regime probabilities must be finite and >= 0"
+                    )
                 weights[key_s] = value_f
             total = sum(weights.values())
             if total <= 0.0:
-                raise ConformalVaRError("regime probabilities must sum to a positive value")
+                raise ConformalVaRError(
+                    "regime probabilities must sum to a positive value"
+                )
             weights = {key: value / total for key, value in weights.items()}
         blended = 0.0
         for key, weight in weights.items():

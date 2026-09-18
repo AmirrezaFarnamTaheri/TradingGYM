@@ -5,6 +5,7 @@ lexicographically deterministic.  The report is an analytical view over a
 replay-verified account snapshot; it does not post accounting events or claim
 tax/regulatory authority.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -17,7 +18,6 @@ from typing import Annotated, Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from trading_gym.accounting.models import AccountSnapshot
-
 
 MAX_VALUE = Decimal("1e30")
 
@@ -35,7 +35,11 @@ class FXQuote(BaseModel):
     def validate_quote(self) -> "FXQuote":
         if self.base_currency == self.quote_currency:
             raise ValueError("FX quote currencies must differ")
-        if not self.quote_per_base.is_finite() or self.quote_per_base <= 0 or self.quote_per_base > MAX_VALUE:
+        if (
+            not self.quote_per_base.is_finite()
+            or self.quote_per_base <= 0
+            or self.quote_per_base > MAX_VALUE
+        ):
             raise ValueError("quote_per_base must be finite, positive, and bounded")
         if self.observed_at.tzinfo is None or self.observed_at.utcoffset() is None:
             raise ValueError("observed_at must be timezone-aware")
@@ -91,10 +95,14 @@ class AccountValuationReport(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
 
 
-def _fx_graph(quotes: list[FXQuote], *, valued_at: datetime, max_age_seconds: int) -> dict[str, list[tuple[str, Decimal, str, datetime]]]:
+def _fx_graph(
+    quotes: list[FXQuote], *, valued_at: datetime, max_age_seconds: int
+) -> dict[str, list[tuple[str, Decimal, str, datetime]]]:
     if len(quotes) > 100_000:
         raise ValueError("FX quote limit exceeded")
     latest: dict[tuple[str, str], FXQuote] = {}
@@ -107,12 +115,29 @@ def _fx_graph(quotes: list[FXQuote], *, valued_at: datetime, max_age_seconds: in
         existing = latest.get(key)
         if existing is None or quote.observed_at > existing.observed_at:
             latest[key] = quote
-        elif quote.observed_at == existing.observed_at and quote.quote_per_base != existing.quote_per_base:
+        elif (
+            quote.observed_at == existing.observed_at
+            and quote.quote_per_base != existing.quote_per_base
+        ):
             raise ValueError("conflicting FX quotes share the same pair and timestamp")
     graph: dict[str, list[tuple[str, Decimal, str, datetime]]] = {}
     for quote in latest.values():
-        graph.setdefault(quote.base_currency, []).append((quote.quote_currency, quote.quote_per_base, quote.source, quote.observed_at))
-        graph.setdefault(quote.quote_currency, []).append((quote.base_currency, Decimal("1") / quote.quote_per_base, quote.source, quote.observed_at))
+        graph.setdefault(quote.base_currency, []).append(
+            (
+                quote.quote_currency,
+                quote.quote_per_base,
+                quote.source,
+                quote.observed_at,
+            )
+        )
+        graph.setdefault(quote.quote_currency, []).append(
+            (
+                quote.base_currency,
+                Decimal("1") / quote.quote_per_base,
+                quote.source,
+                quote.observed_at,
+            )
+        )
     for edges in graph.values():
         edges.sort(key=lambda item: (item[0], item[2], item[3]))
     return graph
@@ -130,14 +155,25 @@ def resolve_fx(
     valued_at = valued_at or datetime.now(timezone.utc)
     if valued_at.tzinfo is None or valued_at.utcoffset() is None:
         raise ValueError("valued_at must be timezone-aware")
-    if max_age_seconds < 1 or max_age_seconds > 31_536_000 or max_hops < 1 or max_hops > 8:
+    if (
+        max_age_seconds < 1
+        or max_age_seconds > 31_536_000
+        or max_hops < 1
+        or max_hops > 8
+    ):
         raise ValueError("FX bounds are invalid")
     if source_currency == target_currency:
-        return FXConversion(source_currency=source_currency, target_currency=target_currency, rate=Decimal("1"), path=[source_currency], quote_sources=[])
+        return FXConversion(
+            source_currency=source_currency,
+            target_currency=target_currency,
+            rate=Decimal("1"),
+            path=[source_currency],
+            quote_sources=[],
+        )
     graph = _fx_graph(quotes, valued_at=valued_at, max_age_seconds=max_age_seconds)
-    queue: deque[
-        tuple[str, Decimal, list[str], list[str], list[datetime]]
-    ] = deque([(source_currency, Decimal("1"), [source_currency], [], [])])
+    queue: deque[tuple[str, Decimal, list[str], list[str], list[datetime]]] = deque(
+        [(source_currency, Decimal("1"), [source_currency], [], [])]
+    )
     visited_depth: dict[str, int] = {source_currency: 0}
     while queue:
         current, rate, path, sources, times = queue.popleft()
@@ -162,7 +198,15 @@ def resolve_fx(
             depth = len(candidate_path) - 1
             if depth < visited_depth.get(destination, 1_000_000):
                 visited_depth[destination] = depth
-                queue.append((destination, candidate_rate, candidate_path, candidate_sources, candidate_times))
+                queue.append(
+                    (
+                        destination,
+                        candidate_rate,
+                        candidate_path,
+                        candidate_sources,
+                        candidate_times,
+                    )
+                )
     raise KeyError(f"no fresh FX path from {source_currency} to {target_currency}")
 
 
@@ -183,7 +227,13 @@ def value_account(
         if currency in conversion_cache:
             return conversion_cache[currency]
         try:
-            result = resolve_fx(currency, base_currency, quotes, valued_at=valued_at, max_age_seconds=max_fx_age_seconds)
+            result = resolve_fx(
+                currency,
+                base_currency,
+                quotes,
+                valued_at=valued_at,
+                max_age_seconds=max_fx_age_seconds,
+            )
         except KeyError:
             blockers.append(f"missing_fx:{currency}->{base_currency}")
             return None
@@ -218,17 +268,19 @@ def value_account(
         realized_total += realized
         unrealized_total += unrealized
         funding_total += funding
-        valued_positions.append(ValuedPosition(
-            instrument_id=position.instrument_id,
-            quote_currency=position.quote_currency,
-            quantity=position.quantity,
-            mark_price=mark,
-            market_value_base=market,
-            realized_pnl_base=realized,
-            unrealized_pnl_base=unrealized,
-            funding_pnl_base=funding,
-            fx_path=fx.path,
-        ))
+        valued_positions.append(
+            ValuedPosition(
+                instrument_id=position.instrument_id,
+                quote_currency=position.quote_currency,
+                quantity=position.quantity,
+                mark_price=mark,
+                market_value_base=market,
+                realized_pnl_base=realized,
+                unrealized_pnl_base=unrealized,
+                funding_pnl_base=funding,
+                fx_path=fx.path,
+            )
+        )
     cash_total = sum(cash_values.values(), Decimal("0"))
     equity = cash_total + market_total
     payload = {
@@ -243,7 +295,9 @@ def value_account(
         "unrealized_pnl_base": str(unrealized_total),
         "funding_pnl_base": str(funding_total),
         "equity_base": str(equity),
-        "cash_by_currency_base": {key: str(value) for key, value in sorted(cash_values.items())},
+        "cash_by_currency_base": {
+            key: str(value) for key, value in sorted(cash_values.items())
+        },
         "positions": [item.model_dump(mode="json") for item in valued_positions],
         "blockers": sorted(set(blockers)),
     }

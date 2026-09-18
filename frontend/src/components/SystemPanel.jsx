@@ -11,6 +11,8 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { systemAPI, createReconnectingWebSocket } from '../api';
+import { useStaleFeed } from '../hooks/useStaleFeed';
+import StaleFeedBadge from './StaleFeedBadge';
 import { useToast } from './Toast';
 
 // Icons using emoji for simplicity (could be replaced with lucide-react)
@@ -29,6 +31,9 @@ const StatusIcon = ({ status }) => {
 export default function SystemPanel() {
   const [wsStatus, setWsStatus] = useState('disconnected');
   const [liveMetrics, setLiveMetrics] = useState(null);
+  // Resource metrics are pushed over the websocket; flag them when the feed
+  // goes quiet so a frozen frame is never mistaken for a live one.
+  const { stale: metricsStale, markFresh } = useStaleFeed();
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -61,7 +66,7 @@ export default function SystemPanel() {
     mutationFn: () => systemAPI.prune(),
     onSuccess: () => {
       toast.success('Zombie processes pruned successfully');
-      queryClient.invalidateQueries(['system-status']);
+      queryClient.invalidateQueries({ queryKey: ['system-status'] });
     },
     onError: (error) => {
       toast.error(`Failed to prune: ${error.message}`);
@@ -73,13 +78,16 @@ export default function SystemPanel() {
     const ws = createReconnectingWebSocket('metrics', {
       onConnect: () => setWsStatus('connected'),
       onDisconnect: () => setWsStatus('disconnected'),
-      onMessage: (data) => setLiveMetrics(data),
+      onMessage: (data) => {
+        markFresh();
+        setLiveMetrics(data);
+      },
     });
 
     ws.connect();
 
     return () => ws.disconnect();
-  }, []);
+  }, [markFresh]);
 
   // Compute display metrics (prefer live, fallback to HTTP)
   const metrics = liveMetrics || metricsData || {
@@ -119,7 +127,7 @@ export default function SystemPanel() {
         <div className="error" role="alert">
           Failed to load system status: {statusError.message}
           <button
-            onClick={() => queryClient.invalidateQueries(['system-status'])}
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['system-status'] })}
             className="btn btn-secondary"
             style={{ marginTop: '10px' }}
           >
@@ -168,7 +176,10 @@ export default function SystemPanel() {
 
       {/* Resource Metrics */}
       <div className="section">
-        <h3>System Resources</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3>System Resources</h3>
+          {metricsStale && <StaleFeedBadge testId="system-stale-metrics" />}
+        </div>
         <div className="metrics-display">
           <div className="metric-row">
             <span className="metric-label">🔧 CPU Usage</span>
@@ -269,9 +280,9 @@ export default function SystemPanel() {
 
           <button
             onClick={() => {
-              queryClient.invalidateQueries(['system-status']);
-              queryClient.invalidateQueries(['system-metrics']);
-              queryClient.invalidateQueries(['health']);
+              queryClient.invalidateQueries({ queryKey: ['system-status'] });
+              queryClient.invalidateQueries({ queryKey: ['system-metrics'] });
+              queryClient.invalidateQueries({ queryKey: ['health'] });
               toast.info('Refreshing all status...');
             }}
             className="btn btn-secondary"

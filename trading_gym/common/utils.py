@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Iterator, Sequence, Tuple
 
 import numpy as np
 
-from trading_gym.common.config import AppConfig, load_app_config
+from trading_gym.common.config import load_app_config
 
-
-def load_config(path: str | Path) -> AppConfig:
-    """Backward-compatible helper to load the unified AppConfig."""
-    return load_app_config(path)
+# Re-exported so callers can import the loader here; the canonical definition
+# lives in trading_gym.common.config.
+__all__ = ["TimeSeriesSplit", "load_app_config"]
 
 
 class TimeSeriesSplit:

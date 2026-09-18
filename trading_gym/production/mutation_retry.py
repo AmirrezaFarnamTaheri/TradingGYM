@@ -28,7 +28,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable
 
 from trading_gym.common.persistence import resolve_data_home
 
@@ -62,7 +62,10 @@ class MutationRetryPolicy:
     retryable_exceptions: tuple[type[BaseException], ...] = ()
 
     def __post_init__(self) -> None:
-        if isinstance(self.max_attempts, bool) or not 1 <= self.max_attempts <= MAX_ATTEMPTS:
+        if (
+            isinstance(self.max_attempts, bool)
+            or not 1 <= self.max_attempts <= MAX_ATTEMPTS
+        ):
             raise ValueError("max_attempts must be between 1 and 5")
         if not 0 < self.base_delay_s <= 60:
             raise ValueError("base_delay_s must be in (0, 60]")
@@ -75,7 +78,9 @@ class MutationRetryPolicy:
         return isinstance(exc, self.retryable_exceptions)
 
 
-def delay_for_attempt(policy: MutationRetryPolicy, attempt: int, *, rng: random.Random | None = None) -> float:
+def delay_for_attempt(
+    policy: MutationRetryPolicy, attempt: int, *, rng: random.Random | None = None
+) -> float:
     """Exponential backoff capped at ``max_delay_s`` with multiplicative jitter."""
     if attempt < 1:
         raise ValueError("attempt numbering starts at 1")
@@ -181,7 +186,9 @@ class MutationOutbox:
 def scan_outbox(outbox: MutationOutbox) -> list[dict[str, str]]:
     """Return intents whose last known state is still unresolved."""
     unresolved = []
-    for entry in sorted(outbox.latest_by_key().values(), key=lambda item: item.get("recorded_at", "")):
+    for entry in sorted(
+        outbox.latest_by_key().values(), key=lambda item: item.get("recorded_at", "")
+    ):
         if entry.get("status") in {"pending", "ambiguous"}:
             unresolved.append(entry)
     return unresolved

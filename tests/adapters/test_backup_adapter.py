@@ -7,9 +7,11 @@ from typing import List
 import pandas as pd
 import pytest
 
-pytest.importorskip("pyarrow", reason="Parquet adapter tests require the declared pyarrow dependency")
+pytest.importorskip(
+    "pyarrow", reason="Parquet adapter tests require the declared pyarrow dependency"
+)
 
-from trading_gym.adapters.backup import LocalCacheAdapter
+from trading_gym.adapters.backup import LocalCacheAdapter  # noqa: E402
 
 
 def _write_snapshot(path: Path, rows: List[dict]) -> Path:

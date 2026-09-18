@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+import math
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class PositionExposure(BaseModel):
@@ -11,6 +13,16 @@ class PositionExposure(BaseModel):
     instrument_id: str = Field(min_length=1, max_length=120)
     notional: float
     sector: str = Field(default="unknown", min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def finite(self) -> "PositionExposure":
+        # A non-finite notional poisons every downstream comparison: gross
+        # becomes NaN, and ``NaN > limit`` is False, so leverage/concentration
+        # gates silently pass while the exposure is meaningless. Reject it at
+        # the boundary instead of failing open, mirroring risk/factor.py.
+        if not math.isfinite(self.notional):
+            raise ValueError("notional must be finite")
+        return self
 
 
 class PortfolioSnapshot(BaseModel):
@@ -46,32 +58,43 @@ class PortfolioRiskDecision(BaseModel):
     sector_fractions: dict[str, float]
 
 
-def evaluate_portfolio_risk(snapshot: PortfolioSnapshot, limits: PortfolioRiskLimits) -> PortfolioRiskDecision:
+def evaluate_portfolio_risk(
+    snapshot: PortfolioSnapshot, limits: PortfolioRiskLimits
+) -> PortfolioRiskDecision:
     gross = sum(abs(item.notional) for item in snapshot.positions)
     net = sum(item.notional for item in snapshot.positions)
     gross_leverage = gross / snapshot.equity
     net_leverage = abs(net) / snapshot.equity
     drawdown = max(0.0, (snapshot.peak_equity - snapshot.equity) / snapshot.peak_equity)
-    daily_loss = max(0.0, (snapshot.day_start_equity - snapshot.equity) / snapshot.day_start_equity)
+    daily_loss = max(
+        0.0, (snapshot.day_start_equity - snapshot.equity) / snapshot.day_start_equity
+    )
 
     instrument_totals: dict[str, float] = {}
     sector_totals: dict[str, float] = {}
     for item in snapshot.positions:
-        instrument_totals[item.instrument_id] = (
-            instrument_totals.get(item.instrument_id, 0.0) + abs(item.notional)
+        instrument_totals[item.instrument_id] = instrument_totals.get(
+            item.instrument_id, 0.0
+        ) + abs(item.notional)
+        sector_totals[item.sector] = sector_totals.get(item.sector, 0.0) + abs(
+            item.notional
         )
-        sector_totals[item.sector] = sector_totals.get(item.sector, 0.0) + abs(item.notional)
     instrument_fractions = {
         key: value / snapshot.equity for key, value in instrument_totals.items()
     }
-    sector_fractions = {key: value / snapshot.equity for key, value in sector_totals.items()}
+    sector_fractions = {
+        key: value / snapshot.equity for key, value in sector_totals.items()
+    }
 
     violations: list[str] = []
     if gross_leverage > limits.max_gross_leverage:
         violations.append("gross_leverage")
     if net_leverage > limits.max_net_leverage:
         violations.append("net_leverage")
-    if any(value > limits.max_instrument_fraction for value in instrument_fractions.values()):
+    if any(
+        value > limits.max_instrument_fraction
+        for value in instrument_fractions.values()
+    ):
         violations.append("instrument_concentration")
     if any(value > limits.max_sector_fraction for value in sector_fractions.values()):
         violations.append("sector_concentration")

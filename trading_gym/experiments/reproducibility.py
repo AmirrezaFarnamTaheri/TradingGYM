@@ -15,11 +15,18 @@ from uuid import uuid4
 from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from trading_gym.common.audit_outbox import deliver_audit_events, ensure_audit_outbox, queue_audit_event
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.audit_outbox import (
+    deliver_audit_events,
+    ensure_audit_outbox,
+    queue_audit_event,
+)
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.common.security import bounded_json_dumps, redact_secrets
 from trading_gym.governance.ledger import AuditLedger
-
 
 SHA256_PATTERN = r"^[0-9a-f]{64}$"
 MAX_MANIFESTS = 100_000
@@ -28,13 +35,35 @@ MAX_DEPENDENCIES = 500
 MAX_SOURCE_FILES = 20_000
 MAX_SOURCE_BYTES = 2 * 1024**3
 SOURCE_SUFFIXES = {
-    ".py", ".pyi", ".toml", ".lock", ".json", ".yaml", ".yml",
-    ".ts", ".tsx", ".js", ".jsx", ".css", ".html", ".sql", ".sh",
+    ".py",
+    ".pyi",
+    ".toml",
+    ".lock",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".css",
+    ".html",
+    ".sql",
+    ".sh",
 }
 SOURCE_NAMES = {"Dockerfile", "Makefile"}
 SOURCE_EXCLUDED_PARTS = {
-    ".git", ".pytest_cache", ".mypy_cache", ".ruff_cache", "__pycache__",
-    "node_modules", "dist", "build", "coverage", ".venv", "venv",
+    ".git",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    ".venv",
+    "venv",
 }
 
 
@@ -138,7 +167,9 @@ class RunManifestCreate(BaseModel):
     experiment_id: Annotated[str, Field(min_length=1, max_length=120)]
     code_sha256: Annotated[str, Field(pattern=SHA256_PATTERN)]
     configuration: dict[str, Any]
-    artifacts: list[ArtifactReference] = Field(default_factory=list, max_length=MAX_ARTIFACTS)
+    artifacts: list[ArtifactReference] = Field(
+        default_factory=list, max_length=MAX_ARTIFACTS
+    )
     seeds: SeedBundle
     dependency_names: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
         default_factory=list, max_length=MAX_DEPENDENCIES
@@ -192,11 +223,15 @@ def capture_environment(dependency_names: list[str]) -> EnvironmentFingerprint:
 
 
 def _manifest_hash(payload: dict[str, Any]) -> str:
-    unsigned = {key: value for key, value in payload.items() if key != "manifest_sha256"}
+    unsigned = {
+        key: value for key, value in payload.items() if key != "manifest_sha256"
+    }
     return _hash_json(unsigned)
 
 
-def build_manifest(request: RunManifestCreate, *, now: datetime | None = None) -> RunManifest:
+def build_manifest(
+    request: RunManifestCreate, *, now: datetime | None = None
+) -> RunManifest:
     created_at = now or datetime.now(timezone.utc)
     if created_at.tzinfo is None or created_at.utcoffset() is None:
         raise ValueError("manifest time must be timezone-aware")
@@ -211,7 +246,9 @@ def build_manifest(request: RunManifestCreate, *, now: datetime | None = None) -
         "configuration": configuration,
         "artifacts": [item.model_dump(mode="json") for item in request.artifacts],
         "seeds": request.seeds.model_dump(mode="json"),
-        "environment": capture_environment(request.dependency_names).model_dump(mode="json"),
+        "environment": capture_environment(request.dependency_names).model_dump(
+            mode="json"
+        ),
         "parent_manifest_id": request.parent_manifest_id,
         "notes": request.notes,
     }
@@ -223,11 +260,13 @@ def build_manifest(request: RunManifestCreate, *, now: datetime | None = None) -
 
 def verify_manifest(manifest: RunManifest) -> dict[str, Any]:
     payload = manifest.model_dump(mode="json")
-    configuration_valid = _hash_json(payload["configuration"]) == manifest.configuration_sha256
-    manifest_valid = _manifest_hash(payload) == manifest.manifest_sha256
-    unique_artifacts = len({(item.kind, item.name) for item in manifest.artifacts}) == len(
-        manifest.artifacts
+    configuration_valid = (
+        _hash_json(payload["configuration"]) == manifest.configuration_sha256
     )
+    manifest_valid = _manifest_hash(payload) == manifest.manifest_sha256
+    unique_artifacts = len(
+        {(item.kind, item.name) for item in manifest.artifacts}
+    ) == len(manifest.artifacts)
     return {
         "valid": configuration_valid and manifest_valid and unique_artifacts,
         "manifest_id": manifest.manifest_id,
@@ -244,7 +283,9 @@ class ManifestConflict(RuntimeError):
 
 
 class RunManifestRepository:
-    def __init__(self, path: Path | None = None, ledger: AuditLedger | None = None) -> None:
+    def __init__(
+        self, path: Path | None = None, ledger: AuditLedger | None = None
+    ) -> None:
         self.path = path or resolve_data_home() / "run-manifests.json"
         self.ledger = ledger or AuditLedger()
         self.lock = FileLock(str(self.path) + ".manifests.lock")
@@ -252,7 +293,12 @@ class RunManifestRepository:
     def _load(self) -> dict[str, Any]:
         document = read_json(
             self.path,
-            {"schema_version": 1, "manifests": {}, "experiment_index": {}, "audit_outbox": {}},
+            {
+                "schema_version": 1,
+                "manifests": {},
+                "experiment_index": {},
+                "audit_outbox": {},
+            },
         )
         if document.get("schema_version") != 1:
             raise ValueError("unsupported run-manifest schema")
@@ -273,13 +319,17 @@ class RunManifestRepository:
         ensure_audit_outbox(document)
         return document
 
-    def create(self, request: RunManifestCreate, *, actor: str = "api-operator") -> RunManifest:
+    def create(
+        self, request: RunManifestCreate, *, actor: str = "api-operator"
+    ) -> RunManifest:
         manifest = build_manifest(request)
         with self.lock:
             document = self._load()
             if len(document["manifests"]) >= MAX_MANIFESTS:
                 raise ManifestConflict("run-manifest record limit reached")
-            document["manifests"][manifest.manifest_id] = manifest.model_dump(mode="json")
+            document["manifests"][manifest.manifest_id] = manifest.model_dump(
+                mode="json"
+            )
             index = document["experiment_index"].setdefault(manifest.experiment_id, [])
             if len(index) >= 1_000:
                 raise ManifestConflict("experiment manifest history limit reached")

@@ -75,7 +75,9 @@ def test_expired_lease_is_reconciled_and_reclaimed(tmp_path: Path) -> None:
 
     document = json.loads(path.read_text())
     raw = document["experiments"][created.experiment_id]
-    raw["lease_expires_at"] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    raw["lease_expires_at"] = (
+        datetime.now(timezone.utc) - timedelta(seconds=1)
+    ).isoformat()
     path.write_text(json.dumps(document))
 
     reconciled = repository.get(created.experiment_id)
@@ -105,7 +107,9 @@ def test_cancel_is_terminal_and_revision_checked(tmp_path: Path) -> None:
         )
 
 
-def test_retryable_failure_requeues_until_attempt_budget_is_exhausted(tmp_path: Path) -> None:
+def test_retryable_failure_requeues_until_attempt_budget_is_exhausted(
+    tmp_path: Path,
+) -> None:
     repository = ExperimentRepository(tmp_path / "experiments.json")
     created = repository.create(request("experiment-idempotency-004"))
     claimed = repository.claim_next(worker_id="worker-a", lease_seconds=60)
@@ -141,7 +145,9 @@ def test_higher_priority_job_is_claimed_first(tmp_path: Path) -> None:
     assert claimed.experiment_id == high_record.experiment_id
 
 
-def test_experiment_list_uses_same_high_priority_first_order_as_claiming(tmp_path: Path) -> None:
+def test_experiment_list_uses_same_high_priority_first_order_as_claiming(
+    tmp_path: Path,
+) -> None:
     repository = ExperimentRepository(tmp_path / "experiments.json")
     repository.create(
         ExperimentCreate(

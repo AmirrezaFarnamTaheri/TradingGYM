@@ -37,8 +37,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, replace
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
+from filelock import FileLock
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -47,7 +48,6 @@ from trading_gym.common.persistence import append_jsonl, atomic_write_json
 
 __all__ = [
     "AutonomyGovernor",
-    "AutonomyJournalIntegrityError",
     "AutonomyLedgerIntegrityError",
     "AutonomyLevel",
     "PromotionDenied",
@@ -66,10 +66,6 @@ MIN_FUSION_LIFT_DSR = 0.05
 
 class AutonomyLedgerIntegrityError(RuntimeError):
     """The autonomy journal is missing, edited, reordered, or truncated."""
-
-
-# Backwards-compatible alias used in early drafts of the ADR.
-AutonomyJournalIntegrityError = AutonomyLedgerIntegrityError
 
 
 class PromotionDenied(PermissionError):
@@ -154,9 +150,7 @@ def _gate_shadow_to_paper(
         raise PromotionDenied("constraint breaches in the shadow window")
     if not evidence.journal_valid:
         raise PromotionDenied("decision journal failed integrity verification")
-    window_start = (
-        _parse_iso(demoted_at) if demoted_at is not None else None
-    )
+    window_start = _parse_iso(demoted_at) if demoted_at is not None else None
     if window_start is not None:
         effective_days = (now - window_start).days
     else:
@@ -176,10 +170,11 @@ def _gate_paper_to_live(
     evidence: PromotionEvidence, demoted_at: str | None, now: datetime
 ) -> None:
     _gate_shadow_to_paper(evidence, demoted_at, now)
-    if evidence.fusion_lift_dsr is None or evidence.fusion_lift_dsr < MIN_FUSION_LIFT_DSR:
-        raise PromotionDenied(
-            "positive DSR fusion lift required for live promotion"
-        )
+    if (
+        evidence.fusion_lift_dsr is None
+        or evidence.fusion_lift_dsr < MIN_FUSION_LIFT_DSR
+    ):
+        raise PromotionDenied("positive DSR fusion lift required for live promotion")
     if not evidence.critical_proposal_id:
         raise PromotionDenied(
             "an approved critical proposal is required for live authority"
@@ -276,6 +271,11 @@ class AutonomyGovernor:
         self._level = AutonomyLevel.L0_SHADOW
         self._level_since: str | None = None
         self._demoted_at: str | None = None
+        # Chain lock held across load+verify+append, mirroring AuditLedger.
+        # Without it two handles on one journal both derive seq/prev_hash from
+        # state verified at construction, both append, and the on-disk chain
+        # forks while both callers are told they succeeded.
+        self._chain_lock = FileLock(str(self._path) + ".chain.lock")
         self._load(verify=verify)
 
     @classmethod
@@ -313,16 +313,15 @@ class AutonomyGovernor:
 
     # -- transitions ---------------------------------------------------------
 
-    def promote(self, evidence: PromotionEvidence, *, at: str | None = None) -> "AutonomyGovernor":
+    def promote(
+        self, evidence: PromotionEvidence, *, at: str | None = None
+    ) -> "AutonomyGovernor":
         now = _parse_iso(at) if at else datetime.now(timezone.utc)
         nxt = self._level.next
         if nxt is None:
             raise PromotionDenied(f"already at the top level {self._level.value}")
         gate = _GATES[(self._level, nxt)]
-        if (
-            self._level is AutonomyLevel.L0_SHADOW
-            and evidence.critical_proposal_id
-        ):
+        if self._level is AutonomyLevel.L0_SHADOW and evidence.critical_proposal_id:
             raise PromotionDenied(
                 "a critical proposal cannot exist for a shadow-level agent "
                 "(skip-level promotion attempt)"
@@ -351,7 +350,9 @@ class AutonomyGovernor:
         self._demoted_at = None
         return self
 
-    def demote(self, *, reason: str, actor: str, at: str | None = None) -> "AutonomyGovernor":
+    def demote(
+        self, *, reason: str, actor: str, at: str | None = None
+    ) -> "AutonomyGovernor":
         if not reason or not actor:
             raise ValueError("demotion requires reason and actor")
         now = _parse_iso(at) if at else datetime.now(timezone.utc)
@@ -375,20 +376,25 @@ class AutonomyGovernor:
     def _load(self, *, verify: bool) -> None:
         if not self._path.exists():
             return
-        for line in self._path.read_text(encoding="utf-8").splitlines():
+        for number, line in enumerate(
+            self._path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
             if not line.strip():
                 raise AutonomyLedgerIntegrityError("blank line in autonomy journal")
-            record = json.loads(line)
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                # A torn final write must surface as the module's integrity
+                # error so callers trigger repair, not as a bare decode error.
+                raise AutonomyLedgerIntegrityError(
+                    f"autonomy journal has invalid JSON at line {number}"
+                ) from exc
             for key in ("seq", "type", "ts", "prev_hash", "entry_hash"):
                 if key not in record:
                     raise AutonomyLedgerIntegrityError(
                         f"journal record missing {key!r}"
                     )
-            body = {
-                key: value
-                for key, value in record.items()
-                if key != "entry_hash"
-            }
+            body = {key: value for key, value in record.items() if key != "entry_hash"}
             computed = hashlib.sha256(_canonical(body)).hexdigest()
             if computed != record["entry_hash"]:
                 raise AutonomyLedgerIntegrityError(
@@ -428,12 +434,20 @@ class AutonomyGovernor:
                 )
 
     def _append(self, type: str, moment: datetime, payload: dict[str, Any]) -> None:
-        seq = (self._events[-1].seq if self._events else 0) + 1
-        prev_hash = self._events[-1].entry_hash if self._events else _GENESIS_HASH
-        event = _Event(seq, type, _format_iso(moment), prev_hash, payload)
-        append_jsonl(self._path, event.to_json())
-        self._events.append(event)
-        atomic_write_json(
-            self._anchor_path,
-            {"seq": self._events[-1].seq, "head": self._events[-1].entry_hash},
-        )
+        # Hold the chain lock across re-read + verify + append so seq/prev_hash
+        # come from the real file tail, not state verified at construction.
+        with self._chain_lock:
+            self._events = []
+            self._level = AutonomyLevel.L0_SHADOW
+            self._level_since = None
+            self._demoted_at = None
+            self._load(verify=True)
+            seq = (self._events[-1].seq if self._events else 0) + 1
+            prev_hash = self._events[-1].entry_hash if self._events else _GENESIS_HASH
+            event = _Event(seq, type, _format_iso(moment), prev_hash, payload)
+            append_jsonl(self._path, event.to_json())
+            self._events.append(event)
+            atomic_write_json(
+                self._anchor_path,
+                {"seq": self._events[-1].seq, "head": self._events[-1].entry_hash},
+            )

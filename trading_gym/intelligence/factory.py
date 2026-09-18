@@ -53,7 +53,8 @@ def build_intelligence_policy(
             raise ValueError("intelligence.llm_provider_id is required for llm/fusion")
         repository = provider_repository or ProviderRepository()
         matches = [
-            pc for pc in repository.list()
+            pc
+            for pc in repository.list()
             if pc.provider_id == config.llm_provider_id and pc.enabled
         ]
         if not matches:
@@ -105,9 +106,11 @@ def build_intelligence_policy(
         registry = BackendRegistry(entries)
         backend = registry.select(None)
 
-    fallback = rules if (
-        config.allow_fallback_to_rules and backend.name != rules.name
-    ) else None
+    fallback = (
+        rules
+        if (config.allow_fallback_to_rules and backend.name != rules.name)
+        else None
+    )
     return IntelligencePolicyAdapter(
         backend,
         action_low=action_low,

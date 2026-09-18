@@ -16,7 +16,9 @@ def client(tmp_path: Path, monkeypatch) -> TestClient:
     return TestClient(app)
 
 
-def test_accounting_api_is_explicit_and_non_mutating_on_reconciliation(tmp_path: Path, monkeypatch) -> None:
+def test_accounting_api_is_explicit_and_non_mutating_on_reconciliation(
+    tmp_path: Path, monkeypatch
+) -> None:
     api = client(tmp_path, monkeypatch)
     missing = api.get("/api/v1/convergence/accounting/accounts/missing")
     assert missing.status_code == 404
@@ -57,10 +59,17 @@ def test_accounting_api_is_explicit_and_non_mutating_on_reconciliation(tmp_path:
     assert report.status_code == 200
     assert report.json()["matched"] is False
     assert report.json()["mutation_performed"] is False
-    assert api.get("/api/v1/convergence/accounting/accounts/primary/verify").json()["valid"] is True
+    assert (
+        api.get("/api/v1/convergence/accounting/accounts/primary/verify").json()[
+            "valid"
+        ]
+        is True
+    )
 
 
-def test_execution_simulation_api_is_deterministic_and_never_authoritative(tmp_path: Path, monkeypatch) -> None:
+def test_execution_simulation_api_is_deterministic_and_never_authoritative(
+    tmp_path: Path, monkeypatch
+) -> None:
     api = client(tmp_path, monkeypatch)
     payload = {
         "request": {
@@ -84,7 +93,9 @@ def test_execution_simulation_api_is_deterministic_and_never_authoritative(tmp_p
     assert first.json()["execution_authority_granted"] is False
 
 
-def test_manifest_drift_slo_snapshot_and_supply_chain_surfaces(tmp_path: Path, monkeypatch) -> None:
+def test_manifest_drift_slo_snapshot_and_supply_chain_surfaces(
+    tmp_path: Path, monkeypatch
+) -> None:
     api = client(tmp_path, monkeypatch)
     manifest = api.post(
         "/api/v1/convergence/reproducibility/manifests",
@@ -153,10 +164,14 @@ def test_manifest_drift_slo_snapshot_and_supply_chain_surfaces(tmp_path: Path, m
     )
     assert snapshot.status_code == 200
     assert snapshot.json()["entries"][0]["path"] == "state/safe.json"
-    verified = api.get("/api/v1/convergence/operations/snapshots/api-snapshot-001/verify")
+    verified = api.get(
+        "/api/v1/convergence/operations/snapshots/api-snapshot-001/verify"
+    )
     assert verified.status_code == 200
     assert verified.json()["valid"] is True
-    restore = api.get("/api/v1/convergence/operations/snapshots/api-snapshot-001/restore-plan")
+    restore = api.get(
+        "/api/v1/convergence/operations/snapshots/api-snapshot-001/restore-plan"
+    )
     assert restore.status_code == 200
     assert restore.json()["mutation_performed"] is False
 

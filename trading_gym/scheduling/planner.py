@@ -4,6 +4,7 @@ The planner computes bounded due slots only.  It cannot launch jobs, create
 proposals, or grant execution authority.  Persisted trigger/proposal stores
 remain the authoritative automation path.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -38,7 +39,10 @@ class SchedulePlanRequest(BaseModel):
         for name, value in (("anchor_at", self.anchor_at), ("now", self.now)):
             if value.tzinfo is None or value.utcoffset() is None:
                 raise ValueError(f"{name} must be timezone-aware")
-        if self.policy is not MissedRunPolicy.BOUNDED_CATCH_UP and self.max_catch_up_runs != 1:
+        if (
+            self.policy is not MissedRunPolicy.BOUNDED_CATCH_UP
+            and self.max_catch_up_runs != 1
+        ):
             raise ValueError("max_catch_up_runs applies only to bounded_catch_up")
         return self
 
@@ -87,7 +91,9 @@ def plan_schedule(request: SchedulePlanRequest) -> SchedulePlan:
 
     elapsed = (request.now - request.anchor_at).total_seconds()
     latest_index = int(math.floor(elapsed / request.interval_seconds))
-    next_due = request.anchor_at + timedelta(seconds=(latest_index + 1) * request.interval_seconds)
+    next_due = request.anchor_at + timedelta(
+        seconds=(latest_index + 1) * request.interval_seconds
+    )
 
     # Compute only the bounded tail needed by policy plus enough context to
     # classify stale/calendar misses.  Counts are derived analytically when
@@ -98,7 +104,12 @@ def plan_schedule(request: SchedulePlanRequest) -> SchedulePlan:
         stale_cutoff = request.now - timedelta(seconds=request.stale_after_seconds)
         first_non_stale = max(
             0,
-            int(math.ceil((stale_cutoff - request.anchor_at).total_seconds() / request.interval_seconds)),
+            int(
+                math.ceil(
+                    (stale_cutoff - request.anchor_at).total_seconds()
+                    / request.interval_seconds
+                )
+            ),
         )
     else:
         first_non_stale = 0

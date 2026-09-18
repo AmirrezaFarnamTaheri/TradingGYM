@@ -12,7 +12,6 @@ import hashlib
 import json
 import logging
 import mmap
-import os
 import struct
 import time
 from pathlib import Path
@@ -44,7 +43,9 @@ def _payload_digest(payload: dict[str, Any]) -> str:
 class MetricsWriter:
     """Atomically publish one bounded, checksummed metrics snapshot."""
 
-    def __init__(self, filename: str | Path = DEFAULT_MMAP_FILE, size: int = DEFAULT_MMAP_SIZE):
+    def __init__(
+        self, filename: str | Path = DEFAULT_MMAP_FILE, size: int = DEFAULT_MMAP_SIZE
+    ):
         self.filename = Path(filename)
         self.size = max(256, int(size))
         self.filename.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -93,9 +94,17 @@ class MetricsReader:
             if self._looks_like_json():
                 return self._read_envelope()
             return self._read_legacy_mmap()
-        except (OSError, ValueError, TypeError, json.JSONDecodeError, struct.error) as exc:
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            json.JSONDecodeError,
+            struct.error,
+        ) as exc:
             self.last_error = type(exc).__name__
-            logger.warning("Ignoring invalid metrics snapshot error_type=%s", type(exc).__name__)
+            logger.warning(
+                "Ignoring invalid metrics snapshot error_type=%s", type(exc).__name__
+            )
             return {}
 
     def _looks_like_json(self) -> bool:
@@ -106,7 +115,10 @@ class MetricsReader:
         envelope = read_json(self.filename, default={})
         if not isinstance(envelope, dict):
             raise ValueError("metrics envelope must be an object")
-        if envelope.get("format") != "trading-gym-metrics" or envelope.get("version") != FORMAT_VERSION:
+        if (
+            envelope.get("format") != "trading-gym-metrics"
+            or envelope.get("version") != FORMAT_VERSION
+        ):
             raise ValueError("unsupported metrics envelope")
         payload = envelope.get("payload")
         if not isinstance(payload, dict):
@@ -116,7 +128,10 @@ class MetricsReader:
         written_at = float(envelope.get("written_at", 0.0))
         if written_at <= 0:
             raise ValueError("metrics timestamp is invalid")
-        if self.max_age_seconds is not None and time.time() - written_at > self.max_age_seconds:
+        if (
+            self.max_age_seconds is not None
+            and time.time() - written_at > self.max_age_seconds
+        ):
             self.last_error = "stale"
             return {}
         self.last_error = None
@@ -126,7 +141,10 @@ class MetricsReader:
         """Read the v1 mmap layout during rolling upgrades."""
 
         stat_result = self.filename.stat()
-        if stat_result.st_size < 4 or stat_result.st_size > max(self.size, DEFAULT_MMAP_SIZE) * 4:
+        if (
+            stat_result.st_size < 4
+            or stat_result.st_size > max(self.size, DEFAULT_MMAP_SIZE) * 4
+        ):
             raise ValueError("legacy metrics file has invalid size")
         map_size = min(stat_result.st_size, self.size)
         with self.filename.open("rb") as handle:

@@ -1,4 +1,5 @@
 """Fail if a shebang-bearing release file has lost its executable permission."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,7 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 EXCLUDED = {".git", "node_modules", "__pycache__", ".pytest_cache"}
 bad: list[str] = []
 for path in sorted(ROOT.rglob("*")):
-    if not path.is_file() or any(part in EXCLUDED for part in path.relative_to(ROOT).parts):
+    if not path.is_file() or any(
+        part in EXCLUDED for part in path.relative_to(ROOT).parts
+    ):
         continue
     try:
         shebang = path.open("rb").read(2) == b"#!"

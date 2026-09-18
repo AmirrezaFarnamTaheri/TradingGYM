@@ -192,7 +192,9 @@ class MasterConfig(BaseSettings):
             raise ValueError("snapshot directory is not a directory")
 
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-        snapshot_path = snapshot_dir / f"config_snapshot_{timestamp}_{time.time_ns()}.json"
+        snapshot_path = (
+            snapshot_dir / f"config_snapshot_{timestamp}_{time.time_ns()}.json"
+        )
 
         snapshot = {
             "schema_version": 1,

@@ -13,7 +13,6 @@ from trading_gym.features.feature_assembler import FeatureAssembler
 from trading_gym.features.feature_fusion import fuse_features
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
 
-
 logger = logging.getLogger(__name__)
 
 

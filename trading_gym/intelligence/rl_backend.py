@@ -43,7 +43,9 @@ class RLPolicyBackend(IntelligenceBackend):
 
     def health(self) -> BackendHealth:
         cuda = _cuda_available()
-        device = "cuda" if cuda and self.device_preference in {"auto", "cuda"} else "cpu"
+        device = (
+            "cuda" if cuda and self.device_preference in {"auto", "cuda"} else "cpu"
+        )
         return BackendHealth(
             name=self.name,
             available=self.is_available(),

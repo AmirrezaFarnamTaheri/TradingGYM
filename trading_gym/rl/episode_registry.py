@@ -44,7 +44,9 @@ def make_episode_spec(
     """
     if not hashlib.sha256().hexdigest or not isinstance(source_sha256, str):
         raise TypeError("source_sha256 must be a string")
-    if len(source_sha256) != 64 or any(c not in "0123456789abcdef" for c in source_sha256.lower()):
+    if len(source_sha256) != 64 or any(
+        c not in "0123456789abcdef" for c in source_sha256.lower()
+    ):
         raise ValueError("source_sha256 must be a 64-char lowercase hex digest")
     source_sha256 = source_sha256.lower()
     if not 0 <= start_index < end_index:

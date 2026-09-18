@@ -1,7 +1,8 @@
 """Provenance-bearing bounded agent memory without autonomous authority."""
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -28,7 +29,10 @@ class MemoryRecord(BaseModel):
     @model_validator(mode="after")
     def validate_times(self) -> "MemoryRecord":
         created = require_aware(self.created_at, "created_at")
-        if self.expires_at is not None and require_aware(self.expires_at, "expires_at") <= created:
+        if (
+            self.expires_at is not None
+            and require_aware(self.expires_at, "expires_at") <= created
+        ):
             raise ValueError("memory expiry must follow creation")
         if redact_secrets(self.content) != self.content:
             raise ValueError("memory content contains credential-like fields")
@@ -52,7 +56,9 @@ class MemoryQuery(BaseModel):
         ids = [item.memory_id for item in self.records]
         if len(ids) != len(set(ids)):
             raise ValueError("memory IDs must be unique")
-        aggregate_bytes = sum(len(canonical_bytes(item.content)) for item in self.records)
+        aggregate_bytes = sum(
+            len(canonical_bytes(item.content)) for item in self.records
+        )
         if aggregate_bytes > MAX_AGGREGATE_MEMORY_BYTES:
             raise ValueError("agent memory aggregate payload exceeds 64 MiB")
         return self
@@ -73,10 +79,18 @@ class MemoryQueryReport(BaseModel):
 
 def query_agent_memory(request: MemoryQuery) -> MemoryQueryReport:
     record_map = {item.memory_id: item for item in request.records}
-    superseded = {item.supersedes_memory_id for item in request.records if item.supersedes_memory_id}
+    superseded = {
+        item.supersedes_memory_id
+        for item in request.records
+        if item.supersedes_memory_id
+    }
     blockers: list[str] = []
     warnings: list[str] = []
-    parent = {item.memory_id: item.supersedes_memory_id for item in request.records if item.supersedes_memory_id}
+    parent = {
+        item.memory_id: item.supersedes_memory_id
+        for item in request.records
+        if item.supersedes_memory_id
+    }
     for item in request.records:
         if item.created_at > request.evaluated_at:
             blockers.append(f"future_memory:{item.memory_id}")
@@ -95,8 +109,12 @@ def query_agent_memory(request: MemoryQuery) -> MemoryQueryReport:
             positions[current] = len(path)
             path.append(current)
             current = parent[current]
-        if current is not None and visit_state.get(current) == 1 and current in positions:
-            cycle = path[positions[current]:]
+        if (
+            current is not None
+            and visit_state.get(current) == 1
+            and current in positions
+        ):
+            cycle = path[positions[current] :]
             pivot = min(range(len(cycle)), key=lambda index: cycle[index])
             canonical = tuple(cycle[pivot:] + cycle[:pivot])
             if canonical not in reported_cycles:
@@ -105,29 +123,44 @@ def query_agent_memory(request: MemoryQuery) -> MemoryQueryReport:
         for item in path:
             visit_state[item] = 2
     expired = [
-        item.memory_id for item in request.records
+        item.memory_id
+        for item in request.records
         if item.expires_at is not None and item.expires_at <= request.evaluated_at
     ]
     active = []
     for item in request.records:
-        if item.created_at > request.evaluated_at or item.memory_id in expired or item.memory_id in superseded:
+        if (
+            item.created_at > request.evaluated_at
+            or item.memory_id in expired
+            or item.memory_id in superseded
+        ):
             continue
         if item.confidence < request.minimum_confidence:
             continue
-        if request.subject_prefix and not item.subject.startswith(request.subject_prefix):
+        if request.subject_prefix and not item.subject.startswith(
+            request.subject_prefix
+        ):
             continue
         if item.failure_lesson and not request.include_failure_lessons:
             continue
         active.append(item)
-    active.sort(key=lambda item: (-item.confidence, -item.created_at.timestamp(), item.memory_id))
+    active.sort(
+        key=lambda item: (
+            -item.confidence,
+            -item.created_at.timestamp(),
+            item.memory_id,
+        )
+    )
     matched_count = len(active)
-    active = active[:request.maximum_results]
+    active = active[: request.maximum_results]
     if matched_count > request.maximum_results:
         warnings.append("result_limit_reached")
     payload = {
         "active_records": [item.model_dump(mode="json") for item in active],
         "expired_memory_ids": sorted(expired),
-        "superseded_memory_ids": sorted(item for item in superseded if item is not None),
+        "superseded_memory_ids": sorted(
+            item for item in superseded if item is not None
+        ),
         "blockers": sorted(set(blockers)),
         "warnings": warnings,
     }

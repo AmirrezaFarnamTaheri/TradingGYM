@@ -180,11 +180,7 @@ def create_authz_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 status_code=503,
                 detail=f"grant ledger integrity failure: {exc}",
             ) from exc
-        return {
-            "grants": [
-                _grant_record(grant) for grant in ledger.active_grants()
-            ]
-        }
+        return {"grants": [_grant_record(grant) for grant in ledger.active_grants()]}
 
     @router.get("/health")
     def health() -> dict[str, Any]:

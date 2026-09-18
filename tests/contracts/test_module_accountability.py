@@ -8,7 +8,11 @@ import sys
 
 def test_module_accountability_covers_all_product_python_modules() -> None:
     root = Path(__file__).resolve().parents[2]
-    subprocess.run([sys.executable, "scripts/audit_module_accountability.py", "--check"], cwd=root, check=True)
+    subprocess.run(
+        [sys.executable, "scripts/audit_module_accountability.py", "--check"],
+        cwd=root,
+        check=True,
+    )
     data = json.loads((root / "docs/contracts/module_accountability.json").read_text())
     recorded = {row["path"] for row in data["modules"]}
     expected = {

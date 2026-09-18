@@ -1,15 +1,7 @@
-"""
-Enhanced Abantether Client
-==========================
+"""Bounded, Pydantic-validated wrapper around the Abantether SDK.
 
-A comprehensive wrapper around the official Abantether Python SDK that provides:
-- Type-safe API calls with Pydantic models
-- Extensive logging and error handling
-- Rate limiting and retry logic
-- Support for all Abantether API endpoints
-
-This module ensures consistency with the official API documentation while providing
-a clean, Pythonic interface for trading operations.
+Every request passes the global rate limiter, retries only safe read methods, and
+serialises through typed models so callers never handle raw venue JSON.
 """
 
 import logging
@@ -155,31 +147,10 @@ class NetworkInfo(BaseModel):
 
 
 class EnhancedAbanClient:
-    """
-    Enhanced client for interacting with the Abantether API.
+    """Typed, rate-limited client for the Abantether venue API.
 
-    This client wraps the official Abantether Python SDK and provides:
-    - Type-safe method calls with Pydantic validation
-    - Comprehensive error handling and logging
-    - Rate limiting (60 requests per minute as per API docs)
-    - Automatic retries for transient failures
-
-    Args:
-        api_key: Abantether API key for authentication
-        base_url: Optional custom base URL (default: https://api.abantether.com)
-        rate_limit_per_minute: Maximum requests per minute (default: 60)
-        retry_attempts: Number of retry attempts for failed requests (default: 3)
-
-    Example:
-        >>> client = EnhancedAbanClient(api_key="your-api-key")
-        >>> balance = client.get_balance()
-        >>> ticker = client.get_ticker(symbol="BTC")
-        >>> order = client.place_market_order(
-        ...     side=OrderSide.BUY,
-        ...     base_symbol="BTC",
-        ...     quote_symbol="IRT",
-        ...     volume=1000000
-        ... )
+    Only idempotent GETs are retried; mutating calls surface their outcome so the
+    ADR-022 retry layer can decide whether a resubmission is safe.
     """
 
     DEFAULT_BASE_URL = "https://api.abantether.com"
@@ -221,7 +192,10 @@ class EnhancedAbanClient:
         """
         if not isinstance(api_key, str) or not api_key.strip():
             raise ValueError("api_key must be a non-empty string")
-        if isinstance(rate_limit_per_minute, bool) or not 1 <= rate_limit_per_minute <= 600:
+        if (
+            isinstance(rate_limit_per_minute, bool)
+            or not 1 <= rate_limit_per_minute <= 600
+        ):
             raise ValueError("rate_limit_per_minute must be between 1 and 600")
         if isinstance(retry_attempts, bool) or not 1 <= retry_attempts <= 5:
             raise ValueError("retry_attempts must be between 1 and 5")
@@ -338,7 +312,9 @@ class EnhancedAbanClient:
                 return candidate(**(params or body or {}))
             fallback = getattr(self._client, "_make_request", None)
             if not callable(fallback):
-                raise RuntimeError("SDK exposes neither a matching method nor a request fallback")
+                raise RuntimeError(
+                    "SDK exposes neither a matching method nor a request fallback"
+                )
             return fallback(
                 method=method,
                 endpoint=endpoint,
@@ -388,28 +364,37 @@ class EnhancedAbanClient:
 
         raise RuntimeError("request loop exited unexpectedly")
 
+    @staticmethod
+    def _payload_of(response: Any) -> Any:
+        """Return the venue's data payload from an SDK response.
+
+        ``_make_request`` forwards whatever the official SDK hands back — JSON
+        object, list, string or ``None`` — but the accessors here all assume an
+        object envelope and call ``.get`` on it. Centralising the unwrap keeps
+        each accessor honest and turns ``AttributeError: 'str' object has no
+        attribute 'get'`` into a single clear contract violation, the way
+        ``get_deposit_history`` already did inline.
+        """
+
+        if not isinstance(response, dict):
+            raise ValueError(
+                "Expected a JSON object from the venue, got "
+                f"{type(response).__name__}: {response!r:.120}"
+            )
+        return response.get("data", response)
+
     # ============================================================================
     # Balance & Account Methods
     # ============================================================================
 
     def get_balance(self) -> List[Balance]:
-        """
-        Get user balance for all currencies.
-
-        Returns:
-            List of Balance objects containing symbol, balance, and blocked amounts
-
-        Example:
-            >>> balances = client.get_balance()
-            >>> for balance in balances:
-            ...     print(f"{balance.symbol}: {balance.balance} (blocked: {balance.blocked})")
-        """
+        """Return the available and blocked balance per currency."""
         logger.info("Fetching user balance")
         response = self._make_request("GET", "balance")
 
         # Handle both list and dict responses
         if isinstance(response, dict):
-            balance_data = response.get("data", response)
+            balance_data = self._payload_of(response)
         else:
             balance_data = response
 
@@ -422,48 +407,20 @@ class EnhancedAbanClient:
     # ============================================================================
 
     def get_coin_info(self, symbol: str, side: OrderSide) -> CoinInfo:
-        """
-        Get detailed information about a coin including fees and limits.
-
-        Args:
-            symbol: Coin symbol (e.g., "BTC", "ETH")
-            side: Order side (buy or sell)
-
-        Returns:
-            CoinInfo object with detailed coin information
-
-        Example:
-            >>> info = client.get_coin_info("BTC", OrderSide.BUY)
-            >>> print(f"Min trade: {info.usdt_min_trade} USDT")
-        """
+        """Return fees and trade limits for ``symbol`` on the given side."""
         logger.info("Fetching coin info: symbol=%s side=%s", symbol, side)
         response = self._make_request(
             "GET",
             "coin_price",
             params={"symbol": symbol, "side": side.value},
         )
-        coin_data = response.get("data", response)
+        coin_data = self._payload_of(response)
         return CoinInfo(**coin_data)
 
     def get_ticker(
         self, symbol: Optional[str] = None
     ) -> Union[TickerData, Dict[str, TickerData]]:
-        """
-        Get ticker data for one or all trading pairs.
-
-        Args:
-            symbol: Optional symbol to filter (e.g., "BTC"). If None, returns all tickers.
-
-        Returns:
-            Single TickerData if symbol provided, otherwise dict of all tickers
-
-        Example:
-            >>> ticker = client.get_ticker("BTC")
-            >>> print(f"BTC buy price: {ticker.buy_price}")
-            >>> all_tickers = client.get_ticker()
-            >>> for market, data in all_tickers.items():
-            ...     print(f"{market}: {data.mid_price}")
-        """
+        """Return ticker data for one pair, or for every pair when ``symbol`` is None."""
         logger.info("Fetching ticker data: symbol=%s", symbol or "all")
         params = {"coin": symbol} if symbol else None
         response = self._make_request("GET", "coin_price", params=params)
@@ -493,29 +450,7 @@ class EnhancedAbanClient:
         stop_loss_price: Optional[Union[Decimal, float]] = None,
         track_id: Optional[str] = None,
     ) -> OrderResponse:
-        """
-        Place a market order.
-
-        Args:
-            side: Order side (buy or sell)
-            base_symbol: Base currency symbol (e.g., "BTC")
-            quote_symbol: Quote currency symbol (e.g., "IRT" or "USDT")
-            volume: Order volume (in quote currency for buy, base currency for sell)
-            stop_loss_price: Optional stop loss price
-            track_id: Optional tracking ID for the order
-
-        Returns:
-            OrderResponse with order details
-
-        Example:
-            >>> order = client.place_market_order(
-            ...     side=OrderSide.BUY,
-            ...     base_symbol="BTC",
-            ...     quote_symbol="IRT",
-            ...     volume=1000000,
-            ... )
-            >>> print(f"Order ID: {order.id}, Status: {order.status}")
-        """
+        """Submit a market order. ``volume`` is quote currency for buys, base for sells."""
         logger.info(
             "Placing market order: side=%s base=%s quote=%s volume=%s",
             side,
@@ -537,7 +472,7 @@ class EnhancedAbanClient:
             body["track_id"] = track_id
 
         response = self._make_request("POST", "place_market_order", body=body)
-        order_data = response.get("data", response)
+        order_data = self._payload_of(response)
 
         logger.info("Market order placed: order_id=%s", order_data.get("id"))
         return OrderResponse(**order_data)
@@ -552,30 +487,7 @@ class EnhancedAbanClient:
         stop_loss_price: Optional[Union[Decimal, float]] = None,
         track_id: Optional[str] = None,
     ) -> OrderResponse:
-        """
-        Place a limit order.
-
-        Args:
-            side: Order side (buy or sell)
-            base_symbol: Base currency symbol (e.g., "BTC")
-            quote_symbol: Quote currency symbol (e.g., "IRT" or "USDT")
-            price: Limit price
-            volume: Order volume (in quote currency for buy, base currency for sell)
-            stop_loss_price: Optional stop loss price
-            track_id: Optional tracking ID for the order
-
-        Returns:
-            OrderResponse with order details
-
-        Example:
-            >>> order = client.place_limit_order(
-            ...     side=OrderSide.BUY,
-            ...     base_symbol="TON",
-            ...     quote_symbol="IRT",
-            ...     price=10.0,
-            ...     volume=1200000,
-            ... )
-        """
+        """Submit a limit order at ``price``. ``volume`` is quote currency for buys."""
         logger.info(
             "Placing limit order: side=%s base=%s quote=%s price=%s volume=%s",
             side,
@@ -599,7 +511,7 @@ class EnhancedAbanClient:
             body["track_id"] = track_id
 
         response = self._make_request("POST", "place_limit_order", body=body)
-        order_data = response.get("data", response)
+        order_data = self._payload_of(response)
 
         logger.info("Limit order placed: order_id=%s", order_data.get("id"))
         return OrderResponse(**order_data)
@@ -610,25 +522,7 @@ class EnhancedAbanClient:
         currency: str = "IRT",
         account_type: str = "spot",
     ) -> List[OrderResponse]:
-        """
-        Sell all holdings of selected coins.
-
-        Args:
-            selected_coins: List of coin symbols to sell
-            currency: Quote currency (IRT or USDT)
-            account_type: Account type (spot or credit)
-
-        Returns:
-            List of OrderResponse objects for each sell order
-
-        Example:
-            >>> orders = client.sell_all(
-            ...     selected_coins=["BNB", "ADA"],
-            ...     currency="IRT",
-            ... )
-            >>> for order in orders:
-            ...     print(f"Sold {order.base_symbol}: {order.id}")
-        """
+        """Flatten the holdings of ``selected_coins`` into ``currency``."""
         logger.info(
             "Selling all: coins=%s currency=%s account_type=%s",
             selected_coins,
@@ -643,7 +537,7 @@ class EnhancedAbanClient:
         }
 
         response = self._make_request("POST", "sell_all", body=body)
-        orders_data = response.get("data", response)
+        orders_data = self._payload_of(response)
 
         orders = [OrderResponse(**order) for order in orders_data]
         logger.info("Created %d sell orders", len(orders))
@@ -661,33 +555,7 @@ class EnhancedAbanClient:
         page: int = 1,
         per_page: int = 10,
     ) -> Dict[str, Any]:
-        """
-        Get order history with optional filters.
-
-        Args:
-            base_symbol: Filter by base symbol
-            quote_symbol: Filter by quote symbol (IRT or USDT)
-            side: Filter by order side
-            status: Filter by order status (can be multiple)
-            order_type: Filter by order type
-            from_date: Start date filter
-            to_date: End date filter
-            page: Page number (default: 1)
-            per_page: Results per page (default: 10)
-
-        Returns:
-            Dictionary containing order data and pagination info
-
-        Example:
-            >>> orders = client.get_orders(
-            ...     base_symbol="BTC",
-            ...     status=[OrderStatus.FILLED],
-            ...     page=1,
-            ...     per_page=20,
-            ... )
-            >>> for order in orders["data"]:
-            ...     print(f"Order {order['id']}: {order['status']}")
-        """
+        """Return a page of order history matching the supplied filters."""
         logger.info(
             "Fetching orders with filters: base=%s quote=%s", base_symbol, quote_symbol
         )
@@ -719,19 +587,7 @@ class EnhancedAbanClient:
         return response
 
     def cancel_order(self, order_id: str) -> Dict[str, str]:
-        """
-        Cancel an order by ID.
-
-        Args:
-            order_id: Order ID to cancel
-
-        Returns:
-            Dictionary containing the cancelled order ID
-
-        Example:
-            >>> result = client.cancel_order("6720bfd8fca24a881f69aef2")
-            >>> print(f"Cancelled order: {result['order_id']}")
-        """
+        """Cancel one order by ID."""
         logger.info("Cancelling order: order_id=%s", order_id)
 
         response = self._make_request(
@@ -741,27 +597,14 @@ class EnhancedAbanClient:
         )
 
         logger.info("Order cancelled: order_id=%s", order_id)
-        return cast(Dict[str, str], response.get("data", response))
+        return cast(Dict[str, str], self._payload_of(response))
 
     def get_order_details(self, order_id: str) -> OrderResponse:
-        """
-        Get detailed information about a specific order.
-
-        Args:
-            order_id: Order ID to query
-
-        Returns:
-            OrderResponse with detailed order information
-
-        Example:
-            >>> order = client.get_order_details("672a323a2ebcd6146e78d3e9")
-            >>> print(f"Order status: {order.status}")
-            >>> print(f"Filled: {order.filled_volume}")
-        """
+        """Return the current state of one order."""
         logger.info("Fetching order details: order_id=%s", order_id)
 
         response = self._make_request("GET", f"/order_handler/orders/otc/{order_id}/")
-        order_data = response.get("data", response)
+        order_data = self._payload_of(response)
 
         return OrderResponse(**order_data)
 
@@ -770,17 +613,7 @@ class EnhancedAbanClient:
     # ============================================================================
 
     def get_deposit_coins(self) -> List[Dict[str, str]]:
-        """
-        Get list of coins available for deposit.
-
-        Returns:
-            List of coin dictionaries with id, symbol, and persianName
-
-        Example:
-            >>> coins = client.get_deposit_coins()
-            >>> for coin in coins:
-            ...     print(f"{coin['symbol']}: {coin['persianName']}")
-        """
+        """List coins the venue accepts for deposit."""
         logger.info("Fetching deposit coins list")
         response = self._make_request("GET", "users/coins", params={"type": "deposit"})
         coins = response if isinstance(response, list) else response.get("data", [])
@@ -788,17 +621,7 @@ class EnhancedAbanClient:
         return coins
 
     def get_withdrawal_coins(self) -> List[Dict[str, str]]:
-        """
-        Get list of coins available for withdrawal.
-
-        Returns:
-            List of coin dictionaries with id, symbol, and persianName
-
-        Example:
-            >>> coins = client.get_withdrawal_coins()
-            >>> for coin in coins:
-            ...     print(f"{coin['symbol']}: {coin['persianName']}")
-        """
+        """List coins the venue supports for withdrawal."""
         logger.info("Fetching withdrawal coins list")
         response = self._make_request("GET", "users/coins", params={"type": "withdraw"})
         coins = response if isinstance(response, list) else response.get("data", [])
@@ -808,21 +631,7 @@ class EnhancedAbanClient:
     def get_networks(
         self, coin: str, transaction_type: str = "withdraw"
     ) -> List[NetworkInfo]:
-        """
-        Get available networks for a coin.
-
-        Args:
-            coin: Coin symbol (e.g., "BTC", "ETH", "USDT")
-            transaction_type: Type of transaction ("deposit" or "withdraw")
-
-        Returns:
-            List of NetworkInfo objects
-
-        Example:
-            >>> networks = client.get_networks("USDT", "withdraw")
-            >>> for network in networks:
-            ...     print(f"{network.name}: Fee={network.fee} {network.fee_type}")
-        """
+        """Return the deposit/withdrawal networks available for ``coin``."""
         logger.info("Fetching networks for coin=%s type=%s", coin, transaction_type)
         response = self._make_request(
             "GET", "users/networks", params={"type": transaction_type, "coin": coin}
@@ -836,20 +645,7 @@ class EnhancedAbanClient:
         return networks
 
     def get_deposit_wallet(self, coin: str, network: str) -> Dict[str, str]:
-        """
-        Get wallet address for deposits.
-
-        Args:
-            coin: Coin symbol (e.g., "BTC", "USDT")
-            network: Network name (e.g., "ERC20", "TRC20")
-
-        Returns:
-            Dictionary with wallet information including id, name, and wallet address
-
-        Example:
-            >>> wallet = client.get_deposit_wallet("USDT", "TRC20")
-            >>> print(f"Deposit to: {wallet['wallet']}")
-        """
+        """Return the deposit address for ``coin`` on ``network``."""
         logger.info("Fetching deposit wallet for coin=%s network=%s", coin, network)
         response = self._make_request(
             "GET",
@@ -871,23 +667,17 @@ class EnhancedAbanClient:
         return cast(Dict[str, str], wallet)
 
     def submit_deposit(self, coin: str, tx_hash: str) -> str:
-        """
-        Submit a deposit transaction hash for processing.
+        """Report an on-chain deposit hash to the venue for crediting."""
+        # Mirror submit_withdrawal's input discipline: both values originate
+        # off-chain and are user-supplied, so they get the same bounded
+        # character-set checks rather than being forwarded verbatim.
+        coin = str(coin).strip().upper()
+        tx_hash = str(tx_hash).strip()
+        if not re.fullmatch(r"[A-Z0-9]{2,16}", coin):
+            raise ValueError("coin must be a safe 2-16 character symbol")
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]{4,128}", tx_hash):
+            raise ValueError("tx_hash must be 4-128 safe transaction-hash characters")
 
-        Args:
-            coin: Coin symbol (e.g., "BTC", "USDT")
-            tx_hash: Transaction hash from the blockchain
-
-        Returns:
-            Response message (usually "ok")
-
-        Example:
-            >>> result = client.submit_deposit(
-            ...     coin="USDT",
-            ...     tx_hash="0x123456789abcdef..."
-            ... )
-            >>> print(result)  # "ok"
-        """
         # Redact transaction hash for security - only show first and last 6 chars
         redacted_hash = (
             f"{tx_hash[:6]}...{tx_hash[-6:]}" if len(tx_hash) > 12 else "***"
@@ -902,23 +692,7 @@ class EnhancedAbanClient:
     def get_deposit_history(
         self, coin: str, page: int = 1, count: int = 20
     ) -> Dict[str, Any]:
-        """
-        Get deposit transaction history.
-
-        Args:
-            coin: Coin symbol to filter by
-            page: Page number (default: 1)
-            count: Number of items per page (default: 20)
-
-        Returns:
-            Dictionary with total count and list of deposits
-
-        Example:
-            >>> history = client.get_deposit_history("USDT", page=1, count=10)
-            >>> print(f"Total deposits: {history['total']}")
-            >>> for deposit in history['list']:
-            ...     print(f"{deposit['amount']} {deposit['symbol']} - {deposit['state']}")
-        """
+        """Return a page of deposit history, optionally filtered by coin."""
         logger.info("Fetching deposit history: coin=%s page=%d", coin, page)
         response = self._make_request(
             "GET",
@@ -933,17 +707,7 @@ class EnhancedAbanClient:
         return response
 
     def get_white_addresses(self) -> List[Dict[str, Any]]:
-        """
-        Get list of whitelisted withdrawal addresses.
-
-        Returns:
-            List of white address dictionaries
-
-        Example:
-            >>> addresses = client.get_white_addresses()
-            >>> for addr in addresses:
-            ...     print(f"{addr['label']}: {addr['walletAddress']} ({addr['network']['name']})")
-        """
+        """List withdrawal addresses whitelisted by the account."""
         logger.info("Fetching white addresses")
         response = self._make_request("GET", "users/white-address")
         addresses = response if isinstance(response, list) else response.get("data", [])
@@ -953,24 +717,10 @@ class EnhancedAbanClient:
     def get_withdrawal_fee(
         self, coin: str, network: str, amount: Union[Decimal, float]
     ) -> Decimal:
-        """
-        Calculate withdrawal fee for a transaction.
+        """Return the withdrawal fee for ``amount`` of ``coin`` on ``network``.
 
-        Args:
-            coin: Coin symbol (e.g., "USDT")
-            network: Network name (e.g., "ERC20")
-            amount: Withdrawal amount
-
-        Returns:
-            Fee amount as Decimal
-
-        Raises:
-            ValueError: If unable to parse fee response
-            RuntimeError: If API returns an error
-
-        Example:
-            >>> fee = client.get_withdrawal_fee("USDT", "TRC20", 100.0)
-            >>> print(f"Withdrawal fee: {fee} USDT")
+        Raises ``RuntimeError`` on a venue error and ``ValueError`` when the fee
+        payload cannot be parsed.
         """
         logger.info(
             "Calculating withdrawal fee: coin=%s network=%s amount=%s",
@@ -1041,11 +791,15 @@ class EnhancedAbanClient:
         if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", network):
             raise ValueError("network must be a safe 1-64 character identifier")
         if not re.fullmatch(r"[!-~]{4,256}", wallet_address):
-            raise ValueError("wallet address must be 4-256 printable non-space characters")
+            raise ValueError(
+                "wallet address must be 4-256 printable non-space characters"
+            )
         if memo is not None:
             memo = str(memo).strip()
             if not memo or len(memo) > 256 or any(ord(char) < 32 for char in memo):
-                raise ValueError("memo must be 1-256 printable characters when supplied")
+                raise ValueError(
+                    "memo must be 1-256 printable characters when supplied"
+                )
 
         amt_dec = Decimal(str(amount))
         if not amt_dec.is_finite() or amt_dec <= 0:
@@ -1127,23 +881,7 @@ class EnhancedAbanClient:
     def get_withdrawal_history(
         self, coin: str, page: int = 1, count: int = 20
     ) -> Dict[str, Any]:
-        """
-        Get withdrawal transaction history.
-
-        Args:
-            coin: Coin symbol to filter by
-            page: Page number (default: 1)
-            count: Number of items per page (default: 20)
-
-        Returns:
-            Dictionary with total count and list of withdrawals
-
-        Example:
-            >>> history = client.get_withdrawal_history("USDT", page=1, count=10)
-            >>> print(f"Total withdrawals: {history['total']}")
-            >>> for withdrawal in history['list']:
-            ...     print(f"{withdrawal['amount']} {withdrawal['symbol']} - {withdrawal['state']}")
-        """
+        """Get paginated withdrawal history for ``coin``."""
         logger.info("Fetching withdrawal history: coin=%s page=%d", coin, page)
         response = self._make_request(
             "GET",
@@ -1166,50 +904,19 @@ class EnhancedAbanClient:
         currency: str = "IRT",
         collateral_amount: Optional[Union[Decimal, float]] = None,
     ) -> Dict[str, Any]:
-        """
-        Get available credit (margin) information.
-
-        Args:
-            currency: Currency type ("IRT" or "USDT")
-            collateral_amount: Optional collateral amount to calculate available credit
-
-        Returns:
-            Dictionary with credit information including available amount and leverage
-
-        Example:
-            >>> credit_info = client.get_available_credit("IRT", 1000000)
-            >>> print(f"Available credit: {credit_info}")
-        """
+        """Get available margin credit, optionally for a collateral amount."""
         logger.info("Fetching available credit: currency=%s", currency)
         params = {"currency": currency}
         if collateral_amount:
             params["collateral"] = str(Decimal(str(collateral_amount)))
 
         response = self._make_request("GET", "credit/available", params=params)
-        return cast(Dict[str, Any], response.get("data", response))
+        return cast(Dict[str, Any], self._payload_of(response))
 
     def request_credit(
         self, currency: str, amount: Union[Decimal, float], leverage: int = 2
     ) -> Dict[str, Any]:
-        """
-        Request margin trading credit.
-
-        Args:
-            currency: Currency type ("IRT" or "USDT")
-            amount: Collateral amount
-            leverage: Leverage multiplier (1-5, default: 2)
-
-        Returns:
-            Dictionary with credit request details
-
-        Example:
-            >>> credit = client.request_credit(
-            ...     currency="IRT",
-            ...     amount=1000000,
-            ...     leverage=3
-            ... )
-            >>> print(f"Credit granted: {credit}")
-        """
+        """Request margin credit; ``leverage`` is 1-5 (default 2)."""
         # Validate inputs
         amt_dec = Decimal(str(amount))
         if amt_dec <= 0:
@@ -1235,41 +942,18 @@ class EnhancedAbanClient:
             err = response.get("message") or response.get("error") or "unknown error"
             raise RuntimeError(f"Credit request failed: {err}")
         logger.info("Credit requested successfully")
-        return cast(Dict[str, Any], response.get("data", response))
+        return cast(Dict[str, Any], self._payload_of(response))
 
     def get_credit_status(self) -> Dict[str, Any]:
-        """
-        Get current credit (margin) position status.
-
-        Returns:
-            Dictionary with current credit usage, collateral, and liquidation info
-
-        Example:
-            >>> status = client.get_credit_status()
-            >>> print(f"Used credit: {status.get('used_credit')}")
-            >>> print(f"Collateral: {status.get('collateral')}")
-            >>> print(f"Liquidation price: {status.get('liquidation_price')}")
-        """
+        """Get current credit usage, collateral, and liquidation info."""
         logger.info("Fetching credit status")
         response = self._make_request("GET", "credit/status")
-        return cast(Dict[str, Any], response.get("data", response))
+        return cast(Dict[str, Any], self._payload_of(response))
 
     def repay_credit(
         self, amount: Optional[Union[Decimal, float]] = None
     ) -> Dict[str, Any]:
-        """
-        Repay margin trading credit.
-
-        Args:
-            amount: Amount to repay (if None, repays all outstanding credit)
-
-        Returns:
-            Dictionary with repayment confirmation
-
-        Example:
-            >>> result = client.repay_credit(500000)
-            >>> print(f"Repayment successful: {result}")
-        """
+        """Repay margin credit (all outstanding if ``amount`` is None)."""
         logger.info("Repaying credit: amount=%s", amount or "all")
 
         body = {}
@@ -1283,31 +967,17 @@ class EnhancedAbanClient:
             err = response.get("message") or response.get("error") or "unknown error"
             raise RuntimeError(f"Credit repayment failed: {err}")
         logger.info("Credit repayment processed")
-        return cast(Dict[str, Any], response.get("data", response))
+        return cast(Dict[str, Any], self._payload_of(response))
 
     # ============================================================================
     # Short Selling Methods
     # ============================================================================
 
     def get_shortable_coins(self) -> List[Dict[str, Any]]:
-        """
-        Get list of coins available for short selling.
-
-        Currently supports BTC (up to 0.5 BTC) and ETH (up to 10 ETH).
-
-        Returns:
-            List of coin dictionaries with short selling limits
-
-        Example:
-            >>> coins = client.get_shortable_coins()
-            >>> for coin in coins:
-            ...     print(f"{coin['symbol']}: Max short = {coin['max_short']}")
-        """
+        """Get shortable coins with per-coin limits (BTC up to 0.5, ETH up to 10)."""
         logger.info("Fetching shortable coins")
         response = self._make_request("GET", "short/available-coins")
-        coins = (
-            response.get("data", response) if isinstance(response, dict) else response
-        )
+        coins = self._payload_of(response) if isinstance(response, dict) else response
         logger.info("Retrieved shortable coins")
         return cast(List[Dict[str, Any]], coins)
 
@@ -1318,27 +988,7 @@ class EnhancedAbanClient:
         amount: Union[Decimal, float],
         leverage: int = 2,
     ) -> OrderResponse:
-        """
-        Create a short sell order (borrow and sell).
-
-        Args:
-            base_symbol: Coin to short sell (e.g., "BTC", "ETH")
-            quote_symbol: Quote currency ("IRT" or "USDT")
-            amount: Amount to short sell in base currency
-            leverage: Leverage multiplier (1.5-5x, default: 2)
-
-        Returns:
-            OrderResponse with short sell order details
-
-        Example:
-            >>> order = client.create_short_sell(
-            ...     base_symbol="BTC",
-            ...     quote_symbol="IRT",
-            ...     amount=0.01,
-            ...     leverage=2
-            ... )
-            >>> print(f"Short sell order: {order.id}")
-        """
+        """Borrow and sell ``base_symbol``; ``leverage`` is 1.5-5x (default 2)."""
         # Validate inputs
         amt_dec = Decimal(str(amount))
         if amt_dec <= 0:
@@ -1370,27 +1020,17 @@ class EnhancedAbanClient:
         }
 
         response = self._make_request("POST", "short/create", body=body)
-        order_data = response.get("data", response)
+        order_data = self._payload_of(response)
 
         logger.info("Short sell order created: order_id=%s", order_data.get("id"))
         return OrderResponse(**order_data)
 
     def get_short_positions(self) -> List[Dict[str, Any]]:
-        """
-        Get current short selling positions.
-
-        Returns:
-            List of active short positions with details
-
-        Example:
-            >>> positions = client.get_short_positions()
-            >>> for pos in positions:
-            ...     print(f"{pos['symbol']}: {pos['amount']} @ {pos['entry_price']}")
-        """
+        """Get active short positions."""
         logger.info("Fetching short positions")
         response = self._make_request("GET", "short/positions")
         positions = (
-            response.get("data", response) if isinstance(response, dict) else response
+            self._payload_of(response) if isinstance(response, dict) else response
         )
         logger.info(
             "Retrieved %d short positions",
@@ -1401,20 +1041,7 @@ class EnhancedAbanClient:
     def close_short_position(
         self, position_id: str, amount: Optional[Union[Decimal, float]] = None
     ) -> Dict[str, Any]:
-        """
-        Close a short selling position (buy back and return borrowed assets).
-
-        Args:
-            position_id: ID of the short position to close
-            amount: Amount to close (if None, closes entire position)
-
-        Returns:
-            Dictionary with closure confirmation
-
-        Example:
-            >>> result = client.close_short_position("position123")
-            >>> print(f"Position closed: {result}")
-        """
+        """Buy back and return borrowed assets, closing short ``position_id``."""
         logger.info(
             "Closing short position: id=%s amount=%s", position_id, amount or "all"
         )
@@ -1430,7 +1057,7 @@ class EnhancedAbanClient:
                     response.get("message") or response.get("error") or "unknown error"
                 )
                 raise RuntimeError(f"Closing short position failed: {err_msg}")
-            result = response.get("data", response)
+            result = self._payload_of(response)
         else:
             result = response
         logger.info("Short position closed successfully")
@@ -1448,18 +1075,9 @@ class EnhancedAbanClient:
         end: Optional[int] = None,
         limit: int = 1000,
     ) -> List[List[Union[int, float, str]]]:
-        """
-        Get historical candlestick data (Klines).
+        """Get historical candlestick data (Klines).
 
-        Args:
-            symbol: Symbol (e.g. "BTC")
-            interval: Time interval (e.g. "5m", "1h")
-            start: Start timestamp (seconds)
-            end: End timestamp (seconds)
-            limit: Max records
-
-        Returns:
-            List of lists: [[timestamp, open, high, low, close, volume], ...]
+        Returns [[timestamp, open, high, low, close, volume], ...] per bar.
         """
         logger.info("Fetching klines: %s %s", symbol, interval)
         params: Dict[str, Any] = {"symbol": symbol, "resolution": interval}
@@ -1478,7 +1096,7 @@ class EnhancedAbanClient:
         # Assuming: {"s": "ok", "t": [...], "o": [...], ...} (TV format)
         # or [[t,o,h,l,c,v], ...] (Binance format)
 
-        data = response.get("data", response)
+        data = self._payload_of(response)
 
         # If TradingView format
         if isinstance(data, dict) and "t" in data:

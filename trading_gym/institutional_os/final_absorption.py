@@ -7,17 +7,24 @@ workflow review, dynamic/mutation coverage, and a cumulative donor-saturation
 verdict.  They are deliberately non-authoritative and perform no trading,
 fund movement, deployment, package installation, or external tool execution.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .base import ensure_unique, require_aware, require_decimal, require_identifier, sha256_payload
+from .base import (
+    ensure_unique,
+    require_aware,
+    require_decimal,
+    require_identifier,
+    sha256_payload,
+)
 
 HEX = r"^[0-9a-f]{64}$"
 MAX_RECORDS = 100_000
@@ -82,7 +89,9 @@ class BehaviouralBenchmarkReport(BaseModel):
     execution_authority_granted: bool = False
 
 
-def evaluate_behavioural_benchmarks(request: BehaviouralBenchmarkRequest) -> BehaviouralBenchmarkReport:
+def evaluate_behavioural_benchmarks(
+    request: BehaviouralBenchmarkRequest,
+) -> BehaviouralBenchmarkReport:
     counts: dict[str, int] = defaultdict(int)
     blockers: list[str] = []
     passed = failed = unverified = 0
@@ -162,13 +171,17 @@ class FeatureStoreRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     evaluated_at: datetime
     contracts: list[FeatureContract] = Field(min_length=1, max_length=10_000)
-    observations: list[FeatureParityObservation] = Field(min_length=1, max_length=MAX_RECORDS)
+    observations: list[FeatureParityObservation] = Field(
+        min_length=1, max_length=MAX_RECORDS
+    )
     absolute_tolerance: Decimal = Decimal("0")
 
     @model_validator(mode="after")
     def valid(self) -> "FeatureStoreRequest":
         require_aware(self.evaluated_at, "evaluated_at")
-        require_decimal(self.absolute_tolerance, "absolute_tolerance", minimum=Decimal("0"))
+        require_decimal(
+            self.absolute_tolerance, "absolute_tolerance", minimum=Decimal("0")
+        )
         ensure_unique((item.feature_id for item in self.contracts), "feature contracts")
         if len(self.contracts) * len(self.observations) > 5_000_000:
             raise ValueError("feature parity workload exceeds limit")
@@ -299,9 +312,15 @@ def replay_market_events(request: MarketReplayRequest) -> MarketReplayReport:
         entity_payloads[event.entity_id].append(event.event_sha256)
         previous_hash = event.event_sha256
         previous_time = event.occurred_at
-    states = {entity: sha256_payload(values) for entity, values in sorted(entity_payloads.items())}
+    states = {
+        entity: sha256_payload(values)
+        for entity, values in sorted(entity_payloads.items())
+    }
     final_hash = sha256_payload(states)
-    if request.expected_final_state_sha256 and request.expected_final_state_sha256 != final_hash:
+    if (
+        request.expected_final_state_sha256
+        and request.expected_final_state_sha256 != final_hash
+    ):
         blockers.append("final_state_mismatch")
     payload = {
         "event_count": len(ordered),
@@ -328,12 +347,26 @@ class FinancingPosition(BaseModel):
     def valid(self) -> "FinancingPosition":
         require_identifier(self.instrument_id, "instrument_id")
         require_decimal(self.quantity, "quantity")
-        require_decimal(self.mark_price, "mark_price", minimum=Decimal("0.000000000001"))
+        require_decimal(
+            self.mark_price, "mark_price", minimum=Decimal("0.000000000001")
+        )
         require_decimal(self.borrow_available, "borrow_available", minimum=Decimal("0"))
-        require_decimal(self.annual_borrow_rate, "annual_borrow_rate", minimum=Decimal("0"), maximum=Decimal("100"))
-        require_decimal(self.projected_funding_rate, "projected_funding_rate", minimum=Decimal("-100"), maximum=Decimal("100"))
+        require_decimal(
+            self.annual_borrow_rate,
+            "annual_borrow_rate",
+            minimum=Decimal("0"),
+            maximum=Decimal("100"),
+        )
+        require_decimal(
+            self.projected_funding_rate,
+            "projected_funding_rate",
+            minimum=Decimal("-100"),
+            maximum=Decimal("100"),
+        )
         if self.inventory_limit is not None:
-            require_decimal(self.inventory_limit, "inventory_limit", minimum=Decimal("0"))
+            require_decimal(
+                self.inventory_limit, "inventory_limit", minimum=Decimal("0")
+            )
         return self
 
 
@@ -345,8 +378,12 @@ class FinancingInventoryRequest(BaseModel):
 
     @model_validator(mode="after")
     def unique(self) -> "FinancingInventoryRequest":
-        ensure_unique((item.instrument_id for item in self.positions), "financing instruments")
-        require_decimal(self.maximum_projected_cost, "maximum_projected_cost", minimum=Decimal("0"))
+        ensure_unique(
+            (item.instrument_id for item in self.positions), "financing instruments"
+        )
+        require_decimal(
+            self.maximum_projected_cost, "maximum_projected_cost", minimum=Decimal("0")
+        )
         return self
 
 
@@ -361,7 +398,9 @@ class FinancingInventoryReport(BaseModel):
     capital_movement_authority_granted: bool = False
 
 
-def evaluate_financing_inventory(request: FinancingInventoryRequest) -> FinancingInventoryReport:
+def evaluate_financing_inventory(
+    request: FinancingInventoryRequest,
+) -> FinancingInventoryReport:
     borrow_cost = Decimal("0")
     funding_cost = Decimal("0")
     blockers: list[str] = []
@@ -414,7 +453,9 @@ class AttributionRequest(BaseModel):
     def valid(self) -> "AttributionRequest":
         require_decimal(self.accounting_pnl, "accounting_pnl")
         require_decimal(self.tolerance, "tolerance", minimum=Decimal("0"))
-        ensure_unique((item.component_id for item in self.components), "attribution components")
+        ensure_unique(
+            (item.component_id for item in self.components), "attribution components"
+        )
         return self
 
 
@@ -435,7 +476,9 @@ def attribute_performance(request: AttributionRequest) -> AttributionReport:
         by_category[item.category] += item.amount
     attributed = sum(by_category.values(), Decimal("0"))
     residual = request.accounting_pnl - attributed
-    blockers = [] if abs(residual) <= request.tolerance else ["attribution_does_not_reconcile"]
+    blockers = (
+        [] if abs(residual) <= request.tolerance else ["attribution_does_not_reconcile"]
+    )
     payload = {
         "attributed_pnl": attributed,
         "residual": residual,
@@ -523,7 +566,8 @@ def analyze_knowledge_impact(request: KnowledgeImpactRequest) -> KnowledgeImpact
         seen.add(current)
         queue.extend(sorted(outgoing.get(current, ())))
     stale = sorted(
-        item.node_id for item in nodes.values()
+        item.node_id
+        for item in nodes.values()
         if item.valid_until is not None and item.valid_until < request.evaluated_at
     )
     blockers.extend(f"missing_root:{item}" for item in missing)
@@ -562,7 +606,9 @@ class WorkflowAssuranceRequest(BaseModel):
     @model_validator(mode="after")
     def valid(self) -> "WorkflowAssuranceRequest":
         ensure_unique((item.step_id for item in self.steps), "workflow step IDs")
-        ensure_unique((item.idempotency_key for item in self.steps), "workflow idempotency keys")
+        ensure_unique(
+            (item.idempotency_key for item in self.steps), "workflow idempotency keys"
+        )
         ensure_unique(self.completed_steps, "completed_steps")
         ensure_unique(self.approved_steps, "approved_steps")
         return self
@@ -594,7 +640,9 @@ def assure_workflow(request: WorkflowAssuranceRequest) -> WorkflowAssuranceRepor
             outgoing[dep].append(step.step_id)
         if step.compensation_step_id and step.compensation_step_id not in steps:
             blockers.append(f"missing_compensation:{step.step_id}")
-    queue = deque(sorted(step_id for step_id, degree in indegree.items() if degree == 0))
+    queue = deque(
+        sorted(step_id for step_id, degree in indegree.items() if degree == 0)
+    )
     order: list[str] = []
     while queue:
         current = queue.popleft()
@@ -608,13 +656,15 @@ def assure_workflow(request: WorkflowAssuranceRequest) -> WorkflowAssuranceRepor
     completed = set(request.completed_steps)
     approved = set(request.approved_steps)
     runnable = sorted(
-        step.step_id for step in steps.values()
+        step.step_id
+        for step in steps.values()
         if step.step_id not in completed
         and set(step.depends_on) <= completed
         and (not step.human_approval_required or step.step_id in approved)
     )
     compensation = sorted(
-        step.compensation_step_id for step in steps.values()
+        step.compensation_step_id
+        for step in steps.values()
         if step.step_id in completed and step.compensation_step_id
     )
     payload = {
@@ -649,14 +699,24 @@ class CoverageAssuranceRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     runtime_surfaces: list[RuntimeSurface] = Field(min_length=1, max_length=MAX_RECORDS)
     mutations: list[MutationCase] = Field(min_length=1, max_length=MAX_RECORDS)
-    minimum_runtime_ratio: Decimal = Field(default=Decimal("1"), ge=Decimal("0"), le=Decimal("1"))
-    minimum_mutation_score: Decimal = Field(default=Decimal("1"), ge=Decimal("0"), le=Decimal("1"))
-    minimum_negative_path_ratio: Decimal = Field(default=Decimal("0"), ge=Decimal("0"), le=Decimal("1"))
-    minimum_recovery_path_ratio: Decimal = Field(default=Decimal("0"), ge=Decimal("0"), le=Decimal("1"))
+    minimum_runtime_ratio: Decimal = Field(
+        default=Decimal("1"), ge=Decimal("0"), le=Decimal("1")
+    )
+    minimum_mutation_score: Decimal = Field(
+        default=Decimal("1"), ge=Decimal("0"), le=Decimal("1")
+    )
+    minimum_negative_path_ratio: Decimal = Field(
+        default=Decimal("0"), ge=Decimal("0"), le=Decimal("1")
+    )
+    minimum_recovery_path_ratio: Decimal = Field(
+        default=Decimal("0"), ge=Decimal("0"), le=Decimal("1")
+    )
 
     @model_validator(mode="after")
     def unique(self) -> "CoverageAssuranceRequest":
-        ensure_unique((item.surface_id for item in self.runtime_surfaces), "runtime surface IDs")
+        ensure_unique(
+            (item.surface_id for item in self.runtime_surfaces), "runtime surface IDs"
+        )
         ensure_unique((item.mutation_id for item in self.mutations), "mutation IDs")
         return self
 
@@ -675,15 +735,29 @@ class CoverageAssuranceReport(BaseModel):
     mutation_performed: bool = False
 
 
-def evaluate_dynamic_and_mutation_coverage(request: CoverageAssuranceRequest) -> CoverageAssuranceReport:
+def evaluate_dynamic_and_mutation_coverage(
+    request: CoverageAssuranceRequest,
+) -> CoverageAssuranceReport:
     total = Decimal(len(request.runtime_surfaces))
     runtime = Decimal(sum(item.executed for item in request.runtime_surfaces)) / total
-    negative = Decimal(sum(item.negative_path_executed for item in request.runtime_surfaces)) / total
-    recovery = Decimal(sum(item.recovery_path_executed for item in request.runtime_surfaces)) / total
+    negative = (
+        Decimal(sum(item.negative_path_executed for item in request.runtime_surfaces))
+        / total
+    )
+    recovery = (
+        Decimal(sum(item.recovery_path_executed for item in request.runtime_surfaces))
+        / total
+    )
     mutation_total = Decimal(len(request.mutations))
-    mutation_score = Decimal(sum(item.detected for item in request.mutations)) / mutation_total
-    uncovered = sorted(item.surface_id for item in request.runtime_surfaces if not item.executed)
-    surviving = sorted(item.mutation_id for item in request.mutations if not item.detected)
+    mutation_score = (
+        Decimal(sum(item.detected for item in request.mutations)) / mutation_total
+    )
+    uncovered = sorted(
+        item.surface_id for item in request.runtime_surfaces if not item.executed
+    )
+    surviving = sorted(
+        item.mutation_id for item in request.mutations if not item.detected
+    )
     blockers: list[str] = []
     if runtime < request.minimum_runtime_ratio:
         blockers.append("runtime_coverage_below_threshold")
@@ -771,10 +845,23 @@ def evaluate_convergence_saturation(request: SaturationRequest) -> SaturationRep
             blockers.append(f"donor_evidence_missing:{donor}")
             completion[donor] = Decimal("0")
             continue
-        surfaces = Decimal(item.accounted_surface_count) / Decimal(item.accessible_surface_count)
-        symbols = Decimal("1") if item.public_symbol_count == 0 else Decimal(item.mapped_symbol_count) / Decimal(item.public_symbol_count)
-        workflows = Decimal("1") if item.workflow_count == 0 else Decimal(item.mapped_workflow_count) / Decimal(item.workflow_count)
-        score = min(Decimal("1"), max(Decimal("0"), (surfaces + symbols + workflows) / Decimal("3")))
+        surfaces = Decimal(item.accounted_surface_count) / Decimal(
+            item.accessible_surface_count
+        )
+        symbols = (
+            Decimal("1")
+            if item.public_symbol_count == 0
+            else Decimal(item.mapped_symbol_count) / Decimal(item.public_symbol_count)
+        )
+        workflows = (
+            Decimal("1")
+            if item.workflow_count == 0
+            else Decimal(item.mapped_workflow_count) / Decimal(item.workflow_count)
+        )
+        score = min(
+            Decimal("1"),
+            max(Decimal("0"), (surfaces + symbols + workflows) / Decimal("3")),
+        )
         completion[donor] = score
         if item.accounted_surface_count != item.accessible_surface_count:
             blockers.append(f"surface_gap:{donor}")
@@ -815,14 +902,23 @@ def evaluate_convergence_saturation(request: SaturationRequest) -> SaturationRep
         if data.get("blockers"):
             blockers.append(f"plane_blocked:{name}")
         for field in (
-            "execution_authority_granted", "feature_serving_authority_granted", "storage_mutation_performed",
-            "state_mutation_performed", "borrow_authority_granted", "capital_movement_authority_granted",
-            "accounting_mutation_performed", "graph_mutation_performed", "task_execution_performed",
-            "governance_authority_granted", "mutation_performed",
+            "execution_authority_granted",
+            "feature_serving_authority_granted",
+            "storage_mutation_performed",
+            "state_mutation_performed",
+            "borrow_authority_granted",
+            "capital_movement_authority_granted",
+            "accounting_mutation_performed",
+            "graph_mutation_performed",
+            "task_execution_performed",
+            "governance_authority_granted",
+            "mutation_performed",
         ):
             if data.get(field) is True:
                 blockers.append(f"authority_violation:{name}:{field}")
-    ratio = sum(completion.values(), Decimal("0")) / Decimal(len(request.expected_donors))
+    ratio = sum(completion.values(), Decimal("0")) / Decimal(
+        len(request.expected_donors)
+    )
     payload = {
         "donor_completion": dict(sorted(completion.items())),
         "blockers": sorted(set(blockers)),

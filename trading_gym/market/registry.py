@@ -12,7 +12,11 @@ from trading_gym.common.audit_outbox import (
     ensure_audit_outbox,
     queue_audit_event,
 )
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.governance.ledger import AuditLedger
 from trading_gym.market.models import InstrumentSpec
 
@@ -67,10 +71,15 @@ class InstrumentRegistry:
     def list(self, *, active_only: bool = False) -> list[InstrumentSpec]:
         with self.lock:
             document = self._load()
-        values = [InstrumentSpec.model_validate(item) for item in document["instruments"].values()]
+        values = [
+            InstrumentSpec.model_validate(item)
+            for item in document["instruments"].values()
+        ]
         if active_only:
             values = [item for item in values if item.active]
-        return sorted(values, key=lambda item: (item.venue, item.symbol, item.instrument_id))
+        return sorted(
+            values, key=lambda item: (item.venue, item.symbol, item.instrument_id)
+        )
 
     def revision(self) -> int:
         with self.lock:
@@ -80,7 +89,11 @@ class InstrumentRegistry:
         with self.lock:
             document = self._load()
         candidate = _key(identifier)
-        instrument_id = candidate if candidate in document["instruments"] else document["aliases"].get(candidate)
+        instrument_id = (
+            candidate
+            if candidate in document["instruments"]
+            else document["aliases"].get(candidate)
+        )
         if instrument_id is None and venue:
             venue_key = _key(venue)
             matches = [
@@ -117,7 +130,9 @@ class InstrumentRegistry:
             for identifier in identifiers:
                 owner = owner_by_alias.get(_key(identifier))
                 if owner is not None and owner != spec.instrument_id:
-                    raise InstrumentConflict(f"identifier {identifier!r} already belongs to {owner}")
+                    raise InstrumentConflict(
+                        f"identifier {identifier!r} already belongs to {owner}"
+                    )
             previous = document["instruments"].get(spec.instrument_id)
             if previous:
                 old = InstrumentSpec.model_validate(previous)
@@ -141,6 +156,9 @@ class InstrumentRegistry:
                 },
             )
             atomic_write_json(self.path, document)
-            result = {"revision": document["revision"], "instrument": spec.model_dump(mode="json")}
+            result = {
+                "revision": document["revision"],
+                "instrument": spec.model_dump(mode="json"),
+            }
         self.reconcile_audit()
         return result

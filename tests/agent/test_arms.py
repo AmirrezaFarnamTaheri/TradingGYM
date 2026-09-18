@@ -14,7 +14,7 @@ Contract:
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -222,7 +222,7 @@ class TestArmAuthzComposition:
                 principal="agent-axiom1",
                 scopes=("trade.paper.**", "research.news.fetch"),
                 ttl_hours=24,
-                issued_at="2026-09-01T00:00:00Z",
+                issued_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 constraints=(),
                 issued_by="operator-1",
             )
@@ -231,9 +231,7 @@ class TestArmAuthzComposition:
         for arm in registry.arms():
             for scope in arm.required_scopes:
                 decision = ledger.check("agent-axiom1", scope)
-                assert decision.allowed, (
-                    f"arm {arm.name} scope {scope} not granted"
-                )
+                assert decision.allowed, f"arm {arm.name} scope {scope} not granted"
 
         # a scope outside the grant is denied — the pre-flight would bench the arm
         assert not ledger.check("agent-axiom1", "trade.live.order.submit").allowed

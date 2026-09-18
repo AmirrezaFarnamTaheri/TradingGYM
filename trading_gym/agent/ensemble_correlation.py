@@ -26,9 +26,7 @@ from trading_gym.intelligence.types import MarketContext
 __all__ = ["ensemble_pairwise_correlation", "arm_exposure_series"]
 
 
-def arm_exposure_series(
-    arm: Arm, contexts: Sequence[MarketContext]
-) -> list[float]:
+def arm_exposure_series(arm: Arm, contexts: Sequence[MarketContext]) -> list[float]:
     """Per-bar signed exposure for one arm over a context sequence."""
 
     series: list[float] = []

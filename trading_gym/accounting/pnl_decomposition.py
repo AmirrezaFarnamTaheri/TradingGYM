@@ -72,13 +72,9 @@ def decompose_snapshot(
     """
     if tolerance < ZERO:
         raise ValueError("tolerance must be non-negative")
-    adjustments = {
-        k.upper(): v for k, v in (known_external_adjustments or {}).items()
-    }
+    adjustments = {k.upper(): v for k, v in (known_external_adjustments or {}).items()}
 
-    currencies = sorted(
-        set(snapshot.cash) | set(opening_cash) | set(adjustments)
-    )
+    currencies = sorted(set(snapshot.cash) | set(opening_cash) | set(adjustments))
     out: dict[str, CurrencyDecomposition] = {}
     all_balanced = True
     notes: list[str] = []
@@ -89,11 +85,19 @@ def decompose_snapshot(
         cash_change = closing - opening
 
         realized = sum(
-            (p.realized_pnl for p in snapshot.positions.values() if p.quote_currency == currency),
+            (
+                p.realized_pnl
+                for p in snapshot.positions.values()
+                if p.quote_currency == currency
+            ),
             ZERO,
         )
         funding = sum(
-            (p.funding_pnl for p in snapshot.positions.values() if p.quote_currency == currency),
+            (
+                p.funding_pnl
+                for p in snapshot.positions.values()
+                if p.quote_currency == currency
+            ),
             ZERO,
         )
         unrealized = sum(
@@ -129,4 +133,6 @@ def decompose_snapshot(
             balanced=balanced,
         )
 
-    return DecompositionReport(currencies=out, balanced=all_balanced, notes=tuple(notes))
+    return DecompositionReport(
+        currencies=out, balanced=all_balanced, notes=tuple(notes)
+    )

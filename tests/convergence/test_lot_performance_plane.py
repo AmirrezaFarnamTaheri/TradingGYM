@@ -45,8 +45,12 @@ def test_fifo_lifo_and_hifo_produce_deterministic_distinct_matches():
     now = datetime.now(timezone.utc)
     fills = [
         fill("fill:buy-0001", FillDirection.BUY, "1", "100", now),
-        fill("fill:buy-0002", FillDirection.BUY, "1", "120", now + timedelta(seconds=1)),
-        fill("fill:sell-001", FillDirection.SELL, "1", "130", now + timedelta(seconds=2)),
+        fill(
+            "fill:buy-0002", FillDirection.BUY, "1", "120", now + timedelta(seconds=1)
+        ),
+        fill(
+            "fill:sell-001", FillDirection.SELL, "1", "130", now + timedelta(seconds=2)
+        ),
     ]
     fifo = analyse_lots(fills, base_currency="USD", method=LotMethod.FIFO)
     lifo = analyse_lots(fills, base_currency="USD", method=LotMethod.LIFO)
@@ -62,7 +66,14 @@ def test_short_cover_reversal_and_fee_allocation():
     now = datetime.now(timezone.utc)
     fills = [
         fill("fill:sell-short", FillDirection.SELL, "2", "100", now, fee="2"),
-        fill("fill:cover-reverse", FillDirection.BUY, "3", "80", now + timedelta(seconds=1), fee="3"),
+        fill(
+            "fill:cover-reverse",
+            FillDirection.BUY,
+            "3",
+            "80",
+            now + timedelta(seconds=1),
+            fee="3",
+        ),
     ]
     report = analyse_lots(fills, base_currency="USD")
     assert report.closed_quantity == Decimal("2")
@@ -98,8 +109,22 @@ def test_strategy_attribution_is_separate():
     now = datetime.now(timezone.utc)
     fills = [
         fill("fill:a-buy001", FillDirection.BUY, "1", "100", now, strategy="a"),
-        fill("fill:a-sell01", FillDirection.SELL, "1", "110", now + timedelta(seconds=1), strategy="a"),
-        fill("fill:b-buy001", FillDirection.BUY, "2", "50", now + timedelta(seconds=2), strategy="b"),
+        fill(
+            "fill:a-sell01",
+            FillDirection.SELL,
+            "1",
+            "110",
+            now + timedelta(seconds=1),
+            strategy="a",
+        ),
+        fill(
+            "fill:b-buy001",
+            FillDirection.BUY,
+            "2",
+            "50",
+            now + timedelta(seconds=2),
+            strategy="b",
+        ),
     ]
     report = analyse_lots(fills, base_currency="USD")
     by_strategy = {item.strategy_id: item for item in report.attribution}

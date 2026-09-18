@@ -9,10 +9,14 @@ import pandas as pd
 
 from trading_gym.strategy_lab.models import IndicatorSpec
 
-IndicatorFunction = Callable[[pd.DataFrame, dict[str, float | int | str | bool]], pd.Series]
+IndicatorFunction = Callable[
+    [pd.DataFrame, dict[str, float | int | str | bool]], pd.Series
+]
 
 
-def _period(params: dict[str, float | int | str | bool], key: str = "period", default: int = 14) -> int:
+def _period(
+    params: dict[str, float | int | str | bool], key: str = "period", default: int = 14
+) -> int:
     value = int(params.get(key, default))
     if value < 2 or value > 10_000:
         raise ValueError(f"{key} must be between 2 and 10000")
@@ -24,14 +28,26 @@ def sma(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.
 
 
 def ema(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
-    return frame["close"].ewm(span=_period(params), adjust=False, min_periods=_period(params)).mean()
+    return (
+        frame["close"]
+        .ewm(span=_period(params), adjust=False, min_periods=_period(params))
+        .mean()
+    )
 
 
 def rsi(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
     period = _period(params)
     delta = frame["close"].diff()
-    gain = delta.clip(lower=0).ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
-    loss = (-delta.clip(upper=0)).ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+    gain = (
+        delta.clip(lower=0)
+        .ewm(alpha=1 / period, adjust=False, min_periods=period)
+        .mean()
+    )
+    loss = (
+        (-delta.clip(upper=0))
+        .ewm(alpha=1 / period, adjust=False, min_periods=period)
+        .mean()
+    )
     relative = gain / loss.replace(0, np.nan)
     result = 100 - (100 / (1 + relative))
     return result.where(loss.ne(0), 100.0).where(gain.ne(0), 0.0)
@@ -57,9 +73,10 @@ def macd(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd
     signal = _period(params, "signal", 9)
     if fast >= slow:
         raise ValueError("MACD fast period must be less than slow period")
-    line = frame["close"].ewm(span=fast, adjust=False, min_periods=slow).mean() - frame[
-        "close"
-    ].ewm(span=slow, adjust=False, min_periods=slow).mean()
+    line = (
+        frame["close"].ewm(span=fast, adjust=False, min_periods=slow).mean()
+        - frame["close"].ewm(span=slow, adjust=False, min_periods=slow).mean()
+    )
     component = str(params.get("component", "line"))
     signal_line = line.ewm(span=signal, adjust=False, min_periods=signal).mean()
     if component == "signal":
@@ -71,7 +88,9 @@ def macd(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd
     return line
 
 
-def bollinger(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
+def bollinger(
+    frame: pd.DataFrame, params: dict[str, float | int | str | bool]
+) -> pd.Series:
     period = _period(params)
     deviations = float(params.get("deviations", 2.0))
     if not 0.1 <= deviations <= 10:
@@ -105,7 +124,9 @@ def obv(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.
     return (direction * frame["volume"]).cumsum()
 
 
-def stochastic(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
+def stochastic(
+    frame: pd.DataFrame, params: dict[str, float | int | str | bool]
+) -> pd.Series:
     period = _period(params)
     low = frame["low"].rolling(period, min_periods=period).min()
     high = frame["high"].rolling(period, min_periods=period).max()
@@ -119,7 +140,9 @@ def stochastic(frame: pd.DataFrame, params: dict[str, float | int | str | bool])
     return raw
 
 
-def donchian(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
+def donchian(
+    frame: pd.DataFrame, params: dict[str, float | int | str | bool]
+) -> pd.Series:
     period = _period(params, default=20)
     component = str(params.get("component", "upper"))
     if component == "upper":

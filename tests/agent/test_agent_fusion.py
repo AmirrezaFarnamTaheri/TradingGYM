@@ -101,8 +101,12 @@ class TestDirectionVote:
     def test_weighted_vote_respects_confidence(self) -> None:
         engine = FusionEngine(FusionConfig())
         board = [
-            arm_proposal("rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.9)),
-            arm_proposal("alpha", signal("alpha", ActionKind.SHORT, -1.0, confidence=0.1)),
+            arm_proposal(
+                "rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.9)
+            ),
+            arm_proposal(
+                "alpha", signal("alpha", ActionKind.SHORT, -1.0, confidence=0.1)
+            ),
         ]
         fused = engine.fuse(board, make_context(), regime="trend")
         assert fused.action_kind is ActionKind.LONG
@@ -110,8 +114,12 @@ class TestDirectionVote:
     def test_uniform_weights_with_split_confidences_long_wins(self) -> None:
         engine = FusionEngine(FusionConfig())
         board = [
-            arm_proposal("rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.9)),
-            arm_proposal("alpha", signal("alpha", ActionKind.SHORT, -1.0, confidence=0.2)),
+            arm_proposal(
+                "rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.9)
+            ),
+            arm_proposal(
+                "alpha", signal("alpha", ActionKind.SHORT, -1.0, confidence=0.2)
+            ),
         ]
         fused = engine.fuse(board, make_context(), regime="trend")
         assert fused.action_kind is ActionKind.LONG
@@ -140,19 +148,27 @@ class TestDisagreement:
     def test_split_vote_escalates_to_flat(self) -> None:
         engine = FusionEngine(FusionConfig(disagreement_margin=0.15))
         board = [
-            arm_proposal("rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.7)),
-            arm_proposal("bear", signal("bear", ActionKind.SHORT, -1.0, confidence=0.7)),
+            arm_proposal(
+                "rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.7)
+            ),
+            arm_proposal(
+                "bear", signal("bear", ActionKind.SHORT, -1.0, confidence=0.7)
+            ),
         ]
         fused = engine.fuse(board, make_context(), regime="trend")
         assert fused.action_kind is ActionKind.HOLD
         assert fused.escalated
         assert fused.target_leverage == 0.0
-        assert isinstance(fused.rationale, str) and "disagree" in fused.rationale.lower()
+        assert (
+            isinstance(fused.rationale, str) and "disagree" in fused.rationale.lower()
+        )
 
     def test_quorum_failure_escalates(self) -> None:
         engine = FusionEngine(FusionConfig(quorum_confidence=0.9))
         board = [
-            arm_proposal("rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.7)),
+            arm_proposal(
+                "rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.7)
+            ),
         ]
         fused = engine.fuse(board, make_context(), regime="trend")
         assert fused.action_kind is ActionKind.HOLD
@@ -161,9 +177,15 @@ class TestDisagreement:
     def test_strong_majority_does_not_escalate(self) -> None:
         engine = FusionEngine(FusionConfig(disagreement_margin=0.2))
         board = [
-            arm_proposal("rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.9)),
-            arm_proposal("alpha", signal("alpha", ActionKind.LONG, 2.0, confidence=0.8)),
-            arm_proposal("bear", signal("bear", ActionKind.SHORT, -1.0, confidence=0.3)),
+            arm_proposal(
+                "rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.9)
+            ),
+            arm_proposal(
+                "alpha", signal("alpha", ActionKind.LONG, 2.0, confidence=0.8)
+            ),
+            arm_proposal(
+                "bear", signal("bear", ActionKind.SHORT, -1.0, confidence=0.3)
+            ),
         ]
         fused = engine.fuse(board, make_context(), regime="trend")
         assert fused.action_kind is ActionKind.LONG
@@ -174,8 +196,12 @@ class TestMagnitude:
     def test_magnitude_is_weighted_mean_of_agreeing_arms(self) -> None:
         engine = FusionEngine(FusionConfig())
         board = [
-            arm_proposal("rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.9)),
-            arm_proposal("alpha", signal("alpha", ActionKind.LONG, 3.0, confidence=0.9)),
+            arm_proposal(
+                "rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.9)
+            ),
+            arm_proposal(
+                "alpha", signal("alpha", ActionKind.LONG, 3.0, confidence=0.9)
+            ),
         ]
         fused = engine.fuse(board, make_context(), regime="trend")
         assert fused.target_leverage == pytest.approx(2.0)
@@ -192,9 +218,15 @@ class TestMagnitude:
     def test_disagreeing_arm_excluded_from_magnitude(self) -> None:
         engine = FusionEngine(FusionConfig())
         board = [
-            arm_proposal("rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.9)),
-            arm_proposal("alpha", signal("alpha", ActionKind.LONG, 3.0, confidence=0.9)),
-            arm_proposal("bear", signal("bear", ActionKind.SHORT, -10.0, confidence=0.05)),
+            arm_proposal(
+                "rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.9)
+            ),
+            arm_proposal(
+                "alpha", signal("alpha", ActionKind.LONG, 3.0, confidence=0.9)
+            ),
+            arm_proposal(
+                "bear", signal("bear", ActionKind.SHORT, -10.0, confidence=0.05)
+            ),
         ]
         fused = engine.fuse(board, make_context(), regime="trend")
         assert fused.target_leverage == pytest.approx(2.0)
@@ -208,8 +240,12 @@ class TestRegimeWeights:
         engine = FusionEngine(FusionConfig(weights=weights))
 
         long_board = [
-            arm_proposal("rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.8)),
-            arm_proposal("alpha", signal("alpha", ActionKind.LONG, 1.0, confidence=0.8)),
+            arm_proposal(
+                "rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.8)
+            ),
+            arm_proposal(
+                "alpha", signal("alpha", ActionKind.LONG, 1.0, confidence=0.8)
+            ),
         ]
         # chop: rules downweighted but still directional majority
         fused = engine.fuse(long_board, make_context(), regime="chop")
@@ -219,8 +255,12 @@ class TestRegimeWeights:
         weights = FusionWeights.from_pairs((("bear", "trend"), 0.0))
         engine = FusionEngine(FusionConfig(weights=weights))
         board = [
-            arm_proposal("rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.5)),
-            arm_proposal("bear", signal("bear", ActionKind.SHORT, -2.0, confidence=0.95)),
+            arm_proposal(
+                "rules", signal("rules", ActionKind.LONG, 1.0, confidence=0.5)
+            ),
+            arm_proposal(
+                "bear", signal("bear", ActionKind.SHORT, -2.0, confidence=0.95)
+            ),
         ]
         fused = engine.fuse(board, make_context(), regime="trend")
         # zero-weighted bear cannot outvote the rules arm

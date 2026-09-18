@@ -1,4 +1,5 @@
 """Evidence-first alpha hypothesis and experiment review factory."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -41,8 +42,12 @@ class AlphaHypothesis(BaseModel):
     hypothesis_id: Annotated[str, Field(min_length=2, max_length=128)]
     statement: Annotated[str, Field(min_length=12, max_length=4000)]
     mechanism: Annotated[str, Field(min_length=12, max_length=4000)]
-    falsification_criteria: list[Annotated[str, Field(min_length=4, max_length=1000)]] = Field(min_length=1, max_length=100)
-    target_markets: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(min_length=1, max_length=1000)
+    falsification_criteria: list[
+        Annotated[str, Field(min_length=4, max_length=1000)]
+    ] = Field(min_length=1, max_length=100)
+    target_markets: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(
+        min_length=1, max_length=1000
+    )
     expected_horizon: Annotated[str, Field(min_length=2, max_length=120)]
     state: HypothesisState = HypothesisState.IDEA
     evidence: list[AlphaEvidence] = Field(default_factory=list, max_length=10_000)
@@ -65,12 +70,16 @@ class AlphaFactoryPolicy(BaseModel):
     minimum_supporting_evidence: Annotated[int, Field(ge=1, le=1000)] = 2
     minimum_independent_evidence: Annotated[int, Field(ge=1, le=1000)] = 1
     require_challenge_evidence: bool = True
-    maximum_evidence_age_seconds: Annotated[int, Field(ge=60, le=10 * 365 * 86400)] = 365 * 86400
+    maximum_evidence_age_seconds: Annotated[int, Field(ge=60, le=10 * 365 * 86400)] = (
+        365 * 86400
+    )
 
     @model_validator(mode="after")
     def validate_thresholds(self) -> "AlphaFactoryPolicy":
         if self.minimum_independent_evidence > self.minimum_supporting_evidence:
-            raise ValueError("independent evidence requirement cannot exceed supporting evidence requirement")
+            raise ValueError(
+                "independent evidence requirement cannot exceed supporting evidence requirement"
+            )
         return self
 
 
@@ -130,7 +139,10 @@ def evaluate_alpha_hypothesis(request: AlphaFactoryRequest) -> AlphaFactoryRepor
     hashes = [item.sha256 for item in evidence]
     if len(hashes) != len(set(hashes)):
         warnings.append("duplicate_evidence_content")
-    ready = not blockers and request.hypothesis.state not in {HypothesisState.REJECTED, HypothesisState.IDEA}
+    ready = not blockers and request.hypothesis.state not in {
+        HypothesisState.REJECTED,
+        HypothesisState.IDEA,
+    }
     if ready:
         state = HypothesisState.REVIEW_READY
     elif challenging and not supporting:

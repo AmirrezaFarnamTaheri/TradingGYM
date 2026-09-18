@@ -24,12 +24,17 @@ from trading_gym.assurance import (
     qualify_system,
 )
 from trading_gym.compliance import SurveillanceRequest, evaluate_surveillance
-from trading_gym.contracts import SchemaCompatibilityRequest, evaluate_schema_compatibility
+from trading_gym.contracts import (
+    SchemaCompatibilityRequest,
+    evaluate_schema_compatibility,
+)
 from trading_gym.coordination import LeaseAcquire, LeaseConflict, LeaseRepository
 from trading_gym.events import EventEnvelope, replay_events
 from trading_gym.privacy import PrivacyAssessmentRequest, evaluate_privacy
 from trading_gym.treasury import (
-    CollateralAllocationRequest, LiquidityForecastRequest, allocate_collateral,
+    CollateralAllocationRequest,
+    LiquidityForecastRequest,
+    allocate_collateral,
     evaluate_liquidity_forecast,
 )
 from trading_gym.budgets import (
@@ -39,7 +44,6 @@ from trading_gym.budgets import (
     BudgetReservationCreate,
 )
 from trading_gym.accounting import (
-    AccountValuationReport,
     CorporateActionRequest,
     AccountingEvent,
     FXQuote,
@@ -51,7 +55,11 @@ from trading_gym.accounting import (
     plan_corporate_action,
     value_account,
 )
-from trading_gym.agent.providers import ProviderConfig, ProviderRepository, provider_status
+from trading_gym.agent.providers import (
+    ProviderConfig,
+    ProviderRepository,
+    provider_status,
+)
 from trading_gym.common.audit_outbox import AuditOutboxPending
 from trading_gym.agent.tools import SafeToolRegistry, ToolRequest
 from trading_gym.convergence import BacktestWorkflowRequest, ConvergenceWorkflowService
@@ -89,9 +97,18 @@ from trading_gym.experiments import (
     verify_manifest,
     audit_temporal_leakage,
 )
-from trading_gym.governance.policy_change import PolicyImpactRequest, evaluate_policy_change
-from trading_gym.governance.controls import ControlEffectivenessRequest, evaluate_control_effectiveness
-from trading_gym.governance.data_lifecycle import DataLifecycleRequest, evaluate_data_lifecycle
+from trading_gym.governance.policy_change import (
+    PolicyImpactRequest,
+    evaluate_policy_change,
+)
+from trading_gym.governance.controls import (
+    ControlEffectivenessRequest,
+    evaluate_control_effectiveness,
+)
+from trading_gym.governance.data_lifecycle import (
+    DataLifecycleRequest,
+    evaluate_data_lifecycle,
+)
 from trading_gym.governance.credential_rotation import (
     CredentialRotationRequest,
     evaluate_credential_rotation,
@@ -104,7 +121,12 @@ from trading_gym.governance.identity import (
     require_actor_identity,
 )
 from trading_gym.governance.deployment import deployment_isolation_health
-from trading_gym.governance.models import ConsumeRequest, DecisionRequest, ProposalCreate, ProposalState
+from trading_gym.governance.models import (
+    ConsumeRequest,
+    DecisionRequest,
+    ProposalCreate,
+    ProposalState,
+)
 from trading_gym.governance.service import (
     GovernanceAuditPending,
     GovernanceConflict,
@@ -188,7 +210,12 @@ from trading_gym.orders import (
     OrderState,
 )
 from trading_gym.performance import LotFill, LotMethod, MarkValue, analyse_lots
-from trading_gym.portfolio import RebalanceHolding, RebalancePolicy, RebalanceTarget, plan_rebalance
+from trading_gym.portfolio import (
+    RebalanceHolding,
+    RebalancePolicy,
+    RebalanceTarget,
+    plan_rebalance,
+)
 from trading_gym.scheduling import SchedulePlanRequest, plan_schedule
 from trading_gym.research.debate import debate_prompt_pack
 from trading_gym.research.dossier import build_dossier
@@ -203,14 +230,21 @@ from trading_gym.research.workspace import (
 )
 from trading_gym.risk.liquidity import LiquidityRiskRequest, evaluate_liquidity_risk
 from trading_gym.risk.factor import FactorRiskRequest, evaluate_factor_risk
-from trading_gym.treasury.counterparty import CounterpartyRiskRequest, evaluate_counterparty_risk
+from trading_gym.treasury.counterparty import (
+    CounterpartyRiskRequest,
+    evaluate_counterparty_risk,
+)
 from trading_gym.risk.portfolio import (
     PortfolioRiskLimits,
     PortfolioSnapshot,
     evaluate_portfolio_risk,
 )
 from trading_gym.risk.sizing import PositionSizingRequest, size_position
-from trading_gym.risk.derivatives import DerivativePosition, DerivativeRiskPolicy, analyze_derivative_risk
+from trading_gym.risk.derivatives import (
+    DerivativePosition,
+    DerivativeRiskPolicy,
+    analyze_derivative_risk,
+)
 from trading_gym.risk.stress import (
     PortfolioStressPolicy,
     StressPosition,
@@ -218,7 +252,10 @@ from trading_gym.risk.stress import (
     evaluate_portfolio_stress,
 )
 from trading_gym.strategy_lab.models import StrategySpec
-from trading_gym.strategy_lab.repository import StrategyConflictError, StrategyRepository
+from trading_gym.strategy_lab.repository import (
+    StrategyConflictError,
+    StrategyRepository,
+)
 from trading_gym.strategy_lab.templates import template_catalogue
 from trading_gym.strategy_lab.validation import validate_strategy_spec
 
@@ -470,7 +507,9 @@ class ExecutionCalibrationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     observations: list[ExecutionObservation] = Field(max_length=1_000_000)
-    base_policy: ExecutionSimulationPolicy = Field(default_factory=ExecutionSimulationPolicy)
+    base_policy: ExecutionSimulationPolicy = Field(
+        default_factory=ExecutionSimulationPolicy
+    )
     thresholds: CalibrationThresholds = Field(default_factory=CalibrationThresholds)
 
 
@@ -520,7 +559,9 @@ class DerivativeRiskRequest(BaseModel):
 
     equity: Decimal
     free_collateral: Decimal
-    positions: list[DerivativePosition] = Field(default_factory=list, max_length=100_000)
+    positions: list[DerivativePosition] = Field(
+        default_factory=list, max_length=100_000
+    )
     policy: DerivativeRiskPolicy = Field(default_factory=DerivativeRiskPolicy)
 
 
@@ -539,7 +580,9 @@ class SettlementEvaluationRequest(BaseModel):
 
     as_of: datetime
     settled_cash: dict[str, Decimal] = Field(default_factory=dict, max_length=200)
-    obligations: list[SettlementObligation] = Field(default_factory=list, max_length=1_000_000)
+    obligations: list[SettlementObligation] = Field(
+        default_factory=list, max_length=1_000_000
+    )
 
 
 class IncidentAppendRequest(BaseModel):
@@ -607,7 +650,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         manifests=manifests,
         ledger=governance.ledger,
     )
-    budgeted_workflows = BudgetedBacktestWorkflow(base=workflows, budgets=budgets, lineage=lineage)
+    budgeted_workflows = BudgetedBacktestWorkflow(
+        base=workflows, budgets=budgets, lineage=lineage
+    )
     tools = SafeToolRegistry(
         strategies=strategies,
         governance=governance,
@@ -683,7 +728,10 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
     def worker_authorised(supplied: str | None) -> None:
         expected = os.getenv("WORKER_API_KEY") or ""
         if not expected:
-            raise HTTPException(status_code=503, detail="WORKER_API_KEY is required for worker transitions")
+            raise HTTPException(
+                status_code=503,
+                detail="WORKER_API_KEY is required for worker transitions",
+            )
         if not supplied or not secrets.compare_digest(supplied, expected):
             raise HTTPException(status_code=403, detail="Valid X-Worker-Key required")
 
@@ -743,9 +791,15 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
             return
         expected = os.getenv("APPROVAL_API_KEY") or ""
         if not expected:
-            raise HTTPException(status_code=503, detail="APPROVAL_API_KEY is required for high-risk operations")
+            raise HTTPException(
+                status_code=503,
+                detail="APPROVAL_API_KEY is required for high-risk operations",
+            )
         if not supplied or not secrets.compare_digest(supplied, expected):
-            raise HTTPException(status_code=403, detail="Valid X-Approval-Key required for high-risk operation")
+            raise HTTPException(
+                status_code=403,
+                detail="Valid X-Approval-Key required for high-risk operation",
+            )
         health = reconcile_all_audit(fail_closed=True)
         audit = health["ledger"]
         if health["pending"] or not audit.get("valid") or not audit.get("sealed"):
@@ -972,7 +1026,10 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
 
     @router.get("/strategies/templates")
     def strategy_templates() -> dict[str, Any]:
-        return {key: value.model_dump(mode="json") for key, value in template_catalogue().items()}
+        return {
+            key: value.model_dump(mode="json")
+            for key, value in template_catalogue().items()
+        }
 
     @router.post("/strategies/validate")
     def validate_strategy(request: StrategyValidateRequest) -> dict[str, Any]:
@@ -984,7 +1041,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 end=request.end,
             ).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/strategies")
     def list_strategies(
@@ -1010,25 +1069,39 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 actor=request.actor,
             )
         except StrategyConflictError as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/market/session/inspect")
-    def inspect_market_session_endpoint(request: MarketSessionInspectionRequest) -> dict[str, Any]:
+    def inspect_market_session_endpoint(
+        request: MarketSessionInspectionRequest,
+    ) -> dict[str, Any]:
         try:
-            return inspect_market_session(request.calendar, request.observed_at).model_dump(mode="json")
+            return inspect_market_session(
+                request.calendar, request.observed_at
+            ).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/market/execution-window")
     def plan_market_execution_window(request: ExecutionWindowRequest) -> dict[str, Any]:
         try:
             return plan_execution_window(request).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/market/instruments")
     def list_instruments(
@@ -1040,17 +1113,20 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         return {
             "revision": instruments.revision(),
             "instruments": [
-                item.model_dump(mode="json")
-                for item in values[offset : offset + limit]
+                item.model_dump(mode="json") for item in values[offset : offset + limit]
             ],
         }
 
     @router.get("/market/instruments/resolve/{identifier}")
-    def resolve_instrument(identifier: str, venue: str | None = Query(default=None)) -> dict[str, Any]:
+    def resolve_instrument(
+        identifier: str, venue: str | None = Query(default=None)
+    ) -> dict[str, Any]:
         try:
             return instruments.resolve(identifier, venue=venue).model_dump(mode="json")
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Instrument not found or ambiguous") from exc
+            raise HTTPException(
+                status_code=404, detail="Instrument not found or ambiguous"
+            ) from exc
 
     @router.post("/market/instruments")
     def save_instrument(
@@ -1064,11 +1140,17 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 actor=actor,
             )
         except InstrumentConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/market/backtest-policy")
     def backtest_policy(request: BacktestWindowRequest) -> dict[str, object]:
@@ -1077,7 +1159,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except BacktestLimitError as exc:
             raise HTTPException(status_code=422, detail=exc.details) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/market/datasets")
     def list_datasets(
@@ -1112,11 +1196,17 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 actor=actor,
             )
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Superseded dataset not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Superseded dataset not found"
+            ) from exc
         except DatasetConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/market/datasets/{dataset_id}")
     def get_dataset(dataset_id: str) -> dict[str, Any]:
@@ -1138,9 +1228,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Dataset not found") from exc
         except DatasetConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/workflows/backtest")
     def plan_backtest_workflow(
@@ -1150,11 +1244,17 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             return workflows.plan_backtest(request, actor=actor).model_dump(mode="json")
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Strategy or instrument not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Strategy or instrument not found"
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/workflows/budgeted-backtest")
     def plan_budgeted_backtest_workflow(
@@ -1164,50 +1264,75 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             return budgeted_workflows.plan(request, actor=actor).model_dump(mode="json")
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Strategy, instrument, or budget not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Strategy, instrument, or budget not found"
+            ) from exc
         except (BudgetConflict, LineageConflict, ExperimentConflict) as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except BudgetedBacktestCompensationError as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
         except (ValueError, AuditOutboxPending) as exc:
-            raise HTTPException(status_code=422 if isinstance(exc, ValueError) else 503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422 if isinstance(exc, ValueError) else 503,
+                detail=public_error_detail(exc),
+            ) from exc
 
     @router.post("/risk/derivatives")
     def assess_derivative_risk(request: DerivativeRiskRequest) -> dict[str, Any]:
         try:
             return analyze_derivative_risk(
-                equity=request.equity, free_collateral=request.free_collateral,
-                positions=request.positions, policy=request.policy,
+                equity=request.equity,
+                free_collateral=request.free_collateral,
+                positions=request.positions,
+                policy=request.policy,
             ).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/portfolio/rebalance")
     def plan_portfolio_rebalance(request: RebalanceRequest) -> dict[str, Any]:
         try:
             return plan_rebalance(
-                base_currency=request.base_currency, cash_base=request.cash_base,
-                holdings=request.holdings, targets=request.targets, policy=request.policy,
+                base_currency=request.base_currency,
+                cash_base=request.cash_base,
+                holdings=request.holdings,
+                targets=request.targets,
+                policy=request.policy,
             ).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/risk/size")
     def calculate_position_size(request: PositionSizingRequest) -> dict[str, Any]:
         return size_position(request).model_dump(mode="json")
 
     @router.post("/risk/portfolio")
-    def assess_portfolio(snapshot: PortfolioSnapshot, limits: PortfolioRiskLimits) -> dict[str, Any]:
+    def assess_portfolio(
+        snapshot: PortfolioSnapshot, limits: PortfolioRiskLimits
+    ) -> dict[str, Any]:
         return evaluate_portfolio_risk(snapshot, limits).model_dump(mode="json")
 
     @router.post("/risk/stress")
     def stress_portfolio(request: PortfolioStressRequest) -> dict[str, Any]:
         try:
             return evaluate_portfolio_stress(
-                equity=request.equity, positions=request.positions, scenario=request.scenario, policy=request.policy
+                equity=request.equity,
+                positions=request.positions,
+                scenario=request.scenario,
+                policy=request.policy,
             ).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/research/sources")
     def research_sources() -> list[dict[str, object]]:
@@ -1215,8 +1340,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
 
     @router.post("/research/dossier")
     def create_dossier(request: DossierRequest) -> dict[str, Any]:
-        required = tuple(request.required_sections) if request.required_sections else None
-        kwargs: dict[str, Any] = {"subject": request.subject, "evidence": request.evidence}
+        required = (
+            tuple(request.required_sections) if request.required_sections else None
+        )
+        kwargs: dict[str, Any] = {
+            "subject": request.subject,
+            "evidence": request.evidence,
+        }
         if required is not None:
             kwargs["required_sections"] = required
         dossier = build_dossier(**kwargs)
@@ -1248,9 +1378,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 request.entry, expected_revision=request.expected_revision, actor=actor
             )
         except WorkspaceConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.delete("/research/workspace/watchlist/{instrument_id}")
     def remove_watchlist(
@@ -1265,11 +1399,17 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 )
             }
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Watchlist entry not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Watchlist entry not found"
+            ) from exc
         except WorkspaceConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/research/workspace/notes")
     def save_note(
@@ -1277,15 +1417,21 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         actor: str = Header(default="api-operator", alias="X-Actor"),
     ) -> dict[str, Any]:
         try:
-            return workspace.save_note(
-                actor=actor, **request.model_dump()
-            ).model_dump(mode="json")
+            return workspace.save_note(actor=actor, **request.model_dump()).model_dump(
+                mode="json"
+            )
         except WorkspaceConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/research/workspace/reports")
     def save_report(
@@ -1293,11 +1439,17 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         actor: str = Header(default="api-operator", alias="X-Actor"),
     ) -> dict[str, Any]:
         try:
-            return workspace.save_report(request.dossier, label=request.label, actor=actor)
+            return workspace.save_report(
+                request.dossier, label=request.label, actor=actor
+            )
         except WorkspaceConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/providers")
     def list_providers(
@@ -1307,7 +1459,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         values = providers.list()
         return {
             "revision": providers.revision(),
-            "providers": [item.model_dump(mode="json") for item in values[offset : offset + limit]],
+            "providers": [
+                item.model_dump(mode="json") for item in values[offset : offset + limit]
+            ],
         }
 
     @router.post("/providers")
@@ -1320,9 +1474,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 request.config, expected_revision=request.expected_revision, actor=actor
             )
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
         except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
 
     @router.delete("/providers/{provider_id}")
     def delete_provider(
@@ -1335,19 +1493,27 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 provider_id, expected_revision=expected_revision, actor=actor
             )
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
         except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/providers/{provider_id}/status")
     def check_provider(provider_id: str) -> dict[str, Any]:
-        config = next((item for item in providers.list() if item.provider_id == provider_id), None)
+        config = next(
+            (item for item in providers.list() if item.provider_id == provider_id), None
+        )
         if config is None:
             raise HTTPException(status_code=404, detail="Provider not found")
         try:
             return provider_status(config)
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/experiments")
     def list_experiments(
@@ -1358,11 +1524,17 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             values = experiments.list(state=state)
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
-        return [item.model_dump(mode="json") for item in values[offset : offset + limit]]
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
+        return [
+            item.model_dump(mode="json") for item in values[offset : offset + limit]
+        ]
 
     @router.post("/experiments/temporal-leakage/audit")
-    def audit_temporal_leakage_endpoint(request: TemporalLeakageRequest) -> dict[str, Any]:
+    def audit_temporal_leakage_endpoint(
+        request: TemporalLeakageRequest,
+    ) -> dict[str, Any]:
         return audit_temporal_leakage(request).model_dump(mode="json")
 
     @router.post("/experiments")
@@ -1373,9 +1545,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             return experiments.create(request, actor=actor).model_dump(mode="json")
         except ExperimentConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/experiments/{experiment_id}")
     def get_experiment(experiment_id: str) -> dict[str, Any]:
@@ -1384,7 +1560,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Experiment not found") from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/experiments/claim")
     def claim_experiment(
@@ -1396,7 +1574,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
             record = experiments.claim_next(**request.model_dump())
             return record.model_dump(mode="json") if record else None
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/experiments/{experiment_id}/heartbeat")
     def heartbeat_experiment(
@@ -1406,11 +1586,15 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
     ) -> dict[str, Any]:
         worker_authorised(worker_key)
         try:
-            return experiments.heartbeat(experiment_id, **request.model_dump()).model_dump(mode="json")
+            return experiments.heartbeat(
+                experiment_id, **request.model_dump()
+            ).model_dump(mode="json")
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Experiment not found") from exc
         except ExperimentConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/experiments/{experiment_id}/complete")
     def complete_experiment(
@@ -1420,13 +1604,19 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
     ) -> dict[str, Any]:
         worker_authorised(worker_key)
         try:
-            return experiments.complete(experiment_id, **request.model_dump()).model_dump(mode="json")
+            return experiments.complete(
+                experiment_id, **request.model_dump()
+            ).model_dump(mode="json")
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Experiment not found") from exc
         except ExperimentConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/experiments/{experiment_id}/fail")
     def fail_experiment(
@@ -1436,13 +1626,19 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
     ) -> dict[str, Any]:
         worker_authorised(worker_key)
         try:
-            return experiments.fail(experiment_id, **request.model_dump()).model_dump(mode="json")
+            return experiments.fail(experiment_id, **request.model_dump()).model_dump(
+                mode="json"
+            )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Experiment not found") from exc
         except ExperimentConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/experiments/{experiment_id}/cancel")
     def cancel_experiment(
@@ -1457,9 +1653,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Experiment not found") from exc
         except ExperimentConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/agent/tools")
     def list_tools() -> list[dict[str, str]]:
@@ -1472,9 +1672,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Tool not found") from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
         except (ValueError, TypeError, RuntimeError) as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/orders")
     def list_orders(
@@ -1483,16 +1687,26 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=100, ge=1, le=500),
     ) -> list[dict[str, Any]]:
-        return [item.model_dump(mode="json") for item in orders.list(account_id=account_id, state=state)[offset:offset + limit]]
+        return [
+            item.model_dump(mode="json")
+            for item in orders.list(account_id=account_id, state=state)[
+                offset : offset + limit
+            ]
+        ]
 
     @router.post("/orders")
     def create_order_intent(intent: OrderIntent) -> dict[str, Any]:
         try:
             return orders.create(intent).model_dump(mode="json")
         except OrderConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except (ValueError, AuditOutboxPending) as exc:
-            raise HTTPException(status_code=422 if isinstance(exc, ValueError) else 503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422 if isinstance(exc, ValueError) else 503,
+                detail=public_error_detail(exc),
+            ) from exc
 
     @router.get("/orders/{order_id}")
     def get_order(order_id: str) -> dict[str, Any]:
@@ -1501,20 +1715,33 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Order not found") from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/orders/{order_id}/events")
-    def append_order_event(order_id: str, request: OrderAppendRequest) -> dict[str, Any]:
+    def append_order_event(
+        order_id: str, request: OrderAppendRequest
+    ) -> dict[str, Any]:
         if request.event.order_id != order_id:
-            raise HTTPException(status_code=422, detail="Order event path identifier mismatch")
+            raise HTTPException(
+                status_code=422, detail="Order event path identifier mismatch"
+            )
         try:
-            return orders.append(request.event, expected_revision=request.expected_revision).model_dump(mode="json")
+            return orders.append(
+                request.event, expected_revision=request.expected_revision
+            ).model_dump(mode="json")
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Order not found") from exc
         except OrderConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except (ValueError, AuditOutboxPending) as exc:
-            raise HTTPException(status_code=422 if isinstance(exc, ValueError) else 503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422 if isinstance(exc, ValueError) else 503,
+                detail=public_error_detail(exc),
+            ) from exc
 
     @router.get("/orders/{order_id}/verify")
     def verify_order(order_id: str) -> dict[str, Any]:
@@ -1523,31 +1750,45 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Order not found") from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/orders/{order_id}/reconcile")
-    def reconcile_order(order_id: str, request: OrderReconciliationRequestEnvelope) -> dict[str, Any]:
+    def reconcile_order(
+        order_id: str, request: OrderReconciliationRequestEnvelope
+    ) -> dict[str, Any]:
         try:
-            return orders.reconcile(order_id, request.observation).model_dump(mode="json")
+            return orders.reconcile(order_id, request.observation).model_dump(
+                mode="json"
+            )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Order not found") from exc
 
     @router.post("/orders/{order_id}/accounting-sync")
     def sync_order_accounting(
-        order_id: str, actor: str = Header(default="accounting-reconciler", alias="X-Actor")
+        order_id: str,
+        actor: str = Header(default="accounting-reconciler", alias="X-Actor"),
     ) -> dict[str, Any]:
         try:
-            return order_accounting_sync.sync(order_id, actor=actor).model_dump(mode="json")
+            return order_accounting_sync.sync(order_id, actor=actor).model_dump(
+                mode="json"
+            )
         except KeyError as exc:
             detail = "Order or accounting account not found"
             raise HTTPException(status_code=404, detail=detail) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/orders/{order_id}/accounting-events")
     def order_accounting_events(order_id: str) -> list[dict[str, Any]]:
         try:
-            return [item.model_dump(mode="json") for item in orders.accounting_events(order_id)]
+            return [
+                item.model_dump(mode="json")
+                for item in orders.accounting_events(order_id)
+            ]
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Order not found") from exc
 
@@ -1555,23 +1796,34 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
     def analyse_lot_performance(request: LotAnalysisRequest) -> dict[str, Any]:
         try:
             return analyse_lots(
-                request.fills, base_currency=request.base_currency, method=request.method, marks=request.marks
+                request.fills,
+                base_currency=request.base_currency,
+                method=request.method,
+                marks=request.marks,
             ).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/execution/queue")
     def simulate_queue_endpoint(request: QueueSimulationRequest) -> dict[str, Any]:
         return simulate_queue(request).model_dump(mode="json")
 
     @router.post("/execution/calibrate")
-    def calibrate_execution_endpoint(request: ExecutionCalibrationRequest) -> dict[str, Any]:
+    def calibrate_execution_endpoint(
+        request: ExecutionCalibrationRequest,
+    ) -> dict[str, Any]:
         try:
             return calibrate_execution(
-                request.observations, base_policy=request.base_policy, thresholds=request.thresholds
+                request.observations,
+                base_policy=request.base_policy,
+                thresholds=request.thresholds,
             ).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/lineage")
     def lineage_snapshot() -> dict[str, Any]:
@@ -1583,16 +1835,28 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=100, ge=1, le=500),
     ) -> list[dict[str, Any]]:
-        return [item.model_dump(mode="json") for item in lineage.list_nodes(kind=kind)[offset:offset + limit]]
+        return [
+            item.model_dump(mode="json")
+            for item in lineage.list_nodes(kind=kind)[offset : offset + limit]
+        ]
 
     @router.post("/lineage/nodes")
-    def add_lineage_node(request: LineageNodeSaveRequest, actor: str = Header(default="api-operator", alias="X-Actor")) -> dict[str, Any]:
+    def add_lineage_node(
+        request: LineageNodeSaveRequest,
+        actor: str = Header(default="api-operator", alias="X-Actor"),
+    ) -> dict[str, Any]:
         try:
-            return lineage.add_node(request.node, expected_revision=request.expected_revision, actor=actor).model_dump(mode="json")
+            return lineage.add_node(
+                request.node, expected_revision=request.expected_revision, actor=actor
+            ).model_dump(mode="json")
         except LineageConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/lineage/edges")
     def list_lineage_edges() -> list[dict[str, Any]]:
@@ -1601,45 +1865,76 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
     @router.post("/lineage/edges")
     def add_lineage_edge(request: LineageEdgeSaveRequest) -> dict[str, Any]:
         try:
-            return lineage.add_edge(request.edge, expected_revision=request.expected_revision).model_dump(mode="json")
+            return lineage.add_edge(
+                request.edge, expected_revision=request.expected_revision
+            ).model_dump(mode="json")
         except LineageConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/lineage/nodes/{node_id}/impact")
-    def lineage_impact(node_id: str, max_nodes: int = Query(default=10_000, ge=1, le=10_000)) -> dict[str, Any]:
+    def lineage_impact(
+        node_id: str, max_nodes: int = Query(default=10_000, ge=1, le=10_000)
+    ) -> dict[str, Any]:
         try:
             return lineage.impact(node_id, max_nodes=max_nodes).model_dump(mode="json")
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Lineage node not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Lineage node not found"
+            ) from exc
 
     @router.get("/lineage/nodes/{node_id}/ancestry")
-    def lineage_ancestry(node_id: str, max_nodes: int = Query(default=10_000, ge=1, le=10_000)) -> dict[str, Any]:
+    def lineage_ancestry(
+        node_id: str, max_nodes: int = Query(default=10_000, ge=1, le=10_000)
+    ) -> dict[str, Any]:
         try:
-            return lineage.ancestry(node_id, max_nodes=max_nodes).model_dump(mode="json")
+            return lineage.ancestry(node_id, max_nodes=max_nodes).model_dump(
+                mode="json"
+            )
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Lineage node not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Lineage node not found"
+            ) from exc
 
     @router.get("/lineage/nodes/{node_id}/bundle")
-    def lineage_bundle(node_id: str, descendants: bool = Query(default=False)) -> dict[str, Any]:
+    def lineage_bundle(
+        node_id: str, descendants: bool = Query(default=False)
+    ) -> dict[str, Any]:
         try:
-            return lineage.export_bundle(node_id, include_descendants=descendants).model_dump(mode="json")
+            return lineage.export_bundle(
+                node_id, include_descendants=descendants
+            ).model_dump(mode="json")
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Lineage node not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Lineage node not found"
+            ) from exc
 
     @router.get("/budgets")
-    def list_budgets(scope_id: str | None = Query(default=None)) -> list[dict[str, Any]]:
-        return [item.model_dump(mode="json") for item in budgets.list_budgets(scope_id=scope_id)]
+    def list_budgets(
+        scope_id: str | None = Query(default=None),
+    ) -> list[dict[str, Any]]:
+        return [
+            item.model_dump(mode="json")
+            for item in budgets.list_budgets(scope_id=scope_id)
+        ]
 
     @router.post("/budgets")
     def create_budget(request: BudgetCreate) -> dict[str, Any]:
         try:
             return budgets.create(request).model_dump(mode="json")
         except BudgetConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/budgets/reservations")
     def reserve_budget(request: BudgetReservationCreate) -> dict[str, Any]:
@@ -1648,39 +1943,67 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Budget not found") from exc
         except BudgetConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/budgets/reservations/{reservation_id}")
     def get_budget_reservation(reservation_id: str) -> dict[str, Any]:
         try:
             return budgets.get_reservation(reservation_id).model_dump(mode="json")
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Reservation not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Reservation not found"
+            ) from exc
 
     @router.post("/budgets/reservations/{reservation_id}/commit")
     def commit_budget_reservation(
-        reservation_id: str, request: BudgetCommitRequest, actor: str = Header(default="api-operator", alias="X-Actor")
+        reservation_id: str,
+        request: BudgetCommitRequest,
+        actor: str = Header(default="api-operator", alias="X-Actor"),
     ) -> dict[str, Any]:
         try:
-            return budgets.commit(reservation_id, actual_amount=request.actual_amount, expected_revision=request.expected_revision, actor=actor).model_dump(mode="json")
+            return budgets.commit(
+                reservation_id,
+                actual_amount=request.actual_amount,
+                expected_revision=request.expected_revision,
+                actor=actor,
+            ).model_dump(mode="json")
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Reservation not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Reservation not found"
+            ) from exc
         except BudgetConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/budgets/reservations/{reservation_id}/release")
     def release_budget_reservation(
-        reservation_id: str, request: BudgetReleaseRequest, actor: str = Header(default="api-operator", alias="X-Actor")
+        reservation_id: str,
+        request: BudgetReleaseRequest,
+        actor: str = Header(default="api-operator", alias="X-Actor"),
     ) -> dict[str, Any]:
         try:
-            return budgets.release(reservation_id, expected_revision=request.expected_revision, actor=actor, reason=request.reason).model_dump(mode="json")
+            return budgets.release(
+                reservation_id,
+                expected_revision=request.expected_revision,
+                actor=actor,
+                reason=request.reason,
+            ).model_dump(mode="json")
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Reservation not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Reservation not found"
+            ) from exc
         except BudgetConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/budgets/reconcile-expired")
-    def reconcile_expired_budgets(actor: str = Header(default="budget-reconciler", alias="X-Actor")) -> dict[str, Any]:
+    def reconcile_expired_budgets(
+        actor: str = Header(default="budget-reconciler", alias="X-Actor")
+    ) -> dict[str, Any]:
         return budgets.reconcile_expired(actor=actor)
 
     @router.get("/budgets/{budget_id}")
@@ -1703,20 +2026,30 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         return qualify_candidate(request).model_dump(mode="json")
 
     @router.post("/accounting/corporate-actions/plan")
-    def plan_corporate_action_endpoint(request: CorporateActionRequest) -> dict[str, Any]:
+    def plan_corporate_action_endpoint(
+        request: CorporateActionRequest,
+    ) -> dict[str, Any]:
         try:
             return plan_corporate_action(request).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/accounting/settlement/evaluate")
-    def evaluate_settlement_endpoint(request: SettlementEvaluationRequest) -> dict[str, Any]:
+    def evaluate_settlement_endpoint(
+        request: SettlementEvaluationRequest,
+    ) -> dict[str, Any]:
         try:
             return evaluate_settlement(
-                as_of=request.as_of, settled_cash=request.settled_cash, obligations=request.obligations,
+                as_of=request.as_of,
+                settled_cash=request.settled_cash,
+                obligations=request.obligations,
             ).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/accounting/accounts")
     def list_accounting_accounts() -> list[str]:
@@ -1729,9 +2062,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         actor: str = Header(default="api-operator", alias="X-Actor"),
     ) -> dict[str, Any]:
         try:
-            return accounting.create(account_id, request.initial_cash, actor=actor).model_dump(mode="json")
+            return accounting.create(
+                account_id, request.initial_cash, actor=actor
+            ).model_dump(mode="json")
         except (ValueError, RuntimeError) as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/accounting/accounts/{account_id}")
     def get_accounting_account(account_id: str) -> dict[str, Any]:
@@ -1740,10 +2077,14 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             return accounting.account(account_id).snapshot().model_dump(mode="json")
         except (ValueError, RuntimeError) as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/accounting/accounts/{account_id}/valuation")
-    def value_account_endpoint(account_id: str, request: AccountValuationRequest) -> dict[str, Any]:
+    def value_account_endpoint(
+        account_id: str, request: AccountValuationRequest
+    ) -> dict[str, Any]:
         if not accounting.exists(account_id):
             raise HTTPException(status_code=404, detail="Accounting account not found")
         try:
@@ -1755,7 +2096,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 max_fx_age_seconds=request.max_fx_age_seconds,
             ).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/accounting/accounts/{account_id}/events")
     def apply_accounting_event(
@@ -1766,13 +2109,23 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         if not accounting.exists(account_id):
             raise HTTPException(status_code=404, detail="Accounting account not found")
         if event.account_id != account_id:
-            raise HTTPException(status_code=422, detail="event account_id does not match route")
+            raise HTTPException(
+                status_code=422, detail="event account_id does not match route"
+            )
         try:
-            return accounting.account(account_id).apply(event, actor=actor).model_dump(mode="json")
+            return (
+                accounting.account(account_id)
+                .apply(event, actor=actor)
+                .model_dump(mode="json")
+            )
         except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/accounting/accounts/{account_id}/reconcile")
     def reconcile_accounting_account(
@@ -1781,11 +2134,15 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         if not accounting.exists(account_id):
             raise HTTPException(status_code=404, detail="Accounting account not found")
         try:
-            return accounting.account(account_id).reconcile(
-                request.observed, request.tolerance
-            ).model_dump(mode="json")
+            return (
+                accounting.account(account_id)
+                .reconcile(request.observed, request.tolerance)
+                .model_dump(mode="json")
+            )
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/accounting/accounts/{account_id}/verify")
     def verify_accounting_account(account_id: str) -> dict[str, Any]:
@@ -1794,15 +2151,25 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             return accounting.account(account_id).verify()
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/execution/simulate")
-    def simulate_execution_endpoint(request: ExecutionSimulationEnvelope) -> dict[str, Any]:
-        return simulate_execution(request.request, request.policy).model_dump(mode="json")
+    def simulate_execution_endpoint(
+        request: ExecutionSimulationEnvelope,
+    ) -> dict[str, Any]:
+        return simulate_execution(request.request, request.policy).model_dump(
+            mode="json"
+        )
 
     @router.post("/execution/scenarios")
-    def simulate_execution_scenarios(request: ExecutionSimulationEnvelope) -> dict[str, Any]:
-        return simulate_scenarios(request.request, request.policy).model_dump(mode="json")
+    def simulate_execution_scenarios(
+        request: ExecutionSimulationEnvelope,
+    ) -> dict[str, Any]:
+        return simulate_scenarios(request.request, request.policy).model_dump(
+            mode="json"
+        )
 
     @router.post("/reproducibility/manifests")
     def create_run_manifest(
@@ -1812,19 +2179,29 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             return manifests.create(request, actor=actor).model_dump(mode="json")
         except (ValueError, RuntimeError) as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/reproducibility/manifests/{manifest_id}")
     def get_run_manifest(manifest_id: str) -> dict[str, Any]:
         try:
             manifest = manifests.get(manifest_id)
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Run manifest not found") from exc
-        return {**manifest.model_dump(mode="json"), "verification": verify_manifest(manifest)}
+            raise HTTPException(
+                status_code=404, detail="Run manifest not found"
+            ) from exc
+        return {
+            **manifest.model_dump(mode="json"),
+            "verification": verify_manifest(manifest),
+        }
 
     @router.get("/reproducibility/experiments/{experiment_id}/manifests")
     def list_run_manifests(experiment_id: str) -> list[dict[str, Any]]:
-        return [item.model_dump(mode="json") for item in manifests.list_for_experiment(experiment_id)]
+        return [
+            item.model_dump(mode="json")
+            for item in manifests.list_for_experiment(experiment_id)
+        ]
 
     @router.get("/monitoring/drift/baselines")
     def list_drift_baselines() -> list[dict[str, Any]]:
@@ -1837,12 +2214,18 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
     ) -> dict[str, Any]:
         try:
             return drift_baselines.create(
-                request.baseline, actor=actor, expected_store_revision=request.expected_store_revision
+                request.baseline,
+                actor=actor,
+                expected_store_revision=request.expected_store_revision,
             ).model_dump(mode="json")
         except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/monitoring/drift/baselines/{baseline_id}/evaluate")
     def evaluate_drift_endpoint(
@@ -1851,7 +2234,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             baseline = drift_baselines.get(baseline_id)
         except KeyError as exc:
-            raise HTTPException(status_code=404, detail="Drift baseline not found") from exc
+            raise HTTPException(
+                status_code=404, detail="Drift baseline not found"
+            ) from exc
         return evaluate_drift(baseline, request).model_dump(mode="json")
 
     @router.get("/operations/incidents")
@@ -1859,18 +2244,26 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             return [item.model_dump(mode="json") for item in incidents.list()]
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/operations/incidents")
     def create_incident(request: IncidentCreate) -> dict[str, Any]:
         try:
             return incidents.create(request).model_dump(mode="json")
         except IncidentConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/operations/incidents/{incident_id}")
     def get_incident(incident_id: str) -> dict[str, Any]:
@@ -1879,22 +2272,36 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Incident not found") from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/operations/incidents/{incident_id}/events")
-    def append_incident_event(incident_id: str, request: IncidentAppendRequest) -> dict[str, Any]:
+    def append_incident_event(
+        incident_id: str, request: IncidentAppendRequest
+    ) -> dict[str, Any]:
         if request.event.incident_id != incident_id:
-            raise HTTPException(status_code=422, detail="event incident_id does not match route")
+            raise HTTPException(
+                status_code=422, detail="event incident_id does not match route"
+            )
         try:
-            return incidents.append(request.event, expected_revision=request.expected_revision).model_dump(mode="json")
+            return incidents.append(
+                request.event, expected_revision=request.expected_revision
+            ).model_dump(mode="json")
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Incident not found") from exc
         except IncidentConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/operations/incidents/readiness")
     def incident_readiness(request: IncidentReadinessRequest) -> dict[str, Any]:
@@ -1903,11 +2310,15 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 selected = incidents.list()
             else:
                 selected = [incidents.get(item) for item in request.incident_ids]
-            return evaluate_incident_readiness(selected, evaluated_at=request.evaluated_at).model_dump(mode="json")
+            return evaluate_incident_readiness(
+                selected, evaluated_at=request.evaluated_at
+            ).model_dump(mode="json")
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Incident not found") from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/operations/snapshots")
     def list_snapshots() -> list[dict[str, Any]]:
@@ -1923,21 +2334,27 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 request.relative_paths, snapshot_id=request.snapshot_id, actor=actor
             ).model_dump(mode="json")
         except (ValueError, RuntimeError) as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/operations/snapshots/{snapshot_id}/verify")
     def verify_snapshot(snapshot_id: str) -> dict[str, Any]:
         try:
             return snapshots.verify(snapshot_id)
         except (FileNotFoundError, ValueError) as exc:
-            raise HTTPException(status_code=404, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=404, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/operations/snapshots/{snapshot_id}/restore-plan")
     def plan_snapshot_restore(snapshot_id: str) -> dict[str, Any]:
         try:
             return snapshots.plan_restore(snapshot_id).model_dump(mode="json")
         except (FileNotFoundError, ValueError) as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/operations/snapshots/{snapshot_id}/restore-drill")
     def drill_snapshot_restore(snapshot_id: str) -> dict[str, Any]:
@@ -1946,21 +2363,27 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Snapshot not found") from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/operations/attestations/verify")
     def verify_build_attestation(request: AttestationVerifyRequest) -> dict[str, Any]:
         try:
             return verify_attestation(request.attestation)
         except ValueError as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/operations/migrations/plan")
     def plan_migration_endpoint(request: MigrationPlanRequest) -> dict[str, Any]:
         try:
             return plan_migration(request).model_dump(mode="json")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/operations/version-skew/evaluate")
     def evaluate_version_skew_endpoint(request: VersionSkewRequest) -> dict[str, Any]:
@@ -1971,7 +2394,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         return evaluate_clock_health(request).model_dump(mode="json")
 
     @router.post("/operations/recovery-objectives/evaluate")
-    def evaluate_recovery_objectives_endpoint(request: RecoveryObjectiveRequest) -> dict[str, Any]:
+    def evaluate_recovery_objectives_endpoint(
+        request: RecoveryObjectiveRequest,
+    ) -> dict[str, Any]:
         return evaluate_recovery_objectives(request).model_dump(mode="json")
 
     @router.post("/operations/slo/evaluate")
@@ -1984,7 +2409,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             return verify_dependency_policy(root)
         except (OSError, ValueError) as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/governance/triggers")
     def list_triggers(
@@ -1993,7 +2420,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         limit: int = Query(default=100, ge=1, le=500),
     ) -> list[dict[str, Any]]:
         values = triggers.list(state=state)
-        return [item.model_dump(mode="json") for item in values[offset : offset + limit]]
+        return [
+            item.model_dump(mode="json") for item in values[offset : offset + limit]
+        ]
 
     @router.post("/governance/triggers")
     def create_trigger(
@@ -2003,9 +2432,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             return triggers.create(request, actor=actor).model_dump(mode="json")
         except TriggerConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except GovernanceAuditPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/governance/triggers/{trigger_id}/state")
     def set_trigger_state(
@@ -2022,9 +2455,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Trigger not found") from exc
         except TriggerConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except GovernanceAuditPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/governance/triggers/{trigger_id}/evaluate")
     def evaluate_trigger_endpoint(
@@ -2039,15 +2476,24 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 now=request.evaluated_at,
                 **request.model_dump(exclude={"evaluated_at"}),
             )
-            return {"matched": proposal is not None, "proposal": proposal.model_dump(mode="json") if proposal else None}
+            return {
+                "matched": proposal is not None,
+                "proposal": proposal.model_dump(mode="json") if proposal else None,
+            }
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Trigger not found") from exc
         except (TriggerConflict, GovernanceConflict) as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except GovernanceAuditPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=422, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/governance/proposals")
     def list_proposals(
@@ -2056,7 +2502,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         limit: int = Query(default=100, ge=1, le=500),
     ) -> list[dict[str, Any]]:
         values = governance.list(state=state)
-        return [item.model_dump(mode="json") for item in values[offset : offset + limit]]
+        return [
+            item.model_dump(mode="json") for item in values[offset : offset + limit]
+        ]
 
     @router.post("/governance/proposals")
     def create_proposal(
@@ -2069,9 +2517,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             return governance.create(request, actor=actor).model_dump(mode="json")
         except GovernanceConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except GovernanceAuditPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/governance/proposals/{proposal_id}/decision")
     def decide_proposal(
@@ -2099,9 +2551,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Proposal not found") from exc
         except GovernanceConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except GovernanceAuditPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/governance/proposals/{proposal_id}/consume")
     def consume_proposal(
@@ -2122,9 +2578,13 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Proposal not found") from exc
         except GovernanceConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except GovernanceAuditPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.get("/governance/identity/health")
     def identity_health() -> dict[str, Any]:
@@ -2135,11 +2595,15 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         return asdict(deployment_isolation_health())
 
     @router.post("/governance/data-lifecycle/evaluate")
-    def evaluate_data_lifecycle_endpoint(request: DataLifecycleRequest) -> dict[str, Any]:
+    def evaluate_data_lifecycle_endpoint(
+        request: DataLifecycleRequest,
+    ) -> dict[str, Any]:
         return evaluate_data_lifecycle(request).model_dump(mode="json")
 
     @router.post("/governance/credentials/rotation/evaluate")
-    def evaluate_credential_rotation_endpoint(request: CredentialRotationRequest) -> dict[str, Any]:
+    def evaluate_credential_rotation_endpoint(
+        request: CredentialRotationRequest,
+    ) -> dict[str, Any]:
         return evaluate_credential_rotation(request).model_dump(mode="json")
 
     @router.get("/coordination/leases")
@@ -2151,41 +2615,63 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         try:
             return leases.acquire(request).model_dump(mode="json")
         except LeaseConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
         except AuditOutboxPending as exc:
-            raise HTTPException(status_code=503, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=503, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/coordination/leases/{lease_id}/renew")
-    def renew_coordination_lease(lease_id: str, request: LeaseRenewRequest) -> dict[str, Any]:
+    def renew_coordination_lease(
+        lease_id: str, request: LeaseRenewRequest
+    ) -> dict[str, Any]:
         try:
             return leases.renew(
-                lease_id, owner_id=request.owner_id, fencing_token=request.fencing_token,
-                now=request.now, ttl_seconds=request.ttl_seconds,
+                lease_id,
+                owner_id=request.owner_id,
+                fencing_token=request.fencing_token,
+                now=request.now,
+                ttl_seconds=request.ttl_seconds,
             ).model_dump(mode="json")
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Lease not found") from exc
         except LeaseConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/coordination/leases/{lease_id}/release")
-    def release_coordination_lease(lease_id: str, request: LeaseReleaseRequest) -> dict[str, Any]:
+    def release_coordination_lease(
+        lease_id: str, request: LeaseReleaseRequest
+    ) -> dict[str, Any]:
         try:
             return leases.release(
-                lease_id, owner_id=request.owner_id, fencing_token=request.fencing_token, now=request.now,
+                lease_id,
+                owner_id=request.owner_id,
+                fencing_token=request.fencing_token,
+                now=request.now,
             ).model_dump(mode="json")
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Lease not found") from exc
         except LeaseConflict as exc:
-            raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+            raise HTTPException(
+                status_code=409, detail=public_error_detail(exc)
+            ) from exc
 
     @router.post("/events/replay")
     def replay_events_endpoint(request: EventReplayRequest) -> dict[str, Any]:
         return replay_events(
-            request.events, genesis_hash=request.genesis_hash, initial_projection=request.initial_projection
+            request.events,
+            genesis_hash=request.genesis_hash,
+            initial_projection=request.initial_projection,
         ).model_dump(mode="json")
 
     @router.post("/treasury/collateral/allocate")
-    def allocate_collateral_endpoint(request: CollateralAllocationRequest) -> dict[str, Any]:
+    def allocate_collateral_endpoint(
+        request: CollateralAllocationRequest,
+    ) -> dict[str, Any]:
         return allocate_collateral(request).model_dump(mode="json")
 
     @router.post("/governance/policies/impact")
@@ -2209,11 +2695,15 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         return evaluate_liquidity_risk(request).model_dump(mode="json")
 
     @router.post("/treasury/counterparty/evaluate")
-    def evaluate_counterparty_endpoint(request: CounterpartyRiskRequest) -> dict[str, Any]:
+    def evaluate_counterparty_endpoint(
+        request: CounterpartyRiskRequest,
+    ) -> dict[str, Any]:
         return evaluate_counterparty_risk(request).model_dump(mode="json")
 
     @router.post("/operations/change-control/evaluate")
-    def evaluate_change_control_endpoint(request: ChangeControlRequest) -> dict[str, Any]:
+    def evaluate_change_control_endpoint(
+        request: ChangeControlRequest,
+    ) -> dict[str, Any]:
         return evaluate_change_control(request).model_dump(mode="json")
 
     @router.post("/operations/failover/evaluate")
@@ -2221,15 +2711,21 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         return evaluate_failover_readiness(request).model_dump(mode="json")
 
     @router.post("/experiments/sequential/evaluate")
-    def evaluate_sequential_endpoint(request: SequentialEvidenceRequest) -> dict[str, Any]:
+    def evaluate_sequential_endpoint(
+        request: SequentialEvidenceRequest,
+    ) -> dict[str, Any]:
         return evaluate_sequential_evidence(request).model_dump(mode="json")
 
     @router.post("/contracts/schemas/compatibility")
-    def schema_compatibility_endpoint(request: SchemaCompatibilityRequest) -> dict[str, Any]:
+    def schema_compatibility_endpoint(
+        request: SchemaCompatibilityRequest,
+    ) -> dict[str, Any]:
         return evaluate_schema_compatibility(request).model_dump(mode="json")
 
     @router.post("/treasury/liquidity/forecast")
-    def liquidity_forecast_endpoint(request: LiquidityForecastRequest) -> dict[str, Any]:
+    def liquidity_forecast_endpoint(
+        request: LiquidityForecastRequest,
+    ) -> dict[str, Any]:
         return evaluate_liquidity_forecast(request).model_dump(mode="json")
 
     @router.post("/risk/factors/evaluate")
@@ -2241,11 +2737,15 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         return evaluate_model_challenge(request).model_dump(mode="json")
 
     @router.post("/operations/forensics/evaluate")
-    def forensic_readiness_endpoint(request: ForensicReadinessRequest) -> dict[str, Any]:
+    def forensic_readiness_endpoint(
+        request: ForensicReadinessRequest,
+    ) -> dict[str, Any]:
         return evaluate_forensic_readiness(request).model_dump(mode="json")
 
     @router.post("/governance/controls/evaluate")
-    def control_effectiveness_endpoint(request: ControlEffectivenessRequest) -> dict[str, Any]:
+    def control_effectiveness_endpoint(
+        request: ControlEffectivenessRequest,
+    ) -> dict[str, Any]:
         return evaluate_control_effectiveness(request).model_dump(mode="json")
 
     @router.post("/operations/dependencies/impact")
@@ -2257,7 +2757,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         return evaluate_runbook_readiness(request).model_dump(mode="json")
 
     @router.post("/assurance/expanded-qualify")
-    def expanded_qualification_endpoint(request: ExpandedQualificationRequest) -> dict[str, Any]:
+    def expanded_qualification_endpoint(
+        request: ExpandedQualificationRequest,
+    ) -> dict[str, Any]:
         return qualify_expanded_system(request).model_dump(mode="json")
 
     @router.get("/governance/audit/verify")
@@ -2280,7 +2782,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         return reconcile_all_audit(fail_closed=True)
 
     @router.get("/governance/audit")
-    def audit_tail(limit: int = Query(default=100, ge=1, le=1000)) -> list[dict[str, Any]]:
+    def audit_tail(
+        limit: int = Query(default=100, ge=1, le=1000)
+    ) -> list[dict[str, Any]]:
         return governance.ledger.tail(limit)
 
     return router

@@ -15,7 +15,9 @@ from trading_gym.research.workspace import (
 )
 
 
-def evidence(identifier: str, *, days_old: int, quality: EvidenceQuality) -> EvidenceItem:
+def evidence(
+    identifier: str, *, days_old: int, quality: EvidenceQuality
+) -> EvidenceItem:
     return EvidenceItem(
         evidence_id=identifier,
         title=identifier,
@@ -71,4 +73,9 @@ def test_workspace_watchlist_notes_reports_and_cas(tmp_path: Path) -> None:
     report = workspace.save_report(dossier, label="daily")
     snapshot = workspace.snapshot()
     assert report["report_id"]
-    assert len(snapshot["watchlist"]) == len(snapshot["notes"]) == len(snapshot["reports"]) == 1
+    assert (
+        len(snapshot["watchlist"])
+        == len(snapshot["notes"])
+        == len(snapshot["reports"])
+        == 1
+    )

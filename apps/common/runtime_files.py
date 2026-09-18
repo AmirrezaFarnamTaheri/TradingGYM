@@ -19,9 +19,13 @@ METRICS_FILE = RUNTIME_ROOT / "shared_metrics.dat"
 MAX_CONTROL_FILE_BYTES = 512
 
 
-def write_heartbeat(path: Path = HEARTBEAT_FILE, *, timestamp: float | None = None) -> float:
+def write_heartbeat(
+    path: Path = HEARTBEAT_FILE, *, timestamp: float | None = None
+) -> float:
     value = time.time() if timestamp is None else float(timestamp)
-    atomic_write_text(path, f"{value:.6f}\n", max_bytes=MAX_CONTROL_FILE_BYTES, mode=0o600)
+    atomic_write_text(
+        path, f"{value:.6f}\n", max_bytes=MAX_CONTROL_FILE_BYTES, mode=0o600
+    )
     return value
 
 
@@ -56,6 +60,7 @@ def clear_panic_signal(path: Path = PANIC_FILE) -> bool:
         path.unlink()
         return True
 
+
 async def handle_panic_request(adapter: object | None, path: Path = PANIC_FILE) -> bool:
     """Flatten when required and clear the signal only after confirmed success."""
 
@@ -71,4 +76,3 @@ async def handle_panic_request(adapter: object | None, path: Path = PANIC_FILE) 
         return False
     clear_panic_signal(path)
     return True
-

@@ -15,6 +15,8 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tradingAPI, modelsAPI, createReconnectingWebSocket } from '../api';
+import { useStaleFeed } from '../hooks/useStaleFeed';
+import StaleFeedBadge from './StaleFeedBadge';
 import { useToast } from './Toast';
 
 // =============================================================================
@@ -96,6 +98,10 @@ export default function TradingPanel() {
   });
   const [emergencyKey, setEmergencyKey] = useState('');
 
+  // Live metrics arrive over the websocket; if the feed stalls, the last frame
+  // would otherwise keep rendering as if it were current.
+  const { stale: metricsStale, markFresh } = useStaleFeed();
+
   const clearLiveAuthorisation = () => setLiveAuthorisation({
     proposalId: '',
     expectedRevision: '',
@@ -109,14 +115,23 @@ export default function TradingPanel() {
   // ==========================================================================
 
   // Trading status query
-  const { data: tradingStatus = { status: 'idle' }, isLoading: statusLoading } = useQuery({
+  const {
+    data: tradingStatus = { status: 'idle' },
+    isLoading: statusLoading,
+    isError: statusIsError,
+    error: statusError,
+  } = useQuery({
     queryKey: ['trading-status'],
     queryFn: () => tradingAPI.getStatus().then(r => r.data),
     refetchInterval: 3000,
   });
 
   // Active model query
-  const { data: activeModelData } = useQuery({
+  const {
+    data: activeModelData,
+    isError: activeModelIsError,
+    error: activeModelError,
+  } = useQuery({
     queryKey: ['active-model'],
     queryFn: () => modelsAPI.getActive().then(r => r.data),
   });
@@ -133,13 +148,16 @@ export default function TradingPanel() {
     const ws = createReconnectingWebSocket('metrics', {
       onConnect: () => setWsStatus('connected'),
       onDisconnect: () => setWsStatus('disconnected'),
-      onMessage: (data) => setLiveMetrics(data),
+      onMessage: (data) => {
+        markFresh();
+        setLiveMetrics(data);
+      },
     });
 
     ws.connect();
 
     return () => ws.disconnect();
-  }, []);
+  }, [markFresh]);
 
   // ==========================================================================
   // Mutations
@@ -152,7 +170,7 @@ export default function TradingPanel() {
         : tradingAPI.start(mode, modelVersion),
     onSuccess: (data, variables) => {
       toast.success(`${variables.mode.toUpperCase()} trading started!`);
-      queryClient.invalidateQueries(['trading-status']);
+      queryClient.invalidateQueries({ queryKey: ['trading-status'] });
       setShowConfirmLive(false);
       clearLiveAuthorisation();
     },
@@ -165,7 +183,7 @@ export default function TradingPanel() {
     mutationFn: () => tradingAPI.stop(),
     onSuccess: () => {
       toast.info('Trading stopped');
-      queryClient.invalidateQueries(['trading-status']);
+      queryClient.invalidateQueries({ queryKey: ['trading-status'] });
     },
     onError: (error) => {
       toast.error(`Failed to stop trading: ${error.message}`);
@@ -176,7 +194,7 @@ export default function TradingPanel() {
     mutationFn: () => tradingAPI.panic(),
     onSuccess: () => {
       toast.error('🚨 PANIC PROTOCOL ACTIVATED - All positions closing!');
-      queryClient.invalidateQueries(['trading-status']);
+      queryClient.invalidateQueries({ queryKey: ['trading-status'] });
     },
     onError: (error) => {
       toast.error(`Panic failed: ${error.message}`);
@@ -187,8 +205,8 @@ export default function TradingPanel() {
     mutationFn: ({ key }) => tradingAPI.emergencyKillAll('CONFIRM_KILL', key),
     onSuccess: () => {
       toast.error('🚨 EMERGENCY: All processes terminated!');
-      queryClient.invalidateQueries(['trading-status']);
-      queryClient.invalidateQueries(['system-status']);
+      queryClient.invalidateQueries({ queryKey: ['trading-status'] });
+      queryClient.invalidateQueries({ queryKey: ['system-status'] });
       setShowEmergencyConfirm(false);
       setEmergencyKey('');
     },
@@ -264,6 +282,34 @@ export default function TradingPanel() {
     );
   }
 
+  // A failed status/model fetch must surface as an error with a retry path,
+  // not as a silent idle panel that looks like a healthy "not running" state.
+  if (statusIsError || activeModelIsError) {
+    const fetchError = statusIsError ? statusError : activeModelError;
+    const what = statusIsError ? 'trading status' : 'active model';
+    return (
+      <div className="panel trading-panel">
+        <h2>💱 Trading Control</h2>
+        <div className="error" role="alert" aria-live="assertive">
+          Failed to load the {what}: {fetchError?.message || 'Unknown error'}
+        </div>
+        <div style={{ textAlign: 'center', marginTop: '12px' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() =>
+              queryClient.invalidateQueries({
+                queryKey: statusIsError ? ['trading-status'] : ['active-model'],
+              })
+            }
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="panel trading-panel">
       <h2>💱 Trading Control</h2>
@@ -286,7 +332,10 @@ export default function TradingPanel() {
       {/* Live Metrics */}
       {isRunning && (
         <div className="section">
-          <h3>Live Metrics</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h3 style={{ margin: 0 }}>Live Metrics</h3>
+            {metricsStale && <StaleFeedBadge testId="trading-stale-metrics" />}
+          </div>
           <div className="metrics-grid">
             <MetricCard
               label="Balance"

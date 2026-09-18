@@ -45,9 +45,7 @@ def test_env_model_handshake(app_config, synthetic_data):
         }
     )
     # The admitted-data loader requires a timezone-aware DatetimeIndex.
-    _snap.index = pd.date_range(
-        "2024-01-01", periods=n_rows, freq="5min", tz="UTC"
-    )
+    _snap.index = pd.date_range("2024-01-01", periods=n_rows, freq="5min", tz="UTC")
     _snap.to_parquet("/tmp/lake/BTCUSDT/5m/snap.parquet")
     env = make(
         app_config, timeframe=timeframe, training_stats={"mean": 0.0, "std": 1.0}

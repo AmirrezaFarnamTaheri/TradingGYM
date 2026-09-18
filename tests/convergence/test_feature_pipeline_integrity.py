@@ -7,7 +7,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.common.config import AttentionConfig, FeatureConfig, StandardizationConfig, TimeframeConfig
+from trading_gym.common.config import (
+    AttentionConfig,
+    FeatureConfig,
+    StandardizationConfig,
+    TimeframeConfig,
+)
 from trading_gym.pipelines.feature_pipeline import load_raw_data, run_feature_pipeline
 
 
@@ -15,7 +20,9 @@ def _raw(rows: int = 100) -> pd.DataFrame:
     close = np.linspace(100.0, 120.0, rows)
     return pd.DataFrame(
         {
-            "timestamp": pd.date_range("2024-01-01", periods=rows, freq="5min", tz="UTC"),
+            "timestamp": pd.date_range(
+                "2024-01-01", periods=rows, freq="5min", tz="UTC"
+            ),
             "open": close,
             "high": close + 1.0,
             "low": close - 1.0,
@@ -66,7 +73,9 @@ def test_legacy_csv_is_strictly_admitted(tmp_path):
 def test_ambiguous_legacy_sources_are_rejected(tmp_path):
     cfg = _config(tmp_path)
     _raw().to_csv(Path(cfg.data.raw_dir) / "BTC_5m.csv", index=False)
-    (Path(cfg.data.lake_dir) / "BTC_5m.csv").write_text("timestamp,open\n", encoding="utf-8")
+    (Path(cfg.data.lake_dir) / "BTC_5m.csv").write_text(
+        "timestamp,open\n", encoding="utf-8"
+    )
     with pytest.raises(ValueError, match="Ambiguous"):
         load_raw_data("BTC", "5m", cfg.data.raw_dir, cfg.data.lake_dir)
 
@@ -135,6 +144,8 @@ def test_feature_pipeline_rejects_nonfinite_assembler_output(tmp_path, monkeypat
         def process(self, frame, _symbol):
             return pd.DataFrame({"bad": [np.nan] * len(frame)}, index=frame.index)
 
-    monkeypatch.setattr("trading_gym.pipelines.feature_pipeline.FeatureAssembler", BadAssembler)
+    monkeypatch.setattr(
+        "trading_gym.pipelines.feature_pipeline.FeatureAssembler", BadAssembler
+    )
     with pytest.raises(RuntimeError, match="Feature pipeline failed"):
         run_feature_pipeline(cfg)

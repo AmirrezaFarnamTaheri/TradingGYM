@@ -92,7 +92,9 @@ def test_malformed_payloads_fail_loudly_with_evidence_identity() -> None:
 
 
 def test_mean_statistic_and_confidence_override() -> None:
-    evidence = [_item("risk:mean", {"returns": _returns(), "returns_statistic": "mean"})]
+    evidence = [
+        _item("risk:mean", {"returns": _returns(), "returns_statistic": "mean"})
+    ]
     dossier = build_dossier(
         subject="mean",
         evidence=evidence,

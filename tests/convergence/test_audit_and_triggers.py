@@ -49,6 +49,44 @@ def test_chain_only_audit_is_explicitly_not_sealed(tmp_path: Path) -> None:
     assert status["mode"] == "chain_only"
 
 
+def test_batch_append_produces_a_valid_chain_and_is_idempotent(tmp_path: Path) -> None:
+    path = tmp_path / "audit.jsonl"
+    ledger = AuditLedger(path, hmac_key=KEY)
+    records = [
+        {
+            "event_id": f"batch:{i}",
+            "event": "batch.event",
+            "actor": "a",
+            "subject": "s",
+            "details": {"index": i},
+        }
+        for i in range(5)
+    ]
+    bodies = ledger.append_events(records)
+    assert len(bodies) == 5
+    assert [body["sequence"] for body in bodies] == [1, 2, 3, 4, 5]
+    status = ledger.verify()
+    assert status["valid"] is status["sealed"] is True
+    assert status["entries"] == 5
+
+    # Replaying the same batch must be a per-event no-op, not a duplicate write.
+    replay = ledger.append_events(records)
+    assert [body["sequence"] for body in replay] == [1, 2, 3, 4, 5]
+    assert ledger.verify()["entries"] == 5
+
+    # A reused event_id with different content must still be rejected.
+    conflict = [dict(records[0], event="different.event")]
+    with pytest.raises(ValueError, match="already used for different event content"):
+        ledger.append_events(conflict)
+
+    # The batch must extend, never re-write, the chain, and stays sealed.
+    more = [dict(records[4], event_id="batch:extra", event="extra.event")]
+    ledger.append_events(more)
+    final = ledger.verify()
+    assert final["entries"] == 6
+    assert final["valid"] is final["sealed"] is True
+
+
 def metric_trigger() -> TriggerCreate:
     return TriggerCreate(
         trigger_id="risk_drawdown",
@@ -63,7 +101,9 @@ def metric_trigger() -> TriggerCreate:
     )
 
 
-def test_persistent_trigger_creates_only_a_proposal_and_enforces_state(tmp_path: Path) -> None:
+def test_persistent_trigger_creates_only_a_proposal_and_enforces_state(
+    tmp_path: Path,
+) -> None:
     repository = TriggerRepository(tmp_path / "triggers.json")
     governance = GovernanceService(
         tmp_path / "proposals.json",
@@ -101,12 +141,15 @@ def test_persistent_trigger_creates_only_a_proposal_and_enforces_state(tmp_path:
         expected_revision=latest.revision,
     )
     assert paused.state is TriggerState.PAUSED
-    assert service.evaluate_and_propose(
-        created.trigger_id,
-        evaluation_key="bucket-002",
-        actor="trigger-engine",
-        metrics={"drawdown": 0.2},
-    ) is None
+    assert (
+        service.evaluate_and_propose(
+            created.trigger_id,
+            evaluation_key="bucket-002",
+            actor="trigger-engine",
+            metrics={"drawdown": 0.2},
+        )
+        is None
+    )
 
     cancelled = repository.update_state(
         created.trigger_id,
@@ -134,8 +177,14 @@ def test_interval_trigger_respects_schedule(tmp_path: Path) -> None:
     )
     before = created.created_at + timedelta(minutes=30)
     after = created.created_at + timedelta(hours=1, seconds=1)
-    assert repository.evaluate(created.trigger_id, evaluation_key="early", now=before) is None
-    assert repository.evaluate(created.trigger_id, evaluation_key="due", now=after) is not None
+    assert (
+        repository.evaluate(created.trigger_id, evaluation_key="early", now=before)
+        is None
+    )
+    assert (
+        repository.evaluate(created.trigger_id, evaluation_key="due", now=after)
+        is not None
+    )
 
 
 def test_signed_anchor_seals_legacy_hash_chain_prefix(tmp_path: Path) -> None:
@@ -150,7 +199,9 @@ def test_signed_anchor_seals_legacy_hash_chain_prefix(tmp_path: Path) -> None:
     assert status["sealed_from_sequence"] == 2
 
 
-def test_audit_keyring_rotation_preserves_history_and_identifies_keys(tmp_path: Path) -> None:
+def test_audit_keyring_rotation_preserves_history_and_identifies_keys(
+    tmp_path: Path,
+) -> None:
     path = tmp_path / "audit.jsonl"
     first = AuditLedger(
         path,
@@ -164,7 +215,9 @@ def test_audit_keyring_rotation_preserves_history_and_identifies_keys(tmp_path: 
         hmac_keyring={"2026-q1": "a" * 32, "2026-q2": "b" * 32},
         hmac_key_id="2026-q2",
     )
-    rotated.append(event="after-rotation", actor="auditor", subject="ledger", details={})
+    rotated.append(
+        event="after-rotation", actor="auditor", subject="ledger", details={}
+    )
     status = rotated.verify()
     assert status["valid"] is status["sealed"] is True
     assert status["active_key_id"] == "2026-q2"
@@ -191,7 +244,9 @@ def test_audit_refuses_to_extend_a_tampered_chain(tmp_path: Path) -> None:
         ledger.append(event="two", actor="a", subject="s", details={})
 
 
-def test_audit_keyring_configuration_rejects_ambiguous_or_weak_keys(tmp_path: Path) -> None:
+def test_audit_keyring_configuration_rejects_ambiguous_or_weak_keys(
+    tmp_path: Path,
+) -> None:
     with pytest.raises(ValueError, match="AUDIT_HMAC_KEY_ID"):
         AuditLedger(tmp_path / "missing-active.jsonl", hmac_keyring={"old": "a" * 32})
     with pytest.raises(ValueError, match="at least 32 bytes"):

@@ -29,7 +29,9 @@ def _torch_report() -> dict[str, Any]:
         return {
             "torch_installed": True,
             "cuda_available": bool(torch.cuda.is_available()),
-            "device_count": int(torch.cuda.device_count()) if torch.cuda.is_available() else 0,
+            "device_count": (
+                int(torch.cuda.device_count()) if torch.cuda.is_available() else 0
+            ),
         }
     except Exception as exc:  # noqa: BLE001 - optional dependency
         return {"torch_installed": False, "error": type(exc).__name__}
@@ -58,7 +60,9 @@ def create_intelligence_router(
             try:
                 import yaml
 
-                raw = yaml.safe_load(Path(effective_config_path).read_text(encoding="utf-8"))
+                raw = yaml.safe_load(
+                    Path(effective_config_path).read_text(encoding="utf-8")
+                )
                 if raw is None:
                     icfg = None
                 elif not isinstance(raw, dict):

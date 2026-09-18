@@ -14,7 +14,6 @@ from typing import Callable, Protocol
 import numpy as np
 
 
-
 class RewardContext(Protocol):
     """Minimal view of an episode step used by reward functions."""
 
@@ -32,6 +31,7 @@ class RewardContext(Protocol):
 
     @property
     def position_after(self) -> float: ...
+
 
 RewardFunction = Callable[[RewardContext], float]
 

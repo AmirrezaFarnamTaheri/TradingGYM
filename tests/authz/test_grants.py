@@ -27,7 +27,6 @@ from trading_gym.authz.grants import (
 )
 from trading_gym.authz.scopes import ScopeError
 
-
 TEST_WINDOW = "2026-09-01T00:00:00Z"
 
 
@@ -54,9 +53,7 @@ class TestGrantLifecycle:
 
     def test_ttl_hours_must_be_positive(self, tmp_path: Path) -> None:
         with pytest.raises(ValueError):
-            GrantLedger.open(tmp_path / "grants.jsonl").issue(
-                make_request(ttl_hours=0)
-            )
+            GrantLedger.open(tmp_path / "grants.jsonl").issue(make_request(ttl_hours=0))
 
     def test_revoke_is_terminal(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
@@ -123,6 +120,17 @@ class TestEvaluation:
         assert not decision.allowed
         assert decision.reason == "grant_expired"
 
+    def test_expired_grant_denies_on_default_clock_path(self, tmp_path: Path) -> None:
+        """The default clock must be the present, not issued_at. Comparing
+        issued_at < expires_at is tautologically true, so omitting ``now`` used
+        to keep an expired grant active on every production call path."""
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        grant = ledger.issue(make_request(issued_at=TEST_WINDOW, ttl_hours=1))
+        # No explicit now: evaluated against the wall clock.
+        decision = grant.evaluate("trade.paper.order.submit")
+        assert not decision.allowed
+        assert decision.reason == "grant_expired"
+
     def test_revoked_grant_denies(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         grant = ledger.issue(make_request())
@@ -150,9 +158,7 @@ class TestEvaluation:
 
     def test_breach_latches_revoked_breach(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
-        grant = ledger.issue(
-            make_request(constraints=(("max_notional_quote", 500),))
-        )
+        grant = ledger.issue(make_request(constraints=(("max_notional_quote", 500),)))
         breach = grant.evaluate(
             "trade.paper.order.submit",
             constraints={"max_notional_quote": 1000},
@@ -164,9 +170,7 @@ class TestEvaluation:
 
     def test_non_numeric_constraint_value_rejected(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
-        grant = ledger.issue(
-            make_request(constraints=(("max_notional_quote", "500"),))
-        )
+        grant = ledger.issue(make_request(constraints=(("max_notional_quote", "500"),)))
         with pytest.raises(ConstraintViolation):
             grant.evaluate(
                 "trade.paper.order.submit",

@@ -58,5 +58,9 @@ class SlidingWindowLimiter:
             self._prune(current)
             retry_after = 0.0
             if len(self._events) >= self.capacity:
-                retry_after = max(0.0, self.window_seconds - (current - self._events[0]))
-            return RateLimitSnapshot(len(self._events), self.capacity, self.window_seconds, retry_after)
+                retry_after = max(
+                    0.0, self.window_seconds - (current - self._events[0])
+                )
+            return RateLimitSnapshot(
+                len(self._events), self.capacity, self.window_seconds, retry_after
+            )

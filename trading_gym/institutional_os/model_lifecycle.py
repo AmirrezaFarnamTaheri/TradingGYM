@@ -1,4 +1,5 @@
 """Complete non-authoritative model-lifecycle transition assurance."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -27,9 +28,22 @@ ALLOWED_TRANSITIONS = {
     LifecycleState.TRAINED: {LifecycleState.VALIDATED, LifecycleState.QUARANTINED},
     LifecycleState.VALIDATED: {LifecycleState.CHALLENGED, LifecycleState.QUARANTINED},
     LifecycleState.CHALLENGED: {LifecycleState.SHADOW, LifecycleState.QUARANTINED},
-    LifecycleState.SHADOW: {LifecycleState.CANARY, LifecycleState.RETIRED, LifecycleState.QUARANTINED},
-    LifecycleState.CANARY: {LifecycleState.PRODUCTION, LifecycleState.SHADOW, LifecycleState.RETIRED, LifecycleState.QUARANTINED},
-    LifecycleState.PRODUCTION: {LifecycleState.CANARY, LifecycleState.RETIRED, LifecycleState.QUARANTINED},
+    LifecycleState.SHADOW: {
+        LifecycleState.CANARY,
+        LifecycleState.RETIRED,
+        LifecycleState.QUARANTINED,
+    },
+    LifecycleState.CANARY: {
+        LifecycleState.PRODUCTION,
+        LifecycleState.SHADOW,
+        LifecycleState.RETIRED,
+        LifecycleState.QUARANTINED,
+    },
+    LifecycleState.PRODUCTION: {
+        LifecycleState.CANARY,
+        LifecycleState.RETIRED,
+        LifecycleState.QUARANTINED,
+    },
     LifecycleState.RETIRED: set(),
     LifecycleState.QUARANTINED: {LifecycleState.RESEARCH, LifecycleState.RETIRED},
 }
@@ -57,8 +71,12 @@ class LifecycleTransitionRequest(BaseModel):
     requested_state: LifecycleState
     evidence: list[LifecycleEvidence] = Field(max_length=10_000)
     evaluated_at: datetime
-    required_evidence_types: list[Annotated[str, Field(min_length=2, max_length=80)]] = Field(default_factory=list, max_length=100)
-    maximum_evidence_age_seconds: Annotated[int, Field(ge=60, le=10 * 365 * 86400)] = 90 * 86400
+    required_evidence_types: list[
+        Annotated[str, Field(min_length=2, max_length=80)]
+    ] = Field(default_factory=list, max_length=100)
+    maximum_evidence_age_seconds: Annotated[int, Field(ge=60, le=10 * 365 * 86400)] = (
+        90 * 86400
+    )
 
     @model_validator(mode="after")
     def validate_time(self) -> "LifecycleTransitionRequest":
@@ -85,7 +103,9 @@ class LifecycleTransitionReport(BaseModel):
     promotion_authority_granted: bool = False
 
 
-def evaluate_model_transition(request: LifecycleTransitionRequest) -> LifecycleTransitionReport:
+def evaluate_model_transition(
+    request: LifecycleTransitionRequest,
+) -> LifecycleTransitionReport:
     blockers: list[str] = []
     warnings: list[str] = []
     if request.requested_state not in ALLOWED_TRANSITIONS[request.current_state]:

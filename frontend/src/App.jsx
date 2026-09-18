@@ -11,20 +11,26 @@
  * @version 4.2.0
  */
 
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import ConfigPanel from './components/ConfigPanel';
-import TrainingPanel from './components/TrainingPanel';
-import ModelsPanel from './components/ModelsPanel';
-import TradingPanel from './components/TradingPanel';
-import DataPanel from './components/DataPanel';
-import SystemPanel from './components/SystemPanel';
-import ConvergencePanel from './components/ConvergencePanel';
-import InstitutionalOSPanel from './components/InstitutionalOSPanel';
-import ProductionPanel from './components/ProductionPanel';
+// Shell-critical providers stay eager: they must render before any panel loads.
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
 import HelpModal, { useHelp } from './components/HelpModal';
+import { CardSkeleton } from './components/LoadingSkeleton';
+// Panels are code-split: only the active tab's chunk is downloaded.
+const ConfigPanel = lazy(() => import('./components/ConfigPanel'));
+const TrainingPanel = lazy(() => import('./components/TrainingPanel'));
+const ModelsPanel = lazy(() => import('./components/ModelsPanel'));
+const TradingPanel = lazy(() => import('./components/TradingPanel'));
+const DataPanel = lazy(() => import('./components/DataPanel'));
+const SystemPanel = lazy(() => import('./components/SystemPanel'));
+const ConvergencePanel = lazy(() => import('./components/ConvergencePanel'));
+const InstitutionalOSPanel = lazy(() => import('./components/InstitutionalOSPanel'));
+const ProductionPanel = lazy(() => import('./components/ProductionPanel'));
+const AuthzPanel = lazy(() => import('./components/AuthzPanel'));
+const PlaygroundPanel = lazy(() => import('./components/PlaygroundPanel'));
+const ForgePanel = lazy(() => import('./components/ForgePanel'));
 import './App.css';
 
 // =============================================================================
@@ -70,6 +76,30 @@ const tabs = [
     component: ConvergencePanel,
     helpTopic: 'general',
     description: 'Safe strategy research, provider tools, and human-governed automation',
+  },
+  {
+    key: 'forge',
+    label: '🧠 Forge & Memory',
+    component: ForgePanel,
+    helpTopic: 'general',
+    description:
+      'Agent memory digests, grammar-bounded strategy development, and the X-tier tool queue (ADR-034)',
+  },
+  {
+    key: 'playground',
+    label: '🎛️ Playground',
+    component: PlaygroundPanel,
+    helpTopic: 'general',
+    description:
+      'Deterministic strategy simulation under scenario stress, scope-gated (ADR-031)',
+  },
+  {
+    key: 'authz',
+    label: '🔑 Grants',
+    component: AuthzPanel,
+    helpTopic: 'general',
+    description:
+      'Wildcard capability grants: inspect, check a scope, revoke (ADR-028)',
   },
   {
     key: 'system',
@@ -193,7 +223,9 @@ function AppContent() {
             aria-labelledby={currentTab?.key}
           >
             <ErrorBoundary>
-              <ActiveComponent openHelp={openHelp} />
+              <Suspense fallback={<CardSkeleton />}>
+                <ActiveComponent openHelp={openHelp} />
+              </Suspense>
             </ErrorBoundary>
           </div>
         </main>

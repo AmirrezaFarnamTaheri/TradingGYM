@@ -4,6 +4,7 @@ This is an analytical view over trade obligations.  It does not move cash or
 alter the portfolio ledger; settlement postings remain an explicit accounting
 operation after broker/custodian confirmation.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -51,17 +52,34 @@ class SettlementObligation(BaseModel):
 
     @model_validator(mode="after")
     def validate_obligation(self) -> "SettlementObligation":
-        if not self.cash_amount.is_finite() or self.cash_amount == 0 or abs(self.cash_amount) > MAX_VALUE:
+        if (
+            not self.cash_amount.is_finite()
+            or self.cash_amount == 0
+            or abs(self.cash_amount) > MAX_VALUE
+        ):
             raise ValueError("cash_amount must be finite, non-zero, and bounded")
         if self.trade_at.tzinfo is None or self.trade_at.utcoffset() is None:
             raise ValueError("trade_at must be timezone-aware")
         if self.observed_settlement_at is not None:
-            if self.observed_settlement_at.tzinfo is None or self.observed_settlement_at.utcoffset() is None:
+            if (
+                self.observed_settlement_at.tzinfo is None
+                or self.observed_settlement_at.utcoffset() is None
+            ):
                 raise ValueError("observed_settlement_at must be timezone-aware")
-        if self.state is SettlementState.SETTLED and self.observed_settlement_at is None:
-            raise ValueError("settled obligation requires observed settlement timestamp")
-        if self.state is not SettlementState.SETTLED and self.observed_settlement_at is not None:
-            raise ValueError("only settled obligations may define observed settlement timestamp")
+        if (
+            self.state is SettlementState.SETTLED
+            and self.observed_settlement_at is None
+        ):
+            raise ValueError(
+                "settled obligation requires observed settlement timestamp"
+            )
+        if (
+            self.state is not SettlementState.SETTLED
+            and self.observed_settlement_at is not None
+        ):
+            raise ValueError(
+                "only settled obligations may define observed settlement timestamp"
+            )
         return self
 
 
@@ -94,19 +112,26 @@ class SettlementReport(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str
+    ).encode("utf-8")
 
 
 def _is_business_day(calendar: MarketCalendarSpec, local_date: date) -> bool:
-    exception = next((item for item in calendar.exceptions if item.local_date == local_date), None)
+    exception = next(
+        (item for item in calendar.exceptions if item.local_date == local_date), None
+    )
     if exception and exception.closed:
         return False
-    return any(local_date.weekday() in session.weekdays for session in calendar.sessions)
+    return any(
+        local_date.weekday() in session.weekdays for session in calendar.sessions
+    )
 
 
 def contractual_settlement_date(obligation: SettlementObligation) -> date:
     calendar = obligation.convention.calendar
     from zoneinfo import ZoneInfo
+
     local = obligation.trade_at.astimezone(ZoneInfo(calendar.timezone_name)).date()
     remaining = obligation.convention.business_days
     candidate = local
@@ -143,7 +168,12 @@ def evaluate_settlement(
         raise ValueError("settlement obligation identifiers must be unique")
     normalized_cash: dict[str, Decimal] = {}
     for currency, amount in settled_cash.items():
-        if not currency or len(currency) > 20 or not amount.is_finite() or abs(amount) > MAX_VALUE:
+        if (
+            not currency
+            or len(currency) > 20
+            or not amount.is_finite()
+            or abs(amount) > MAX_VALUE
+        ):
             raise ValueError("settled cash is invalid")
         normalized_cash[currency.upper()] = amount
     pending: dict[str, Decimal] = {}
@@ -158,21 +188,31 @@ def evaluate_settlement(
         is_overdue = item.state is SettlementState.PENDING and as_of_date > due
         days_overdue = (as_of_date - due).days if is_overdue else 0
         if item.state is SettlementState.PENDING:
-            pending[item.currency] = pending.get(item.currency, Decimal("0")) + item.cash_amount
+            pending[item.currency] = (
+                pending.get(item.currency, Decimal("0")) + item.cash_amount
+            )
             if item.cash_amount < 0:
-                pending_payables[item.currency] = pending_payables.get(item.currency, Decimal("0")) + item.cash_amount
+                pending_payables[item.currency] = (
+                    pending_payables.get(item.currency, Decimal("0")) + item.cash_amount
+                )
         if is_overdue:
             overdue.append(item.obligation_id)
             blockers.append(f"settlement_overdue:{item.obligation_id}")
         if item.state is SettlementState.FAILED:
             failed.append(item.obligation_id)
             blockers.append(f"settlement_failed:{item.obligation_id}")
-        projections.append(SettlementProjection(
-            obligation_id=item.obligation_id, trade_id=item.trade_id,
-            currency=item.currency, cash_amount=item.cash_amount,
-            contractual_settlement_date=due, state=item.state,
-            overdue=is_overdue, days_overdue=days_overdue,
-        ))
+        projections.append(
+            SettlementProjection(
+                obligation_id=item.obligation_id,
+                trade_id=item.trade_id,
+                currency=item.currency,
+                cash_amount=item.cash_amount,
+                contractual_settlement_date=due,
+                state=item.state,
+                overdue=is_overdue,
+                days_overdue=days_overdue,
+            )
+        )
     available = dict(normalized_cash)
     # Pending receivables are not available. Pending payables reduce available
     # cash immediately to prevent reusing funds needed for settlement.
@@ -183,8 +223,10 @@ def evaluate_settlement(
     payload = {
         "as_of": as_of.astimezone(timezone.utc).isoformat(),
         "obligations": [item.model_dump(mode="json") for item in projections],
-        "pending_by_currency": pending, "overdue_obligations": overdue,
-        "failed_obligations": failed, "projected_available_cash": available,
+        "pending_by_currency": pending,
+        "overdue_obligations": overdue,
+        "failed_obligations": failed,
+        "projected_available_cash": available,
         "blockers": sorted(set(blockers)),
     }
     # Hash the canonical payload, but construct with explicit kwargs: the

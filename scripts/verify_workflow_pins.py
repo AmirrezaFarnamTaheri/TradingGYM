@@ -1,4 +1,5 @@
 """Fail unless every GitHub Actions use is pinned to an immutable commit SHA."""
+
 from __future__ import annotations
 
 from pathlib import Path

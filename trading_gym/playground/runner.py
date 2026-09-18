@@ -49,9 +49,7 @@ _DEFAULT_MAX_BARS = 200_000
 
 def _frame_sha256(frame: pd.DataFrame) -> str:
     digest = hashlib.sha256()
-    digest.update(
-        pd.util.hash_pandas_object(frame, index=True).to_numpy().tobytes()
-    )
+    digest.update(pd.util.hash_pandas_object(frame, index=True).to_numpy().tobytes())
     for column in frame.columns:
         digest.update(str(column).encode("utf-8"))
     return digest.hexdigest()
@@ -123,7 +121,13 @@ class PlaygroundRunResult:
 
 
 def run_playground(spec: PlaygroundRunSpec) -> PlaygroundRunResult:
-    """Execute one deterministic simulation of ``spec``."""
+    """Execute one deterministic simulation of ``spec``.
+
+    The bar loop runs in the Rust kernel (ADR-035) when a compiled
+    artifact is present and in the Python reference otherwise; both
+    produce bit-identical results (``tests/playground/test_kernel_parity``
+    enforces it), so which one ran is never observable in the output.
+    """
 
     window = spec.window
     signals = evaluate_strategy(window, spec.strategy)
@@ -136,6 +140,127 @@ def run_playground(spec: PlaygroundRunSpec) -> PlaygroundRunResult:
         else np.zeros(len(window))
     )
     index = window.index
+    n = len(window)
+
+    accelerated = _run_kernel(
+        spec,
+        intent=intent,
+        open_=open_,
+        close=close,
+        spread=spread,
+        index=index,
+    )
+    if accelerated is not None:
+        equity, trades, changes, bars_in_position = accelerated
+    else:
+        equity, trades, changes, bars_in_position = _run_reference(
+            spec,
+            intent=intent,
+            open_=open_,
+            close=close,
+            spread=spread,
+            index=index,
+        )
+
+    curve = pd.DataFrame({"equity": equity}, index=index)
+    returns = curve["equity"].pct_change().dropna().to_numpy(dtype=np.float64)
+    running_max = np.maximum.accumulate(curve["equity"].to_numpy(dtype=np.float64))
+    drawdowns = 1.0 - curve["equity"].to_numpy(dtype=np.float64) / running_max
+
+    wins = sum(1 for trade in trades if trade["pnl_quote"] > 0)
+    metrics: dict[str, Any] = {
+        "n_bars": int(n),
+        "initial_capital": float(spec.initial_capital),
+        "final_equity": float(curve["equity"].iloc[-1]),
+        "total_return_pct": float(
+            (curve["equity"].iloc[-1] / spec.initial_capital - 1.0) * 100.0
+        ),
+        "max_drawdown": float(drawdowns.max()) if n else 0.0,
+        "n_trades": len(trades),
+        "win_rate": float(wins / len(trades)) if trades else 0.0,
+        "exposure": float(bars_in_position / n) if n else 0.0,
+        "total_costs_quote": float(sum(trade["cost_quote"] for trade in trades)),
+        "returns_std": float(returns.std()) if len(returns) else 0.0,
+    }
+
+    return PlaygroundRunResult(
+        equity_curve=curve,
+        trades=tuple(trades),
+        metrics=metrics,
+        manifest=spec.manifest(),
+        _changes=tuple(changes),
+    )
+
+
+def _run_kernel(
+    spec: PlaygroundRunSpec,
+    *,
+    intent: np.ndarray,
+    open_: np.ndarray,
+    close: np.ndarray,
+    spread: np.ndarray,
+    index: pd.Index,
+) -> (
+    tuple[
+        np.ndarray,
+        list[dict[str, Any]],
+        list[tuple[pd.Timestamp, int]],
+        int,
+    ]
+    | None
+):
+    """Rust fast path; ``None`` when no kernel is loadable."""
+
+    from trading_gym.playground import kernel as kernel_module
+
+    result = kernel_module.simulate(
+        intent=intent,
+        open_=open_,
+        close=close,
+        spread_bps=spread,
+        initial_capital=spec.initial_capital,
+        fee_bps=spec.fee_bps,
+        position_fraction=spec.position_fraction,
+    )
+    if result is None:
+        return None
+
+    trades: list[dict[str, Any]] = []
+    changes: list[tuple[pd.Timestamp, int]] = []
+    for trade in result.trades:
+        entry_bar = trade["entry_bar"]
+        exit_bar = trade["exit_bar"]
+        trades.append(
+            {
+                "entry_ts": index[entry_bar],
+                "exit_ts": index[exit_bar],
+                "entry_price": trade["entry_price"],
+                "exit_price": trade["exit_price"],
+                "pnl_quote": trade["pnl_quote"],
+                "cost_quote": trade["cost_quote"],
+            }
+        )
+        changes.append((index[entry_bar], 1))
+        changes.append((index[exit_bar], -1))
+    changes.sort(key=lambda item: (item[0], -item[1]))
+    return result.equity, trades, changes, result.bars_in_position
+
+
+def _run_reference(
+    spec: PlaygroundRunSpec,
+    *,
+    intent: np.ndarray,
+    open_: np.ndarray,
+    close: np.ndarray,
+    spread: np.ndarray,
+    index: pd.Index,
+) -> tuple[
+    np.ndarray,
+    list[dict[str, Any]],
+    list[tuple[pd.Timestamp, int]],
+    int,
+]:
+    """Reference semantics: the Python bar loop the kernel must match."""
 
     cash = float(spec.initial_capital)
     units = 0.0
@@ -145,7 +270,8 @@ def run_playground(spec: PlaygroundRunSpec) -> PlaygroundRunResult:
     pending_entry = False
     pending_exit = False
 
-    equity = np.empty(len(window), dtype=np.float64)
+    n = len(index)
+    equity = np.empty(n, dtype=np.float64)
     trades: list[dict[str, Any]] = []
     changes: list[tuple[pd.Timestamp, int]] = []
     bars_in_position = 0
@@ -153,7 +279,6 @@ def run_playground(spec: PlaygroundRunSpec) -> PlaygroundRunResult:
     def _cost_rate(bar: int) -> float:
         return (spec.fee_bps + spread[bar] / 2.0) / 10_000.0
 
-    n = len(window)
     for bar in range(n):
         if pending_entry:
             price = open_[bar]
@@ -218,33 +343,4 @@ def run_playground(spec: PlaygroundRunSpec) -> PlaygroundRunResult:
         changes.append((index[n - 1], -1))
         equity[n - 1] = cash
 
-    curve = pd.DataFrame({"equity": equity}, index=index)
-    returns = curve["equity"].pct_change().dropna().to_numpy(dtype=np.float64)
-    running_max = np.maximum.accumulate(curve["equity"].to_numpy(dtype=np.float64))
-    drawdowns = 1.0 - curve["equity"].to_numpy(dtype=np.float64) / running_max
-
-    wins = sum(1 for trade in trades if trade["pnl_quote"] > 0)
-    metrics: dict[str, Any] = {
-        "n_bars": int(n),
-        "initial_capital": float(spec.initial_capital),
-        "final_equity": float(curve["equity"].iloc[-1]),
-        "total_return_pct": float(
-            (curve["equity"].iloc[-1] / spec.initial_capital - 1.0) * 100.0
-        ),
-        "max_drawdown": float(drawdowns.max()) if n else 0.0,
-        "n_trades": len(trades),
-        "win_rate": float(wins / len(trades)) if trades else 0.0,
-        "exposure": float(bars_in_position / n) if n else 0.0,
-        "total_costs_quote": float(
-            sum(trade["cost_quote"] for trade in trades)
-        ),
-        "returns_std": float(returns.std()) if len(returns) else 0.0,
-    }
-
-    return PlaygroundRunResult(
-        equity_curve=curve,
-        trades=tuple(trades),
-        metrics=metrics,
-        manifest=spec.manifest(),
-        _changes=tuple(changes),
-    )
+    return equity, trades, changes, bars_in_position

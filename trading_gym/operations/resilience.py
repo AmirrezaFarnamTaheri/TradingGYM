@@ -18,7 +18,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from filelock import FileLock
@@ -27,7 +27,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from trading_gym.common.persistence import atomic_write_json, resolve_data_home
 from trading_gym.common.security import confined_child
 from trading_gym.governance.ledger import AuditLedger
-
 
 MAX_SNAPSHOT_FILES = 20_000
 MAX_SNAPSHOT_BYTES = 4 * 1024**3
@@ -56,7 +55,9 @@ def _sha256(path: Path) -> str:
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
 
 
 def _backup_key(value: str | bytes | None) -> bytes | None:
@@ -139,8 +140,14 @@ class SnapshotService:
         ledger: AuditLedger | None = None,
         hmac_key: str | bytes | None = None,
     ) -> None:
-        self.source_root = (source_root or resolve_data_home()).expanduser().resolve(strict=False)
-        self.backup_root = (backup_root or self.source_root / "backups").expanduser().resolve(strict=False)
+        self.source_root = (
+            (source_root or resolve_data_home()).expanduser().resolve(strict=False)
+        )
+        self.backup_root = (
+            (backup_root or self.source_root / "backups")
+            .expanduser()
+            .resolve(strict=False)
+        )
         if self.source_root.is_symlink() or self.backup_root.is_symlink():
             raise ValueError("snapshot roots must not be symbolic links")
         self.source_root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -158,11 +165,22 @@ class SnapshotService:
     @staticmethod
     def _safe_relative(value: str) -> Path:
         path = Path(value)
-        if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
+        if (
+            path.is_absolute()
+            or not path.parts
+            or any(part in {"", ".", ".."} for part in path.parts)
+        ):
             raise ValueError("snapshot paths must be confined relative paths")
         if any(part.lower() in _SENSITIVE_PARTS for part in path.parts):
-            raise ValueError("snapshot path targets a runtime or secret-bearing surface")
-        if any("secret" in part.lower() or "token" in part.lower() or part.lower().endswith(".key") for part in path.parts):
+            raise ValueError(
+                "snapshot path targets a runtime or secret-bearing surface"
+            )
+        if any(
+            "secret" in part.lower()
+            or "token" in part.lower()
+            or part.lower().endswith(".key")
+            for part in path.parts
+        ):
             raise ValueError("snapshot path appears credential-bearing")
         return path
 
@@ -172,8 +190,14 @@ class SnapshotService:
         collected: dict[str, tuple[Path, Path]] = {}
         for raw in relative_paths:
             relative = self._safe_relative(raw)
-            source = confined_child(self.source_root, *relative.parts, must_exist=True, allow_symlinks=False)
-            candidates = [source] if source.is_file() else sorted(path for path in source.rglob("*") if path.is_file())
+            source = confined_child(
+                self.source_root, *relative.parts, must_exist=True, allow_symlinks=False
+            )
+            candidates = (
+                [source]
+                if source.is_file()
+                else sorted(path for path in source.rglob("*") if path.is_file())
+            )
             for candidate in candidates:
                 if candidate.is_symlink():
                     raise ValueError("snapshot source contains a symbolic link")
@@ -181,7 +205,9 @@ class SnapshotService:
                 self._safe_relative(rel.as_posix())
                 size = candidate.stat().st_size
                 if size > MAX_FILE_BYTES:
-                    raise ValueError(f"snapshot file exceeds {MAX_FILE_BYTES} bytes: {rel}")
+                    raise ValueError(
+                        f"snapshot file exceeds {MAX_FILE_BYTES} bytes: {rel}"
+                    )
                 collected[rel.as_posix()] = (candidate, rel)
                 if len(collected) > MAX_SNAPSHOT_FILES:
                     raise ValueError("snapshot file-count limit exceeded")
@@ -197,13 +223,19 @@ class SnapshotService:
         snapshot_id: str | None = None,
         actor: str = "api-operator",
     ) -> SnapshotManifest:
-        snapshot_id = self._validate_snapshot_id(snapshot_id or f"snapshot-{uuid4().hex}")
+        snapshot_id = self._validate_snapshot_id(
+            snapshot_id or f"snapshot-{uuid4().hex}"
+        )
         with self.lock:
             final = confined_child(self.backup_root, snapshot_id, allow_symlinks=False)
             if final.exists():
                 raise SnapshotConflict("snapshot_id already exists")
             files = self._collect(relative_paths)
-            stage = confined_child(self.backup_root, f".staging-{snapshot_id}-{uuid4().hex}", allow_symlinks=False)
+            stage = confined_child(
+                self.backup_root,
+                f".staging-{snapshot_id}-{uuid4().hex}",
+                allow_symlinks=False,
+            )
             stage.mkdir(mode=0o700)
             entries: list[SnapshotEntry] = []
             try:
@@ -234,19 +266,27 @@ class SnapshotService:
                 }
                 payload["manifest_sha256"] = "0" * 64
                 payload["hmac_sha256"] = None
-                normalised = SnapshotManifest.model_validate(payload).model_dump(mode="json")
+                normalised = SnapshotManifest.model_validate(payload).model_dump(
+                    mode="json"
+                )
                 unsigned = {
                     key: value
                     for key, value in normalised.items()
                     if key not in {"manifest_sha256", "hmac_sha256"}
                 }
-                normalised["manifest_sha256"] = hashlib.sha256(_canonical(unsigned)).hexdigest()
+                normalised["manifest_sha256"] = hashlib.sha256(
+                    _canonical(unsigned)
+                ).hexdigest()
                 if self._key is not None:
                     normalised["hmac_sha256"] = hmac.new(
-                        self._key, normalised["manifest_sha256"].encode("ascii"), hashlib.sha256
+                        self._key,
+                        normalised["manifest_sha256"].encode("ascii"),
+                        hashlib.sha256,
                     ).hexdigest()
                 manifest = SnapshotManifest.model_validate(normalised)
-                atomic_write_json(stage / "manifest.json", manifest.model_dump(mode="json"))
+                atomic_write_json(
+                    stage / "manifest.json", manifest.model_dump(mode="json")
+                )
                 atomic_write_json(
                     stage / ".audit-pending.json",
                     {
@@ -271,11 +311,17 @@ class SnapshotService:
 
     def _manifest(self, snapshot_id: str) -> tuple[Path, SnapshotManifest]:
         snapshot_id = self._validate_snapshot_id(snapshot_id)
-        root = confined_child(self.backup_root, snapshot_id, must_exist=True, allow_symlinks=False)
+        root = confined_child(
+            self.backup_root, snapshot_id, must_exist=True, allow_symlinks=False
+        )
         if not root.is_dir():
             raise ValueError("snapshot is not a directory")
-        manifest_path = confined_child(root, "manifest.json", must_exist=True, allow_symlinks=False)
-        manifest = SnapshotManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
+        manifest_path = confined_child(
+            root, "manifest.json", must_exist=True, allow_symlinks=False
+        )
+        manifest = SnapshotManifest.model_validate_json(
+            manifest_path.read_text(encoding="utf-8")
+        )
         if manifest.snapshot_id != snapshot_id:
             raise ValueError("snapshot manifest identifier mismatch")
         return root, manifest
@@ -284,21 +330,29 @@ class SnapshotService:
         root, manifest = self._manifest(snapshot_id)
         payload = manifest.model_dump(mode="json")
         unsigned = {
-            key: value for key, value in payload.items() if key not in {"manifest_sha256", "hmac_sha256"}
+            key: value
+            for key, value in payload.items()
+            if key not in {"manifest_sha256", "hmac_sha256"}
         }
-        manifest_valid = hashlib.sha256(_canonical(unsigned)).hexdigest() == manifest.manifest_sha256
+        manifest_valid = (
+            hashlib.sha256(_canonical(unsigned)).hexdigest() == manifest.manifest_sha256
+        )
         hmac_valid: bool | None = None
         if manifest.hmac_sha256 is not None:
             hmac_valid = self._key is not None and hmac.compare_digest(
                 manifest.hmac_sha256,
-                hmac.new(self._key, manifest.manifest_sha256.encode("ascii"), hashlib.sha256).hexdigest(),
+                hmac.new(
+                    self._key, manifest.manifest_sha256.encode("ascii"), hashlib.sha256
+                ).hexdigest(),
             )
         failures: list[str] = []
         actual_paths: set[str] = set()
         data_root = root / "data"
         for entry in manifest.entries:
             relative = self._safe_relative(entry.path)
-            candidate = confined_child(data_root, *relative.parts, must_exist=True, allow_symlinks=False)
+            candidate = confined_child(
+                data_root, *relative.parts, must_exist=True, allow_symlinks=False
+            )
             if not candidate.is_file():
                 failures.append(f"not-regular:{entry.path}")
                 continue
@@ -307,12 +361,18 @@ class SnapshotService:
                 failures.append(f"size:{entry.path}")
             elif _sha256(candidate) != entry.sha256:
                 failures.append(f"hash:{entry.path}")
-        discovered = {
-            path.relative_to(data_root).as_posix()
-            for path in data_root.rglob("*")
-            if path.is_file()
-        } if data_root.exists() else set()
-        failures.extend(f"unmanifested:{path}" for path in sorted(discovered - actual_paths))
+        discovered = (
+            {
+                path.relative_to(data_root).as_posix()
+                for path in data_root.rglob("*")
+                if path.is_file()
+            }
+            if data_root.exists()
+            else set()
+        )
+        failures.extend(
+            f"unmanifested:{path}" for path in sorted(discovered - actual_paths)
+        )
         valid = manifest_valid and not failures and (hmac_valid is not False)
         return {
             "valid": valid,
@@ -333,12 +393,18 @@ class SnapshotService:
         entries: list[RestorePlanEntry] = []
         for entry in manifest.entries:
             relative = self._safe_relative(entry.path)
-            target = confined_child(self.source_root, *relative.parts, allow_symlinks=False)
+            target = confined_child(
+                self.source_root, *relative.parts, allow_symlinks=False
+            )
             if target.exists() and target.is_symlink():
                 raise ValueError("restore target is a symbolic link")
             current = _sha256(target) if target.is_file() else None
             action: Literal["create", "replace", "unchanged"]
-            action = "unchanged" if current == entry.sha256 else "replace" if target.exists() else "create"
+            action = (
+                "unchanged"
+                if current == entry.sha256
+                else "replace" if target.exists() else "create"
+            )
             entries.append(
                 RestorePlanEntry(
                     path=entry.path,
@@ -371,11 +437,18 @@ class SnapshotService:
         failures: list[str] = []
         files_verified = 0
         bytes_verified = 0
-        with tempfile.TemporaryDirectory(prefix=".restore-drill-", dir=self.backup_root) as raw:
+        with tempfile.TemporaryDirectory(
+            prefix=".restore-drill-", dir=self.backup_root
+        ) as raw:
             scratch = Path(raw)
             for entry in manifest.entries:
                 relative = self._safe_relative(entry.path)
-                source = confined_child(root / "data", *relative.parts, must_exist=True, allow_symlinks=False)
+                source = confined_child(
+                    root / "data",
+                    *relative.parts,
+                    must_exist=True,
+                    allow_symlinks=False,
+                )
                 destination = scratch.joinpath(*relative.parts)
                 destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
                 with source.open("rb") as reader, destination.open("xb") as writer:
@@ -411,7 +484,11 @@ class SnapshotService:
         return manifests
 
     def audit_pending(self) -> int:
-        return sum((child / ".audit-pending.json").is_file() for child in self.backup_root.iterdir() if child.is_dir())
+        return sum(
+            (child / ".audit-pending.json").is_file()
+            for child in self.backup_root.iterdir()
+            if child.is_dir()
+        )
 
     def reconcile_audit(self) -> dict[str, int]:
         delivered = 0

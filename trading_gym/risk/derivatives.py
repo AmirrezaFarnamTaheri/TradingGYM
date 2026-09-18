@@ -1,4 +1,5 @@
 """Non-authoritative derivatives margin, funding, and liquidation analysis."""
+
 from __future__ import annotations
 
 import hashlib
@@ -44,16 +45,28 @@ class DerivativePosition(BaseModel):
         for name, value in positive.items():
             if not value.is_finite() or value <= 0 or value > MAX_DECIMAL:
                 raise ValueError(f"{name} must be finite, positive, and bounded")
-        if not self.quantity.is_finite() or self.quantity == 0 or abs(self.quantity) > MAX_DECIMAL:
+        if (
+            not self.quantity.is_finite()
+            or self.quantity == 0
+            or abs(self.quantity) > MAX_DECIMAL
+        ):
             raise ValueError("quantity must be finite, non-zero, and bounded")
         if self.maintenance_margin_rate >= self.initial_margin_rate:
             raise ValueError("maintenance margin must be below initial margin")
         if self.initial_margin_rate > 1 or self.maintenance_margin_rate > 1:
             raise ValueError("margin rates cannot exceed one")
         if self.liquidation_price is not None:
-            if not self.liquidation_price.is_finite() or self.liquidation_price <= 0 or self.liquidation_price > MAX_DECIMAL:
-                raise ValueError("liquidation_price must be finite, positive, and bounded")
-        if not self.funding_rate_per_interval.is_finite() or abs(self.funding_rate_per_interval) > Decimal("1"):
+            if (
+                not self.liquidation_price.is_finite()
+                or self.liquidation_price <= 0
+                or self.liquidation_price > MAX_DECIMAL
+            ):
+                raise ValueError(
+                    "liquidation_price must be finite, positive, and bounded"
+                )
+        if not self.funding_rate_per_interval.is_finite() or abs(
+            self.funding_rate_per_interval
+        ) > Decimal("1"):
             raise ValueError("funding rate must be finite and bounded")
         return self
 
@@ -71,19 +84,23 @@ class DerivativeRiskPolicy(BaseModel):
     @model_validator(mode="after")
     def validate_policy(self) -> "DerivativeRiskPolicy":
         for name in (
-            "maximum_gross_leverage", "minimum_margin_ratio",
+            "maximum_gross_leverage",
+            "minimum_margin_ratio",
         ):
             value = getattr(self, name)
             if not value.is_finite() or value <= 0 or value > MAX_DECIMAL:
                 raise ValueError(f"{name} must be finite, positive, and bounded")
         for name in (
-            "maximum_position_concentration", "minimum_liquidation_buffer_fraction",
+            "maximum_position_concentration",
+            "minimum_liquidation_buffer_fraction",
             "maximum_funding_drag_fraction",
         ):
             value = getattr(self, name)
             if not value.is_finite() or value < 0 or value > 1:
                 raise ValueError(f"{name} must be between zero and one")
-        if not self.stress_price_shock_fraction.is_finite() or not Decimal("-0.99") <= self.stress_price_shock_fraction <= Decimal("10"):
+        if not self.stress_price_shock_fraction.is_finite() or not Decimal(
+            "-0.99"
+        ) <= self.stress_price_shock_fraction <= Decimal("10"):
             raise ValueError("stress price shock is outside supported bounds")
         return self
 
@@ -125,7 +142,9 @@ class DerivativeRiskReport(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str
+    ).encode("utf-8")
 
 
 def analyze_derivative_risk(
@@ -137,7 +156,11 @@ def analyze_derivative_risk(
 ) -> DerivativeRiskReport:
     if not equity.is_finite() or equity <= 0 or equity > MAX_DECIMAL:
         raise ValueError("equity must be finite, positive, and bounded")
-    if not free_collateral.is_finite() or free_collateral < 0 or free_collateral > equity:
+    if (
+        not free_collateral.is_finite()
+        or free_collateral < 0
+        or free_collateral > equity
+    ):
         raise ValueError("free_collateral must be finite and between zero and equity")
     if len(positions) > 100_000:
         raise ValueError("derivative position limit exceeded")
@@ -161,8 +184,15 @@ def analyze_derivative_risk(
         initial_margin = notional * position.initial_margin_rate
         maintenance_margin = notional * position.maintenance_margin_rate
         # Positive funding rate means longs pay shorts. Signed quantity preserves direction.
-        projected_funding = signed_contracts * position.mark_price * position.funding_rate_per_interval * Decimal(position.remaining_funding_intervals)
-        stressed_mark = position.mark_price * (Decimal("1") + policy.stress_price_shock_fraction)
+        projected_funding = (
+            signed_contracts
+            * position.mark_price
+            * position.funding_rate_per_interval
+            * Decimal(position.remaining_funding_intervals)
+        )
+        stressed_mark = position.mark_price * (
+            Decimal("1") + policy.stress_price_shock_fraction
+        )
         if stressed_mark <= 0:
             stressed_mark = Decimal("0")
         stressed_pnl = signed_contracts * (stressed_mark - position.mark_price)
@@ -170,9 +200,13 @@ def analyze_derivative_risk(
         item_violations: list[str] = []
         if position.liquidation_price is not None:
             if position.quantity > 0:
-                buffer = (position.mark_price - position.liquidation_price) / position.mark_price
+                buffer = (
+                    position.mark_price - position.liquidation_price
+                ) / position.mark_price
             else:
-                buffer = (position.liquidation_price - position.mark_price) / position.mark_price
+                buffer = (
+                    position.liquidation_price - position.mark_price
+                ) / position.mark_price
             if buffer < policy.minimum_liquidation_buffer_fraction:
                 item_violations.append("liquidation_buffer")
         gross += notional
@@ -180,18 +214,22 @@ def analyze_derivative_risk(
         maintenance += maintenance_margin
         funding += projected_funding
         stressed_total += stressed_pnl
-        results.append(DerivativePositionRisk(
-            instrument_id=position.instrument_id,
-            notional=notional,
-            unrealized_pnl=pnl,
-            initial_margin=initial_margin,
-            maintenance_margin=maintenance_margin,
-            projected_funding=projected_funding,
-            liquidation_buffer_fraction=buffer,
-            stressed_pnl=stressed_pnl,
-            violations=item_violations,
-        ))
-        violations.extend(f"{position.instrument_id}:{item}" for item in item_violations)
+        results.append(
+            DerivativePositionRisk(
+                instrument_id=position.instrument_id,
+                notional=notional,
+                unrealized_pnl=pnl,
+                initial_margin=initial_margin,
+                maintenance_margin=maintenance_margin,
+                projected_funding=projected_funding,
+                liquidation_buffer_fraction=buffer,
+                stressed_pnl=stressed_pnl,
+                violations=item_violations,
+            )
+        )
+        violations.extend(
+            f"{position.instrument_id}:{item}" for item in item_violations
+        )
 
     leverage = gross / equity if equity > 0 else None
     margin_ratio = equity / maintenance if maintenance > 0 else None

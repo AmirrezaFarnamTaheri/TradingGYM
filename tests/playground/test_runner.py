@@ -42,9 +42,7 @@ def make_frame(n: int = 240, seed: int = 11, spread_bps: float = 2.0) -> pd.Data
             index=pd.DatetimeIndex([], tz="UTC"),
         )
     rng = np.random.default_rng(seed)
-    index = pd.date_range(
-        "2024-07-01T00:00:00Z", periods=n, freq="5min", tz="UTC"
-    )
+    index = pd.date_range("2024-07-01T00:00:00Z", periods=n, freq="5min", tz="UTC")
     close = 50_000 * np.exp(np.cumsum(rng.normal(0.0002, 0.0015, n)))
     open_ = np.roll(close, 1)
     open_[0] = 50_000.0
@@ -154,11 +152,7 @@ class TestNoLookahead:
 
         signals = evaluate_strategy(spec.window, spec.strategy)
         entries = signals.index[signals["entry_signal"]]
-        fills = [
-            ts
-            for ts, change in result.positions_change_points()
-            if change == 1
-        ]
+        fills = [ts for ts, change in result.positions_change_points() if change == 1]
         assert fills, "fixture strategy must produce at least one entry"
         for fill_ts in fills:
             prior = entries[entries < fill_ts]
@@ -178,7 +172,9 @@ class TestNoLookahead:
 
 class TestCosts:
     def test_zero_fee_zero_spread_means_zero_costs(self) -> None:
-        result = run_playground(make_spec(fee_bps=0.0, window=make_frame(spread_bps=0.0)))
+        result = run_playground(
+            make_spec(fee_bps=0.0, window=make_frame(spread_bps=0.0))
+        )
         assert all(trade["cost_quote"] == pytest.approx(0.0) for trade in result.trades)
 
     def test_half_spread_charged_with_zero_fee(self) -> None:
@@ -228,7 +224,9 @@ class TestOverlayIntegration:
             }
         )
         overlays = scenario.overlays
-        stressed = run_playground(make_spec(window=scenario.stressed_frame(), overlays=overlays))
+        stressed = run_playground(
+            make_spec(window=scenario.stressed_frame(), overlays=overlays)
+        )
         assert not stressed.metrics["final_equity"] == pytest.approx(
             plain.metrics["final_equity"]
         )

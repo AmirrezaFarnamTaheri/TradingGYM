@@ -158,7 +158,9 @@ def test_llm_strict_json_path():
 
 
 def test_llm_lenient_json_fenced_fallback():
-    llm, transport = _llm_with('Sure!\n```json\n{"action":"short","target_leverage":-1}\n```')
+    llm, transport = _llm_with(
+        'Sure!\n```json\n{"action":"short","target_leverage":-1}\n```'
+    )
     sig = llm.decide(_ctx())
     assert sig.action_kind is ActionKind.SHORT
     assert "[lenient_json]" in sig.rationale
@@ -210,8 +212,13 @@ class _Scripted(IntelligenceBackend):
 
 
 def _sig(kind, lev, conf, backend="x"):
-    return DecisionSignal(backend=backend, action_kind=kind,
-                          target_leverage=lev, confidence=conf, rationale="r")
+    return DecisionSignal(
+        backend=backend,
+        action_kind=kind,
+        target_leverage=lev,
+        confidence=conf,
+        rationale="r",
+    )
 
 
 def test_fusion_veto_to_flat():
@@ -231,7 +238,9 @@ def test_fusion_flip_requires_strong_confidence_and_flag():
     assert flipped.action_kind is ActionKind.SHORT
     # flag off → keep RL direction, scaled by governor magnitude share
     gov2 = _Scripted("llm", _sig(ActionKind.SHORT, -2.0, 0.85))
-    kept = FusionBackend(rl_backend=rl, llm_backend=gov2, allow_flip=False).decide(_ctx())
+    kept = FusionBackend(rl_backend=rl, llm_backend=gov2, allow_flip=False).decide(
+        _ctx()
+    )
     assert kept.action_kind is ActionKind.LONG
     del gov
 
@@ -282,18 +291,27 @@ def test_registry_walks_priority_then_exhausts():
 
 
 def test_factory_rl_mode_returns_none_legacy_safe():
-    from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
+    from trading_gym.common.intelligence_config import (
+        IntelligenceConfig,
+        IntelligenceMode,
+    )
 
-    assert build_intelligence_policy(
-        config=IntelligenceConfig(mode=IntelligenceMode.RL),
-        model=_FakeModel(0.0),
-        action_low=-20.0,
-        action_high=20.0,
-    ) is None
+    assert (
+        build_intelligence_policy(
+            config=IntelligenceConfig(mode=IntelligenceMode.RL),
+            model=_FakeModel(0.0),
+            action_low=-20.0,
+            action_high=20.0,
+        )
+        is None
+    )
 
 
 def test_factory_rules_mode_builds_working_policy():
-    from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
+    from trading_gym.common.intelligence_config import (
+        IntelligenceConfig,
+        IntelligenceMode,
+    )
 
     policy = build_intelligence_policy(
         config=IntelligenceConfig(mode=IntelligenceMode.RULES),
@@ -314,3 +332,44 @@ def test_app_config_accepts_optional_intelligence_section():
 
     cfg = AppConfig.model_construct(intelligence=IC(mode=IntelligenceMode.AUTO))
     assert cfg.intelligence.mode is IntelligenceMode.AUTO
+
+
+# ---------------------------------------------------------------------------
+# health() reporting — regression: detail read a `status` local that existed
+# only inside is_available(), so every health() call raised NameError.
+# ---------------------------------------------------------------------------
+
+
+def test_llm_health_with_injected_transport_never_probes():
+    llm, _ = _llm_with("{}")
+    health = llm.health()
+    assert health.available is True
+    assert health.detail == "injected"
+
+
+def test_llm_health_reports_provider_status_without_name_error(monkeypatch):
+    import trading_gym.intelligence.llm_backend as mod
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+
+    probes = []
+
+    def fake_status(config, *, timeout_seconds):
+        probes.append((config.provider_id, timeout_seconds))
+        return {"provider_id": config.provider_id, "status": "unreachable"}
+
+    monkeypatch.setattr(mod, "provider_status", fake_status)
+
+    cfg = ProviderConfig(
+        provider_id="probe-llm",
+        kind=ProviderKind.LOCAL,
+        display_name="t",
+        model="m",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    # No injected transport, so health() must probe the provider itself.
+    llm = mod.LLMDecisionBackend(cfg)
+    health = llm.health()
+
+    assert probes == [("probe-llm", 3.0)]
+    assert health.available is False
+    assert health.detail == "unreachable"

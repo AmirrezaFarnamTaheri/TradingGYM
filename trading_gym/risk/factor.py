@@ -1,4 +1,5 @@
 """Non-authoritative portfolio factor-risk decomposition."""
+
 from __future__ import annotations
 
 import hashlib
@@ -50,10 +51,14 @@ class FactorCovariance(BaseModel):
         lower = [[0.0] * n for _ in range(n)]
         for i in range(n):
             for j in range(i + 1):
-                residual = self.matrix[i][j] - sum(lower[i][k] * lower[j][k] for k in range(j))
+                residual = self.matrix[i][j] - sum(
+                    lower[i][k] * lower[j][k] for k in range(j)
+                )
                 if i == j:
                     if residual < -1e-10:
-                        raise ValueError("covariance matrix must be positive semidefinite")
+                        raise ValueError(
+                            "covariance matrix must be positive semidefinite"
+                        )
                     lower[i][j] = math.sqrt(max(0.0, residual))
                 elif lower[j][j] > 1e-15:
                     lower[i][j] = residual / lower[j][j]
@@ -67,7 +72,9 @@ class FactorRiskRequest(BaseModel):
     portfolio_equity: float = Field(gt=0)
     positions: list[FactorPosition] = Field(min_length=1, max_length=100_000)
     covariance: FactorCovariance
-    maximum_factor_exposure: dict[str, float] = Field(default_factory=dict, max_length=1000)
+    maximum_factor_exposure: dict[str, float] = Field(
+        default_factory=dict, max_length=1000
+    )
     maximum_factor_volatility: float = Field(default=1.0, ge=0.0, le=1000.0)
     confidence_multiplier: float = Field(default=1.0, gt=0.0, le=10.0)
 
@@ -75,7 +82,11 @@ class FactorRiskRequest(BaseModel):
     def finite(self) -> "FactorRiskRequest":
         if not math.isfinite(self.portfolio_equity):
             raise ValueError("portfolio_equity must be finite")
-        values = [*self.maximum_factor_exposure.values(), self.maximum_factor_volatility, self.confidence_multiplier]
+        values = [
+            *self.maximum_factor_exposure.values(),
+            self.maximum_factor_volatility,
+            self.confidence_multiplier,
+        ]
         if any(not math.isfinite(value) or value < 0 for value in values):
             raise ValueError("limits must be finite and non-negative")
         ids = [item.position_id for item in self.positions]
@@ -85,7 +96,9 @@ class FactorRiskRequest(BaseModel):
         for item in self.positions:
             unknown = set(item.factor_loadings) - known
             if unknown:
-                raise ValueError(f"unknown factors for {item.position_id}: {sorted(unknown)}")
+                raise ValueError(
+                    f"unknown factors for {item.position_id}: {sorted(unknown)}"
+                )
         return self
 
 
@@ -124,7 +137,10 @@ def evaluate_factor_risk(request: FactorRiskRequest) -> FactorRiskReport:
             exposure[factor] += weight * loading
     vector = [exposure[factor] for factor in factors]
     matrix = request.covariance.matrix
-    marginal = [sum(matrix[i][j] * vector[j] for j in range(len(factors))) for i in range(len(factors))]
+    marginal = [
+        sum(matrix[i][j] * vector[j] for j in range(len(factors)))
+        for i in range(len(factors))
+    ]
     variance = sum(vector[i] * marginal[i] for i in range(len(factors)))
     if variance < 0 and variance > -1e-10:
         variance = 0.0
@@ -136,13 +152,15 @@ def evaluate_factor_risk(request: FactorRiskRequest) -> FactorRiskReport:
     for i, factor in enumerate(factors):
         contribution = vector[i] * marginal[i]
         fraction = contribution / variance if variance > 0 else 0.0
-        contributions.append(FactorContribution(
-            factor=factor,
-            exposure=vector[i],
-            marginal_variance=marginal[i],
-            variance_contribution=contribution,
-            contribution_fraction=fraction,
-        ))
+        contributions.append(
+            FactorContribution(
+                factor=factor,
+                exposure=vector[i],
+                marginal_variance=marginal[i],
+                variance_contribution=contribution,
+                contribution_fraction=fraction,
+            )
+        )
         if contribution < 0:
             warnings.append(f"diversifying_factor:{factor}")
     violations: list[str] = []
@@ -160,7 +178,9 @@ def evaluate_factor_risk(request: FactorRiskRequest) -> FactorRiskReport:
         "stressed": stressed,
         "violations": sorted(violations),
     }
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return FactorRiskReport(
         normalized_exposures=dict(sorted(exposure.items())),
         portfolio_variance=variance,

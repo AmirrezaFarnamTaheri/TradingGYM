@@ -51,7 +51,13 @@ class MarketDataRequest(BaseModel):
             raise ValueError("market-data timestamps must be timezone-aware")
         if self.end <= self.start:
             raise ValueError("market-data end must be after start")
-        expected = int((self.end - self.start).total_seconds() // _TIMEFRAME_SECONDS[self.timeframe]) + 1
+        expected = (
+            int(
+                (self.end - self.start).total_seconds()
+                // _TIMEFRAME_SECONDS[self.timeframe]
+            )
+            + 1
+        )
         if expected > self.max_rows:
             raise ValueError(
                 f"requested window implies approximately {expected} rows, above max_rows={self.max_rows}"
@@ -136,7 +142,9 @@ class DataProviderRouter:
                 provider_id=provider_id,
                 adapter=adapter,
                 priority=priority,
-                limiter=SlidingWindowLimiter(capacity=requests_per_minute, window_seconds=60.0),
+                limiter=SlidingWindowLimiter(
+                    capacity=requests_per_minute, window_seconds=60.0
+                ),
                 circuit=CircuitBreaker(
                     failure_threshold=failure_threshold,
                     recovery_timeout=recovery_timeout,
@@ -149,11 +157,15 @@ class DataProviderRouter:
 
     @staticmethod
     def _hash_frame(frame: pd.DataFrame) -> str:
-        canonical = frame.loc[:, list(REQUIRED_COLUMNS)].to_csv(
-            index=True,
-            lineterminator="\n",
-            date_format="%Y-%m-%dT%H:%M:%S.%f%z",
-        ).encode("utf-8")
+        canonical = (
+            frame.loc[:, list(REQUIRED_COLUMNS)]
+            .to_csv(
+                index=True,
+                lineterminator="\n",
+                date_format="%Y-%m-%dT%H:%M:%S.%f%z",
+            )
+            .encode("utf-8")
+        )
         return hashlib.sha256(canonical).hexdigest()
 
     @staticmethod
@@ -166,12 +178,16 @@ class DataProviderRouter:
         output = frame.copy()
         warnings: list[str] = []
         if len(output) > request.max_rows:
-            raise ValueError(f"provider returned {len(output)} rows, above {request.max_rows}")
+            raise ValueError(
+                f"provider returned {len(output)} rows, above {request.max_rows}"
+            )
         if not isinstance(output.index, pd.DatetimeIndex):
             raise ValueError("market-data frame must use a DatetimeIndex")
         if output.index.tz is None:
             raise ValueError("market-data DatetimeIndex must be timezone-aware")
-        output = output.loc[(output.index >= request.start) & (output.index <= request.end)]
+        output = output.loc[
+            (output.index >= request.start) & (output.index <= request.end)
+        ]
         if output.index.has_duplicates:
             duplicate_count = int(output.index.duplicated(keep="last").sum())
             output = output.loc[~output.index.duplicated(keep="last")]
@@ -214,7 +230,10 @@ class DataProviderRouter:
         attempted: list[str] = []
         failures: list[str] = []
         expected_rows = (
-            int((request.end - request.start).total_seconds() // _TIMEFRAME_SECONDS[request.timeframe])
+            int(
+                (request.end - request.start).total_seconds()
+                // _TIMEFRAME_SECONDS[request.timeframe]
+            )
             + 1
         )
         for provider in providers:
@@ -227,7 +246,10 @@ class DataProviderRouter:
                 observed = len(frame)
                 completeness = min(1.0, observed / max(1, expected_rows))
                 if completeness < 0.95:
-                    warnings = (*warnings, f"coverage is {completeness:.1%} of expected bars")
+                    warnings = (
+                        *warnings,
+                        f"coverage is {completeness:.1%} of expected bars",
+                    )
                 envelope = MarketDataEnvelope(
                     provider_id=provider.provider_id,
                     fetched_at=datetime.now(timezone.utc),
@@ -252,8 +274,16 @@ class DataProviderRouter:
                         while len(self._cache) > self.max_cache_entries:
                             self._cache.popitem(last=False)
                 return replace(envelope, frame=envelope.frame.copy(deep=True))
-            except (CircuitOpenError, RateLimitExceeded, ValueError, TypeError, RuntimeError) as exc:
+            except (
+                CircuitOpenError,
+                RateLimitExceeded,
+                ValueError,
+                TypeError,
+                RuntimeError,
+            ) as exc:
                 failures.append(f"{provider.provider_id}:{type(exc).__name__}")
-            except Exception as exc:  # provider boundary: fail over but do not leak details
+            except (
+                Exception
+            ) as exc:  # provider boundary: fail over but do not leak details
                 failures.append(f"{provider.provider_id}:{type(exc).__name__}")
         raise RuntimeError("all market-data providers failed: " + " | ".join(failures))

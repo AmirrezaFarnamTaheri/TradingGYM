@@ -1,4 +1,5 @@
 """Deterministic collateral allocation with haircuts and settlement blockers."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -87,7 +88,9 @@ class CollateralAllocationReport(BaseModel):
     execution_authority_granted: bool = False
 
 
-def allocate_collateral(request: CollateralAllocationRequest) -> CollateralAllocationReport:
+def allocate_collateral(
+    request: CollateralAllocationRequest,
+) -> CollateralAllocationReport:
     req = request.requirement
     blockers: list[str] = []
     warnings: list[str] = []
@@ -98,7 +101,9 @@ def allocate_collateral(request: CollateralAllocationRequest) -> CollateralAlloc
             blockers.append(f"duplicate_asset:{asset.asset_id}")
             continue
         seen.add(asset.asset_id)
-        gross = asset.market_value - asset.encumbered_value - asset.pending_settlement_value
+        gross = (
+            asset.market_value - asset.encumbered_value - asset.pending_settlement_value
+        )
         eligible = gross * (Decimal("1") - asset.haircut_fraction)
         if not asset.eligible:
             warnings.append(f"ineligible_asset:{asset.asset_id}")

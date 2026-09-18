@@ -38,7 +38,7 @@ a terminal event.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_DOWN, ROUND_UP
+from decimal import Decimal, ROUND_UP
 
 from trading_gym.margin.lot_positions import Lot
 

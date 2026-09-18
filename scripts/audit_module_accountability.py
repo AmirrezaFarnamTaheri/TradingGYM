@@ -1,4 +1,5 @@
 """Generate or verify the product Python-module accountability manifest."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,10 +12,14 @@ OUT = ROOT / "docs" / "contracts" / "module_accountability.json"
 rows = []
 for owner in ("trading_gym", "axiomforge"):
     for path in sorted((ROOT / owner).rglob("*.py")):
+        # .gitattributes sets `* text=auto`, so a checkout yields LF on Linux
+        # but CRLF on Windows with core.autocrlf=true. Hash the LF-normalized
+        # bytes or the manifest would only ever verify on one platform.
+        source = path.read_bytes().replace(b"\r\n", b"\n")
         rows.append(
             {
                 "path": path.relative_to(ROOT).as_posix(),
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "sha256": hashlib.sha256(source).hexdigest(),
                 "owner": owner,
             }
         )

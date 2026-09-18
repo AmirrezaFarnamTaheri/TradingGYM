@@ -14,7 +14,9 @@ def auth(x_api_key: str | None = Header(default=None)) -> bool:
     return True
 
 
-def test_institutional_router_exposes_all_twenty_domains_without_authority_routes() -> None:
+def test_institutional_router_exposes_all_twenty_domains_without_authority_routes() -> (
+    None
+):
     app = FastAPI()
     app.include_router(create_institutional_os_router(auth), prefix="/api/v1")
     paths = app_route_paths(app)
@@ -45,7 +47,16 @@ def test_institutional_router_exposes_all_twenty_domains_without_authority_route
         "/api/v1/institutional/assurance/complete-convergence",
     }
     assert expected <= paths
-    forbidden = ("execute", "submit", "withdraw", "deploy", "activate", "promote", "install", "mutate")
+    forbidden = (
+        "execute",
+        "submit",
+        "withdraw",
+        "deploy",
+        "activate",
+        "promote",
+        "install",
+        "mutate",
+    )
     assert all(not any(word in path for word in forbidden) for path in expected)
 
 
@@ -59,7 +70,9 @@ def test_institutional_api_requires_auth_and_returns_non_authoritative_report() 
         "spread_bps": [5.0] * 60,
         "volume": [100.0] * 60,
     }
-    denied = client.post("/api/v1/institutional/market-intelligence/regime", json=payload)
+    denied = client.post(
+        "/api/v1/institutional/market-intelligence/regime", json=payload
+    )
     assert denied.status_code == 401
     response = client.post(
         "/api/v1/institutional/market-intelligence/regime",
@@ -91,16 +104,24 @@ def test_institutional_api_rejects_unbounded_invalid_payloads() -> None:
 
 
 def _report_hash(report: dict) -> str:
-    encoded = json.dumps(report, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    encoded = json.dumps(
+        report, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 
-def test_institutional_artifact_api_is_authenticated_versioned_and_idempotent(tmp_path, monkeypatch) -> None:
+def test_institutional_artifact_api_is_authenticated_versioned_and_idempotent(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
     app = FastAPI()
     app.include_router(create_institutional_os_router(auth), prefix="/api/v1")
     client = TestClient(app)
-    report = {"market_id": "BTC-USDT", "blockers": [], "trading_authority_granted": False}
+    report = {
+        "market_id": "BTC-USDT",
+        "blockers": [],
+        "trading_authority_granted": False,
+    }
     payload = {
         "domain": "market-intelligence",
         "report_sha256": _report_hash(report),
@@ -115,24 +136,34 @@ def test_institutional_artifact_api_is_authenticated_versioned_and_idempotent(tm
     denied = client.post("/api/v1/institutional/artifacts", json=payload)
     assert denied.status_code == 401
     headers = {"x-api-key": "secret"}
-    first = client.post("/api/v1/institutional/artifacts", json=payload, headers=headers)
+    first = client.post(
+        "/api/v1/institutional/artifacts", json=payload, headers=headers
+    )
     assert first.status_code == 200, first.text
     assert first.json()["revision"] == 1
-    replay = client.post("/api/v1/institutional/artifacts", json=payload, headers=headers)
+    replay = client.post(
+        "/api/v1/institutional/artifacts", json=payload, headers=headers
+    )
     assert replay.status_code == 200
     assert replay.json()["version_sha256"] == first.json()["version_sha256"]
     listed = client.get("/api/v1/institutional/artifacts", headers=headers)
     assert listed.status_code == 200
     assert listed.json()[0]["artifact_id"] == "api-market-btc"
-    fetched = client.get("/api/v1/institutional/artifacts/api-market-btc", headers=headers)
+    fetched = client.get(
+        "/api/v1/institutional/artifacts/api-market-btc", headers=headers
+    )
     assert fetched.status_code == 200
     assert fetched.json()["revision"] == 1
-    reconciled = client.post("/api/v1/institutional/artifacts/audit/reconcile", headers=headers)
+    reconciled = client.post(
+        "/api/v1/institutional/artifacts/audit/reconcile", headers=headers
+    )
     assert reconciled.status_code == 200
     assert reconciled.json()["pending"] == 0
 
 
-def test_institutional_artifact_api_rejects_hash_alias_and_stale_revision(tmp_path, monkeypatch) -> None:
+def test_institutional_artifact_api_rejects_hash_alias_and_stale_revision(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
     app = FastAPI()
     app.include_router(create_institutional_os_router(auth), prefix="/api/v1")
@@ -150,19 +181,30 @@ def test_institutional_artifact_api_rejects_hash_alias_and_stale_revision(tmp_pa
         "actor": "risk-reviewer",
         "evidence_ids": [],
     }
-    assert client.post("/api/v1/institutional/artifacts", json=payload, headers=headers).status_code == 200
+    assert (
+        client.post(
+            "/api/v1/institutional/artifacts", json=payload, headers=headers
+        ).status_code
+        == 200
+    )
     changed = dict(payload)
     changed_report = {"blockers": ["changed"], "trading_authority_granted": False}
     changed["report"] = changed_report
     changed["report_sha256"] = _report_hash(changed_report)
-    alias = client.post("/api/v1/institutional/artifacts", json=changed, headers=headers)
+    alias = client.post(
+        "/api/v1/institutional/artifacts", json=changed, headers=headers
+    )
     assert alias.status_code == 409
     stale = dict(changed)
     stale["idempotency_key"] = "api-artifact-idem-0003"
-    stale_result = client.post("/api/v1/institutional/artifacts", json=stale, headers=headers)
+    stale_result = client.post(
+        "/api/v1/institutional/artifacts", json=stale, headers=headers
+    )
     assert stale_result.status_code == 409
     invalid_hash = dict(payload)
     invalid_hash["idempotency_key"] = "api-artifact-idem-0004"
     invalid_hash["report_sha256"] = "a" * 64
-    invalid = client.post("/api/v1/institutional/artifacts", json=invalid_hash, headers=headers)
+    invalid = client.post(
+        "/api/v1/institutional/artifacts", json=invalid_hash, headers=headers
+    )
     assert invalid.status_code == 422

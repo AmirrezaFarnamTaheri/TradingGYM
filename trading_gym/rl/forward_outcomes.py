@@ -128,9 +128,15 @@ def ideal_fill_oracle(
     close = np.asarray(prices_close, dtype=float)
     high = np.asarray(prices_high, dtype=float)
     low = np.asarray(prices_low, dtype=float)
-    if not (close.shape == high.shape == low.shape) or close.ndim != 1 or close.size < 2:
+    if (
+        not (close.shape == high.shape == low.shape)
+        or close.ndim != 1
+        or close.size < 2
+    ):
         raise ValueError("price arrays must be equal-length 1-D with >= 2 bars")
-    if not (np.isfinite(close).all() and np.isfinite(high).all() and np.isfinite(low).all()):
+    if not (
+        np.isfinite(close).all() and np.isfinite(high).all() and np.isfinite(low).all()
+    ):
         raise ValueError("price series must be finite")
     if ((low > high) | (low <= 0)).any():
         raise ValueError("invalid envelope: need 0 < low <= high")

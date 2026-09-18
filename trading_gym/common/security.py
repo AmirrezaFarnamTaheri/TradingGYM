@@ -34,6 +34,8 @@ _SECRET_KEYS = frozenset(
         "secretkey",
         "passphrase",
         "secret",
+        "api_secret",
+        "apisecret",
         "password",
         "private_key",
         "privatekey",
@@ -64,6 +66,7 @@ _SECRET_KEY_SUFFIXES = (
     "_bot_token",
     "_private_key",
     "_secret_key",
+    "_secret",
     "_signing_secret",
     "_webhook_secret",
     "_client_secret",
@@ -94,7 +97,9 @@ def _is_secret_key(value: str) -> bool:
     return normalised in _SECRET_KEYS or normalised.endswith(_SECRET_KEY_SUFFIXES)
 
 
-def redact_secrets(value: Any, *, depth: int = 0, max_depth: int = MAX_REDACTION_DEPTH) -> Any:
+def redact_secrets(
+    value: Any, *, depth: int = 0, max_depth: int = MAX_REDACTION_DEPTH
+) -> Any:
     """Return a bounded copy with credential-like fields masked.
 
     Values beyond ``max_depth`` are replaced rather than traversed. This avoids
@@ -107,33 +112,45 @@ def redact_secrets(value: Any, *, depth: int = 0, max_depth: int = MAX_REDACTION
         output: dict[str, Any] = {}
         for key, item in value.items():
             text_key = str(key)
-            if _is_secret_key(text_key) and item not in (None, "", False):
+            if _is_secret_key(text_key) and not (
+                item is None or (isinstance(item, str) and item == "")
+            ):
                 output[text_key] = "***"
             else:
-                output[text_key] = redact_secrets(item, depth=depth + 1, max_depth=max_depth)
+                output[text_key] = redact_secrets(
+                    item, depth=depth + 1, max_depth=max_depth
+                )
         return output
     if isinstance(value, (list, tuple)):
-        return [redact_secrets(item, depth=depth + 1, max_depth=max_depth) for item in value]
+        return [
+            redact_secrets(item, depth=depth + 1, max_depth=max_depth) for item in value
+        ]
     return value
 
 
 def bounded_json_dumps(value: Any, *, max_bytes: int = MAX_JSON_BYTES) -> str:
     """Serialise redacted JSON and reject payloads above ``max_bytes``."""
 
-    encoded = json.dumps(redact_secrets(value), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    encoded = json.dumps(
+        redact_secrets(value), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
     size = len(encoded.encode("utf-8"))
     if size > max_bytes:
         raise ValueError(f"JSON payload exceeds {max_bytes} byte limit")
     return encoded
 
 
-def assert_payload_size(value: str | bytes, *, max_bytes: int = MAX_JSON_BYTES, label: str = "Payload") -> None:
+def assert_payload_size(
+    value: str | bytes, *, max_bytes: int = MAX_JSON_BYTES, label: str = "Payload"
+) -> None:
     raw = value if isinstance(value, bytes) else value.encode("utf-8")
     if len(raw) > max_bytes:
         raise ValueError(f"{label} exceeds {max_bytes} byte limit")
 
 
-def _literal_ip_blocked(host: str, *, allow_private: bool, allow_loopback: bool) -> bool:
+def _literal_ip_blocked(
+    host: str, *, allow_private: bool, allow_loopback: bool
+) -> bool:
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
@@ -141,7 +158,10 @@ def _literal_ip_blocked(host: str, *, allow_private: bool, allow_loopback: bool)
     mapped = getattr(address, "ipv4_mapped", None)
     if mapped is not None:
         address = mapped
-    if any(address in network for network in _METADATA_NETWORKS) or address.is_link_local:
+    if (
+        any(address in network for network in _METADATA_NETWORKS)
+        or address.is_link_local
+    ):
         return True
     if address.is_loopback:
         return not allow_loopback
@@ -172,12 +192,16 @@ def validate_base_url(
     host = parsed.hostname or ""
     if not host:
         raise ValueError("Base URL is missing a hostname")
-    if _literal_ip_blocked(host, allow_private=allow_private, allow_loopback=allow_loopback):
+    if _literal_ip_blocked(
+        host, allow_private=allow_private, allow_loopback=allow_loopback
+    ):
         raise ValueError("Base URL points to a disallowed network destination")
 
     if resolve_dns and not _is_literal_ip(host):
         try:
-            resolved = {info[4][0] for info in socket.getaddrinfo(host, parsed.port or None)}
+            resolved = {
+                info[4][0] for info in socket.getaddrinfo(host, parsed.port or None)
+            }
         except socket.gaierror as exc:
             raise ValueError("Base URL hostname could not be resolved") from exc
         for address in resolved:
@@ -186,7 +210,9 @@ def validate_base_url(
                 allow_private=allow_private,
                 allow_loopback=allow_loopback,
             ):
-                raise ValueError("Base URL resolves to a disallowed network destination")
+                raise ValueError(
+                    "Base URL resolves to a disallowed network destination"
+                )
 
     path = parsed.path.rstrip("/")
     normalised = parsed._replace(path=path, params="", query="", fragment="").geturl()
@@ -199,6 +225,33 @@ def _is_literal_ip(host: str) -> bool:
     except ValueError:
         return False
     return True
+
+
+def validate_peer_address(
+    host: str,
+    *,
+    allow_private: bool = False,
+    allow_loopback: bool = False,
+) -> str:
+    """Classify a *resolved* peer address, rejecting a disallowed one.
+
+    Unlike :func:`validate_base_url` this performs no DNS lookup — the peer is
+    already connected, so ``host`` is the address the socket actually opened.
+    That is exactly the window a pre-connect validation cannot close: the
+    destination was vetted before connect, but a client library re-resolves
+    the hostname itself when it opens the socket and DNS is free to answer
+    differently on the second lookup (TOCTOU). Cloud metadata and link-local
+    destinations are always rejected; private and loopback destinations need
+    the same explicit opt-in as everywhere else.
+    """
+
+    if not host:
+        raise ValueError("Peer address is missing")
+    if _literal_ip_blocked(
+        host, allow_private=allow_private, allow_loopback=allow_loopback
+    ):
+        raise ValueError("Peer address is a disallowed network destination")
+    return host
 
 
 def confined_child(
@@ -293,7 +346,9 @@ def verified_regular_file_snapshot(
             raise ValueError(f"{label} must be a regular file")
         if before.st_size > max_bytes:
             raise ValueError(f"{label} exceeds its size limit")
-        temp_descriptor, temp_name = tempfile.mkstemp(prefix=".trading-gym-verified-", suffix=path.suffix)
+        temp_descriptor, temp_name = tempfile.mkstemp(
+            prefix=".trading-gym-verified-", suffix=path.suffix
+        )
         temp_path = Path(temp_name)
         digest = hashlib.sha256()
         copied = 0
@@ -313,8 +368,18 @@ def verified_regular_file_snapshot(
                 target.flush()
                 os.fsync(target.fileno())
             after = os.fstat(descriptor)
-            identity_before = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
-            identity_after = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+            identity_before = (
+                before.st_dev,
+                before.st_ino,
+                before.st_size,
+                before.st_mtime_ns,
+            )
+            identity_after = (
+                after.st_dev,
+                after.st_ino,
+                after.st_size,
+                after.st_mtime_ns,
+            )
             if identity_before != identity_after or copied != before.st_size:
                 raise ValueError(f"{label} changed while it was being verified")
             if not secrets.compare_digest(digest.hexdigest(), expected_sha256):

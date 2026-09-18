@@ -45,7 +45,8 @@ def test_operation_is_idempotent_only_for_cancel():
 def operation_is_mutation_safe_shortcut() -> bool:
     # spot/short operations must never be flagged idempotent.
     return not any(
-        operation_is_idempotent(op) for op in ("spot.market", "short.open", "short.close")
+        operation_is_idempotent(op)
+        for op in ("spot.market", "short.open", "short.close")
     )
 
 

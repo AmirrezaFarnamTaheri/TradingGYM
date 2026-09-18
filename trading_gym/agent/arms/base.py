@@ -173,8 +173,12 @@ class BackendArm(Arm):
         cost: CostModel,
         required_scopes: frozenset[str] | Sequence[str] = frozenset(),
         staleness_tolerance: timedelta | None = None,
+        name: str | None = None,
     ) -> None:
-        self.name = backend.name
+        # ``name`` overrides the backend's own name when an arm must present a
+        # fixed identity while voting through a wrapped backend — the rules
+        # channel votes *through* its guard but stays the ``rules`` arm.
+        self.name = name if name is not None else backend.name
         self.tier = ArmTier(tier)
         self.cost = cost
         self.required_scopes = frozenset(required_scopes)

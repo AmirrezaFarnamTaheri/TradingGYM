@@ -18,11 +18,54 @@ class DataSource:
 
 
 DEFAULT_SOURCES: tuple[DataSource, ...] = (
-    DataSource("sec_edgar", "SEC EDGAR", ("filings", "company"), None, "https://www.sec.gov/os/accessing-edgar-data", True, True, "Respect SEC fair-access guidance and identify the client."),
-    DataSource("fred", "Federal Reserve Economic Data", ("macro",), "FRED_API_KEY", "https://fred.stlouisfed.org/docs/api/terms_of_use.html", True, True),
-    DataSource("world_bank", "World Bank Open Data", ("macro",), None, "https://www.worldbank.org/en/about/legal/terms-of-use-for-datasets", True, True),
-    DataSource("exchange", "Configured exchange market data", ("ohlcv", "orderbook"), "EXCHANGE_API_KEY", "operator-configured", False, True, "Redistribution depends on venue terms."),
-    DataSource("news", "Configured news provider", ("news",), "NEWS_API_KEY", "operator-configured", False, False, "Store citations and derived facts, not licensed article bodies."),
+    DataSource(
+        "sec_edgar",
+        "SEC EDGAR",
+        ("filings", "company"),
+        None,
+        "https://www.sec.gov/os/accessing-edgar-data",
+        True,
+        True,
+        "Respect SEC fair-access guidance and identify the client.",
+    ),
+    DataSource(
+        "fred",
+        "Federal Reserve Economic Data",
+        ("macro",),
+        "FRED_API_KEY",
+        "https://fred.stlouisfed.org/docs/api/terms_of_use.html",
+        True,
+        True,
+    ),
+    DataSource(
+        "world_bank",
+        "World Bank Open Data",
+        ("macro",),
+        None,
+        "https://www.worldbank.org/en/about/legal/terms-of-use-for-datasets",
+        True,
+        True,
+    ),
+    DataSource(
+        "exchange",
+        "Configured exchange market data",
+        ("ohlcv", "orderbook"),
+        "EXCHANGE_API_KEY",
+        "operator-configured",
+        False,
+        True,
+        "Redistribution depends on venue terms.",
+    ),
+    DataSource(
+        "news",
+        "Configured news provider",
+        ("news",),
+        "NEWS_API_KEY",
+        "operator-configured",
+        False,
+        False,
+        "Store citations and derived facts, not licensed article bodies.",
+    ),
 )
 
 

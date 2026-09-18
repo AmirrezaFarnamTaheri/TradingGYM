@@ -3,6 +3,7 @@
 This is evidence for review, not a legal conclusion, order block, disciplinary
 action, or market-abuse determination.
 """
+
 from __future__ import annotations
 
 import math
@@ -105,7 +106,10 @@ def evaluate_surveillance(request: SurveillanceRequest) -> SurveillanceReport:
             continue
         exec_ids.add(item.execution_id)
         direction = Decimal("1") if item.side == "buy" else Decimal("-1")
-        adverse_value = direction * (item.execution_price - item.benchmark_price) * item.quantity + item.fee_amount
+        adverse_value = (
+            direction * (item.execution_price - item.benchmark_price) * item.quantity
+            + item.fee_amount
+        )
         notional = item.benchmark_price * item.quantity
         adverse_bps = float(adverse_value / notional * Decimal("10000"))
         if not math.isfinite(adverse_bps):
@@ -115,9 +119,15 @@ def evaluate_surveillance(request: SurveillanceRequest) -> SurveillanceReport:
         total_notional += notional
         if adverse_bps > request.maximum_adverse_bps:
             adverse.append(item.execution_id)
-    weighted_bps = float(weighted_cost / total_notional * Decimal("10000")) if total_notional else 0.0
+    weighted_bps = (
+        float(weighted_cost / total_notional * Decimal("10000"))
+        if total_notional
+        else 0.0
+    )
     pairs: list[str] = []
-    trades = sorted(request.trades, key=lambda x: (x.instrument_id, x.occurred_at, x.trade_id))
+    trades = sorted(
+        request.trades, key=lambda x: (x.instrument_id, x.occurred_at, x.trade_id)
+    )
     trade_ids: set[str] = set()
     window = timedelta(seconds=request.self_trade_window_seconds)
     for i, left in enumerate(trades):
@@ -131,9 +141,14 @@ def evaluate_surveillance(request: SurveillanceRequest) -> SurveillanceReport:
                 continue
             if right.occurred_at - left.occurred_at > window:
                 break
-            if left.beneficial_owner_id != right.beneficial_owner_id or left.side == right.side:
+            if (
+                left.beneficial_owner_id != right.beneficial_owner_id
+                or left.side == right.side
+            ):
                 continue
-            ratio = abs(left.quantity - right.quantity) / max(left.quantity, right.quantity)
+            ratio = abs(left.quantity - right.quantity) / max(
+                left.quantity, right.quantity
+            )
             if float(ratio) <= request.quantity_tolerance_fraction:
                 pairs.append(f"{left.trade_id}:{right.trade_id}")
     if adverse:

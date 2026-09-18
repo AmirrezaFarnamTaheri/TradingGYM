@@ -4,6 +4,7 @@ This is an HMAC-backed local provenance receipt, not a transparency-log entry,
 not a code-signing certificate, and not a substitute for Sigstore/SLSA in a
 multi-party release process.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -64,7 +65,9 @@ class SignedBuildAttestation(BaseModel):
 
 
 def _canonical(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
 
 
 def _key(value: str | bytes | None) -> bytes:
@@ -101,7 +104,9 @@ def verify_attestation(
     payload = _canonical(attestation.statement.model_dump(mode="json"))
     digest = hashlib.sha256(payload).hexdigest()
     digest_valid = hmac.compare_digest(digest, attestation.statement_sha256)
-    expected = hmac.new(_key(key), attestation.statement_sha256.encode("ascii"), hashlib.sha256).hexdigest()
+    expected = hmac.new(
+        _key(key), attestation.statement_sha256.encode("ascii"), hashlib.sha256
+    ).hexdigest()
     signature_valid = hmac.compare_digest(expected, attestation.signature)
     return {
         "valid": digest_valid and signature_valid,

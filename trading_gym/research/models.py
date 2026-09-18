@@ -52,4 +52,6 @@ class ResearchDossier(BaseModel):
     evidence: Annotated[list[EvidenceItem], Field(max_length=1000)]
     missing_data: list[str] = Field(default_factory=list, max_length=100)
     caveats: list[str] = Field(default_factory=list, max_length=100)
-    disclaimer: str = "Research evidence only; not financial advice or an execution instruction."
+    disclaimer: str = (
+        "Research evidence only; not financial advice or an execution instruction."
+    )

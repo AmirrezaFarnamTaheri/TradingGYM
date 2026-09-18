@@ -12,13 +12,18 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from trading_gym.common.persistence import atomic_write_json
-from trading_gym.common.supply_chain import build_dependency_inventory, verify_dependency_policy
+from trading_gym.common.persistence import atomic_write_json  # noqa: E402
+from trading_gym.common.supply_chain import (  # noqa: E402
+    build_dependency_inventory,
+    verify_dependency_policy,
+)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument(
+        "--root", type=Path, default=Path(__file__).resolve().parents[1]
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     inventory = build_dependency_inventory(args.root)

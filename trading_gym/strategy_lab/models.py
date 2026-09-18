@@ -27,8 +27,17 @@ class IndicatorSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     name: Literal[
-        "sma", "ema", "rsi", "atr", "macd", "bollinger", "roc", "vwap",
-        "obv", "stochastic", "donchian"
+        "sma",
+        "ema",
+        "rsi",
+        "atr",
+        "macd",
+        "bollinger",
+        "roc",
+        "vwap",
+        "obv",
+        "stochastic",
+        "donchian",
     ]
     alias: Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_]{0,63}$")]
     params: dict[str, float | int | str | bool] = Field(default_factory=dict)
@@ -50,7 +59,9 @@ class IndicatorSpec(BaseModel):
         }[self.name]
         unknown = set(self.params) - allowed
         if unknown:
-            raise ValueError(f"unsupported {self.name} parameters: {', '.join(sorted(unknown))}")
+            raise ValueError(
+                f"unsupported {self.name} parameters: {', '.join(sorted(unknown))}"
+            )
         for key in {"period", "fast", "slow", "signal", "smooth"} & set(self.params):
             value = self.params[key]
             if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -112,7 +123,9 @@ class ConditionGroup(BaseModel):
 class RiskSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    sizing_method: Literal["fixed_fraction", "risk_per_trade", "volatility_target", "capped_kelly"] = "fixed_fraction"
+    sizing_method: Literal[
+        "fixed_fraction", "risk_per_trade", "volatility_target", "capped_kelly"
+    ] = "fixed_fraction"
     max_position_fraction: Annotated[float, Field(gt=0.0, le=1.0)] = 0.1
     max_leverage: Annotated[float, Field(ge=1.0, le=1000.0)] = 1.0
     risk_per_trade_fraction: Annotated[float | None, Field(gt=0.0, le=0.2)] = None
@@ -128,7 +141,9 @@ class RiskSpec(BaseModel):
     def validate_sizing(self) -> "RiskSpec":
         if self.sizing_method == "risk_per_trade":
             if self.risk_per_trade_fraction is None or self.stop_loss_fraction is None:
-                raise ValueError("risk_per_trade sizing requires risk_per_trade_fraction and stop_loss_fraction")
+                raise ValueError(
+                    "risk_per_trade sizing requires risk_per_trade_fraction and stop_loss_fraction"
+                )
         if self.sizing_method == "volatility_target" and self.target_volatility is None:
             raise ValueError("volatility_target sizing requires target_volatility")
         return self
@@ -143,7 +158,9 @@ class StrategySpec(BaseModel):
     name: Annotated[str, Field(min_length=1, max_length=120)]
     description: Annotated[str, Field(max_length=2000)] = ""
     timeframe: Literal["1m", "5m", "15m", "30m", "1h", "4h", "1d"] = "5m"
-    indicators: Annotated[list[IndicatorSpec], Field(max_length=32)] = Field(default_factory=list)
+    indicators: Annotated[list[IndicatorSpec], Field(max_length=32)] = Field(
+        default_factory=list
+    )
     entry: ConditionGroup
     exit: ConditionGroup
     risk: RiskSpec = Field(default_factory=RiskSpec)

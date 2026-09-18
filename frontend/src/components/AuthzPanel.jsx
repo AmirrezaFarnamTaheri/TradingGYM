@@ -122,6 +122,21 @@ export default function AuthzPanel() {
 
       {grantsQuery.isLoading ? (
         <p>Loading grants…</p>
+      ) : grantsQuery.isError ? (
+        // A failed fetch must not masquerade as an empty grant set: this
+        // branch is red and actionable, the empty state below is not.
+        <div className="error" role="alert" aria-live="assertive">
+          Failed to load grants: {grantsQuery.error?.message || 'Unknown error'}
+          <div style={{ marginTop: '10px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['authz-grants'] })}
+            >
+              Retry
+            </button>
+          </div>
+        </div>
       ) : grants.length === 0 ? (
         <p className="empty-state">No active grants.</p>
       ) : (

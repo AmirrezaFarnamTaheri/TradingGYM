@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import math
 import os
 import re
@@ -17,7 +16,6 @@ from typing import Any, Dict, List, Optional
 from filelock import FileLock
 
 from trading_gym.common.audit_outbox import (
-    AuditOutboxPending,
     deliver_audit_events,
     ensure_audit_outbox,
     queue_audit_event,
@@ -68,7 +66,10 @@ class ModelMetadata:
         artifact_name = str(data.get("artifact_name") or "model.zip")
         if not _ARTIFACT_RE.fullmatch(artifact_name):
             raise ValueError("invalid model artifact name")
-        metrics = {str(key): float(value) for key, value in dict(data.get("metrics", {})).items()}
+        metrics = {
+            str(key): float(value)
+            for key, value in dict(data.get("metrics", {})).items()
+        }
         if any(not math.isfinite(value) for value in metrics.values()):
             raise ValueError("model metrics must be finite")
         code_hash = str(data["code_hash"])
@@ -80,7 +81,10 @@ class ModelMetadata:
             metrics=metrics,
             config=dict(data.get("config", {})),
             code_hash=code_hash,
-            tags={str(key): str(value) for key, value in dict(data.get("tags", {})).items()},
+            tags={
+                str(key): str(value)
+                for key, value in dict(data.get("tags", {})).items()
+            },
             notes=str(data.get("notes", ""))[:20_000],
             artifact_name=artifact_name,
             artifact_size=max(0, int(data.get("artifact_size", 0))),
@@ -139,7 +143,12 @@ class ModelRegistry:
         if any(not math.isfinite(value) for value in metrics_normalised.values()):
             raise ValueError("model metrics must be finite")
         bounded_json_dumps(
-            {"metrics": metrics_normalised, "config": config, "tags": tags or {}, "notes": notes},
+            {
+                "metrics": metrics_normalised,
+                "config": config,
+                "tags": tags or {},
+                "notes": notes,
+            },
             max_bytes=MAX_MODEL_METADATA_BYTES,
         )
 
@@ -375,7 +384,9 @@ class ModelRegistry:
         if active_version == version:
             self.reconcile_audit()
 
-    def compare_versions(self, version_a: str, version_b: str, metric: str) -> Dict[str, Any]:
+    def compare_versions(
+        self, version_a: str, version_b: str, metric: str
+    ) -> Dict[str, Any]:
         meta_a = self.get_version(version_a)
         meta_b = self.get_version(version_b)
         if not meta_a or not meta_b:
@@ -391,7 +402,9 @@ class ModelRegistry:
             "value_a": value_a,
             "value_b": value_b,
             "diff": value_a - value_b,
-            "pct_change": ((value_a - value_b) / value_b) * 100 if value_b != 0 else float("inf"),
+            "pct_change": (
+                ((value_a - value_b) / value_b) * 100 if value_b != 0 else float("inf")
+            ),
         }
 
     def _load_and_reconcile_locked(self) -> Dict[str, ModelMetadata]:
@@ -406,7 +419,11 @@ class ModelRegistry:
 
         discovered: Dict[str, ModelMetadata] = {}
         for child in self.registry_dir.iterdir():
-            if child.is_symlink() or not child.is_dir() or not _VERSION_RE.fullmatch(child.name):
+            if (
+                child.is_symlink()
+                or not child.is_dir()
+                or not _VERSION_RE.fullmatch(child.name)
+            ):
                 continue
             metadata_path = child / "metadata.json"
             if not metadata_path.is_file() or metadata_path.is_symlink():
@@ -439,7 +456,9 @@ class ModelRegistry:
     def _save_versions_locked(self) -> None:
         records = [
             metadata.to_dict()
-            for metadata in sorted(self._versions.values(), key=lambda item: item.created_at)
+            for metadata in sorted(
+                self._versions.values(), key=lambda item: item.created_at
+            )
         ]
         atomic_write_json(self.versions_file, records)
 
@@ -458,7 +477,10 @@ class ModelRegistry:
                 raise ValueError("model activation state must not be a symlink")
             activation = read_json(self.activation_file, default)
         elif self.legacy_active_file.exists():
-            if self.legacy_active_file.is_symlink() or self.legacy_active_file.stat().st_size > 256:
+            if (
+                self.legacy_active_file.is_symlink()
+                or self.legacy_active_file.stat().st_size > 256
+            ):
                 raise ValueError("legacy active model pointer is invalid")
             legacy_version = self.legacy_active_file.read_text(encoding="utf-8").strip()
             self._validate_version(legacy_version)

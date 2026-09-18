@@ -28,6 +28,7 @@ import re
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
+from filelock import FileLock
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -143,7 +144,10 @@ class Grant:
     def is_active(self, *, now: str | None = None) -> bool:
         if self.state != GrantState.ACTIVE:
             return False
-        moment = _parse_iso(now) if now is not None else _parse_iso(self.issued_at)
+        # Default the clock to the present, not issued_at: comparing
+        # issued_at < expires_at is tautologically true for any validly-issued
+        # grant, which would make expiry unenforceable on the default path.
+        moment = _parse_iso(now) if now is not None else _now_utc()
         return moment < _parse_iso(self.expires_at)
 
     def evaluate(
@@ -175,9 +179,7 @@ class Grant:
                 if state == GrantState.REVOKED_BREACH
                 else "grant_revoked"
             )
-            return GrantDecision(
-                allowed=False, reason=reason, grant_id=self.grant_id
-            )
+            return GrantDecision(allowed=False, reason=reason, grant_id=self.grant_id)
 
         try:
             matched = self.scopes.match(scope)
@@ -195,15 +197,11 @@ class Grant:
                 ceiling = self.constraints.get(name)
                 if ceiling is None:
                     continue
-                if not isinstance(ceiling, (int, float)) or isinstance(
-                    ceiling, bool
-                ):
+                if not isinstance(ceiling, (int, float)) or isinstance(ceiling, bool):
                     raise ConstraintViolation(
                         f"constraint ceiling {name!r} is not numeric"
                     )
-                if not isinstance(observed, (int, float)) or isinstance(
-                    observed, bool
-                ):
+                if not isinstance(observed, (int, float)) or isinstance(observed, bool):
                     raise ConstraintViolation(
                         f"observed value for {name!r} must be numeric"
                     )
@@ -228,9 +226,7 @@ class Grant:
 
     def _latch_breach(self) -> None:
         if self._ledger is None:
-            raise RuntimeError(
-                "breach latching requires the owning GrantLedger"
-            )
+            raise RuntimeError("breach latching requires the owning GrantLedger")
         self._ledger._latch_breach(self.grant_id)
 
     # -- serialization ------------------------------------------------------
@@ -259,9 +255,7 @@ class Grant:
         )
         for key in required:
             if key not in record:
-                raise GrantLedgerIntegrityError(
-                    f"grant record missing {key!r}"
-                )
+                raise GrantLedgerIntegrityError(f"grant record missing {key!r}")
         state = record["state"]
         if state not in GrantState._ALL:
             raise GrantLedgerIntegrityError(f"unknown grant state {state!r}")
@@ -307,6 +301,12 @@ class GrantLedger:
         self._anchor_path = self._path.with_suffix(self._path.suffix + ".anchor")
         self._events: list[_LedgerEvent] = []
         self._grants: dict[str, Grant] = {}
+        # A chain lock held across load+verify+append. Without it, two handles
+        # on one journal both derive seq/prev_hash from in-memory state verified
+        # once at construction, both append, and the on-disk chain forks (two
+        # seq=1 entries) with both callers told they succeeded. AuditLedger
+        # holds exactly this lock for the same reason.
+        self._chain_lock = FileLock(str(self._path) + ".chain.lock")
         self._load(verify=verify)
 
     # -- construction -------------------------------------------------------
@@ -319,12 +319,19 @@ class GrantLedger:
         if not self._path.exists():
             return
         raw_lines = self._path.read_text(encoding="utf-8").splitlines()
-        for line in raw_lines:
+        for number, line in enumerate(raw_lines, start=1):
             if not line.strip():
+                raise GrantLedgerIntegrityError("blank line in grants journal")
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                # A torn final write — exactly the power-loss-mid-append case
+                # the fsync machinery exists to survive — must surface as the
+                # module's integrity error so callers trigger repair, not as a
+                # bare JSONDecodeError that looks like a code bug.
                 raise GrantLedgerIntegrityError(
-                    "blank line in grants journal"
-                )
-            record = json.loads(line)
+                    f"grants journal has invalid JSON at line {number}"
+                ) from exc
             self._events.append(self._decode_event(record))
         if verify:
             self._verify_chain()
@@ -354,9 +361,7 @@ class GrantLedger:
                     raise GrantLedgerIntegrityError(
                         f"malformed grant record at seq {event.seq}: {exc}"
                     ) from exc
-                self._grants[grant.grant_id] = replace(
-                    grant, _ledger=self
-                )
+                self._grants[grant.grant_id] = replace(grant, _ledger=self)
             elif event.type == "revoked":
                 grant_id = str(event.payload.get("grant_id", ""))
                 current: Grant | None = self._grants.get(grant_id)
@@ -364,9 +369,7 @@ class GrantLedger:
                     raise GrantLedgerIntegrityError(
                         f"revoked event references unknown grant at seq {event.seq}"
                     )
-                self._grants[grant_id] = replace(
-                    current, state=GrantState.REVOKED
-                )
+                self._grants[grant_id] = replace(current, state=GrantState.REVOKED)
             elif event.type == "breach":
                 grant_id = str(event.payload.get("grant_id", ""))
                 latched: Grant | None = self._grants.get(grant_id)
@@ -385,21 +388,17 @@ class GrantLedger:
     def _decode_event(self, record: Mapping[str, Any]) -> _LedgerEvent:
         for key in ("seq", "type", "ts", "prev_hash", "entry_hash"):
             if key not in record:
-                raise GrantLedgerIntegrityError(
-                    f"journal record missing {key!r}"
-                )
-        body = {
-            k: v
-            for k, v in record.items()
-            if k not in ("entry_hash",)
-        }
+                raise GrantLedgerIntegrityError(f"journal record missing {key!r}")
+        body = {k: v for k, v in record.items() if k not in ("entry_hash",)}
         computed = hashlib.sha256(_canonical(body)).hexdigest()
         if computed != record["entry_hash"]:
             raise GrantLedgerIntegrityError(
                 f"journal record {record['seq']} hash mismatch"
             )
         payload = {
-            k: v for k, v in record.items() if k not in ("seq", "type", "ts", "prev_hash", "entry_hash")
+            k: v
+            for k, v in record.items()
+            if k not in ("seq", "type", "ts", "prev_hash", "entry_hash")
         }
         return _LedgerEvent(
             seq=int(record["seq"]),
@@ -414,9 +413,7 @@ class GrantLedger:
         previous = _GENESIS_HASH
         for index, event in enumerate(self._events, start=1):
             if event.seq != index:
-                raise GrantLedgerIntegrityError(
-                    f"journal sequence gap at {event.seq}"
-                )
+                raise GrantLedgerIntegrityError(f"journal sequence gap at {event.seq}")
             if event.prev_hash != previous:
                 raise GrantLedgerIntegrityError(
                     f"journal chain break at seq {event.seq}"
@@ -442,27 +439,38 @@ class GrantLedger:
             )
 
     def _append(self, event_type: str, ts: str, payload: dict[str, Any]) -> None:
-        seq = (self._events[-1].seq if self._events else 0) + 1
-        prev_hash = self._events[-1].entry_hash if self._events else _GENESIS_HASH
-        body = {
-            "seq": seq,
-            "type": event_type,
-            "ts": ts,
-            "prev_hash": prev_hash,
-            **payload,
-        }
-        entry_hash = hashlib.sha256(_canonical(body)).hexdigest()
-        event = _LedgerEvent(
-            seq=seq,
-            type=event_type,
-            ts=ts,
-            prev_hash=prev_hash,
-            entry_hash=entry_hash,
-            payload=payload,
-        )
-        append_jsonl(self._path, event.to_json())
-        self._events.append(event)
-        self._write_anchor()
+        # Hold the chain lock across re-read + verify + append so seq/prev_hash
+        # come from the real file tail, not state verified at construction.
+        # Releasing between the two is what let concurrent appends fork the
+        # chain (two seq=1 entries) while both callers were told they succeeded.
+        with self._chain_lock:
+            # Refresh from disk: another writer may have appended since this
+            # handle verified at construction. A verified reload keeps the
+            # in-memory index honest under the same lock.
+            self._events = []
+            self._grants = {}
+            self._load(verify=True)
+            seq = (self._events[-1].seq if self._events else 0) + 1
+            prev_hash = self._events[-1].entry_hash if self._events else _GENESIS_HASH
+            body = {
+                "seq": seq,
+                "type": event_type,
+                "ts": ts,
+                "prev_hash": prev_hash,
+                **payload,
+            }
+            entry_hash = hashlib.sha256(_canonical(body)).hexdigest()
+            event = _LedgerEvent(
+                seq=seq,
+                type=event_type,
+                ts=ts,
+                prev_hash=prev_hash,
+                entry_hash=entry_hash,
+                payload=payload,
+            )
+            append_jsonl(self._path, event.to_json())
+            self._events.append(event)
+            self._write_anchor()
 
     def _write_anchor(self) -> None:
         atomic_write_json(
@@ -475,27 +483,19 @@ class GrantLedger:
 
     # -- mutations ----------------------------------------------------------
 
-    def issue(
-        self, request: GrantRequest, *, at: str | None = None
-    ) -> Grant:
+    def issue(self, request: GrantRequest, *, at: str | None = None) -> Grant:
         issued_at = _parse_iso(at or request.issued_at)
         if not _PRINCIPAL_COMPILED.match(request.principal):
-            raise ValueError(
-                f"invalid principal {request.principal!r}"
-            )
+            raise ValueError(f"invalid principal {request.principal!r}")
         if not isinstance(request.ttl_hours, int) or request.ttl_hours <= 0:
             raise ValueError("ttl_hours must be a positive integer")
         if request.ttl_hours > _MAX_TTL_HOURS:
-            raise ValueError(
-                f"ttl_hours exceeds the {_MAX_TTL_HOURS}-hour ceiling"
-            )
+            raise ValueError(f"ttl_hours exceeds the {_MAX_TTL_HOURS}-hour ceiling")
         scopes = ScopeSet.parse(tuple(request.scopes))
         if not scopes.patterns:
             raise ScopeError("grant must carry at least one scope pattern")
         if len(scopes.patterns) > _MAX_SCOPES_PER_GRANT:
-            raise ValueError(
-                f"grant exceeds {_MAX_SCOPES_PER_GRANT} scope patterns"
-            )
+            raise ValueError(f"grant exceeds {_MAX_SCOPES_PER_GRANT} scope patterns")
         grant_id = "gw-" + uuid.uuid4().hex[:12]
         while grant_id in self._grants:
             grant_id = "gw-" + uuid.uuid4().hex[:12]
@@ -532,9 +532,7 @@ class GrantLedger:
         if grant is None:
             raise KeyError(f"unknown grant {grant_id!r}")
         if grant.state != GrantState.ACTIVE:
-            raise ValueError(
-                f"grant {grant_id} is {grant.state}, cannot revoke"
-            )
+            raise ValueError(f"grant {grant_id} is {grant.state}, cannot revoke")
         revoked = replace(grant, state=GrantState.REVOKED)
         self._append(
             "revoked",
@@ -587,18 +585,12 @@ class GrantLedger:
 
         for grant in self.active_grants(principal, now=now):
             try:
-                decision = grant.evaluate(
-                    scope, now=now, constraints=constraints
-                )
+                decision = grant.evaluate(scope, now=now, constraints=constraints)
             except ScopeError:
-                return GrantDecision(
-                    allowed=False, reason="invalid_scope", grant_id=""
-                )
+                return GrantDecision(allowed=False, reason="invalid_scope", grant_id="")
             if decision.allowed:
                 return decision
-        return GrantDecision(
-            allowed=False, reason="no_matching_scope", grant_id=""
-        )
+        return GrantDecision(allowed=False, reason="no_matching_scope", grant_id="")
 
     def require(
         self,
@@ -611,14 +603,10 @@ class GrantLedger:
         """Like ``check`` but returns the authorising grant or raises."""
 
         for grant in self.active_grants(principal, now=now):
-            decision = grant.evaluate(
-                scope, now=now, constraints=constraints
-            )
+            decision = grant.evaluate(scope, now=now, constraints=constraints)
             if decision.allowed:
                 return grant
-        raise ScopeDenied(
-            f"principal {principal!r} lacks scope {scope!r}"
-        )
+        raise ScopeDenied(f"principal {principal!r} lacks scope {scope!r}")
 
     # -- integrity ----------------------------------------------------------
 

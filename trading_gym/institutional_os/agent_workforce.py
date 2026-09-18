@@ -1,4 +1,5 @@
 """Permission-intersected, non-executing multi-agent work planning."""
+
 from __future__ import annotations
 
 from collections import defaultdict, deque
@@ -38,7 +39,9 @@ class AgentDefinition(BaseModel):
 
     agent_id: Annotated[str, Field(min_length=2, max_length=128)]
     role: AgentRole
-    requested_capabilities: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(max_length=100)
+    requested_capabilities: list[
+        Annotated[str, Field(min_length=2, max_length=120)]
+    ] = Field(max_length=100)
     maximum_tasks: Annotated[int, Field(ge=1, le=100_000)] = 100
 
     @model_validator(mode="after")
@@ -53,8 +56,12 @@ class AgentTask(BaseModel):
 
     task_id: Annotated[str, Field(min_length=2, max_length=128)]
     role: AgentRole
-    required_capabilities: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(max_length=100)
-    dependency_task_ids: list[Annotated[str, Field(min_length=2, max_length=128)]] = Field(default_factory=list, max_length=1000)
+    required_capabilities: list[Annotated[str, Field(min_length=2, max_length=120)]] = (
+        Field(max_length=100)
+    )
+    dependency_task_ids: list[Annotated[str, Field(min_length=2, max_length=128)]] = (
+        Field(default_factory=list, max_length=1000)
+    )
     risk_tier: Annotated[str, Field(pattern=r"^(low|medium|high|critical)$")] = "low"
 
     @model_validator(mode="after")
@@ -73,17 +80,27 @@ class WorkforcePlanRequest(BaseModel):
 
     agents: list[AgentDefinition] = Field(min_length=1, max_length=10_000)
     tasks: list[AgentTask] = Field(max_length=100_000)
-    globally_allowed_capabilities: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(max_length=1000)
+    globally_allowed_capabilities: list[
+        Annotated[str, Field(min_length=2, max_length=120)]
+    ] = Field(max_length=1000)
     require_human_supervision_for_high_risk: bool = True
 
     @model_validator(mode="after")
     def validate_ids(self) -> "WorkforcePlanRequest":
-        for values, label in (([item.agent_id for item in self.agents], "agent"), ([item.task_id for item in self.tasks], "task")):
+        for values, label in (
+            ([item.agent_id for item in self.agents], "agent"),
+            ([item.task_id for item in self.tasks], "task"),
+        ):
             if len(values) != len(set(values)):
                 raise ValueError(f"{label} IDs must be unique")
-        if len(self.globally_allowed_capabilities) != len(set(self.globally_allowed_capabilities)):
+        if len(self.globally_allowed_capabilities) != len(
+            set(self.globally_allowed_capabilities)
+        ):
             raise ValueError("global capabilities must be unique")
-        if sum(len(item.dependency_task_ids) for item in self.tasks) > MAX_TASK_DEPENDENCY_LINKS:
+        if (
+            sum(len(item.dependency_task_ids) for item in self.tasks)
+            > MAX_TASK_DEPENDENCY_LINKS
+        ):
             raise ValueError("task dependency work budget exceeded")
         agent_counts: dict[AgentRole, int] = defaultdict(int)
         task_counts: dict[AgentRole, int] = defaultdict(int)
@@ -91,7 +108,10 @@ class WorkforcePlanRequest(BaseModel):
             agent_counts[item.role] += 1
         for item in self.tasks:
             task_counts[item.role] += 1
-        if sum(agent_counts[role] * count for role, count in task_counts.items()) > MAX_AGENT_TASK_MATCHES:
+        if (
+            sum(agent_counts[role] * count for role, count in task_counts.items())
+            > MAX_AGENT_TASK_MATCHES
+        ):
             raise ValueError("agent-task matching work budget exceeded")
         return self
 
@@ -141,7 +161,9 @@ def plan_agent_workforce(request: WorkforcePlanRequest) -> WorkforcePlanReport:
                 continue
             indegree[task.task_id] += 1
             outgoing[dep].append(task.task_id)
-    queue = deque(sorted(task_id for task_id, degree in indegree.items() if degree == 0))
+    queue = deque(
+        sorted(task_id for task_id, degree in indegree.items() if degree == 0)
+    )
     order: list[str] = []
     while queue:
         task_id = queue.popleft()
@@ -159,26 +181,33 @@ def plan_agent_workforce(request: WorkforcePlanRequest) -> WorkforcePlanReport:
     for task_id in order:
         task = task_map[task_id]
         required = set(task.required_capabilities)
-        if request.require_human_supervision_for_high_risk and task.risk_tier in {"high", "critical"}:
+        if request.require_human_supervision_for_high_risk and task.risk_tier in {
+            "high",
+            "critical",
+        }:
             required.add("human_supervision")
         if required & FORBIDDEN_CAPABILITIES:
             blockers.append(f"forbidden_task_capability:{task.task_id}")
             unassigned.append(task.task_id)
             continue
         candidates = [
-            agent for agent in agents_by_role[task.role]
-            if required <= effective[agent.agent_id] and loads[agent.agent_id] < agent.maximum_tasks
+            agent
+            for agent in agents_by_role[task.role]
+            if required <= effective[agent.agent_id]
+            and loads[agent.agent_id] < agent.maximum_tasks
         ]
         if not candidates:
             unassigned.append(task.task_id)
             continue
         agent = min(candidates, key=lambda item: (loads[item.agent_id], item.agent_id))
         loads[agent.agent_id] += 1
-        assignments.append(TaskAssignment(
-            task_id=task.task_id,
-            agent_id=agent.agent_id,
-            effective_capabilities=sorted(required),
-        ))
+        assignments.append(
+            TaskAssignment(
+                task_id=task.task_id,
+                agent_id=agent.agent_id,
+                effective_capabilities=sorted(required),
+            )
+        )
     if unassigned:
         blockers.append("unassigned_tasks")
     payload = {

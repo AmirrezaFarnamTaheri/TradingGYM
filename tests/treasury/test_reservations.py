@@ -70,7 +70,9 @@ def test_commit_beyond_reservation_plus_available_refused():
 
 def test_commit_requires_active_reservation(ledger):
     with pytest.raises(ReservationError):
-        ledger.commit_settlement(order_id="ghost", currency="USDT", settled_amount=D("1"))
+        ledger.commit_settlement(
+            order_id="ghost", currency="USDT", settled_amount=D("1")
+        )
 
 
 def test_unknown_currency_refused(ledger):
@@ -92,7 +94,10 @@ def test_event_digest_is_deterministic_and_order_sensitive(ledger):
     ledger.reserve(order_id="a", currency="USDT", amount=D("1"))
     other = ReservationLedger({"USDT": D("10_000")})
     other.reserve(order_id="a", currency="USDT", amount=D("1"))
-    assert other.events_digest() != ReservationLedger({"USDT": D("10_000")}).events_digest()
+    assert (
+        other.events_digest()
+        != ReservationLedger({"USDT": D("10_000")}).events_digest()
+    )
     del d1
 
 

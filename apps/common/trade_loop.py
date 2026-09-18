@@ -12,9 +12,15 @@ from trading_gym.adapters.enhanced_aban_client import EnhancedAbanClient
 from trading_gym.common.config import AppConfig
 from apps.common.ipc import MetricsWriter
 from apps.common.live_features import build_live_feature_snapshot
-from apps.common.runtime_files import METRICS_FILE, handle_panic_request, panic_requested, write_heartbeat
+from apps.common.runtime_files import (
+    METRICS_FILE,
+    handle_panic_request,
+    panic_requested,
+    write_heartbeat,
+)
 
 logger = logging.getLogger(__name__)
+
 
 async def trade_loop(
     env: MarginTradingEnv,
@@ -92,12 +98,14 @@ async def trade_loop(
                     )
                 if (
                     last_base_candle_timestamp is not None
-                    and feature_snapshot.base_candle_timestamp < last_base_candle_timestamp
+                    and feature_snapshot.base_candle_timestamp
+                    < last_base_candle_timestamp
                 ):
                     raise ValueError("live candle timestamp moved backwards")
                 is_new_closed_candle = (
                     last_base_candle_timestamp is None
-                    or feature_snapshot.base_candle_timestamp > last_base_candle_timestamp
+                    or feature_snapshot.base_candle_timestamp
+                    > last_base_candle_timestamp
                 )
                 if is_new_closed_candle:
                     unwrapped_env.update_features(feature_snapshot.feature_row)
@@ -173,7 +181,9 @@ async def trade_loop(
                         f"live execution failed ({execution_result.get('error_type', 'unknown')})"
                     )
                 if status == "skipped" and execution_result.get("reason") == "locked":
-                    raise RuntimeError("live reconciliation was skipped because the adapter was locked")
+                    raise RuntimeError(
+                        "live reconciliation was skipped because the adapter was locked"
+                    )
 
                 # Synchronize only to a position the adapter actually executed or
                 # intentionally simulated. A skipped order retains observed state.

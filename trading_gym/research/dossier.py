@@ -58,9 +58,11 @@ def _bca_facts_for_item(
     if "returns" not in item.metadata:
         return findings, limitations
     returns = _coerce_returns(item.metadata["returns"], item.evidence_id)
-    statistic_name = str(
-        item.metadata.get("returns_statistic", DEFAULT_RETURNS_STATISTIC)
-    ).strip().lower()
+    statistic_name = (
+        str(item.metadata.get("returns_statistic", DEFAULT_RETURNS_STATISTIC))
+        .strip()
+        .lower()
+    )
     statistic = RETURNS_STATISTICS.get(statistic_name)
     if statistic is None:
         raise ValueError(
@@ -116,11 +118,26 @@ def build_dossier(
         items = grouped.get(section_name, [])
         if not items:
             missing.append(section_name)
-            sections.append(ResearchSection(name=section_name, status="missing", limitations=["No evidence was supplied for this section; absence must not be interpreted as a negative finding."]))
+            sections.append(
+                ResearchSection(
+                    name=section_name,
+                    status="missing",
+                    limitations=[
+                        "No evidence was supplied for this section; absence must not be interpreted as a negative finding."
+                    ],
+                )
+            )
             continue
         facts: list[str] = []
         section_limitations: list[str] = []
-        for item in sorted(items, key=lambda entry: (entry.published_at or entry.observed_at, entry.evidence_id), reverse=True):
+        for item in sorted(
+            items,
+            key=lambda entry: (
+                entry.published_at or entry.observed_at,
+                entry.evidence_id,
+            ),
+            reverse=True,
+        ):
             for fact in item.facts:
                 facts.append(f"[{item.evidence_id}] {fact}")
             if bca_confidence is not None:
@@ -131,11 +148,33 @@ def build_dossier(
                 )
                 facts.extend(extra_facts)
                 section_limitations.extend(extra_limitations)
-        sections.append(ResearchSection(name=section_name, status="available", evidence_ids=[item.evidence_id for item in items], findings=facts[:200], limitations=section_limitations[:50]))
+        sections.append(
+            ResearchSection(
+                name=section_name,
+                status="available",
+                evidence_ids=[item.evidence_id for item in items],
+                findings=facts[:200],
+                limitations=section_limitations[:50],
+            )
+        )
 
     uncategorised = grouped.get("uncategorised", [])
     if uncategorised:
-        sections.append(ResearchSection(name="uncategorised", status="available", evidence_ids=[item.evidence_id for item in uncategorised], findings=[f"[{item.evidence_id}] {fact}" for item in uncategorised for fact in item.facts][:200], limitations=["Evidence provider did not declare a recognised category."]))
+        sections.append(
+            ResearchSection(
+                name="uncategorised",
+                status="available",
+                evidence_ids=[item.evidence_id for item in uncategorised],
+                findings=[
+                    f"[{item.evidence_id}] {fact}"
+                    for item in uncategorised
+                    for fact in item.facts
+                ][:200],
+                limitations=[
+                    "Evidence provider did not declare a recognised category."
+                ],
+            )
+        )
 
     caveats = [
         "Evidence timestamps, licensing, revisions, and provider outages may affect completeness."

@@ -4,6 +4,7 @@ The repository coordinates local workers and produces tokens that downstream
 stores may validate.  A lease never grants trading, filesystem, provider, or
 model authority by itself.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -16,8 +17,16 @@ from typing import Annotated, Any
 from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from trading_gym.common.audit_outbox import deliver_audit_events, ensure_audit_outbox, queue_audit_event
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.audit_outbox import (
+    deliver_audit_events,
+    ensure_audit_outbox,
+    queue_audit_event,
+)
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.governance.ledger import AuditLedger
 
 _ID = r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,199}$"
@@ -84,7 +93,9 @@ class LeaseConflict(RuntimeError):
 
 
 class LeaseRepository:
-    def __init__(self, path: Path | None = None, ledger: AuditLedger | None = None) -> None:
+    def __init__(
+        self, path: Path | None = None, ledger: AuditLedger | None = None
+    ) -> None:
         self.path = path or resolve_data_home() / "coordination-leases.json"
         self.ledger = ledger or AuditLedger()
         self.lock = FileLock(str(self.path) + ".coordination.lock")
@@ -107,11 +118,17 @@ class LeaseRepository:
         for key in ("leases", "idempotency"):
             if not isinstance(document.get(key), dict):
                 raise ValueError(f"{key} must be an object")
-        if len(document["leases"]) > MAX_LEASES or len(document["idempotency"]) > MAX_LEASES:
+        if (
+            len(document["leases"]) > MAX_LEASES
+            or len(document["idempotency"]) > MAX_LEASES
+        ):
             raise ValueError("lease store size limit exceeded")
         if not isinstance(document.get("revision"), int) or document["revision"] < 0:
             raise ValueError("invalid lease store revision")
-        if not isinstance(document.get("next_fencing_token"), int) or document["next_fencing_token"] < 1:
+        if (
+            not isinstance(document.get("next_fencing_token"), int)
+            or document["next_fencing_token"] < 1
+        ):
             raise ValueError("invalid next fencing token")
         ensure_audit_outbox(document)
         for lease_id, raw in document["leases"].items():
@@ -137,7 +154,11 @@ class LeaseRepository:
             item = LeaseSnapshot.model_validate(raw)
             if item.state is LeaseState.ACTIVE and item.expires_at <= now:
                 updated = item.model_copy(
-                    update={"state": LeaseState.EXPIRED, "updated_at": now, "revision": item.revision + 1}
+                    update={
+                        "state": LeaseState.EXPIRED,
+                        "updated_at": now,
+                        "revision": item.revision + 1,
+                    }
                 )
                 document["leases"][lease_id] = updated.model_dump(mode="json")
                 expired.append(lease_id)
@@ -153,8 +174,12 @@ class LeaseRepository:
             idem = document["idempotency"].get(request.idempotency_key)
             if idem is not None:
                 if idem["fingerprint"] != fingerprint:
-                    raise LeaseConflict("idempotency key reused with different lease semantics")
-                existing = LeaseSnapshot.model_validate(document["leases"][idem["lease_id"]])
+                    raise LeaseConflict(
+                        "idempotency key reused with different lease semantics"
+                    )
+                existing = LeaseSnapshot.model_validate(
+                    document["leases"][idem["lease_id"]]
+                )
                 if existing.state is LeaseState.ACTIVE:
                     return existing
                 raise LeaseConflict("idempotent lease is no longer active")
@@ -162,7 +187,10 @@ class LeaseRepository:
                 raise LeaseConflict("lease_id already exists")
             for raw in document["leases"].values():
                 item = LeaseSnapshot.model_validate(raw)
-                if item.resource_id == request.resource_id and item.state is LeaseState.ACTIVE:
+                if (
+                    item.resource_id == request.resource_id
+                    and item.state is LeaseState.ACTIVE
+                ):
                     raise LeaseConflict("resource already has an active lease")
             if len(document["leases"]) >= MAX_LEASES:
                 raise LeaseConflict("lease limit reached")
@@ -197,7 +225,15 @@ class LeaseRepository:
         self.reconcile_audit()
         return snapshot
 
-    def renew(self, lease_id: str, *, owner_id: str, fencing_token: int, now: datetime, ttl_seconds: int) -> LeaseSnapshot:
+    def renew(
+        self,
+        lease_id: str,
+        *,
+        owner_id: str,
+        fencing_token: int,
+        now: datetime,
+        ttl_seconds: int,
+    ) -> LeaseSnapshot:
         _aware(now, "now")
         if ttl_seconds < 5 or ttl_seconds > 86_400:
             raise ValueError("ttl_seconds must be 5-86400")
@@ -227,13 +263,18 @@ class LeaseRepository:
                 event="coordination.lease_renewed",
                 actor=owner_id,
                 subject=lease_id,
-                details={"fencing_token": fencing_token, "expires_at": updated.expires_at.isoformat()},
+                details={
+                    "fencing_token": fencing_token,
+                    "expires_at": updated.expires_at.isoformat(),
+                },
             )
             atomic_write_json(self.path, document)
         self.reconcile_audit()
         return updated
 
-    def release(self, lease_id: str, *, owner_id: str, fencing_token: int, now: datetime) -> LeaseSnapshot:
+    def release(
+        self, lease_id: str, *, owner_id: str, fencing_token: int, now: datetime
+    ) -> LeaseSnapshot:
         _aware(now, "now")
         self.reconcile_expired(now)
         with self.lock:
@@ -249,7 +290,11 @@ class LeaseRepository:
             if item.owner_id != owner_id or item.fencing_token != fencing_token:
                 raise LeaseConflict("lease owner or fencing token mismatch")
             updated = item.model_copy(
-                update={"state": LeaseState.RELEASED, "updated_at": now, "revision": item.revision + 1}
+                update={
+                    "state": LeaseState.RELEASED,
+                    "updated_at": now,
+                    "revision": item.revision + 1,
+                }
             )
             document["leases"][lease_id] = updated.model_dump(mode="json")
             self._touch(document)
@@ -265,7 +310,9 @@ class LeaseRepository:
         self.reconcile_audit()
         return updated
 
-    def assert_fence(self, resource_id: str, fencing_token: int, *, now: datetime) -> LeaseSnapshot:
+    def assert_fence(
+        self, resource_id: str, fencing_token: int, *, now: datetime
+    ) -> LeaseSnapshot:
         _aware(now, "now")
         self.reconcile_expired(now)
         with self.lock:
@@ -273,7 +320,8 @@ class LeaseRepository:
             candidates = [
                 LeaseSnapshot.model_validate(raw)
                 for raw in document["leases"].values()
-                if raw.get("resource_id") == resource_id and raw.get("state") == LeaseState.ACTIVE.value
+                if raw.get("resource_id") == resource_id
+                and raw.get("state") == LeaseState.ACTIVE.value
             ]
             if len(candidates) != 1:
                 raise LeaseConflict("resource does not have exactly one active lease")
@@ -289,7 +337,10 @@ class LeaseRepository:
         with self.lock:
             document = self._load()
             return sorted(
-                (LeaseSnapshot.model_validate(raw) for raw in document["leases"].values()),
+                (
+                    LeaseSnapshot.model_validate(raw)
+                    for raw in document["leases"].values()
+                ),
                 key=lambda item: (item.resource_id, item.fencing_token),
             )
 
@@ -308,7 +359,10 @@ class LeaseRepository:
                     event="coordination.lease_expired",
                     actor="lease-reconciler",
                     subject=lease_id,
-                    details={"expired_at": now.isoformat(), "fencing_token": item.fencing_token},
+                    details={
+                        "expired_at": now.isoformat(),
+                        "fencing_token": item.fencing_token,
+                    },
                 )
             self._touch(document)
             atomic_write_json(self.path, document)

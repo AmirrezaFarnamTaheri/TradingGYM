@@ -16,25 +16,29 @@ def test_data_lifecycle_api_is_review_only(tmp_path, monkeypatch):
         "/api/v1/convergence/governance/data-lifecycle/evaluate",
         json={
             "evaluated_at": "2026-07-27T00:00:00Z",
-            "assets": [{
-                "asset_id": "dataset:prices-001",
-                "category": "market-data",
-                "classification": "confidential",
-                "created_at": "2026-01-01T00:00:00Z",
-                "updated_at": "2026-07-01T00:00:00Z",
-                "size_bytes": 100,
-                "content_sha256": "a" * 64,
-                "contains_personal_data": False,
-                "immutable_evidence": False,
-            }],
-            "rules": [{
-                "category": "market-data",
-                "classification": "confidential",
-                "review_after_days": 30,
-                "purge_after_days": 90,
-                "personal_data_allowed": False,
-                "immutable_evidence_must_be_retained": True,
-            }],
+            "assets": [
+                {
+                    "asset_id": "dataset:prices-001",
+                    "category": "market-data",
+                    "classification": "confidential",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-07-01T00:00:00Z",
+                    "size_bytes": 100,
+                    "content_sha256": "a" * 64,
+                    "contains_personal_data": False,
+                    "immutable_evidence": False,
+                }
+            ],
+            "rules": [
+                {
+                    "category": "market-data",
+                    "classification": "confidential",
+                    "review_after_days": 30,
+                    "purge_after_days": 90,
+                    "personal_data_allowed": False,
+                    "immutable_evidence_must_be_retained": True,
+                }
+            ],
             "legal_holds": [],
         },
     )
@@ -45,7 +49,9 @@ def test_data_lifecycle_api_is_review_only(tmp_path, monkeypatch):
     assert payload["mutation_performed"] is False
 
 
-def test_credential_rotation_api_never_returns_secrets_or_authority(tmp_path, monkeypatch):
+def test_credential_rotation_api_never_returns_secrets_or_authority(
+    tmp_path, monkeypatch
+):
     response = client(tmp_path, monkeypatch).post(
         "/api/v1/convergence/governance/credentials/rotation/evaluate",
         json={

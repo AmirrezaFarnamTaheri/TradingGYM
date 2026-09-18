@@ -1,3 +1,337 @@
+## [Unreleased]
+
+### Deferred review tail: dead gate, batch reconciliation, and telemetry honesty
+
+The deferred findings from the deep-review passes. Suite grows from 1595 to
+**1619 passed, 12 skipped**; module-accountability manifest (337 modules) and
+OpenAPI contract stay green; frontend grows from 26/26 to **31/31** with an
+unchanged production bundle (190.80 kB / 61.21 kB gzip).
+
+- **Dead gate removed.** `apps/validator/pretrade.py` was an orphaned pre-trade
+  validator: no code path imported it or any of its symbols, so the
+  fat-finger, balance, and leverage checks it advertised were never enforced.
+  Deleted along with the now-empty `apps/validator/` directory. Wiring it in
+  would have been a design decision about which order path rejects; the
+  enforcement it claimed already lives in the venue/risk seam.
+- **Order-accounting reconciliation is O(N), not O(N²).**
+  `convergence/order_accounting.py` checkpointed each fill by reloading,
+  mutating, and rewriting the whole checkpoint map once per event — exactly the
+  cost the batched accounting methods were meant to remove. Added
+  `_checkpoint_many`, which applies all pending `(event, revision)` pairs in
+  one locked pass with a single load and a single write; `_checkpoint` now
+  delegates to it. Crash-recovery semantics (idempotent replay, fingerprint
+  collision refusal, integrity digest) are unchanged.
+- **TOCTOU closed in `common/persistence.py::read_json`.** The existence check
+  and symlink rejection ran *outside* the inter-process lock, so a path could be
+  swapped for a symlink between the check and the read and escape the private
+  data home. Both now run under the same lock the writers hold.
+- **Alert telemetry is tri-state.** `monitoring/alerting.py` returned `False`
+  for both "deliberately skipped" (channel disabled, below minimum level,
+  rate-limited) and "attempted but errored", and the manager billed every skip
+  as a failure — drowning real delivery errors in intentional suppressions.
+  Added `SendOutcome` (DELIVERED/SKIPPED/FAILED) and `send_with_outcome`;
+  `send()` keeps its boolean contract, and the manager records `_skipped`
+  separately from `_failed`.
+- **WebSocket drop accounting.** `adapters/aban_websocket.py::_dispatch_loop`
+  popped a message before invoking its callback, so a callback that raised
+  permanently lost the message — but counted it only as a callback failure,
+  never as a drop, so message-loss telemetry underreported. Raised callbacks
+  now increment `dropped_messages` too.
+- **Frontend: dead v5 callback and a stale-closure race.**
+  `ModelsPanel.jsx` still used `onSuccess` on `useQuery`, which TanStack Query
+  v5 removed, so `setActiveModel` never ran and the store was stale on every
+  active-model refresh; it now syncs via `useEffect`. `DataPanel.jsx` preset
+  buttons called `mutate()` with no arguments after `setState`, submitting the
+  *previous* form selection through the mutation's stale closure (papered over
+  with a `setTimeout` that was itself racy); the mutation is parameterized and
+  presets pass their own values directly.
+
+### Prose hygiene: remove fabricated claims and AI-slop docstrings
+
+A documentation-only pass over the Python product tree. **No executable code was
+changed** — every diff line is docstring, comment, or manifest. The full suite
+(1558 passed, 12 skipped), the module-accountability manifest, the OpenAPI
+contract, and the frontend (Vitest 26/26, production build) all remain green.
+
+- **Fabricated performance claims removed** — `trading_gym/rl/normalized_env.py`
+  advertised "3-5x faster training", "2-3x more stable training", and a made-up
+  Sharpe range. These were never measured. Replaced with an honest description of
+  what the wrapper does and a real warning about its observation-normalization
+  data-leakage risk during training.
+- **Restating-the-code docstrings collapsed** — `trading_gym/adapters/enhanced_aban_client.py`
+  carried 27 Google-style docstrings whose `Example:` blocks just re-iterated the
+  method call. All are now one line each; the non-obvious facts (leverage ranges,
+  per-coin shortable limits) are kept inline where they carry signal.
+- **Marketing filler cut** — "comprehensive", "enhanced", "extensive", and
+  speculative version headers removed from `apps/validator/pretrade.py`,
+  `trading_gym/assurance/system_qualification.py`, and `trading_gym/common/logging.py`.
+- **Decorative section banners condensed** — the three-line `# ===== Title =====`
+  boxes in `trading_gym/common/exceptions.py` (7), `trading_gym/research/validation_stats.py`
+  (3), and `trading_gym/agent/working_memory.py` (1) are now single `# --- Title ---` lines.
+- **Dead code and speculative hedges removed in `apps/production/main.py`** —
+  the unused `tail_risk` and `build_status` imports, the repeated
+  `if app is not None` blocks, and a "maybe backward-compat" hedge in
+  `trading_gym/margin/__init__.py`.
+- **Deliberately kept** — broad `except` blocks in `agent/budget_gate.py`,
+  `agent/planner.py`, `agent/degradation_ladder.py`, and `common/persistence.py`
+  are intentional fail-closed design with explanatory comments, not slop; and every
+  "leverage" hit in the codebase is genuine financial leverage (`max_leverage`,
+  `target_leverage`, leverage multipliers), so none were reworded.
+
+### Dead code, hidden capabilities, and two latent bugs
+
+A sweep for orphaned code and unwired capabilities, plus the lint-gate errors
+the sweep surfaced. Suite grew from 1558 to **1586 passed, 12 skipped**; the
+module-accountability manifest (337 modules) and OpenAPI contract stay green.
+
+- **Two latent bugs fixed.** `trading_gym/intelligence/llm_backend.py::health()`
+  read a `status` local that existed only inside `is_available()`, so every
+  health() call raised `NameError` — latent because no test exercised it.
+  `trading_gym/rl/margin_trading_environment.py` used `List` in an annotation
+  without importing it (masked by `from __future__ import annotations`).
+  Both fixed; two regression tests added in `tests/intelligence/test_omni_intelligence.py`.
+- **A third bug found by the new capability tests.**
+  `trading_gym/skills/static_assurance.py::assess_workflow_static` reported an
+  unknown dependency but then raised `KeyError` looking it up in the DAG walk.
+  The walk now skips unresolvable dependencies it already reported.
+- **Dead code removed** — the `AutonomyJournalIntegrityError` compat alias
+  ("used in early drafts of the ADR"), the `load_config()` backward-compat
+  helper in `trading_gym/common/utils.py`, and seven unused imports across
+  `apps/api/convergence.py`, `apps/api/main.py`, `trading_gym/models/versioning.py`,
+  `trading_gym/agent/autonomy_ladder.py`, and `trading_gym/rl/margin_trading_environment.py`
+  (including a vestigial empty `if TYPE_CHECKING: pass` guard).
+- **Hidden capabilities promoted, not wired.** `trading_gym/skills/` (federated
+  tool intake, quarantine, static assurance) and `trading_gym/economic/`
+  (payment-rails and x402 normalisation) were built and safety-gated but
+  referenced by nothing. They are documented as evidence-only planes, so they
+  are now indexed in the README responsibility-planes table with matching
+  invariant bullets, and pinned by 26 new smoke tests
+  (`tests/skills/test_skill_intake.py`, `tests/economic/test_payment_rails.py`)
+  that assert the fail-closed guarantees: secret-material rejection, veto of
+  authority-expansion policies, reviewer/preparer role separation, and unsigned
+  or broadcast actions never leaving the normaliser.
+- **Known follow-up, not fixed here.** `ruff check .` runs with no configuration
+  and was already red at baseline: 499 findings, of which 187 are intentional
+  `__init__.py` re-exports and most of the rest are the codebase's deliberate
+  dense one-liner style (E701/E702) in vendored `axiomforge/oss_integrations/`,
+  `scripts/`, and `tests/`. The flake8 correctness gate (E9/F63/F7/F82) is now
+  clean. Adding a `[tool.ruff]` section that documents the intentional style is
+  left as a separate decision.
+
+### Measured performance: order reconciliation and frontend bundle
+
+Every change below was profiled first and verified by a before/after
+microbenchmark; no change was made without a measurement, and checkpoint,
+hash-chain, and audit-outbox semantics are unchanged.
+
+- **Order→accounting reconciliation is now near-linear instead of quadratic.**
+  A profile showed `sync()` spending 77% of its time in `accounting/ledger.py`:
+  every per-event `apply()` re-verified the entire hash chain, then
+  `reconcile_audit()` loaded and re-verified it *again*, so fingerprinting cost
+  O(N²) — 10,200 fingerprints for 100 events. Two additive batch methods fix it
+  without altering any single-event path:
+  - `PortfolioLedger.apply_events()` verifies the chain once and writes once.
+  - `AuditLedger.append_events()` reads/verifies the JSONL chain once and appends
+    all events in one fsync'd write, preserving per-event idempotency and
+    reuse-conflict detection.
+  - `deliver_audit_events()` prefers the batch path and falls back to the
+    per-event loop when the ledger does not expose it.
+  Measured on 100 fill events: **1454 ms → 186 ms (7.8×)**; per-event cost is now
+  near-linear (1.40 → 1.86 ms/ev across a 4× event range) where it previously
+  grew 5.6 → 14.5 ms/ev.
+- **Frontend is code-split.** Twelve tab panels were eagerly bundled into one
+  350.41 kB chunk. They are now `React.lazy`-loaded per tab with a `Suspense`
+  fallback that reuses the existing `CardSkeleton`. Initial JS dropped to
+  **190.80 kB (61.23 kB gzip from 107.80 kB)**, and 11 of 12 panels are no longer
+  downloaded unless visited. Shell-critical providers (`ErrorBoundary`,
+  `ToastProvider`, `HelpModal`) stay eager so error handling and toasts work
+  before any panel loads. Vitest remains 26/26.
+- **Tests strengthened.** Added `test_batch_append_produces_a_valid_chain_and_is_idempotent`
+  pinning batch chain validity, per-event idempotency, and reuse-conflict
+  detection. The two `FlakyLedger` outage doubles now also override the batch
+  seam, so the "audit delivery failure stays pending" guarantee is exercised
+  through the new path. Removed a pre-existing unused `os` import.
+- Suite: **1591 passed, 12 skipped, 5 deselected**; module-accountability
+  manifest verified at 337; flake8 correctness gate (E9/F63/F7/F82) clean.
+
+### Deep review: five verified defects fixed
+
+A whole-project review ran seven zones in parallel. Per the review protocol,
+every material claim was reproduced independently *before* any change, and each
+fix was checked against the legitimate behaviour it must preserve. The batch
+methods from the section above were also re-verified for equivalence.
+
+- **Audit-ledger truncation is no longer silently "healed"**
+  (`trading_gym/governance/ledger.py`). `append` and `append_events` verified
+  the hash chain but not the *anchor*, so truncating a sealed ledger's tail was
+  detected by `verify()` yet the next append re-pinned the anchor and destroyed
+  the evidence. Both paths now refuse a mismatched anchor. Narrow by design: a
+  *missing* anchor stays legal (chain-only ledger, or sealing newly enabled on
+  an existing ledger) — only an anchor that exists and disagrees proves
+  tampering. Verified over five cases: truncated tail refused, chain-only and
+  legacy-to-sealed transitions still accepted.
+- **react-query v5 invalidation no longer refetches the whole cache**
+  (`frontend/src/components/{SystemPanel,TradingPanel}.jsx`). 10 of 22
+  `invalidateQueries` calls passed a raw array; in v5 that array reaches
+  `findAll` as a filter with an undefined `queryKey`, matching *every* query.
+  Confirmed from the installed `@tanstack/react-query` source. All 10 now use
+  the `{ queryKey: [...] }` object form.
+- **The account namespace is recoverable after hitting the account limit**
+  (`trading_gym/accounting/ledger.py`). With `MAX_ACCOUNTS + 1` files present,
+  `list_account_ids` raised a bare `ValueError` — and since `create`,
+  `audit_pending`, and `reconcile_audit` all call it, the namespace became
+  permanently unusable: listing is exactly what is broken. It now raises
+  `AccountingConflict`, the documented conflict type callers already handle.
+- **The readiness probe fails closed** (`trading_gym/monitoring/health.py`). The
+  memory probe's `except Exception: return True` let an unmeasurable host pass a
+  readiness gate. It now returns `False`: a probe that cannot read must not
+  certify the system ready.
+- **The RL wrapper no longer crashes and mis-penalises on the real env**
+  (`trading_gym/rl/normalized_env.py`). Two defects hidden by an unfaithful mock:
+  `ExecutionState` money fields are `Decimal`, but the wrapper mixed them with
+  float prices, so `Decimal * float` raised `TypeError` in both the observation
+  and the action-clip paths; and the wrapper read microstructure values plus the
+  leverage ceiling via `getattr` defaults against names the real env does not
+  define (`_max_leverage`, `spread_bps`, `vol`, …), so on the real env the clip
+  ceiling was `0.0` and every action took a spurious `−0.01` penalty. The wrapper
+  now coerces the `Decimal` fields, sources spread/volatility/caps from the base
+  env's `_raw_features` + `feature_index` (exactly as
+  `margin_trading_environment` does), and reads the real per-side
+  `_long`/`_short_max_leverage`. Making the mock faithful — `Decimal` money
+  fields and real attribute names — immediately surfaced a *second* `Decimal`
+  clash in `step()` that had also shipped; both are fixed.
+- **Regression cover:** new `tests/rl/test_normalized_env_type_contract.py` pins
+  all three contracts — `Decimal` money fields survive observation and `step`;
+  features come from `_raw_features` and not phantom attributes; the clip ceiling
+  uses the per-side leverage. Reverting any of the three now fails a test.
+
+### Deep review (second pass): six more verified defects
+
+Recovered the full zone reports and worked the remaining HIGH-severity findings.
+Each was reproduced before changing anything; each fix is pinned by a test.
+
+- **[CRITICAL] Both apps crashed on startup in live mode**
+  (`trading_gym/rl/margin_trading_environment.py`). The constructor read
+  `self.T` to size the live-mode buffer *before* `self.T` was assigned, so
+  `live_mode=True` raised `AttributeError`. `apps/live` and `apps/paper` both
+  construct that way, so both died on startup; the suite never caught it because
+  the one test that touches live mode sets the flag *after* construction. A
+  sibling gap surfaced immediately: `_raw_buffer` was never seeded with the
+  historical window the way `feature_buffer` was, so the first live `step()`
+  before a streaming bar arrived raised `IndexError`. Both fixed; pinned by
+  `test_live_mode_constructs`.
+- **[HIGH] Expired grants still authorized** (`trading_gym/authz/grants.py`).
+  `is_active` defaulted the clock to `issued_at` when `now` was omitted, so the
+  expiry check was `issued_at < expires_at` — tautologically true. Every
+  production call path (`planner`, both routers) omits `now`, so TTL revocation
+  was entirely inert. It now defaults to the wall clock. This exposed **nine
+  tests** that had issued grants on a hardcoded past date with a 24h TTL and
+  only passed because expiry was never enforced; all are now wall-clock
+  relative, so they cannot decay into the same trap.
+- **[HIGH] A NaN position notional defeated every portfolio gate**
+  (`trading_gym/risk/portfolio.py`). `NaN > limit` is `False`, so one non-finite
+  notional made gross-leverage, concentration, drawdown, and daily-loss checks
+  all silently pass. `PositionExposure` now rejects non-finite notional at the
+  boundary, mirroring the guard `risk/factor.py` already had.
+- **[HIGH] `api_secret`/`apisecret` were not redacted**
+  (`trading_gym/common/security.py`). The key set had `secret` and the suffix
+  `_secret_key`, but not these shapes, so venue credentials under those names
+  flowed into logs and the audit ledger unmasked. Added to both the exact-match
+  set and the suffix list.
+- **[HIGH] A budget read inflated unrelated budgets' revisions**
+  (`trading_gym/budgets/ledger.py`). `get_budget` bumped `revision` for *every*
+  budget in the document whenever any reservation expired — and `revision` is
+  the field callers use for `expected_revision` optimistic locking, so an
+  unrelated read invalidated it, plus an fsync'd write per read. It now bumps
+  only budgets that actually lost a reservation (as `reconcile_expired` already
+  did) and skips the write unless the requested budget changed.
+- **[HIGH] The margin-floor circuit-breaker rule was inert**
+  (`trading_gym/rl/margin_trading_environment.py`, `risk/circuit_breakers.py`).
+  The rule defaults a *missing* `margin_ratio` to infinity (healthy), and the
+  environment — the only production caller — supplied only `nav`/`initial_nav`,
+  so the floor could never fire. The env now supplies the value it already
+  computes, gated on finiteness: `_margin_ratio` is `+inf` when flat, which the
+  breaker's context validation rejects, and a flat position has no margin risk,
+  so absent stays healthy by design.
+- Suite: **1595 passed, 12 skipped**; module-accountability manifest verified at
+  337; flake8 correctness gate (E9/F63/F7/F82) clean. Five new regression tests
+  pin the fixes above.
+
+## [31.14.0] - 2026-09-02
+
+### AXIOM-1 round 7: two-horizon memory, revisable tools, strategy forge, Rust kernel
+
+ADR-034 (memory + tool revision + forge) and ADR-035 (simulation kernel).
+
+- **Short-term memory** — `trading_gym/agent/working_memory.py`: bounded FIFO
+  `CycleRecord` history (regime, fused digest, invoked/benched arms, escalation)
+  with `settle` attaching realized outcomes, plus `CautionPolicy`/`CautionState`
+  mapping a bleeding window to *tighter* fusion thresholds. Wired into
+  `TierCascadePlanner`: caution raises the quorum and disagreement bars, scales
+  the realized leverage, and appends its reason to the rationale. Tighten-only is
+  enforced at construction (non-negative deltas, multiplier ≤ 1), so a poisoned
+  memory can force an escalation but can never open a gate. `PlannerResult` now
+  carries `caution` and `cycle_id`; a planner without memory is unchanged.
+- **Long-term memory** — `trading_gym/agent/persistent_experience.py`:
+  append-only journal with a per-record sha256 plus anchor, and a *consolidated*
+  projection folding identical (tags, outcome, lesson) observations into one
+  `Experience` with a `support` count and `last_seen_at`. `ExperienceMemory`
+  scoring gained a bounded support bonus and now decays from the most recent
+  observation (both tiebreak terms stay < 1.0, so overlap ordering is never
+  inverted). Retention prunes on open and rewrites the pruned state; a tampered
+  or truncated journal fails the open. `advice()` returns a bounded digest
+  (warnings/confirmations with support, net signal in [-1, 1]).
+- **Revisable tool registry** — `trading_gym/agent/tools.py`: per-tool usage
+  metering (calls, failures, last error, last call), `revise` (version bump),
+  `retire` (refuses to run, removed from `describe`), and `nominate`. Five new
+  tools: `strategy.templates`, `strategy.propose_variants`, `tool.usage_report`,
+  `tool.revisions`, `tool.nominate`. `RevisionSurface` gained the durable
+  counterpart: `nominate` / `resolve_nomination` / `nominations` on the
+  hash-chained ledger (X-tier code is still never self-revisable).
+- **Strategy forge** — `trading_gym/agent/strategy_variants.py` (grammar-bounded
+  mutation primitives, shared with the tool surface) and
+  `trading_gym/agent/forge.py` (`StrategyForge.evolve`: consult memory → mutate →
+  score every candidate once over sealed windows via the ADR-031→033 bridge →
+  submit the winner to the gate chain → record the generation). Loss-dominated
+  memory narrows the next mutation range (bounded, monotone).
+- **Four new strategy families** — `strategy_lab/templates.py`: ATR volatility
+  breakout, OBV trend confirmation, Bollinger squeeze expansion, MACD histogram
+  pullback. Catalogue: 8 → 12 families, each validated, evaluable, and required
+  by test to produce both entries and exits.
+- **Rust simulation kernel** — `rust/axiom_kernel` (cdylib, 7 unit tests, clippy
+  and rustfmt clean) plus `trading_gym/playground/kernel.py` (ctypes loader with
+  ABI check) and a `runner.py` split into `_run_kernel` / `_run_reference`.
+  Optional by design: no artifact means the Python reference runs and behaviour
+  is identical. `tests/playground/test_kernel_parity.py` asserts bit-identical
+  equity curves (`np.array_equal` on raw doubles) and trade ledgers over
+  randomised windows, both cost regimes, partial fractions, and force-close.
+- **Forge API + operator surface** — `apps/api/forge_router.py` mounted in
+  `apps/api/main.py`: `GET/POST /forge/memory/{advice,records}`,
+  `GET /forge/strategies/templates`, `POST /forge/strategies/variants`,
+  `GET/POST /forge/nominations`, `POST /forge/nominations/{tool}/resolve`,
+  `GET /forge/kernel`. Each route is triple-gated (gateway key → actor
+  identity → one concrete wildcard scope, checked as a *dependency* so an
+  unscoped caller is refused before the body is parsed); resolving a
+  nomination additionally requires the operator role, which no scope
+  substitutes for. A corrupt journal or ledger is 503, never an empty memory.
+  Frontend: `ForgePanel` (memory digest with support badges, grammar-bounded
+  variant proposal, nomination queue, ADR-035 kernel badge) plus `forgeAPI`
+  in `api.js`; `AuthzPanel`/`PlaygroundPanel` are now reachable as tabs too.
+- Docs-truth contract extended to the five new modules plus the three AXIOM-1
+  routers (ADR-034/035 references checked mechanically); the OpenAPI contract
+  now asserts the published document *is* the live surface (regeneration must
+  reproduce it byte for byte) and that every mounted AXIOM-1 route is
+  published — the committed document had been 13 paths stale. README
+  responsibility planes and invariants updated; `rust/*/target/` gitignored.
+- CI: new gating `kernel` job (cargo fmt/clippy/test, release build, then the
+  parity suite *and* the playground/agent/forge suites against the compiled
+  artifact) added to `all-checks`; the scoped mypy gate now also covers the
+  memory, forge, and kernel modules.
+- Full suite on Python 3.12: 1567 passed, 3 skipped, 0 failures (with the Rust
+  kernel loaded; the 9 parity cases skip when no artifact is built). Rust crate:
+  7 unit tests, clippy `-D warnings` clean, `cargo fmt --check` clean. Frontend:
+  Vitest 26/26 plus a green production Vite build.
+
 ## [31.13.0] - 2026-09-01
 
 ### AXIOM-1 round 6: real CI gate, typed core, measured diversity

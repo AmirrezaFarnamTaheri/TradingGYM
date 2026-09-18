@@ -4,9 +4,11 @@ Financing Rate Manager
 Manages daily financing rates for leveraged positions.
 """
 
-from typing import Dict
-from datetime import datetime
 import logging
+import math
+from datetime import datetime
+from typing import Dict
+
 from trading_gym.common.config import AppConfig
 
 logger = logging.getLogger(__name__)
@@ -96,8 +98,11 @@ class FinancingRateManager:
 
     def update_rate(self, symbol: str, rate: float):
         """Update the daily interest rate (decimal) for a symbol."""
-        if rate < 0:
-            raise ValueError("Rate cannot be negative")
+        # NaN passes a `rate < 0` guard (all comparisons with NaN are False),
+        # then silently poisons every financing cost derived from it; an
+        # infinite rate does the same. Reject both explicitly.
+        if not math.isfinite(rate) or rate < 0:
+            raise ValueError("Rate must be a finite, non-negative number")
         self.rates[symbol] = rate
         # Use timezone-aware UTC
         from datetime import timezone

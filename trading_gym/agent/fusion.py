@@ -62,9 +62,7 @@ class FusionWeights:
                 raise ValueError(f"weight for {key!r} must be non-negative")
 
     @classmethod
-    def from_pairs(
-        cls, *pairs: tuple[tuple[str, str], float]
-    ) -> "FusionWeights":
+    def from_pairs(cls, *pairs: tuple[tuple[str, str], float]) -> "FusionWeights":
         return cls(entries=dict(pairs))
 
     def for_arm(self, arm: str, regime: str) -> float:
@@ -160,9 +158,7 @@ class FusionEngine:
             if p.signal.action_kind in (ActionKind.LONG, ActionKind.SHORT)
         ]
         if not directional:
-            best = max(
-                proposals, key=lambda p: p.signal.confidence
-            )
+            best = max(proposals, key=lambda p: p.signal.confidence)
             return FusedDecision(
                 backend=_FUSION_BACKEND,
                 action_kind=ActionKind.HOLD,
@@ -179,9 +175,7 @@ class FusionEngine:
         total = 0.0
         net = 0.0
         for proposal in directional:
-            weight = config.weights.effective(
-                proposal.arm_name, regime
-            )
+            weight = config.weights.effective(proposal.arm_name, regime)
             magnitude = proposal.signal.confidence * weight
             contributions.append((proposal, magnitude))
             total += magnitude
@@ -217,13 +211,14 @@ class FusionEngine:
             if proposal.signal.action_kind is winning
         ]
         weight_sum = sum(magnitude for _, magnitude in agreeing)
-        raw_leverage = sum(
-            proposal.signal.target_leverage * magnitude
-            for proposal, magnitude in agreeing
-        ) / weight_sum
-        leverage = max(
-            -config.max_leverage, min(config.max_leverage, raw_leverage)
+        raw_leverage = (
+            sum(
+                proposal.signal.target_leverage * magnitude
+                for proposal, magnitude in agreeing
+            )
+            / weight_sum
         )
+        leverage = max(-config.max_leverage, min(config.max_leverage, raw_leverage))
 
         names = ", ".join(sorted(p.arm_name for p, _ in agreeing))
         return FusedDecision(

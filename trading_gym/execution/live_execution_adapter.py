@@ -32,7 +32,7 @@ from trading_gym.production.runtime import (
 )
 from trading_gym.production.emergency import EmergencyController
 from trading_gym.production.venues import AbanTetherVenue, VenueOrderIntent
-from trading_gym.treasury.reservations import ReservationError, ReservationLedger
+from trading_gym.treasury.reservations import ReservationLedger
 from trading_gym.venue.asset_registry import is_shortable
 from axiomforge.live_trading import LiveConsent
 
@@ -75,7 +75,9 @@ class LiveExecutionAdapter:
         mutation_outbox: MutationOutbox | None = None,
     ):
         self.cfg = config
-        policy_path = Path(__file__).resolve().parents[1] / "adapters" / "aban_tether_policy.json"
+        policy_path = (
+            Path(__file__).resolve().parents[1] / "adapters" / "aban_tether_policy.json"
+        )
         policy = json.loads(policy_path.read_text(encoding="utf-8"))
         self.api = EnhancedAbanClient(
             api_token,
@@ -106,6 +108,10 @@ class LiveExecutionAdapter:
 
         # Concurrency Lock to prevent race conditions during rapid reconcile calls
         self._reconcile_lock = asyncio.Lock()
+
+        # Last flatten failure detail (empty when flatten has not failed);
+        # flatten() returns False with no context otherwise.
+        self._last_flatten_error = ""
 
         # Kraken-style balance reservations: spending mutations lock
         # cost×(1+fee) up front so pending/ambiguous orders cannot
@@ -140,11 +146,9 @@ class LiveExecutionAdapter:
     def _quote_cost(self, quantity: Decimal, reference_price: float) -> Decimal:
         """Estimated quote spend incl. taker fee, quantized for reservations."""
         rate = Decimal("1") + self._taker_fee_rate()
-        return (
-            Decimal(str(quantity))
-            * Decimal(str(reference_price))
-            * rate
-        ).quantize(Decimal("1e-8"), rounding=ROUND_DOWN)
+        return (Decimal(str(quantity)) * Decimal(str(reference_price)) * rate).quantize(
+            Decimal("1e-8"), rounding=ROUND_DOWN
+        )
 
     async def _call_api(self, func, *args, **kwargs):
         """Run read-only SDK calls in a thread to avoid blocking the event loop."""
@@ -252,7 +256,9 @@ class LiveExecutionAdapter:
                     detail="" if exc is None else type(exc).__name__,
                 )
             except Exception:  # noqa: BLE001 - journaling must never mask trading
-                logger.warning("mutation outbox write failed error_type=%s", "journal_error")
+                logger.warning(
+                    "mutation outbox write failed error_type=%s", "journal_error"
+                )
 
         def on_committed(receipt: object) -> None:
             journal_outcome("committed", None)
@@ -276,9 +282,7 @@ class LiveExecutionAdapter:
             journal_outcome("terminal", exc)
             if did_reserve:
                 try:
-                    self._ensure_reservation_ledger().release(
-                        order_id=idempotency_key
-                    )
+                    self._ensure_reservation_ledger().release(order_id=idempotency_key)
                 except Exception:  # noqa: BLE001 - bookkeeping never masks trading
                     logger.warning(
                         "reservation release failed error_type=%s", "ledger_error"
@@ -470,11 +474,19 @@ class LiveExecutionAdapter:
                     "qty": float(qty),
                 }
             except ValueError as exc:
-                logger.error("Reconciliation validation failed error_type=%s", type(exc).__name__)
-                return {"status": "failed", "error_type": type(exc).__name__}
+                logger.error("Reconciliation validation failed: %s", exc)
+                return {
+                    "status": "failed",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                }
             except Exception as exc:
-                logger.error("Reconciliation failed error_type=%s", type(exc).__name__)
-                return {"status": "failed", "error_type": type(exc).__name__}
+                logger.error("Reconciliation failed: %s", exc)
+                return {
+                    "status": "failed",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                }
 
     async def flatten(self) -> bool:
         """
@@ -539,7 +551,11 @@ class LiveExecutionAdapter:
             return True
 
         except Exception as exc:
-            logger.critical("Emergency flatten failed error_type=%s", type(exc).__name__)
+            # str(exc) is built from a controlled vocabulary (gate check names
+            # / governance reasons), so it is safe to surface to an operator.
+            # Discarding it made a local gate denial look like a venue failure.
+            logger.critical("Emergency flatten failed: %s", exc)
+            self._last_flatten_error = f"{type(exc).__name__}: {exc}"
             return False
 
     def get_live_equity(self) -> float:
@@ -611,7 +627,9 @@ class LiveExecutionAdapter:
                 raise RuntimeError("live equity is unavailable or non-positive")
             return float(total_equity)
         except Exception as exc:
-            logger.error("Error calculating live equity error_type=%s", type(exc).__name__)
+            logger.error(
+                "Error calculating live equity error_type=%s", type(exc).__name__
+            )
             raise RuntimeError("unable to determine live equity") from exc
 
     def _get_net_position(self) -> Decimal:
@@ -660,5 +678,3 @@ class DryRunLiveExecutionAdapter(LiveExecutionAdapter):
     async def flatten(self) -> bool:
         logger.critical("DRY RUN: panic flatten requested; no live order submitted")
         return True
-
-

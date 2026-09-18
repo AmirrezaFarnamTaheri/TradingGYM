@@ -20,9 +20,9 @@ class FakeStream:
 
 def test_log_redaction_removes_assignment_bearer_url_and_control_secrets() -> None:
     source = (
-        '\x1b[31mAuthorization: Bearer bearer-secret\x1b[0m '
+        "\x1b[31mAuthorization: Bearer bearer-secret\x1b[0m "
         'API_KEY=api-secret password="password-secret" '
-        'https://user:pass@example.test/path?token=query-secret'
+        "https://user:pass@example.test/path?token=query-secret"
     )
     result = redact_log_text(source)
 
@@ -64,7 +64,10 @@ async def test_subprocess_output_is_redacted_before_buffer_and_console(
 def test_cli_provider_status_never_discloses_host_executable_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("trading_gym.agent.providers.shutil.which", lambda _: "/opt/private/bin/agent-cli")
+    monkeypatch.setattr(
+        "trading_gym.agent.providers.shutil.which",
+        lambda _: "/opt/private/bin/agent-cli",
+    )
     config = ProviderConfig(
         provider_id="cli-agent",
         kind=ProviderKind.CLI,

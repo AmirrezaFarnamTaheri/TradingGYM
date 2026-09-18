@@ -24,9 +24,7 @@ from typing import Iterable, Sequence
 _SEGMENT_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
 
 #: First segments that may never appear in a *grantable* pattern.
-RESERVED_FIRST_SEGMENTS = frozenset(
-    {"emergency", "governance", "wallet", "authz"}
-)
+RESERVED_FIRST_SEGMENTS = frozenset({"emergency", "governance", "wallet", "authz"})
 
 #: Fully-qualified scopes that are reserved regardless of namespace rules.
 RESERVED_SCOPES = frozenset({"audit.seal"})
@@ -104,9 +102,7 @@ class ScopePattern:
             prefix, tail = p[:head], p[head + 1 :]
             if len(t) < len(prefix) + len(tail):
                 return False
-            return all(
-                seg_eq(p[i], t[i]) for i in range(len(prefix))
-            ) and all(
+            return all(seg_eq(p[i], t[i]) for i in range(len(prefix))) and all(
                 seg_eq(p[-(i + 1)], t[-(i + 1)]) for i in range(len(tail))
             )
         if len(p) != len(t):
@@ -129,6 +125,13 @@ class ScopePattern:
         if first in RESERVED_FIRST_SEGMENTS:
             return False
         if self.text in RESERVED_SCOPES:
+            return False
+        # A pattern that *covers* a reserved scope is as dangerous as the
+        # reserved scope itself: ``audit.*`` matches ``audit.seal``, so granting
+        # it would delegate a capability the principal does not hold. The check
+        # above is text-exact and lets wildcards through. Reserved scopes are
+        # concrete by construction, so ``matches`` cannot raise here.
+        if any(self.matches(reserved) for reserved in RESERVED_SCOPES):
             return False
         return True
 

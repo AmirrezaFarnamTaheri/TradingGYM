@@ -36,7 +36,9 @@ from trading_gym.common.config import (  # noqa: E402
 
 money = st.floats(min_value=1_000.0, max_value=1_000_000.0)
 prices = st.floats(min_value=0.5, max_value=100_000.0)
-targets = st.floats(min_value=-50.0, max_value=50.0, allow_nan=False, allow_infinity=False)
+targets = st.floats(
+    min_value=-50.0, max_value=50.0, allow_nan=False, allow_infinity=False
+)
 
 
 def make_engine() -> ExecutionEngine:
@@ -57,7 +59,9 @@ def make_engine() -> ExecutionEngine:
         shorts=ShortsConfig(
             enabled=True, allowed_symbols=["BTCUSDT"], borrow_caps={"BTCUSDT": 25.0}
         ),
-        costs=CostConfig(taker_fee_bps=10.0, dead_zone_equity_frac=0.001, max_spread_bps=80.0),
+        costs=CostConfig(
+            taker_fee_bps=10.0, dead_zone_equity_frac=0.001, max_spread_bps=80.0
+        ),
         slippage=SlippageConfig(
             volatility_lambda=0.2,
             liquidity_lambda=0.2,
@@ -81,7 +85,9 @@ def snapshot(price: float) -> MarketSnapshot:
     )
 
 
-@settings(max_examples=120, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+@settings(
+    max_examples=120, deadline=None, suppress_health_check=[HealthCheck.filter_too_much]
+)
 @given(equity=money, price=prices, target=targets)
 def test_engine_preserves_wealth_identity(equity: float, price: float, target: float):
     engine = make_engine()
@@ -96,19 +102,20 @@ def test_engine_preserves_wealth_identity(equity: float, price: float, target: f
 
     # Wealth identity: equity changes only by the explicit cost terms.
     expected_equity = (
-        state.equity
-        - result.fee_cost
-        - result.slippage_cost
-        - result.crossing_cost
+        state.equity - result.fee_cost - result.slippage_cost - result.crossing_cost
     )
     assert result.state.equity == expected_equity
     # Costs are never negative.
-    assert result.fee_cost >= 0 and result.slippage_cost >= 0 and result.crossing_cost >= 0
+    assert (
+        result.fee_cost >= 0 and result.slippage_cost >= 0 and result.crossing_cost >= 0
+    )
 
 
 @settings(max_examples=120, deadline=None)
 @given(equity=money, price=prices, target=targets)
-def test_executed_price_stays_inside_half_spread_band(equity: float, price: float, target: float):
+def test_executed_price_stays_inside_half_spread_band(
+    equity: float, price: float, target: float
+):
     engine = make_engine()
     state = ExecutionState(
         position=Decimal("0"),
@@ -127,7 +134,9 @@ def test_executed_price_stays_inside_half_spread_band(equity: float, price: floa
     tick = Decimal("0.01")  # price_decimals=2 in the fixture config
     mid = Decimal(str(market.mid_price))
     half_spread = (Decimal(str(market.spread_bps)) / Decimal(10_000)) * mid / Decimal(2)
-    lo, hi = min(mid - half_spread, mid + half_spread), max(mid - half_spread, mid + half_spread)
+    lo, hi = min(mid - half_spread, mid + half_spread), max(
+        mid - half_spread, mid + half_spread
+    )
     assert lo - tick <= result.executed_price <= hi + tick
 
 

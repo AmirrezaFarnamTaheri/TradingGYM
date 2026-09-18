@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -17,13 +18,19 @@ def test_check_mode_never_mutates_or_returns_secret(tmp_path: Path):
 
 def test_apply_rotates_atomically_and_preserves_other_authorities(tmp_path: Path):
     env = tmp_path / ".env"
-    env.write_text("API_KEY=old-insecure\nWORKER_API_KEY=" + "w" * 40 + "\n", encoding="utf-8")
+    env.write_text(
+        "API_KEY=old-insecure\nWORKER_API_KEY=" + "w" * 40 + "\n", encoding="utf-8"
+    )
     result = rotate_env_key(env, key_name="API_KEY", apply=True)
     content = env.read_text(encoding="utf-8")
     assert result.changed and result.secure
     assert "old-insecure" not in content
     assert "WORKER_API_KEY=" + "w" * 40 in content
-    assert env.stat().st_mode & 0o777 == 0o600
+    if os.name == "posix":
+        # The 0600 privacy guarantee is a POSIX mode property;
+        # Windows reports no file-mode bits, so it is only
+        # verifiable where they exist.
+        assert env.stat().st_mode & 0o777 == 0o600
 
 
 def test_symlink_and_duplicate_definitions_fail_closed(tmp_path: Path):
@@ -35,7 +42,9 @@ def test_symlink_and_duplicate_definitions_fail_closed(tmp_path: Path):
         rotate_env_key(link, key_name="API_KEY", apply=True)
 
     duplicate = tmp_path / "duplicate.env"
-    duplicate.write_text("API_KEY=" + "a" * 40 + "\nAPI_KEY=" + "b" * 40 + "\n", encoding="utf-8")
+    duplicate.write_text(
+        "API_KEY=" + "a" * 40 + "\nAPI_KEY=" + "b" * 40 + "\n", encoding="utf-8"
+    )
     with pytest.raises(SecretRotationError):
         rotate_env_key(duplicate, key_name="API_KEY", apply=True)
 

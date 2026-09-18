@@ -1,4 +1,4 @@
-"""AXIOM-1 routers mounted in the main gateway app (ADR-031 §3)."""
+"""AXIOM-1 routers mounted in the main gateway app (ADR-031 §3, ADR-034)."""
 
 from __future__ import annotations
 
@@ -26,13 +26,12 @@ def test_main_app_mounts_authz_and_playground_routers(
         ),
     )
     from apps.api.main import app
+
     # apps.api.main captures API_KEY at import time; earlier tests may
     # have imported it first without API_KEY set, so refresh module state
     import apps.api.main as api_main
 
-    monkeypatch.setattr(
-        api_main, "API_KEY", "test-gateway-key-0123456789abcdef"
-    )
+    monkeypatch.setattr(api_main, "API_KEY", "test-gateway-key-0123456789abcdef")
     monkeypatch.setattr(api_main, "API_KEY_CONFIGURED", True)
 
     with TestClient(
@@ -49,7 +48,10 @@ def test_main_app_mounts_authz_and_playground_routers(
         # scope check without any grants denies (principal from X-Actor default)
         check = client.post(
             "/api/v1/authz/check",
-            headers={"X-Actor": "operator-1", "X-Actor-Key": "operator-secret-0123456789abcdef0123"},
+            headers={
+                "X-Actor": "operator-1",
+                "X-Actor-Key": "operator-secret-0123456789abcdef0123",
+            },
             json={"scope": "playground.run"},
         )
         assert check.status_code == 200
@@ -59,6 +61,23 @@ def test_main_app_mounts_authz_and_playground_routers(
         # at the actor stage with 403 (not 404 — the route exists)
         run = client.post("/api/v1/playground/runs", json={})
         assert run.status_code != 404
+
+        # the forge router (ADR-034) is mounted behind the same key chain:
+        # the kernel diagnostic answers, and the gated routes exist but deny
+        kernel = client.get("/api/v1/forge/kernel")
+        assert kernel.status_code == 200
+        assert set(kernel.json()) == {"available", "abi_version", "detail"}
+
+        advice = client.get(
+            "/api/v1/forge/memory/advice", params={"tags": ["regime:chop"]}
+        )
+        assert advice.status_code == 403  # route exists, no grant
+
+        nominate = client.post(
+            "/api/v1/forge/nominations",
+            json={"tool_name": "t", "rationale": "r"},
+        )
+        assert nominate.status_code == 403
 
 
 def test_main_app_grant_lifecycle_end_to_end(
@@ -82,13 +101,12 @@ def test_main_app_grant_lifecycle_end_to_end(
         ),
     )
     from apps.api.main import app
+
     # apps.api.main captures API_KEY at import time; earlier tests may
     # have imported it first without API_KEY set, so refresh module state
     import apps.api.main as api_main
 
-    monkeypatch.setattr(
-        api_main, "API_KEY", "test-gateway-key-0123456789abcdef"
-    )
+    monkeypatch.setattr(api_main, "API_KEY", "test-gateway-key-0123456789abcdef")
     monkeypatch.setattr(api_main, "API_KEY_CONFIGURED", True)
 
     with TestClient(

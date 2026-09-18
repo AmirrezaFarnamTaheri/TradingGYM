@@ -47,6 +47,26 @@ class TestEnhancedAbanClient(unittest.TestCase):
         self.assertEqual(sanitized["public"], "value")
         self.assertEqual(sanitized["token"], "***REDACTED***")
 
+    def test_payload_of_unwraps_the_envelope_and_rejects_non_objects(self):
+        # An envelope carrying a data payload unwraps to the payload.
+        self.assertEqual(self.client._payload_of({"data": {"id": 1}}), {"id": 1})
+        # A bare object is its own payload.
+        self.assertEqual(self.client._payload_of({"id": 1}), {"id": 1})
+        # The SDK returns whatever it returns; an accessor that blindly called
+        # .get() on these raised AttributeError, not a usable contract error.
+        for bad in ("not-an-object", None, 42, ["a"]):
+            with self.subTest(value=bad):
+                with self.assertRaises(ValueError):
+                    self.client._payload_of(bad)
+
+    def test_accessors_surface_a_non_object_response_as_a_contract_error(self):
+        # get_coin_info forwards the raw SDK return straight to the payload
+        # boundary; a non-object must fail with the typed error rather than
+        # an AttributeError deep inside the accessor.
+        self.mock_sdk_client.coin_price = Mock(return_value="not-an-object")
+        with self.assertRaises(ValueError):
+            self.client.get_coin_info("BTC", OrderSide.BUY)
+
     def test_get_balance(self):
         mock_data = [
             {"symbol": "BTC", "balance": "1.5", "blocked": "0.1"},
@@ -147,7 +167,9 @@ class TestEnhancedAbanClient(unittest.TestCase):
 
     @patch("trading_gym.adapters.enhanced_aban_client.time.sleep", return_value=None)
     def test_get_request_retries_transient_failure(self, _sleep):
-        self.mock_sdk_client.balance = Mock(side_effect=[TimeoutError("temporary"), {"data": []}])
+        self.mock_sdk_client.balance = Mock(
+            side_effect=[TimeoutError("temporary"), {"data": []}]
+        )
 
         result = self.client._make_request("GET", "balance")
 
@@ -210,4 +232,3 @@ class TestEnhancedAbanClient(unittest.TestCase):
             EnhancedAbanClient(api_key="key", retry_attempts=6)
         with self.assertRaises(ValueError):
             EnhancedAbanClient(api_key="key", base_url="https://example.com")
-

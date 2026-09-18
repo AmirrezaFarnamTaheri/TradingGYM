@@ -6,7 +6,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from trading_gym.market.backtest_policy import BacktestLimitError, validate_backtest_window
+from trading_gym.market.backtest_policy import (
+    BacktestLimitError,
+    validate_backtest_window,
+)
 from trading_gym.strategy_lab.models import StrategySpec
 
 
@@ -37,7 +40,13 @@ def validate_strategy_spec(
 ) -> StrategyValidationReport:
     conditions = len(strategy.entry.conditions) + len(strategy.exit.conditions)
     complexity = len(strategy.indicators) * 3 + conditions * 2
-    warmup = max((_indicator_warmup(item.name, dict(item.params)) for item in strategy.indicators), default=1)
+    warmup = max(
+        (
+            _indicator_warmup(item.name, dict(item.params))
+            for item in strategy.indicators
+        ),
+        default=1,
+    )
     warnings: list[str] = []
     if complexity > 50:
         warnings.append("strategy complexity is high relative to the bounded grammar")

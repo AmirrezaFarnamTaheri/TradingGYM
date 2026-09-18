@@ -1,4 +1,5 @@
 """Non-authoritative multi-currency treasury liquidity ladder."""
+
 from __future__ import annotations
 
 import hashlib
@@ -9,7 +10,9 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-CashflowKind = Literal["settlement", "margin", "fee", "funding", "withdrawal", "deposit", "tax", "other"]
+CashflowKind = Literal[
+    "settlement", "margin", "fee", "funding", "withdrawal", "deposit", "tax", "other"
+]
 Confidence = Literal["committed", "probable", "possible"]
 
 
@@ -52,7 +55,9 @@ class LiquidityForecastRequest(BaseModel):
     balances: list[TreasuryBalance] = Field(min_length=1, max_length=10_000)
     cashflows: list[TreasuryCashflow] = Field(default_factory=list, max_length=100_000)
     fx_rates: list[TreasuryFxRate] = Field(default_factory=list, max_length=10_000)
-    horizon_days: tuple[int, ...] = Field(default=(1, 7, 30), min_length=1, max_length=32)
+    horizon_days: tuple[int, ...] = Field(
+        default=(1, 7, 30), min_length=1, max_length=32
+    )
     minimum_reporting_buffer: Decimal = Field(default=Decimal("0"), ge=0)
     include_probable: bool = True
     maximum_fx_age_seconds: int = Field(default=3600, ge=1, le=604_800)
@@ -95,7 +100,9 @@ class LiquidityForecastReport(BaseModel):
     mutation_performed: bool = False
 
 
-def evaluate_liquidity_forecast(request: LiquidityForecastRequest) -> LiquidityForecastReport:
+def evaluate_liquidity_forecast(
+    request: LiquidityForecastRequest,
+) -> LiquidityForecastReport:
     blockers: list[str] = []
     warnings: list[str] = []
     fx: dict[str, Decimal] = {request.reporting_currency: Decimal("1")}
@@ -122,8 +129,10 @@ def evaluate_liquidity_forecast(request: LiquidityForecastRequest) -> LiquidityF
         if item.available < 0:
             warnings.append(f"opening_cash_negative:{item.currency}")
     relevant = [
-        flow for flow in request.cashflows
-        if flow.confidence == "committed" or (request.include_probable and flow.confidence == "probable")
+        flow
+        for flow in request.cashflows
+        if flow.confidence == "committed"
+        or (request.include_probable and flow.confidence == "probable")
     ]
     buckets: list[LiquidityBucket] = []
     start = request.evaluated_at.date()
@@ -132,8 +141,12 @@ def evaluate_liquidity_forecast(request: LiquidityForecastRequest) -> LiquidityF
         projected = dict(balance_map)
         for flow in relevant:
             if flow.value_date <= end:
-                projected[flow.currency] = projected.get(flow.currency, Decimal("0")) + flow.amount
-        shorts = sorted(currency for currency, amount in projected.items() if amount < 0)
+                projected[flow.currency] = (
+                    projected.get(flow.currency, Decimal("0")) + flow.amount
+                )
+        shorts = sorted(
+            currency for currency, amount in projected.items() if amount < 0
+        )
         for currency in shorts:
             blockers.append(f"currency_shortfall:{horizon}:{currency}")
         reporting: Decimal | None = Decimal("0")
@@ -147,19 +160,23 @@ def evaluate_liquidity_forecast(request: LiquidityForecastRequest) -> LiquidityF
                 reporting += amount * rate
         if reporting is not None and reporting < request.minimum_reporting_buffer:
             blockers.append(f"reporting_buffer_breached:{horizon}")
-        buckets.append(LiquidityBucket(
-            horizon_days=horizon,
-            projected_by_currency=dict(sorted(projected.items())),
-            reporting_value=reporting,
-            short_currencies=shorts,
-        ))
+        buckets.append(
+            LiquidityBucket(
+                horizon_days=horizon,
+                projected_by_currency=dict(sorted(projected.items())),
+                reporting_value=reporting,
+                short_currencies=shorts,
+            )
+        )
     payload = {
         "request": request.model_dump(mode="json"),
         "buckets": [item.model_dump(mode="json") for item in buckets],
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
     }
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return LiquidityForecastReport(
         reporting_currency=request.reporting_currency,
         buckets=buckets,

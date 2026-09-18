@@ -48,7 +48,11 @@ class BorrowCapValidator:
         except (TypeError, ValueError):
             return False, "INVALID_REQUEST", "Symbol or quantity is invalid."
         if not math.isfinite(quantity) or quantity < 0:
-            return False, "INVALID_QUANTITY", "Short quantity must be finite and non-negative."
+            return (
+                False,
+                "INVALID_QUANTITY",
+                "Short quantity must be finite and non-negative.",
+            )
 
         allowed = {str(item).upper() for item in self.config.allowed_symbols}
 

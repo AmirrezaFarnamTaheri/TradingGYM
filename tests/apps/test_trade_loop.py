@@ -1,4 +1,3 @@
-import asyncio
 import unittest
 from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
 from decimal import Decimal
@@ -79,9 +78,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
 
     @patch("apps.common.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
-    async def test_trade_loop_simulation_basic(
-        self, mock_sleep, MockMetricsWriter
-    ):
+    async def test_trade_loop_simulation_basic(self, mock_sleep, MockMetricsWriter):
         mock_sleep.side_effect = [None, RuntimeError("Stop Loop")]
 
         try:
@@ -102,9 +99,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
 
     @patch("apps.common.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
-    async def test_trade_loop_live_adapter(
-        self, mock_sleep, MockMetricsWriter
-    ):
+    async def test_trade_loop_live_adapter(self, mock_sleep, MockMetricsWriter):
         mock_sleep.side_effect = [None, RuntimeError("Stop Loop")]
 
         try:
@@ -129,9 +124,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
 
     @patch("apps.common.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
-    async def test_trade_loop_error_handling(
-        self, mock_sleep, MockMetricsWriter
-    ):
+    async def test_trade_loop_error_handling(self, mock_sleep, MockMetricsWriter):
         self.model.predict.side_effect = ValueError("Data Error")
         mock_sleep.return_value = None
 

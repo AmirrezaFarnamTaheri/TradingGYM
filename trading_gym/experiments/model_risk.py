@@ -1,4 +1,5 @@
 """Evidence-only model challenge and stability analysis."""
+
 from __future__ import annotations
 
 import hashlib
@@ -24,7 +25,13 @@ class ChallengeRun(BaseModel):
 
     @model_validator(mode="after")
     def finite(self) -> "ChallengeRun":
-        values = (self.annual_return, self.sharpe, self.maximum_drawdown, self.turnover, self.baseline_annual_return)
+        values = (
+            self.annual_return,
+            self.sharpe,
+            self.maximum_drawdown,
+            self.turnover,
+            self.baseline_annual_return,
+        )
         if any(not math.isfinite(value) for value in values):
             raise ValueError("challenge metrics must be finite")
         return self
@@ -108,7 +115,9 @@ def evaluate_model_challenge(request: ModelChallengeRequest) -> ModelChallengeRe
             blockers.append("maximum_drawdown_exceeded")
         regime_returns: dict[str, list[float]] = {}
         for run in completed:
-            regime_returns.setdefault(run.regime, []).append(run.annual_return - run.baseline_annual_return)
+            regime_returns.setdefault(run.regime, []).append(
+                run.annual_return - run.baseline_annual_return
+            )
         for regime, values in sorted(regime_returns.items()):
             if statistics.median(values) < 0:
                 warnings.append(f"negative_median_excess_in_regime:{regime}")
@@ -119,7 +128,9 @@ def evaluate_model_challenge(request: ModelChallengeRequest) -> ModelChallengeRe
         "blockers": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
     }
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return ModelChallengeReport(
         model_id=request.model_id,
         completed_runs=len(completed),

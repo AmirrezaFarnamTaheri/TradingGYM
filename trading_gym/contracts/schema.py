@@ -4,6 +4,7 @@ The evaluator is evidence-only: it does not register schemas, migrate data, or
 change producer/consumer authority. It identifies concrete compatibility risks
 between two explicit contract versions.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -13,7 +14,9 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 CompatibilityMode = Literal["backward", "forward", "full"]
-ScalarType = Literal["string", "integer", "number", "boolean", "datetime", "decimal", "object", "array"]
+ScalarType = Literal[
+    "string", "integer", "number", "boolean", "datetime", "decimal", "object", "array"
+]
 Classification = Literal["public", "internal", "confidential", "restricted"]
 
 
@@ -66,8 +69,14 @@ class SchemaContract(BaseModel):
                 raise ValueError("primary key fields must be required and non-nullable")
         if self.event_time_field:
             event_field = by_name[self.event_time_field]
-            if event_field.data_type != "datetime" or not event_field.required or event_field.nullable:
-                raise ValueError("event_time_field must be required, non-nullable datetime")
+            if (
+                event_field.data_type != "datetime"
+                or not event_field.required
+                or event_field.nullable
+            ):
+                raise ValueError(
+                    "event_time_field must be required, non-nullable datetime"
+                )
         return self
 
 
@@ -108,11 +117,15 @@ class SchemaCompatibilityReport(BaseModel):
 
 
 def _digest(model: BaseModel) -> str:
-    payload = json.dumps(model.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+    payload = json.dumps(
+        model.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+    )
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-def evaluate_schema_compatibility(request: SchemaCompatibilityRequest) -> SchemaCompatibilityReport:
+def evaluate_schema_compatibility(
+    request: SchemaCompatibilityRequest,
+) -> SchemaCompatibilityReport:
     current = {field.name: field for field in request.current.fields}
     candidate = {field.name: field for field in request.candidate.fields}
     backward: list[str] = []
@@ -143,13 +156,18 @@ def evaluate_schema_compatibility(request: SchemaCompatibilityRequest) -> Schema
             removed = old_enum - new_enum
             added = new_enum - old_enum
             if removed:
-                backward.append(f"enum_values_removed:{name}:{','.join(sorted(removed))}")
+                backward.append(
+                    f"enum_values_removed:{name}:{','.join(sorted(removed))}"
+                )
             if added:
                 forward.append(f"enum_values_added:{name}:{','.join(sorted(added))}")
         if old.semantic != new.semantic:
             warnings.append(f"semantic_changed:{name}")
         levels = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
-        if levels[new.classification] < levels[old.classification] and not request.allow_classification_relaxation:
+        if (
+            levels[new.classification] < levels[old.classification]
+            and not request.allow_classification_relaxation
+        ):
             finding = f"classification_relaxed:{name}:{old.classification}->{new.classification}"
             # Confidentiality is a veto, not a directional compatibility trade-off.
             backward.append(finding)
@@ -173,7 +191,11 @@ def evaluate_schema_compatibility(request: SchemaCompatibilityRequest) -> Schema
     backward = sorted(set(backward))
     forward = sorted(set(forward))
     warnings = sorted(set(warnings))
-    applicable = backward if request.mode == "backward" else forward if request.mode == "forward" else backward + forward
+    applicable = (
+        backward
+        if request.mode == "backward"
+        else forward if request.mode == "forward" else backward + forward
+    )
     current_sha = _digest(request.current)
     candidate_sha = _digest(request.candidate)
     receipt = {
@@ -185,7 +207,9 @@ def evaluate_schema_compatibility(request: SchemaCompatibilityRequest) -> Schema
         "forward": forward,
         "warnings": warnings,
     }
-    report_sha = hashlib.sha256(json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    report_sha = hashlib.sha256(
+        json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return SchemaCompatibilityReport(
         contract_id=request.current.contract_id,
         current_version=request.current.version,

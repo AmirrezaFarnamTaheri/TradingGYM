@@ -43,7 +43,10 @@ def test_key_changes_with_bounds_event_type_and_meta():
         event_type="limit_down_close", source_sha256=SHA, start_index=0, end_index=100
     ).key
     k4 = make_episode_spec(
-        event_type="gap_up_open", source_sha256=SHA, start_index=0, end_index=100,
+        event_type="gap_up_open",
+        source_sha256=SHA,
+        start_index=0,
+        end_index=100,
         meta={"note": "x"},
     ).key
     assert len({k1, k2, k3, k4}) == 4
@@ -56,7 +59,9 @@ def test_by_event_type_grouping():
     for et, (a, b) in zip(events, bounds):
         registry.register_or_raise(
             make_episode_spec(
-                source_sha256=SHA, start_index=a, end_index=b,
+                source_sha256=SHA,
+                start_index=a,
+                end_index=b,
                 event_type=et,
             )
         )
@@ -66,14 +71,15 @@ def test_by_event_type_grouping():
 
 def test_spec_validation():
     with pytest.raises(ValueError):
-        make_episode_spec(source_sha256="short", start_index=0, end_index=10,
-                          event_type="x")
+        make_episode_spec(
+            source_sha256="short", start_index=0, end_index=10, event_type="x"
+        )
     with pytest.raises(ValueError):
-        make_episode_spec(source_sha256=SHA, start_index=5, end_index=5,
-                          event_type="x")
+        make_episode_spec(source_sha256=SHA, start_index=5, end_index=5, event_type="x")
     with pytest.raises(ValueError):
-        make_episode_spec(source_sha256=SHA, start_index=0, end_index=10,
-                          event_type="Bad Type!")
+        make_episode_spec(
+            source_sha256=SHA, start_index=0, end_index=10, event_type="Bad Type!"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -92,9 +98,14 @@ def test_forward_outcome_take_profit_early_exit_long():
     mid = [100.0, 105.0, 110.0, 111.0, 112.0]
     mid_a, high_a, low_a = _arrays(mid)
     out = forward_outcome(
-        prices_mid=mid_a, prices_high=high_a, prices_low=low_a,
-        entry_index=0, entry_price=100.0, side="long",
-        take_profit_price=109.5, horizon_bars=10,
+        prices_mid=mid_a,
+        prices_high=high_a,
+        prices_low=low_a,
+        entry_index=0,
+        entry_price=100.0,
+        side="long",
+        take_profit_price=109.5,
+        horizon_bars=10,
     )
     assert out.hit_take_profit and not out.hit_stop_loss
     assert out.bars_scanned == 2  # resolved on the bar at 110
@@ -105,9 +116,14 @@ def test_forward_outcome_stop_loss_short_side():
     mid = [100.0, 106.0, 107.0]
     mid_a, high_a, low_a = _arrays(mid)
     out = forward_outcome(
-        prices_mid=mid_a, prices_high=high_a, prices_low=low_a,
-        entry_index=0, entry_price=100.0, side="short",
-        stop_loss_price=105.5, horizon_bars=10,
+        prices_mid=mid_a,
+        prices_high=high_a,
+        prices_low=low_a,
+        entry_index=0,
+        entry_price=100.0,
+        side="short",
+        stop_loss_price=105.5,
+        horizon_bars=10,
     )
     assert out.hit_stop_loss and not out.hit_take_profit
     assert out.worst_adverse_excursion <= -5.0 + 1e-9
@@ -117,8 +133,13 @@ def test_forward_outcome_excursions_are_signed_correctly_for_shorts():
     mid = [100.0, 95.0, 90.0]
     mid_a, high_a, low_a = _arrays(mid)
     out = forward_outcome(
-        prices_mid=mid_a, prices_high=high_a, prices_low=low_a,
-        entry_index=0, entry_price=100.0, side="short", horizon_bars=5,
+        prices_mid=mid_a,
+        prices_high=high_a,
+        prices_low=low_a,
+        entry_index=0,
+        entry_price=100.0,
+        side="short",
+        horizon_bars=5,
     )
     # Short trade that never goes underwater: least favourable point (95) is
     # still profitable, so the worst signed excursion stays positive.
@@ -136,7 +157,8 @@ def test_oracle_rising_series_compounds_every_bar():
     high = [c * 1.01 for c in close]
     low = [c * 0.99 for c in close]
     profit = ideal_fill_oracle(
-        prices_close=np.array(close), prices_high=np.array(high),
+        prices_close=np.array(close),
+        prices_high=np.array(high),
         prices_low=np.array(low),
     )
     # Each bar captures max(1, high/prev_close) = 1.01*1.01 ≈ high/prev.
@@ -149,8 +171,10 @@ def test_oracle_falling_series_is_flat_without_shorts():
     high = [c for c in close]
     low = [c * 0.99 for c in close]
     profit = ideal_fill_oracle(
-        prices_close=np.array(close), prices_high=np.array(high),
-        prices_low=np.array(low), allow_short=False,
+        prices_close=np.array(close),
+        prices_high=np.array(high),
+        prices_low=np.array(low),
+        allow_short=False,
     )
     # long factor per bar: max(1, high[t]/close[t-1]) = max(1, <1) = 1
     assert profit == pytest.approx(1.0)
@@ -161,8 +185,10 @@ def test_oracle_short_mode_profits_from_falling_series():
     high = close
     low = [c * 0.98 for c in close]
     profit = ideal_fill_oracle(
-        prices_close=np.array(close), prices_high=np.array(high),
-        prices_low=np.array(low), allow_short=True,
+        prices_close=np.array(close),
+        prices_high=np.array(high),
+        prices_low=np.array(low),
+        allow_short=True,
     )
     assert profit > 1.0
 

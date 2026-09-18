@@ -17,6 +17,7 @@ Contract:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 
@@ -31,7 +32,10 @@ OPERATOR_SECRET = "operator-secret-0123456789abcdef0123"
 AGENT_SECRET = "agent-secret-0123456789abcdef0123456"
 ACTOR_JSON = json.dumps(
     {
-        "operator-1": {"secret": OPERATOR_SECRET, "roles": ["proposer", "executor", "operator"]},
+        "operator-1": {
+            "secret": OPERATOR_SECRET,
+            "roles": ["proposer", "executor", "operator"],
+        },
         "agent-axiom1": {"secret": AGENT_SECRET, "roles": ["executor"]},
     }
 )
@@ -62,7 +66,7 @@ class TestScopeChecking:
                 principal="agent-axiom1",
                 scopes=("trade.paper.**",),
                 ttl_hours=24,
-                issued_at="2026-09-01T00:00:00Z",
+                issued_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 constraints=(),
                 issued_by="operator-1",
             )
@@ -204,7 +208,9 @@ class TestGatewayAuth:
         def reject() -> None:
             raise HTTPException(status_code=401, detail="invalid API key")
 
-        response = _client(reject).post("/api/v1/authz/check", json={"scope": "trade.paper.order"})
+        response = _client(reject).post(
+            "/api/v1/authz/check", json={"scope": "trade.paper.order"}
+        )
         assert response.status_code == 401
 
 
@@ -216,7 +222,7 @@ class TestListGrants:
                 principal="agent-axiom1",
                 scopes=("trade.paper.**",),
                 ttl_hours=24,
-                issued_at="2026-09-01T00:00:00Z",
+                issued_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 constraints=(),
                 issued_by="operator-1",
             )

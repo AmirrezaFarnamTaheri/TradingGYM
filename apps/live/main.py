@@ -13,18 +13,23 @@ from stable_baselines3 import PPO
 
 from apps.common.trade_loop import trade_loop
 from trading_gym.common.config import load_app_config
-from trading_gym.common.security import validate_regular_file, verified_regular_file_snapshot
+from trading_gym.common.security import (
+    validate_regular_file,
+    verified_regular_file_snapshot,
+)
 from trading_gym.execution.live_execution_adapter import (
     DryRunLiveExecutionAdapter,
     LiveExecutionAdapter,
 )
 from axiomforge.live_trading import LiveConsent
 from trading_gym.governance.runtime_authorization import consume_runtime_authorization
-from trading_gym.pipelines.environment import create_environment, load_environment_inputs
+from trading_gym.pipelines.environment import (
+    create_environment,
+    load_environment_inputs,
+)
 
 app = typer.Typer()
 logger = logging.getLogger(__name__)
-
 
 
 async def run_live_trading(
@@ -59,7 +64,9 @@ async def run_live_trading(
     env = create_environment(cfg, inputs, live_mode=True)
 
     if dry_run:
-        logger.warning("DRY RUN: live market state will be read, but no orders will be sent")
+        logger.warning(
+            "DRY RUN: live market state will be read, but no orders will be sent"
+        )
     else:
         logger.warning("LIVE EXECUTION ENABLED")
     await trade_loop(

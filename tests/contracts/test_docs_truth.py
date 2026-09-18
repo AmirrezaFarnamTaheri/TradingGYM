@@ -35,27 +35,16 @@ def test_axiom1_readme_claims_map_to_real_modules() -> None:
         "trading_gym/agent/planner.py": "planner",
     }
     for module_path, label in claim_matrix.items():
-        assert (ROOT / module_path).exists(), (
-            f"README claims AXIOM-1 {label} but {module_path} is missing"
-        )
-        assert module_path in readme or label in readme.lower(), (
-            f"module {module_path} exists but is not documented in README"
-        )
+        assert (
+            ROOT / module_path
+        ).exists(), f"README claims AXIOM-1 {label} but {module_path} is missing"
+        assert (
+            module_path in readme or label in readme.lower()
+        ), f"module {module_path} exists but is not documented in README"
 
 
 def test_every_axiom1_module_documents_its_adr() -> None:
-    module_adr = {
-        "trading_gym/authz/scopes.py": "ADR-028",
-        "trading_gym/authz/grants.py": "ADR-028",
-        "trading_gym/agent/arms/base.py": "ADR-029",
-        "trading_gym/agent/fusion.py": "ADR-030",
-        "trading_gym/agent/planner.py": "ADR-030",
-        "trading_gym/playground/scenarios.py": "ADR-031",
-        "trading_gym/playground/runner.py": "ADR-031",
-        "trading_gym/agent/autonomy_ladder.py": "ADR-032",
-        "trading_gym/agent/revision.py": "ADR-033",
-    }
-    for module_path, adr in module_adr.items():
+    for module_path, adr in _MODULE_ADR.items():
         source = _read(module_path)
         assert adr in source, (
             f"{module_path} does not reference {adr} — every AXIOM-1 module "
@@ -75,18 +64,32 @@ def test_adr_files_exist_for_every_adr_reference() -> None:
             )
 
 
+#: Every AXIOM-1 module and the decision record it must name.
+_MODULE_ADR = {
+    "trading_gym/authz/scopes.py": "ADR-028",
+    "trading_gym/authz/grants.py": "ADR-028",
+    "trading_gym/agent/arms/base.py": "ADR-029",
+    "trading_gym/agent/fusion.py": "ADR-030",
+    "trading_gym/agent/planner.py": "ADR-030",
+    "trading_gym/playground/scenarios.py": "ADR-031",
+    "trading_gym/playground/runner.py": "ADR-031",
+    "trading_gym/agent/autonomy_ladder.py": "ADR-032",
+    "trading_gym/agent/revision.py": "ADR-033",
+    "trading_gym/agent/working_memory.py": "ADR-034",
+    "trading_gym/agent/persistent_experience.py": "ADR-034",
+    "trading_gym/agent/strategy_variants.py": "ADR-034",
+    "trading_gym/agent/forge.py": "ADR-034",
+    "trading_gym/playground/kernel.py": "ADR-035",
+    # API composition surfaces carry the same rule: the router that exposes a
+    # capability must name the decision that bounded it.
+    "apps/api/authz_router.py": "ADR-028",
+    "apps/api/playground_router.py": "ADR-031",
+    "apps/api/forge_router.py": "ADR-034",
+}
+
+
 def module_adr_paths() -> list[str]:
-    return [
-        "trading_gym/authz/scopes.py",
-        "trading_gym/authz/grants.py",
-        "trading_gym/agent/arms/base.py",
-        "trading_gym/agent/fusion.py",
-        "trading_gym/agent/planner.py",
-        "trading_gym/playground/scenarios.py",
-        "trading_gym/playground/runner.py",
-        "trading_gym/agent/autonomy_ladder.py",
-        "trading_gym/agent/revision.py",
-    ]
+    return list(_MODULE_ADR)
 
 
 def test_readme_test_count_matches_suite_manifest() -> None:
@@ -120,9 +123,9 @@ def test_readme_test_count_matches_suite_manifest() -> None:
     collected = int(match_tail.group(1))
     # README states passed + skipped = collected (deselected excluded);
     # allow the documented skip count (3) as slack either direction.
-    assert abs(claimed - collected) <= 3, (
-        f"README claims {claimed} passed but {collected} tests are collected"
-    )
+    assert (
+        abs(claimed - collected) <= 3
+    ), f"README claims {claimed} passed but {collected} tests are collected"
 
 
 def test_module_accountability_manifest_is_current() -> None:

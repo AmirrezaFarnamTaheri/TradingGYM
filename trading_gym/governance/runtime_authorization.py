@@ -125,7 +125,9 @@ def issue_runtime_authorization(
     )
 
 
-def commit_runtime_authorization(authorization: RuntimeAuthorization, *, pid: int) -> None:
+def commit_runtime_authorization(
+    authorization: RuntimeAuthorization, *, pid: int
+) -> None:
     """Publish the post-governance-commit barrier for the exact spawned PID."""
 
     if pid <= 0:
@@ -144,7 +146,9 @@ def commit_runtime_authorization(authorization: RuntimeAuthorization, *, pid: in
             "actor": authorization.actor,
             "live_scope": authorization.live_scope,
             "consent_expires_at": authorization.consent_expires_at,
-            "token_sha256": hashlib.sha256(authorization.token.encode("utf-8")).hexdigest(),
+            "token_sha256": hashlib.sha256(
+                authorization.token.encode("utf-8")
+            ).hexdigest(),
             "pid": pid,
             "committed_at": time.time(),
             "expires_at": authorization.expires_at,
@@ -207,10 +211,16 @@ def _validate_payload(
         raise ValueError("runtime authorization schema or purpose is invalid")
     if authorization_id is not None and payload["authorization_id"] != authorization_id:
         raise ValueError("runtime authorization identity does not match")
-    _validate_identity(str(payload["authorization_id"]), label="authorization id", pattern=_HEX32)
+    _validate_identity(
+        str(payload["authorization_id"]), label="authorization id", pattern=_HEX32
+    )
     _validate_identity(str(payload["proposal_id"]), label="proposal id", pattern=_HEX32)
-    _validate_identity(str(payload["reservation_id"]), label="reservation id", pattern=_HEX32)
-    _validate_identity(str(payload["model_sha256"]), label="model sha256", pattern=_HEX64)
+    _validate_identity(
+        str(payload["reservation_id"]), label="reservation id", pattern=_HEX32
+    )
+    _validate_identity(
+        str(payload["model_sha256"]), label="model sha256", pattern=_HEX64
+    )
     if not secrets.compare_digest(str(payload["model_sha256"]), expected_model_sha256):
         raise ValueError("runtime authorization model identity does not match")
     actor = str(payload["actor"]).strip()
@@ -258,7 +268,9 @@ def consume_runtime_authorization(
         commit_path = confined_child(_root(), f"{authorization_id}.commit.json")
         deadline = time.monotonic() + commit_timeout_seconds
         while not commit_path.exists():
-            if time.monotonic() >= deadline or time.time() >= float(start["expires_at"]):
+            if time.monotonic() >= deadline or time.time() >= float(
+                start["expires_at"]
+            ):
                 raise TimeoutError("runtime authorization commit was not published")
             time.sleep(0.05)
         commit_claim, commit = _claim(commit_path, suffix="commit.claimed")
@@ -271,8 +283,13 @@ def consume_runtime_authorization(
                 authorization_id=authorization_id,
                 expected_pid=os.getpid(),
             )
-            if commit["proposal_id"] != start["proposal_id"] or commit["reservation_id"] != start["reservation_id"]:
-                raise ValueError("runtime authorization commit does not match its reservation")
+            if (
+                commit["proposal_id"] != start["proposal_id"]
+                or commit["reservation_id"] != start["reservation_id"]
+            ):
+                raise ValueError(
+                    "runtime authorization commit does not match its reservation"
+                )
             return {
                 "authorization_id": authorization_id,
                 "proposal_id": str(start["proposal_id"]),

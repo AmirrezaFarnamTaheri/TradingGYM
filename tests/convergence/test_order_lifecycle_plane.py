@@ -49,7 +49,9 @@ def event(order_id: str, kind: OrderEventType, now: datetime, **kwargs) -> Order
 
 def test_order_lifecycle_partial_fill_cancel_and_accounting_adapter(tmp_path):
     now = datetime.now(timezone.utc)
-    repo = OrderRepository(tmp_path / "orders.json", ledger=AuditLedger(tmp_path / "audit.jsonl"))
+    repo = OrderRepository(
+        tmp_path / "orders.json", ledger=AuditLedger(tmp_path / "audit.jsonl")
+    )
     created = repo.create(intent(now))
     assert created.state is OrderState.SUBMITTED
 
@@ -81,7 +83,11 @@ def test_order_lifecycle_partial_fill_cancel_and_accounting_adapter(tmp_path):
     assert first.state is OrderState.PARTIALLY_FILLED
     assert first.remaining_quantity == Decimal("1.25")
     requested = repo.append(
-        event(created.order_id, OrderEventType.CANCEL_REQUESTED, now + timedelta(seconds=3)),
+        event(
+            created.order_id,
+            OrderEventType.CANCEL_REQUESTED,
+            now + timedelta(seconds=3),
+        ),
         expected_revision=first.revision,
     )
     cancelled = repo.append(
@@ -106,11 +112,15 @@ def test_order_lifecycle_partial_fill_cancel_and_accounting_adapter(tmp_path):
 
 def test_order_rejects_non_monotonic_and_overfill(tmp_path):
     now = datetime.now(timezone.utc)
-    repo = OrderRepository(tmp_path / "orders.json", ledger=AuditLedger(tmp_path / "audit.jsonl"))
+    repo = OrderRepository(
+        tmp_path / "orders.json", ledger=AuditLedger(tmp_path / "audit.jsonl")
+    )
     created = repo.create(intent(now))
     with pytest.raises(OrderConflict, match="chronological"):
         repo.append(
-            event(created.order_id, OrderEventType.CANCELLED, now - timedelta(seconds=1)),
+            event(
+                created.order_id, OrderEventType.CANCELLED, now - timedelta(seconds=1)
+            ),
             expected_revision=created.revision,
         )
     with pytest.raises(OrderConflict, match="exceed"):
@@ -130,7 +140,9 @@ def test_order_rejects_non_monotonic_and_overfill(tmp_path):
 
 def test_order_event_idempotency_and_collision(tmp_path):
     now = datetime.now(timezone.utc)
-    repo = OrderRepository(tmp_path / "orders.json", ledger=AuditLedger(tmp_path / "audit.jsonl"))
+    repo = OrderRepository(
+        tmp_path / "orders.json", ledger=AuditLedger(tmp_path / "audit.jsonl")
+    )
     created = repo.create(intent(now))
     ack = event(
         created.order_id,
@@ -159,7 +171,9 @@ def test_order_materialization_tampering_is_detected(tmp_path):
 
 def test_order_reconciliation_is_non_mutating(tmp_path):
     now = datetime.now(timezone.utc)
-    repo = OrderRepository(tmp_path / "orders.json", ledger=AuditLedger(tmp_path / "audit.jsonl"))
+    repo = OrderRepository(
+        tmp_path / "orders.json", ledger=AuditLedger(tmp_path / "audit.jsonl")
+    )
     created = repo.create(intent(now))
     report = repo.reconcile(
         created.order_id,
@@ -179,7 +193,9 @@ def test_order_reconciliation_is_non_mutating(tmp_path):
 
 def test_rejected_order_cannot_fill_and_partial_order_cannot_reject(tmp_path):
     now = datetime.now(timezone.utc)
-    repo = OrderRepository(tmp_path / "orders.json", ledger=AuditLedger(tmp_path / "audit.jsonl"))
+    repo = OrderRepository(
+        tmp_path / "orders.json", ledger=AuditLedger(tmp_path / "audit.jsonl")
+    )
     created = repo.create(intent(now))
     rejected = repo.append(
         event(
@@ -204,7 +220,9 @@ def test_rejected_order_cannot_fill_and_partial_order_cannot_reject(tmp_path):
             expected_revision=rejected.revision,
         )
 
-    second_intent = intent(now).model_copy(update={"order_id": "order:alpha-0002", "correlation_id": "trace:alpha-0002"})
+    second_intent = intent(now).model_copy(
+        update={"order_id": "order:alpha-0002", "correlation_id": "trace:alpha-0002"}
+    )
     second = repo.create(second_intent)
     partial = repo.append(
         event(
