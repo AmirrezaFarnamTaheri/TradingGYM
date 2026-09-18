@@ -48,25 +48,27 @@ def _atomic_model_save(model, destination: str | Path) -> Path:
             size = artifact.stat().st_size
             if size <= 0 or size > 8 * 1024 * 1024 * 1024:
                 raise RuntimeError("model artifact is empty or exceeds its size limit")
-            with artifact.open("rb") as handle:
+            with artifact.open("r+b") as handle:
                 os.fsync(handle.fileno())
             os.replace(artifact, final_path)
             try:
                 final_path.chmod(0o600)
             except OSError:
                 pass
-            flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
-            try:
-                directory = os.open(final_path.parent, flags)
-            except OSError:
-                directory = None
-            if directory is not None:
+            if os.name == "posix":
+                flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
                 try:
-                    os.fsync(directory)
+                    directory = os.open(final_path.parent, flags)
                 except OSError:
-                    pass
-                finally:
-                    os.close(directory)
+                    directory = None
+                if directory is not None:
+                    try:
+                        os.fsync(directory)
+                    except OSError:
+                        pass
+                    finally:
+                        if directory >= 0:
+                            os.close(directory)
     return final_path
 
 

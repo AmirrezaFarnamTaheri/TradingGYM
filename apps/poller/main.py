@@ -53,6 +53,12 @@ def _timeframe_seconds(value: str) -> int:
 
 
 def _fsync_directory(path: Path) -> None:
+    # Directory fsync is a POSIX durability primitive. Windows has no
+    # directory file descriptor to open, so the returned handle is
+    # invalid and closing it raised EBADF, failing every batch save; off
+    # POSIX the step is a no-op because os.replace is already atomic.
+    if os.name != "posix":
+        return
     flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
     try:
         descriptor = os.open(path, flags)
@@ -63,7 +69,8 @@ def _fsync_directory(path: Path) -> None:
     except OSError:
         pass
     finally:
-        os.close(descriptor)
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 class Poller:
@@ -264,7 +271,7 @@ class Poller:
                             raise ValueError(
                                 "parquet writer did not create a regular file"
                             )
-                        with temp.open("rb") as handle:
+                        with temp.open("r+b") as handle:
                             os.fsync(handle.fileno())
                         os.replace(temp, destination)
                         _fsync_directory(partition)

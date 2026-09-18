@@ -48,7 +48,7 @@ def _atomic_save_figure(figure, output_path: Path) -> Path:
             size = temp_path.stat().st_size
             if size <= 0 or size > 256 * 1024 * 1024:
                 raise ValueError("simulation plot is empty or exceeds its size limit")
-            with temp_path.open("rb") as handle:
+            with temp_path.open("r+b") as handle:
                 os.fsync(handle.fileno())
             os.replace(temp_path, output)
             try:

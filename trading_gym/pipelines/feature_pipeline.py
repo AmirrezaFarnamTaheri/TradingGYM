@@ -203,6 +203,12 @@ def load_raw_data(
 
 
 def _fsync_directory(path: Path) -> None:
+    if os.name != "posix":
+        # Windows has no directory file descriptor to open, so the
+        # returned handle is invalid and closing it raised EBADF, which
+        # broke every atomic write; off POSIX os.replace is already
+        # atomic, so this durability step is a safe no-op there.
+        return
     flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
     try:
         descriptor = os.open(path, flags)
@@ -213,7 +219,8 @@ def _fsync_directory(path: Path) -> None:
     except OSError:
         pass
     finally:
-        os.close(descriptor)
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 def _feature_config_hash(cfg: AppConfig) -> str:
@@ -280,7 +287,7 @@ def _publish_features(
             )
             if temp.is_symlink() or not temp.is_file():
                 raise ValueError("Feature writer did not create a regular file")
-            with temp.open("rb") as handle:
+            with temp.open("r+b") as handle:
                 os.fsync(handle.fileno())
             os.replace(temp, output)
             _fsync_directory(output.parent)

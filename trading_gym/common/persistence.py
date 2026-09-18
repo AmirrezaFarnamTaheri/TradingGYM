@@ -31,6 +31,12 @@ def _fsync_directory(path: Path) -> None:
     primitive, so unsupported platforms fail harmlessly after file fsync.
     """
 
+    if os.name != "posix":
+        # Windows has no directory file descriptor to open, so the
+        # returned handle is invalid and closing it raised EBADF, which
+        # broke every atomic write; off POSIX os.replace is already
+        # atomic, so this durability step is a safe no-op there.
+        return
     flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
     try:
         descriptor = os.open(path, flags)
@@ -41,7 +47,8 @@ def _fsync_directory(path: Path) -> None:
     except OSError:
         pass
     finally:
-        os.close(descriptor)
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 def _reject_symlink(path: Path) -> None:
