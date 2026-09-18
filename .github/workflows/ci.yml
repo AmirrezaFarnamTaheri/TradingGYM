@@ -321,6 +321,26 @@ jobs:
     # actually executes, because the parity tests skip when no artifact
     # exists. It also holds the crate's own unit tests, clippy, and fmt.
     steps:
+      - name: Free Disk Space
+        # This is the only job that carries both a Rust toolchain/target
+        # tree and the full Python dev env (torch et al.); without the
+        # reclaim the runner fills up during `poetry install --with dev`.
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          sudo swapoff -a
+          sudo rm -f /mnt/swapfile
+          # Aggressive cleanup
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/lib/jvm
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/node_modules
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Rust
