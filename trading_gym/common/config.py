@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import math
 import re
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +12,20 @@ from pydantic import BaseModel, Field, field_validator, ValidationInfo, model_va
 
 MAX_CONFIG_BYTES = 2 * 1024 * 1024
 _ASSET_SYMBOL = re.compile(r"^[A-Z0-9]{2,24}$")
+
+
+def _scratch_default(env_var: str, name: str) -> str:
+    """Resolve a scratch-directory default.
+
+    The environment variable wins; otherwise the name is placed under the
+    OS temp directory. Derived from ``tempfile.gettempdir()`` rather than a
+    hardcoded ``/tmp`` so the location stays writable and predictable on
+    every platform, which also keeps bandit B108 quiet.
+    """
+    resolved = os.environ.get(env_var)
+    if resolved is None:
+        resolved = str(Path(tempfile.gettempdir()) / name)
+    return resolved
 
 
 def _load_yaml(path: Path) -> Dict[str, Any]:
@@ -280,19 +295,19 @@ class FeatureConfig(BaseModel):
 
 class DataConfig(BaseModel):
     raw_dir: str = Field(
-        default=os.environ.get("TG_RAW_DIR", "/tmp/raw"),
+        default=_scratch_default("TG_RAW_DIR", "raw"),
         description="Directory for raw data.",
     )
     lake_dir: str = Field(
-        default=os.environ.get("TG_LAKE_DIR", "/tmp/lake"),
+        default=_scratch_default("TG_LAKE_DIR", "lake"),
         description="Directory for the data lake.",
     )
     features_dir: str = Field(
-        default=os.environ.get("TG_FEATURES_DIR", "/tmp/features"),
+        default=_scratch_default("TG_FEATURES_DIR", "features"),
         description="Directory for engineered features.",
     )
     manifests_dir: str = Field(
-        default=os.environ.get("TG_MANIFESTS_DIR", "/tmp/manifests"),
+        default=_scratch_default("TG_MANIFESTS_DIR", "manifests"),
         description="Directory for data manifests.",
     )
     cache_dir: Optional[str] = Field(
@@ -339,15 +354,15 @@ class TrainingConfig(BaseModel):
     n_envs: int
     initial_equity: float
     log_dir: str = Field(
-        default=os.environ.get("TG_LOG_DIR", "/tmp/logs"),
+        default=_scratch_default("TG_LOG_DIR", "logs"),
         description="Directory for logs.",
     )
     checkpoint_dir: str = Field(
-        default=os.environ.get("TG_CHECKPOINT_DIR", "/tmp/checkpoints"),
+        default=_scratch_default("TG_CHECKPOINT_DIR", "checkpoints"),
         description="Directory for model checkpoints.",
     )
     tensorboard_dir: str = Field(
-        default=os.environ.get("TG_TENSORBOARD_DIR", "/tmp/tensorboard"),
+        default=_scratch_default("TG_TENSORBOARD_DIR", "tensorboard"),
         description="Directory for TensorBoard logs.",
     )
     curriculum: List[CurriculumStage] = Field(
