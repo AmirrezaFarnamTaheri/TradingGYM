@@ -263,7 +263,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/config.py",
-      "sha256": "eaa1b023f8f92aa629cea7b98cbabb0aa60f9d22ccab3fac0b3da2f01afa36dd"
+      "sha256": "1a1301422d959d0e01936c1b6aeee4fcc96890502842208f28977bc40f7280a2"
     },
     {
       "owner": "trading_gym",
@@ -298,7 +298,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/persistence.py",
-      "sha256": "0c685ea7b298abe93079d3af76e4d9aa53af9e7890d050d21d60290a0c59f823"
+      "sha256": "b20fb7cdeb409cd86cdfd6f77919d03256a0dabcb0ab217f64b223e07599c7ce"
     },
     {
       "owner": "trading_gym",
@@ -1153,7 +1153,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/pipelines/feature_pipeline.py",
-      "sha256": "8e58dfce8348a8618eff4d49bf9d5c07c63289e6ce264c345fbbf01326123ed2"
+      "sha256": "488fc42a5eeb0f9f8af5650c2a5a7488455ee3d47bfeca18ba0d037397e7484b"
     },
     {
       "owner": "trading_gym",
@@ -1163,7 +1163,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/pipelines/training.py",
-      "sha256": "b294ea72abb81d4ca2d779995e559d7dc8377e2e1a9cd0798f1b5a9e05320b2a"
+      "sha256": "3d5d2f74a63de6c2845ff281c5b393baf696ac9c180c62ade8e01e8a669715e5"
     },
     {
       "owner": "trading_gym",
