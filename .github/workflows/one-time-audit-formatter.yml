@@ -56,3 +56,5 @@ jobs:
           exit 1
 
 # Final branch validation request. This workflow deletes itself on success.
+
+# Final pass includes private protocol logging and redirect-rejection tests.
