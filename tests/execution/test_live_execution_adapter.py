@@ -742,8 +742,10 @@ async def test_invalid_broker_open_order_count_rejected(adapter, mock_client, to
 def test_net_position_rejects_invalid_base_balances(
     adapter, mock_client, available, blocked
 ):
+    # Exercise malformed SDK snapshots directly. Pydantic Balance already
+    # rejects NaN/Infinity during object construction, before this boundary.
     mock_client.get_balance.return_value = [
-        Balance(symbol="BTC", balance=available, blocked=blocked)
+        MagicMock(symbol="BTC", balance=available, blocked=blocked)
     ]
     with pytest.raises(ValueError, match="invalid_broker_base_balance"):
         adapter._get_net_position()
