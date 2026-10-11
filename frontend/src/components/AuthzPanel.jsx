@@ -23,7 +23,13 @@ export default function AuthzPanel() {
 
   const grantsQuery = useQuery({
     queryKey: ['authz-grants'],
-    queryFn: () => authzAPI.listGrants().then((response) => response.data),
+    queryFn: async () => {
+      const payload = (await authzAPI.listGrants()).data;
+      if (!Array.isArray(payload?.grants)) {
+        throw new Error('Invalid grants response');
+      }
+      return payload;
+    },
     refetchInterval: 15000,
   });
 
