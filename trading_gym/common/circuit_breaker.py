@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 from dataclasses import dataclass
@@ -29,18 +30,36 @@ class CircuitOpenError(RuntimeError):
 
 
 class CircuitBreaker:
+    """Generation-fenced circuit for overlapping requests.
+
+    An operation admitted before a circuit transition may return later. Its
+    result is still returned to that caller, but it cannot overwrite newer
+    OPEN or recovered CLOSED state. Only the admitted HALF_OPEN probe can
+    establish recovery after cooldown.
+    """
+
     def __init__(
         self, *, failure_threshold: int = 5, recovery_timeout: float = 30.0
     ) -> None:
-        if failure_threshold < 1:
-            raise ValueError("failure_threshold must be positive")
-        if recovery_timeout <= 0:
-            raise ValueError("recovery_timeout must be positive")
+        if (
+            not isinstance(failure_threshold, int)
+            or isinstance(failure_threshold, bool)
+            or failure_threshold < 1
+        ):
+            raise ValueError("failure_threshold must be a positive integer")
+        if (
+            isinstance(recovery_timeout, bool)
+            or not isinstance(recovery_timeout, (int, float))
+            or not math.isfinite(recovery_timeout)
+            or recovery_timeout <= 0
+        ):
+            raise ValueError("recovery_timeout must be finite and positive")
         self.failure_threshold = failure_threshold
-        self.recovery_timeout = recovery_timeout
+        self.recovery_timeout = float(recovery_timeout)
         self._failures = 0
         self._opened_at: float | None = None
         self._half_open_in_flight = False
+        self._generation = 0
         self._lock = threading.Lock()
 
     def snapshot(self) -> CircuitSnapshot:
@@ -61,21 +80,29 @@ class CircuitBreaker:
             state = self._state_unlocked(time.monotonic())
             if state is CircuitState.OPEN:
                 raise CircuitOpenError("provider circuit is open")
-            if state is CircuitState.HALF_OPEN:
+            is_probe = state is CircuitState.HALF_OPEN
+            if is_probe:
                 if self._half_open_in_flight:
                     raise CircuitOpenError("provider circuit is probing recovery")
                 self._half_open_in_flight = True
+            generation = self._generation
         try:
             value = operation()
         except Exception:
             with self._lock:
-                self._failures += 1
-                self._half_open_in_flight = False
-                if self._failures >= self.failure_threshold:
-                    self._opened_at = time.monotonic()
+                if generation == self._generation:
+                    self._failures += 1
+                    if is_probe:
+                        self._half_open_in_flight = False
+                    if is_probe or self._failures >= self.failure_threshold:
+                        self._opened_at = time.monotonic()
+                        self._generation += 1
             raise
         with self._lock:
-            self._failures = 0
-            self._opened_at = None
-            self._half_open_in_flight = False
+            if generation == self._generation:
+                self._failures = 0
+                self._opened_at = None
+                if is_probe:
+                    self._half_open_in_flight = False
+                    self._generation += 1
         return value
