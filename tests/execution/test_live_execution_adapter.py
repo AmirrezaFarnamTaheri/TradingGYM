@@ -493,3 +493,56 @@ async def test_unverified_flatten_keeps_durable_reconciliation_hold_after_restar
     fresh._get_net_position = MagicMock(return_value=Decimal("1"))
     assert await fresh.flatten() is False
     mock_client.place_market_order.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_long_to_short_reversal_rejects_forbidden_short_before_any_sell(
+    adapter, mock_client
+):
+    adapter._get_net_position = MagicMock(return_value=Decimal("0.5"))
+    with patch(
+        "trading_gym.execution.live_execution_adapter.is_shortable",
+        return_value=False,
+    ):
+        result = await adapter.reconcile(-0.2, 50000.0)
+    assert result == {"status": "skipped", "reason": "short_not_allowed"}
+    mock_client.place_market_order.assert_not_called()
+    mock_client.create_short_sell.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_spot_sell_exactly_at_min_qty_is_an_actual_order(adapter, mock_client):
+    adapter._get_net_position = MagicMock(return_value=Decimal("0.001"))
+    mock_client.place_market_order.return_value = OrderResponse(
+        id="exact-min-spot-sale",
+        code="200",
+        base_symbol="BTC",
+        quote_symbol="USDT",
+        side=OrderSide.SELL,
+        type="market",
+        status=OrderStatus.FILLED,
+        volume={"BTC": Decimal("0.001")},
+        filled_volume={"BTC": Decimal("0.001")},
+        created_at="now",
+    )
+    result = await adapter.reconcile(0.0, 50000.0)
+    assert result["status"] == "executed"
+    assert result["order_id"] == "exact-min-spot-sale"
+    mock_client.place_market_order.assert_called_once_with(
+        OrderSide.SELL, "BTC", "USDT", Decimal("0.001")
+    )
+
+
+@pytest.mark.asyncio
+async def test_split_into_subminimum_legs_is_not_misreported_as_executed(
+    adapter, mock_client
+):
+    adapter._get_net_position = MagicMock(return_value=Decimal("0.0006"))
+    with patch(
+        "trading_gym.execution.live_execution_adapter.is_shortable",
+        return_value=True,
+    ):
+        result = await adapter.reconcile(-0.0006, 50000.0)
+    assert result == {"status": "skipped", "reason": "no_executable_leg"}
+    mock_client.place_market_order.assert_not_called()
+    mock_client.create_short_sell.assert_not_called()
