@@ -88,21 +88,26 @@ def build_intelligence_policy(
         if config.allow_fallback_to_rules is False:
             entries = []
         try:
-            if rl is None:
-                raise ValueError("no model")
-            fusion = FusionBackend(
-                rl_backend=rl,
-                llm_backend=resolve_llm(),
-                leverage_cap=config.fusion_leverage_cap,
-                veto_confidence=config.fusion_veto_confidence,
-                flip_confidence=config.fusion_flip_confidence,
-                allow_flip=config.fusion_allow_flip,
-            )
-            entries.insert(0, (fusion, 100))
-        except (ValueError, RuntimeError):
-            pass  # no LLM provider configured
+            llm = resolve_llm()
+        except Exception:
+            llm = None  # optional provider unavailable; retain RL/rules floor
         if rl is not None:
+            if llm is not None:
+                entries.insert(0, (
+                    FusionBackend(
+                        rl_backend=rl,
+                        llm_backend=llm,
+                        leverage_cap=config.fusion_leverage_cap,
+                        veto_confidence=config.fusion_veto_confidence,
+                        flip_confidence=config.fusion_flip_confidence,
+                        allow_flip=config.fusion_allow_flip,
+                    ), 100,
+                ))
             entries.append((rl, 200))
+        elif llm is not None:
+            # Model-free AUTO still has the configured LLM capability;
+            # previously this branch silently discarded it and chose rules.
+            entries.insert(0, (llm, 100))
         registry = BackendRegistry(entries)
         backend = registry.select(None)
 

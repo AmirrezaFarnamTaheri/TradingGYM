@@ -14,6 +14,7 @@ coordinator.
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -205,7 +206,12 @@ class LLMDecisionBackend(IntelligenceBackend):
         if self._explicit_transport:
             # Injected transports are test/embedded contexts: never probe.
             return True
-        status = provider_status(self.config, timeout_seconds=3.0)
+        try:
+            status = provider_status(self.config, timeout_seconds=3.0)
+        except Exception:
+            # This is an optional advisory backend. DNS/probe/credential
+            # failures must not take down the intelligence health surface.
+            return False
         return status.get("status") in {"reachable", "available"}
 
     def health(self) -> BackendHealth:
@@ -216,7 +222,13 @@ class LLMDecisionBackend(IntelligenceBackend):
             )
         # Probe once and reuse it: availability and detail come from the same
         # status, so the local must live in this scope.
-        status = provider_status(self.config, timeout_seconds=3.0)
+        try:
+            status = provider_status(self.config, timeout_seconds=3.0)
+        except Exception as exc:
+            return BackendHealth(
+                name=self.name, available=False, device=None,
+                detail=f"probe_failed:{type(exc).__name__}",
+            )
         return BackendHealth(
             name=self.name,
             available=status.get("status") in {"reachable", "available"},
@@ -225,14 +237,22 @@ class LLMDecisionBackend(IntelligenceBackend):
         )
 
     def decide(self, context: MarketContext) -> DecisionSignal:
-        if not self.is_available():
-            raise BackendUnavailable(f"provider {self.config.provider_id} unreachable")
+        if not self.config.enabled:
+            raise BackendUnavailable("configured LLM provider is disabled")
+        if self.config.api_key_env and not os.getenv(self.config.api_key_env):
+            raise BackendUnavailable("LLM credential reference is unavailable")
+        # A preflight GET /models before every /chat/completions doubles latency
+        # and can reject healthy chat endpoints that disable model listing.
+        # The actual bounded request is the source of truth; failures degrade
+        # through the caller's explicit fallback path.
         snapshot = json.dumps(context.to_dict(), sort_keys=True)[:MAX_CONTEXT_CHARS]
         messages = [
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": snapshot},
         ]
         response = self._transport(self.config.base_url or "", messages)
+        if not isinstance(response.content, str) or len(response.content) > 65_536:
+            raise BackendUnavailable("LLM response is not bounded text")
         outcome = self._ladder.run({"content": response.content})
         parse_mode = outcome.mode_used or "strict_json"
         records: tuple[AttemptRecord, ...] = outcome.records

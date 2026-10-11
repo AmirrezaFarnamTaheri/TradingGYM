@@ -417,3 +417,72 @@ def test_fusion_executor_outage_uses_explicit_rules_fallback():
     action, _ = adapter.predict(np.zeros(6))
     assert np.isfinite(action).all()
     assert adapter.last_signal.backend == "rules(degraded)"
+
+
+def test_llm_inference_does_not_depend_on_an_unrelated_health_endpoint(monkeypatch):
+    import trading_gym.intelligence.llm_backend as mod
+    llm, transport = _llm_with('{"action": "long", "target_leverage": 1}')
+    def broken_probe(*args, **kwargs):
+        raise RuntimeError("optional models endpoint down")
+    monkeypatch.setattr(mod, "provider_status", broken_probe)
+    assert llm.is_available() is True  # injected transport does not probe
+    result = llm.decide(_ctx())
+    assert result.action_kind is ActionKind.LONG
+    assert transport.calls == 1
+
+
+def test_llm_health_probe_exception_isolated_without_secret_leak(monkeypatch):
+    import trading_gym.intelligence.llm_backend as mod
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+    cfg = ProviderConfig(
+        provider_id="local-broken", kind=ProviderKind.LOCAL,
+        display_name="local", model="model", base_url="http://127.0.0.1:11434/v1",
+    )
+    llm = LLMDecisionBackend(cfg)
+    def broken_probe(*args, **kwargs):
+        raise ValueError("my-private-credential")
+    monkeypatch.setattr(mod, "provider_status", broken_probe)
+    assert llm.is_available() is False
+    health = llm.health()
+    assert health.available is False
+    assert health.detail == "probe_failed:ValueError"
+    assert "my-private-credential" not in repr(health)
+
+
+def test_llm_rejects_oversized_response_without_parser_work():
+    llm, _ = _llm_with("X" * 66_000)
+    with pytest.raises(BackendUnavailable, match="bounded text"):
+        llm.decide(_ctx())
+
+
+def test_model_free_auto_uses_healthy_llm_instead_of_rules(monkeypatch):
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+    from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
+    from trading_gym.intelligence.llm_backend import LLMDecisionBackend
+    config = ProviderConfig(
+        provider_id="local-model", kind=ProviderKind.LOCAL,
+        display_name="Local model", model="m", base_url="http://127.0.0.1:11434/v1",
+    )
+    class StubRepository:
+        def list(self):
+            return [config]
+    monkeypatch.setattr(LLMDecisionBackend, "is_available", lambda _self: True)
+    adapter = build_intelligence_policy(
+        config=IntelligenceConfig(mode=IntelligenceMode.AUTO, llm_provider_id="local-model"),
+        model=None,
+        action_low=-5,
+        action_high=20,
+        provider_repository=StubRepository(),
+    )
+    assert adapter.backend.name == "llm"
+
+
+def test_model_free_auto_degrades_to_rules_without_provider():
+    from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
+    adapter = build_intelligence_policy(
+        config=IntelligenceConfig(mode=IntelligenceMode.AUTO),
+        model=None,
+        action_low=-5,
+        action_high=20,
+    )
+    assert adapter.backend.name == "rules"
