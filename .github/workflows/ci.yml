@@ -9,6 +9,13 @@ on:
     # Weekly Monday-morning dependency scan (informational job below).
     - cron: "0 6 * * 1"
 
+
+# Keep only the newest verification attempt per PR or branch. Scheduled
+# dependency scans remain independent and are never preempted by PR updates.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
 jobs:
   lint:
     name: Lint & Format
