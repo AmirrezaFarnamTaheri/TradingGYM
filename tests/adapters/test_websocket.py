@@ -334,7 +334,7 @@ async def test_connect_rejects_a_private_peer_and_closes_the_socket(monkeypatch)
         return socket
 
     monkeypatch.setattr(
-        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+        "trading_gym.adapters.aban_websocket._open_no_redirect", fake_connect
     )
     client = _client_with_peer_policy(allow_private=False)
 
@@ -355,7 +355,7 @@ async def test_connect_rejects_an_unverifiable_peer(monkeypatch):
         return socket
 
     monkeypatch.setattr(
-        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+        "trading_gym.adapters.aban_websocket._open_no_redirect", fake_connect
     )
     client = _client_with_peer_policy(allow_private=True)
 
@@ -374,7 +374,7 @@ async def test_connect_allows_a_public_peer_and_subscribes(monkeypatch):
         return socket
 
     monkeypatch.setattr(
-        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+        "trading_gym.adapters.aban_websocket._open_no_redirect", fake_connect
     )
     client = _client_with_peer_policy(allow_private=False)
     client.subscribe(ChannelType.TICKER, "BTC", lambda _msg: None)
@@ -397,7 +397,7 @@ async def test_connect_closes_the_socket_when_subscription_send_fails(monkeypatc
         return socket
 
     monkeypatch.setattr(
-        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+        "trading_gym.adapters.aban_websocket._open_no_redirect", fake_connect
     )
     client = _client_with_peer_policy(allow_private=False)
     client.subscribe(ChannelType.TICKER, "BTC", lambda _msg: None)
@@ -417,7 +417,7 @@ async def test_connect_failure_does_not_log_exception_body(
         raise RuntimeError("authorization=secret-token")
 
     monkeypatch.setattr(
-        "trading_gym.adapters.aban_websocket.websockets.connect", fail_connect
+        "trading_gym.adapters.aban_websocket._open_no_redirect", fail_connect
     )
     with caplog.at_level("ERROR"):
         with pytest.raises(RuntimeError):
@@ -473,7 +473,7 @@ async def test_public_ws_credentials_require_tls_before_connect(monkeypatch):
         return _FakeSocket(("8.8.8.8", 80))
 
     monkeypatch.setattr(
-        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+        "trading_gym.adapters.aban_websocket._open_no_redirect", fake_connect
     )
     with pytest.raises(ValueError, match="requires TLS"):
         await client.connect()
@@ -502,7 +502,7 @@ async def test_mixed_private_dns_answer_cannot_receive_auth_header(monkeypatch):
 
     monkeypatch.setattr(socket, "getaddrinfo", mixed_dns)
     monkeypatch.setattr(
-        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+        "trading_gym.adapters.aban_websocket._open_no_redirect", fake_connect
     )
     with pytest.raises(ValueError, match="disallowed"):
         await client.connect()
@@ -528,7 +528,7 @@ async def test_websocket_auth_handshake_uses_validated_pinned_ip(monkeypatch):
 
     monkeypatch.setattr(socket, "getaddrinfo", approved_dns)
     monkeypatch.setattr(
-        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+        "trading_gym.adapters.aban_websocket._open_no_redirect", fake_connect
     )
     await client.connect()
     assert len(captures) == 1
@@ -559,8 +559,78 @@ async def test_private_opt_in_does_not_allow_public_plaintext_credentials(
         return _FakeSocket(("8.8.8.8", 80))
 
     monkeypatch.setattr(
-        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+        "trading_gym.adapters.aban_websocket._open_no_redirect", fake_connect
     )
     with pytest.raises(ValueError, match="requires TLS"):
         await client.connect()
     assert not sent
+
+
+@pytest.mark.asyncio
+async def test_legacy_redirect_is_rejected_before_second_handshake(monkeypatch):
+    from trading_gym.adapters.aban_websocket import _open_no_redirect
+
+    class LegacyConnector:
+        def __await__(self):
+            async def second_connection():
+                self.handle_redirect("wss://127.0.0.1/private")
+            return second_connection().__await__()
+
+    legacy = LegacyConnector()
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect",
+        lambda *_args, **_kwargs: legacy,
+    )
+    with pytest.raises(ValueError, match="websocket_redirect_forbidden"):
+        await _open_no_redirect(
+            "wss://venue.example/ws",
+            host="8.8.8.8",
+            port=443,
+            extra_headers={"Authorization": "Token confidential"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_modern_redirect_is_rejected_before_second_handshake(monkeypatch):
+    from trading_gym.adapters.aban_websocket import _open_no_redirect
+
+    class ModernConnector:
+        def process_redirect(self, exc):
+            return "wss://127.0.0.1/private"
+
+        def __await__(self):
+            async def second_connection():
+                action = self.process_redirect(RuntimeError("302"))
+                if isinstance(action, Exception):
+                    raise action
+                raise AssertionError("unauthorized redirected handshake")
+            return second_connection().__await__()
+
+    modern = ModernConnector()
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect",
+        lambda *_args, **_kwargs: modern,
+    )
+    with pytest.raises(ValueError, match="websocket_redirect_forbidden"):
+        await _open_no_redirect(
+            "wss://venue.example/ws",
+            host="8.8.8.8",
+            port=443,
+            additional_headers={"Authorization": "Token confidential"},
+        )
+
+
+@pytest.mark.asyncio
+async def test_unknown_connector_cannot_bypass_redirect_policy(monkeypatch):
+    from trading_gym.adapters.aban_websocket import _open_no_redirect
+
+    class UnknownConnector:
+        async def __call__(self):
+            raise AssertionError("connection should never be opened")
+
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect",
+        lambda *_args, **_kwargs: UnknownConnector(),
+    )
+    with pytest.raises(RuntimeError, match="unsupported_websocket_redirect_policy"):
+        await _open_no_redirect("wss://venue.example/ws", host="8.8.8.8", port=443)
