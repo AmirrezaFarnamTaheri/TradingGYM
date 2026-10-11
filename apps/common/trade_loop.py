@@ -40,7 +40,10 @@ async def trade_loop(
     """Main trading loop with optional live execution and metrics reporting."""
     obs, _ = env.reset()
     logger.info("Starting trading loop...")
-    metrics_writer = MetricsWriter(METRICS_FILE)
+    # Dashboard metrics are observational, not venue authority. One broken
+    # metrics process must not consume the trading failure budget.
+    metrics_writer: MetricsWriter | None = None
+    metrics_degraded = False
 
     consecutive_errors = 0
     MAX_CONSECUTIVE_ERRORS = 5
@@ -173,7 +176,7 @@ async def trade_loop(
                         f"live execution failed ({execution_result.get('error_type', 'unknown')})"
                     )
                 if status == "skipped":
-                    if execution_result.get("reason") != "dust":
+                    if execution_result.get("reason") not in {"dust", "no_executable_leg"}:
                         raise RuntimeError("live reconciliation skipped without fill")
                 elif status not in {"executed", "simulated"}:
                     # No code should interpret an unknown venue result as
@@ -225,7 +228,22 @@ async def trade_loop(
                 ],
                 "timestamp": time.time(),
             }
-            metrics_writer.write(metrics)
+            try:
+                if metrics_writer is None:
+                    metrics_writer = MetricsWriter(METRICS_FILE)
+                metrics_writer.write(metrics)
+            except Exception as exc:
+                if not metrics_degraded:
+                    logger.warning(
+                        "Optional metrics IPC unavailable error_type=%s",
+                        type(exc).__name__,
+                    )
+                metrics_degraded = True
+                metrics_writer = None
+            else:
+                if metrics_degraded:
+                    logger.info("Optional metrics IPC recovered")
+                metrics_degraded = False
             # --------------------------------------------------------
 
             if done or truncated:
@@ -254,4 +272,10 @@ async def trade_loop(
             )
             break
 
-        await asyncio.sleep(cfg.paper_trader.loop_interval_seconds)
+        # Bound provider/model polling under failure, then automatically
+        # restore the configured fast cadence after a healthy cycle.
+        healthy_interval = float(cfg.paper_trader.loop_interval_seconds)
+        if not math.isfinite(healthy_interval) or healthy_interval <= 0:
+            raise ValueError("trading loop interval must be finite and positive")
+        backoff = 2 ** min(consecutive_errors, 4) if consecutive_errors else 1
+        await asyncio.sleep(min(60.0, healthy_interval * backoff))

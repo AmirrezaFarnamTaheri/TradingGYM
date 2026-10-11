@@ -179,6 +179,70 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.env.step.assert_not_called()
         mock_writer.return_value.write.assert_not_called()
 
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_optional_metrics_failure_does_not_stop_healthy_trading(
+        self, mock_sleep, mock_writer
+    ):
+        output = mock_writer.return_value
+        output.write.side_effect = [OSError("unavailable"), None]
+        mock_sleep.side_effect = [None, RuntimeError("Stop Loop")]
+        with self.assertRaisesRegex(RuntimeError, "Stop Loop"):
+            await trade_loop(self.env, self.model, self.client, self.cfg)
+        self.assertEqual(self.model.predict.call_count, 2)
+        self.assertEqual(output.write.call_count, 2)
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_optional_metrics_writer_initialization_recovers(
+        self, mock_sleep, mock_writer
+    ):
+        writer = MagicMock()
+        mock_writer.side_effect = [OSError("metrics dir unavailable"), writer]
+        mock_sleep.side_effect = [None, RuntimeError("Stop Loop")]
+        with self.assertRaisesRegex(RuntimeError, "Stop Loop"):
+            await trade_loop(self.env, self.model, self.client, self.cfg)
+        self.assertEqual(self.model.predict.call_count, 2)
+        self.assertEqual(mock_writer.call_count, 2)
+        writer.write.assert_called_once()
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_provider_failure_backoff_restores_healthy_fast_cadence(
+        self, mock_sleep, mock_writer
+    ):
+        self.model.predict.side_effect = [
+            ValueError("invalid"),
+            (MagicMock(item=lambda: 0.0), None),
+        ]
+        mock_sleep.side_effect = [None, RuntimeError("Stop Loop")]
+        with self.assertRaisesRegex(RuntimeError, "Stop Loop"):
+            await trade_loop(self.env, self.model, self.client, self.cfg)
+        intervals = [call.args[0] for call in mock_sleep.await_args_list]
+        self.assertAlmostEqual(intervals[0], 0.02)
+        self.assertAlmostEqual(intervals[1], 0.01)
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_subminimum_execution_skip_preserves_real_position_and_telemetry(
+        self, mock_sleep, mock_writer
+    ):
+        self.live_adapter.reconcile.return_value = {
+            "status": "skipped",
+            "reason": "no_executable_leg",
+        }
+        mock_sleep.side_effect = [RuntimeError("Stop Loop")]
+        with self.assertRaisesRegex(RuntimeError, "Stop Loop"):
+            await trade_loop(
+                self.env, self.model, self.client, self.cfg,
+                live_adapter=self.live_adapter,
+            )
+        self.live_adapter.reconcile.assert_awaited_once()
+        self.env.step.assert_called_once_with(0)
+        mock_writer.return_value.write.assert_called_once()
+        self.assertEqual(self.env.unwrapped._state.position, Decimal("0.1"))
+
     @patch("apps.common.trade_loop.panic_requested", return_value=True)
     @patch("apps.common.trade_loop.handle_panic_request", new_callable=AsyncMock)
     @patch("apps.common.trade_loop.MetricsWriter")
