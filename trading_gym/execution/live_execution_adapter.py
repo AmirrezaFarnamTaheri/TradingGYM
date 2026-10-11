@@ -614,13 +614,12 @@ class LiveExecutionAdapter:
         if not isinstance(orders, dict) or not isinstance(orders.get("data"), list):
             raise RuntimeError("broker_order_snapshot_unavailable")
         total = orders.get("total")
-        if total is not None:
-            if not isinstance(total, int) or isinstance(total, bool) or total < 0:
-                raise RuntimeError("invalid_broker_order_count")
-            if total:
-                # One page of order data cannot prove that other pages are
-                # empty; a nonzero server total always blocks "flat".
-                raise RuntimeError("open_orders_not_cleared")
+        # The venue response is paginated. Missing totals are not proof that
+        # the account has no open orders on later pages.
+        if not isinstance(total, int) or isinstance(total, bool) or total < 0:
+            raise RuntimeError("invalid_broker_order_count")
+        if total:
+            raise RuntimeError("open_orders_not_cleared")
         for balance in balances:
             if balance.symbol == self.base_asset:
                 gross = Decimal(str(balance.balance)) + Decimal(str(balance.blocked))

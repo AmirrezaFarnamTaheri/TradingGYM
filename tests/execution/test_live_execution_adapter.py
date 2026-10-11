@@ -332,7 +332,7 @@ async def test_flatten_net_zero_does_not_mask_offsetting_spot_and_shorts(
 ):
     """A zero net is not a flat portfolio if offsetting gross legs remain."""
     adapter._get_net_position = MagicMock(return_value=Decimal("0"))
-    mock_client.get_orders.return_value = {"data": []}
+    mock_client.get_orders.return_value = {"data": [], "total": 0}
     mock_client.get_balance.return_value = [
         Balance(symbol="USDT", balance=Decimal("1000"), blocked=Decimal("0")),
         Balance(symbol="BTC", balance=Decimal("1"), blocked=Decimal("0")),
@@ -350,7 +350,7 @@ async def test_flatten_net_zero_does_not_mask_offsetting_spot_and_shorts(
 async def test_flatten_requires_verified_post_order_position(adapter, mock_client):
     """A successful venue fill does not itself prove an emergency is complete."""
     adapter._get_net_position = MagicMock(return_value=Decimal("1"))
-    mock_client.get_orders.return_value = {"data": []}
+    mock_client.get_orders.return_value = {"data": [], "total": 0}
     mock_client.get_balance.return_value = [
         Balance(symbol="USDT", balance=Decimal("1000"), blocked=Decimal("0")),
         Balance(symbol="BTC", balance=Decimal("1"), blocked=Decimal("0")),
@@ -373,7 +373,7 @@ async def test_flatten_succeeds_when_broker_confirms_no_gross_exposure(
     adapter, mock_client
 ):
     adapter._get_net_position = MagicMock(return_value=Decimal("1"))
-    mock_client.get_orders.return_value = {"data": []}
+    mock_client.get_orders.return_value = {"data": [], "total": 0}
     mock_client.get_balance.side_effect = [
         [
             Balance(symbol="USDT", balance=Decimal("1000"), blocked=Decimal("0")),
@@ -456,7 +456,7 @@ async def test_unverified_flatten_keeps_durable_reconciliation_hold_after_restar
 ):
     """A filled close with stale venue balances must not replay on restart."""
     adapter._get_net_position = MagicMock(return_value=Decimal("1"))
-    mock_client.get_orders.return_value = {"data": []}
+    mock_client.get_orders.return_value = {"data": [], "total": 0}
     mock_client.get_short_positions.return_value = []
     mock_client.get_balance.return_value = [
         Balance(symbol="USDT", balance=Decimal("1000"), blocked=Decimal("0")),
@@ -554,7 +554,7 @@ async def test_emergency_flatten_waits_for_inflight_reconciliation(
     adapter, mock_client
 ):
     adapter._get_net_position = MagicMock(return_value=Decimal("0"))
-    mock_client.get_orders.return_value = {"data": []}
+    mock_client.get_orders.return_value = {"data": [], "total": 0}
     mock_client.get_short_positions.return_value = []
     mock_client.get_balance.return_value = [
         Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
@@ -718,7 +718,7 @@ async def test_paginated_open_order_count_prevents_false_flat_verification(
         await adapter._verify_broker_flat()
 
 
-@pytest.mark.parametrize("total", [-1, "0", True])
+@pytest.mark.parametrize("total", [None, -1, "0", True])
 @pytest.mark.asyncio
 async def test_invalid_broker_open_order_count_rejected(adapter, mock_client, total):
     mock_client.get_balance.return_value = [
@@ -773,3 +773,14 @@ def test_net_position_requires_actual_short_snapshot(adapter, mock_client):
     mock_client.get_short_positions.return_value = None
     with pytest.raises(ValueError, match="broker_position_snapshot_unavailable"):
         adapter._get_net_position()
+
+
+@pytest.mark.asyncio
+async def test_broker_flat_rejects_missing_pagination_count(adapter, mock_client):
+    mock_client.get_balance.return_value = [
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0"))
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_orders.return_value = {"data": []}
+    with pytest.raises(RuntimeError, match="invalid_broker_order_count"):
+        await adapter._verify_broker_flat()
