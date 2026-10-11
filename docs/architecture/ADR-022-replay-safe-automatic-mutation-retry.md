@@ -1,25 +1,32 @@
-# ADR-022: Replay-Safe Automatic Mutation Retry with Ambiguity Escalation
+# ADR-022: Conservative Mutation Delivery with Unknown-Outcome Escalation
 
-**Status:** Accepted  
-**Date:** 2026-08-24
+**Status:** Accepted with a restricted live-venue implementation  
+**Original decision:** 2026-08-24  
+**Implementation clarification:** 2026-10-11
 
-## Decision
+## Invariants
 
-Governed live mutations gain automatic retry, bounded and replay-safe by construction:
+1. **Do not assume venue deduplication.** Every logical mutation uses one stable idempotency key. Caching the coordinator's receipt avoids repeating a known in-process result but cannot stop a duplicate after a response is lost or a different process is started.
+2. **Replay only provably pre-send failures.** Bounded retries with jitter are allowed for failures that guarantee no venue-side effect. Aban's live adapter sets `allow_unknown_replay=False`. A post-send failure with an unknown outcome is never evidence of a rejected order and requires reconciliation before another spending mutation.
+3. **Write an intent before any venue contact.** The shared-path `MutationOutbox.claim_pending` checks existing unresolved entries and appends a pending event under a process-safe claim lock. The outbox records a status per logical intent, not one record per network attempt. A journal error stops submission.
+4. **Refuse unknown outcomes across restarts.** Pending or ambiguous intents in the durable journal block further spending attempts. The live coordinator also maintains in-process ambiguity holds. The outbox is evidence, not a source for automatic replay or a broker settlement oracle.
+5. **Only reconcile from independent evidence.** The old idempotency key cannot be reused after `mark_reconciled` in the same coordinator. An explicit new logical operation requires a new key and fresh governance.
+6. **Distinguish cancellations from fills.** Cancellation may still be attempted with a previous unresolved mutation, but a successful HTTP response is not proof: the SDK order details must show `CANCELED`. Full short closure requires independent position readback. Unverified short partial fills remain unresolved.
+7. **Do not equate local reservations with broker custody.** `ReservationLedger` is process-local and settles the configured reservation estimate, not independently proven fills, actual venue fees, collateral, or reconciled broker balance. Multiple workers on separate roots or hosts are unsupported for funded authority.
 
-1. Every logical mutation carries ONE stable idempotency key across all of its attempts. `LiveExecutionCoordinator` returns the cached receipt when a key repeats, so a retry after a lost response observes the original outcome instead of duplicating the venue order.
-2. Only classified failures are retried: provably pre-send network errors (connection refused/DNS/connect timeout) and explicit `MutationOutcomeUnknown` raised by the transport. Validation, authorization, consent, and emergency-halt errors abort immediately.
-3. When a submission outcome is unprovable, the coordinator records the idempotency key as ambiguous. Re-execution of an ambiguous key is refused fail-closed unless the venue adapter declares `supports_idempotent_replay`. Clearing a hold requires an explicit human `mark_reconciled`.
-4. Every attempt is journalled to a durable JSONL outbox before submission; outcomes are recorded afterwards. `scan_outbox()` surfaces pending/ambiguous intents for reconciliation. The journal is evidence only — nothing is re-submitted from disk.
-5. Operations whose worst-case replay is a harmless no-op (today: `order.cancel`) may keep their original error class instead of tainting the key.
+## Failure classification
 
-## Rationale
+| Outcome | Automatic retry? | Durable state | Spending release |
+| --- | --- | --- | --- |
+| Confirmed pre-send transient error | Yes, bounded | Pending until final outcome | Only once proven terminal |
+| Provably terminal local validation/authorization error | No | Terminal | Release reserved amount |
+| Network request outcome unknown, incomplete fill, or unverified post-send receipt | No on Aban | Ambiguous | Hold until reconciliation |
+| Confirmed fill, locally settled and journaled | No need | Committed | Finalize estimated local reservation; venue settlement remains separate |
+| Journal unavailable before submission | No | Refuse to send | Release pre-send reservation if present |
+| Post-submission journaling or local settlement fails | No | Pending/ambiguous | Fail closed; do not claim trade success |
 
-The historical invariant — "market mutations are not automatically retried" — existed because naive retries can double orders after ambiguous network failures. Donor operational layers (kraken-cli retry taxonomy, OctoBot dual-ID order identity, longbridge Retry-After preference, QuantDinger fill-recovery tolerance) converge on the same resolution: classify failure modes precisely, key the operation idempotently, escalate exactly the unprovable case to a human, and journal everything. This ADR implements that convergence while preserving the platform's single-mutation-authority rule: retries flow through the same payload-bound coordinator consent path as first attempts.
+## Safety boundaries and follow-up gates
 
-## Consequences
+The lock protects competing claims on **one shared trusted filesystem path**. It is not a distributed transaction. Live funded deployment requires a single authoritative account owner or transactional shared ledger with fencing, broker-reported actual fills/fees/collateral, recovery tests for process death and network partition, and qualified emergency gross-exposure reduction. A lease expiration or a manual journal edit must never itself authorize replaying an order with an unknown outcome.
 
-- `LiveExecutionAdapter._mutate` retries transient classes automatically (bounded attempts, exponential backoff with jitter); duplicate-order risk is eliminated by key stability plus coordinator dedup.
-- Venues that cannot deduplicate replays convert ambiguous outcomes into mandatory reconciliation instead of silent resubmission.
-- The outbox adds one append-only file under `TRADING_GYM_HOME/production/`; operators monitor it via `scan_outbox()` and reconcile via coordinator holds.
-- The old blanket prohibition invariants are replaced by the classification-based rules above; read-only request retry behaviour in `EnhancedAbanClient` is unchanged.
+Read-only request retry remains an independent SDK responsibility. Tests exercise pre-send classification, unknown-outcome latching, journal durability and claims, restart barriers, and independently verified cancellation/short closure. A successful unit matrix is necessary but not sufficient for real venue qualification.
