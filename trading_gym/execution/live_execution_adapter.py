@@ -320,7 +320,7 @@ class LiveExecutionAdapter:
                 # snapshot confirms the gross portfolio is flat. Persist the
                 # hold before returning to flatten(), including across a crash.
                 outcome="ambiguous" if require_flat_verification else "committed",
-                detail="flatten_requires_verification" if require_flat_verification else "",
+                detail="flatten_unverified" if require_flat_verification else "",
             )
 
         def on_ambiguous(exc: BaseException) -> None:
