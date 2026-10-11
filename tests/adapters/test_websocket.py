@@ -571,6 +571,9 @@ async def test_legacy_redirect_is_rejected_before_second_handshake(monkeypatch):
     from trading_gym.adapters.aban_websocket import _open_no_redirect
 
     class LegacyConnector:
+        def handle_redirect(self, uri):
+            raise AssertionError("original redirect handler was not replaced")
+
         def __await__(self):
             async def second_connection():
                 self.handle_redirect("wss://127.0.0.1/private")
