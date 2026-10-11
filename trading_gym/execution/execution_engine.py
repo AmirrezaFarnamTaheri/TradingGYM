@@ -138,6 +138,20 @@ class ExecutionEngine:
             str(self._decimals.min_notional_for(self.cfg.symbol))
         )
         self._min_qty = Decimal(str(self._decimals.min_qty_for(self.cfg.symbol)))
+        # Invalid or negative costs manufacture trading profits rather than
+        # describing a plausible execution. Reject them at construction time.
+        if any(
+            not amount.is_finite() or amount < ZERO
+            for amount in (self._taker_fee, self._vol_lambda, self._liq_lambda)
+        ):
+            raise ValueError(
+                "execution fee/slippage costs must be finite and non-negative"
+            )
+        if any(
+            not minimum.is_finite() or minimum < ZERO
+            for minimum in (self._min_notional, self._min_qty)
+        ):
+            raise ValueError("execution minimum quantity/notional must be non-negative")
 
         # Shorting config
         self._shorts_enabled = self.cfg.shorts.enabled
@@ -198,8 +212,10 @@ class ExecutionEngine:
             raise ValueError("market liquidity caps must not be NaN")
         if market.mid_price <= 0:
             raise ValueError("market mid price must be positive")
-        if market.spread_bps < 0:
-            raise ValueError("market spread must be non-negative")
+        if market.spread_bps < 0 or market.spread_bps >= 20000:
+            # A non-positive bid is impossible for a positive mid; the prior
+            # sell path could fabricate negative fill prices and negative fees.
+            raise ValueError("market spread implies a non-positive bid price")
         # volatility_hint is advisory: apply_trade clamps negatives to zero
         # below, so only non-finite hints are rejected outright.
         if market.volatility_hint < 0:
@@ -291,6 +307,11 @@ class ExecutionEngine:
         else:
             executed_price = mid_price + (half_spread if delta > 0 else -half_spread)
             executed_price = self._round_price(executed_price, price_decimals)
+
+        if not executed_price.is_finite() or executed_price <= ZERO:
+            # A valid sub-tick price can round to zero even when the incoming
+            # book and mid are positive; never settle a zero-price fill.
+            raise ValueError("computed execution price must be positive")
 
         vol_hint = Decimal(str(max(market.volatility_hint, 0)))
 

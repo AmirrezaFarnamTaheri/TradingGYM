@@ -189,3 +189,66 @@ def test_short_cap_zero_equity(execution_engine):
 
     result = execution_engine.apply_trade(state, target_position=1.0, market=market)
     assert result.delta_units == Decimal("0")
+
+
+@pytest.mark.parametrize("spread_bps", [20000.0, 25000.0, 1000000.0])
+def test_spread_cannot_create_nonpositive_sell_price(execution_engine, spread_bps):
+    state = ExecutionState(
+        position=Decimal("0"),
+        equity=Decimal("1000"),
+        borrowed_base=Decimal("0"),
+        borrowed_quote=Decimal("0"),
+        average_entry_price=Decimal("0"),
+    )
+    market = MarketSnapshot(
+        mid_price=100.0,
+        spread_bps=spread_bps,
+        volatility_hint=0.01,
+        buy_cap_quote=1e6,
+        sell_cap_quote=1e6,
+    )
+    with pytest.raises(ValueError, match="spread|price"):
+        execution_engine.apply_trade(state, target_position=-1.0, market=market)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("costs.taker_fee_bps", -1.0),
+        ("costs.taker_fee_bps", float("nan")),
+        ("slippage.volatility_lambda", -0.1),
+        ("slippage.liquidity_lambda", -0.1),
+        ("slippage.volatility_lambda", float("inf")),
+        ("decimals.min_qty", -1.0),
+    ],
+)
+def test_invalid_cost_parameters_cannot_make_profitable_fills(
+    engine_decimal_config, field, value
+):
+    section, name = field.split(".")
+    target = getattr(engine_decimal_config, section)
+    if name == "min_qty":
+        target.min_qty[engine_decimal_config.symbol] = value
+    else:
+        setattr(target, name, value)
+    with pytest.raises(ValueError, match="fee|cost|slippage|quantity|minimum"):
+        ExecutionEngine(engine_decimal_config)
+
+
+def test_rounding_cannot_create_zero_price_fill(execution_engine):
+    state = ExecutionState(
+        position=Decimal("0"),
+        equity=Decimal("1000"),
+        borrowed_base=Decimal("0"),
+        borrowed_quote=Decimal("0"),
+        average_entry_price=Decimal("0"),
+    )
+    market = MarketSnapshot(
+        mid_price=0.001,
+        spread_bps=0.0,
+        volatility_hint=0.0,
+        buy_cap_quote=1e9,
+        sell_cap_quote=1e9,
+    )
+    with pytest.raises(ValueError, match="price"):
+        execution_engine.apply_trade(state, target_position=20000.0, market=market)

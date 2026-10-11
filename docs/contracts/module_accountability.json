@@ -428,7 +428,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/execution_engine.py",
-      "sha256": "028f84e03ddd0e43cbdf782ec504b2d4f21b7f96c1ef933be063fd0117900050"
+      "sha256": "b56b66f26af7a4c53b7a8958fcf8c42f3e034d3d3b51fef6ad0b933d507daf3f"
     },
     {
       "owner": "trading_gym",
