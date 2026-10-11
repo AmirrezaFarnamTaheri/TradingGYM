@@ -185,3 +185,65 @@ def test_build_trading_policy_rules_mode_returns_adapter():
     lo, hi = -5.0, 20.0
     action, _ = policy.predict(np.zeros(6))
     assert lo <= float(action[0]) <= hi
+
+
+def test_optional_provider_probe_failure_does_not_take_down_backend_status(tmp_path, monkeypatch):
+    import apps.api.intelligence as intelligence
+    def probe(cfg, timeout_seconds):
+        if cfg.provider_id == "local-ollama":
+            raise ValueError("private-credential")
+        return {"provider_id": cfg.provider_id, "status": "missing_credential_reference"}
+    monkeypatch.setattr(intelligence, "provider_status", probe)
+    result = _client(_app(tmp_path / "missing.yaml")).get("/intelligence/status", headers=AUTH)
+    assert result.status_code == 200
+    body = result.json()
+    assert body["backends"][0]["name"] == "rules"
+    assert body["backends"][0]["available"] is True
+    llm = next(b for b in body["backends"] if b["name"] == "llm:local-ollama")
+    assert llm["available"] is False
+    assert body["status"] == "degraded"
+    assert "llm:local-ollama" in body["degraded_providers"]
+    assert "private-credential" not in result.text
+
+
+def test_optional_provider_inventory_corruption_preserves_rules_status(tmp_path):
+    class BrokenInventory:
+        def list(self):
+            raise ValueError("provider file malformed, private secrets")
+    app = FastAPI()
+    app.include_router(create_intelligence_router(
+        _verify, config_path=tmp_path / "missing.yaml",
+        provider_repository=BrokenInventory(),
+    ))
+    result = TestClient(app).get("/intelligence/status", headers=AUTH)
+    assert result.status_code == 200
+    body = result.json()
+    assert body["status"] == "degraded"
+    assert body["provider_inventory_error"] == "ValueError"
+    assert body["backends"][0]["available"] is True
+    assert "private secrets" not in result.text
+
+
+def test_auto_status_prefers_healthy_llm_and_probes_with_bounded_budget(tmp_path, monkeypatch):
+    import apps.api.intelligence as intelligence
+    import json
+    calls = []
+    def healthy(cfg, timeout_seconds):
+        calls.append((cfg.provider_id, timeout_seconds))
+        return {"provider_id": cfg.provider_id, "status": "reachable"}
+    monkeypatch.setattr(intelligence, "provider_status", healthy)
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("intelligence:\n  mode: auto\n  llm_provider_id: local-ollama\n")
+    app = _app(cfg)
+    body = TestClient(app).get("/intelligence/status?probe_limit=1", headers=AUTH).json()
+    assert body["selected_hint"] == "llm:local-ollama"
+    assert calls == [("local-ollama", 1.0)]
+    remote = next(b for b in body["backends"] if b["name"] == "llm:remote-gpt")
+    assert remote["available"] is None
+    assert json.loads(remote["detail"])["status"] == "not_probed"
+    assert body["providers_probed"] == 1
+
+
+def test_status_validates_operator_probe_budget(tmp_path):
+    client = _client(_app(tmp_path / "missing.yaml"))
+    assert client.get("/intelligence/status?probe_limit=999", headers=AUTH).status_code == 422

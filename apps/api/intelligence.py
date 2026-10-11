@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from trading_gym.agent.providers import (
     ProviderConfig,
@@ -52,7 +52,7 @@ def create_intelligence_router(
     effective_config_path = config_path  # None → PROJECT_ROOT/config/app.yaml in main
 
     @router.get("/status")
-    def status() -> dict[str, object]:
+    def status(probe_limit: int = Query(default=8, ge=0, le=32)) -> dict[str, object]:
 
         mode = "legacy"
         llm_provider_id = None
@@ -104,14 +104,39 @@ def create_intelligence_router(
             }
         )
 
-        for pc in repo.list():
-            if not isinstance(pc, ProviderConfig) or pc.kind is ProviderKind.CLI:
-                continue
-            st = provider_status(pc, timeout_seconds=3.0)
+        provider_error = None
+        try:
+            providers = [
+                pc for pc in repo.list()
+                if isinstance(pc, ProviderConfig) and pc.kind is not ProviderKind.CLI
+            ]
+        except Exception as exc:
+            # A corrupt optional provider inventory must not prevent the
+            # operator from seeing the deterministic rules and worker state.
+            providers = []
+            provider_error = type(exc).__name__
+        # Probe the configured governor first; bound synchronous status work.
+        providers.sort(
+            key=lambda pc: (pc.provider_id != llm_provider_id, pc.provider_id)
+        )
+        for index, pc in enumerate(providers):
+            if index < probe_limit:
+                try:
+                    st = provider_status(pc, timeout_seconds=1.0)
+                except Exception as exc:
+                    st = {
+                        "provider_id": pc.provider_id,
+                        "status": "unavailable",
+                        "error_type": type(exc).__name__,
+                    }
+                available = st.get("status") in {"reachable", "available"}
+            else:
+                st = {"provider_id": pc.provider_id, "status": "not_probed"}
+                available = None
             backends.append(
                 {
                     "name": f"llm:{pc.provider_id}",
-                    "available": st.get("status") == "reachable",
+                    "available": available,
                     "device": None,
                     "detail": json.dumps(st),
                 }
@@ -119,21 +144,28 @@ def create_intelligence_router(
 
         selected = mode
         if mode == "auto":
-            selected = next(
-                (
-                    b["name"]
-                    for b in backends
-                    if b["available"] is True and b["name"] != "rl"
-                )
-                or ["rl"],
-                "rl",
-            )
+            # Rules are always reachable, but must not preempt a healthy
+            # configured model just because they were listed first.
+            llms = [
+                entry["name"] for entry in backends
+                if entry["name"].startswith("llm:") and entry["available"] is True
+            ]
+            selected = llms[0] if llms else "rules"
 
+        degraded_providers = sorted(
+            entry["name"] for entry in backends
+            if entry["name"].startswith("llm:") and entry["available"] is False
+        )
         return {
             "mode": mode,
             "selected_hint": selected,
             "llm_provider_id": llm_provider_id,
             "backends": backends,
+            "provider_inventory_error": provider_error,
+            "providers_total": len(providers),
+            "providers_probed": min(probe_limit, len(providers)),
+            "degraded_providers": degraded_providers,
+            "status": "degraded" if provider_error or degraded_providers else "available",
             "note": "advisory layer; authority unchanged (gate + coordinator)",
         }
 
