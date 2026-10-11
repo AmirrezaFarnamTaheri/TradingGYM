@@ -30,3 +30,45 @@ def test_emergency_control_is_revisioned_durable_and_two_actor(tmp_path) -> None
             actor="operator",
             approver="operator",
         )
+
+
+@pytest.mark.parametrize(
+    "bad_state",
+    [
+        {"revision": 1},
+        {"halted": 0, "revision": 1},
+        {"halted": False, "revision": "1"},
+        {"halted": False, "revision": -1},
+        {"halted": False, "revision": True},
+        {"halted": False, "revision": 1, "reason": ["not a string"]},
+    ],
+)
+def test_invalid_durable_emergency_state_never_defaults_to_unhalted(
+    tmp_path, bad_state
+) -> None:
+    """A corrupt persisted HALT marker must not silently become an unhalted state."""
+    import json
+
+    state_file = tmp_path / "emergency.json"
+    state_file.write_text(json.dumps(bad_state))
+    with pytest.raises(ValueError, match="invalid_emergency_state"):
+        EmergencyController(state_file).snapshot()
+
+
+def test_dangling_emergency_state_symlink_is_not_missing_state(tmp_path) -> None:
+    state_file = tmp_path / "emergency.json"
+    try:
+        state_file.symlink_to(tmp_path / "missing-state.json")
+    except (NotImplementedError, OSError):
+        pytest.skip("symlinks unavailable on this platform")
+    with pytest.raises(ValueError, match="symlink"):
+        EmergencyController(state_file).snapshot()
+
+
+def test_oversized_emergency_state_refuses_to_read(tmp_path) -> None:
+    state_file = tmp_path / "emergency.json"
+    state_file.write_text(
+        '{"halted": true, "revision": 1, "reason": "' + "x" * 65536 + '"}'
+    )
+    with pytest.raises(ValueError, match="invalid_emergency_state"):
+        EmergencyController(state_file).snapshot()

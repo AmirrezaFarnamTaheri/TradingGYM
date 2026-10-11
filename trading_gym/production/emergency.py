@@ -9,7 +9,7 @@ import threading
 
 from filelock import FileLock
 
-from trading_gym.common.persistence import resolve_data_home
+from trading_gym.common.persistence import resolve_data_home, _fsync_directory
 
 
 @dataclass(frozen=True)
@@ -64,11 +64,37 @@ class EmergencyController:
         )
 
     def snapshot(self) -> EmergencyState:
+        """Read the typed durable halt marker or reject malformed state."""
         path = self.path
+        if path.is_symlink() or path.parent.is_symlink():
+            raise ValueError("invalid_emergency_state: symlink-backed state")
         if not path.exists():
+            # A never-initialized installation starts unhalted. Malformed
+            # *existing* state must never be interpreted as unhalted.
             return EmergencyState()
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        return EmergencyState(**raw)
+        try:
+            with path.open("rb") as handle:
+                payload = handle.read(64 * 1024 + 1)
+            if len(payload) > 64 * 1024:
+                raise ValueError("invalid_emergency_state: oversized record")
+            raw = json.loads(payload)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ValueError("invalid_emergency_state: unreadable record") from exc
+        if (
+            not isinstance(raw, dict)
+            or type(raw.get("halted")) is not bool
+            or type(raw.get("revision")) is not int
+            or raw["revision"] < 0
+            or any(
+                field in raw and not isinstance(raw[field], str)
+                for field in ("reason", "actor", "approver")
+            )
+        ):
+            raise ValueError("invalid_emergency_state: malformed fields")
+        try:
+            return EmergencyState(**raw)
+        except TypeError as exc:
+            raise ValueError("invalid_emergency_state: unexpected fields") from exc
 
     def transition(
         self,
@@ -109,4 +135,5 @@ class EmergencyController:
                     os.unlink(tmp_name)
                 except FileNotFoundError:
                     pass
+            _fsync_directory(path.parent)
             return next_state
