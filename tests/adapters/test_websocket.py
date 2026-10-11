@@ -460,3 +460,83 @@ async def test_callback_failure_accounts_the_dropped_message(ws_client):
     assert stats["callback_failures"][key] == 1
     assert stats["dropped_messages"][key] == 1
     assert key in stats["degraded_subscriptions"]
+
+
+@pytest.mark.asyncio
+async def test_public_ws_credentials_require_tls_before_connect(monkeypatch):
+    config = WebSocketConfig(url="ws://8.8.8.8/ws", api_key="private-token")
+    client = WebSocketClient(config)
+    calls = []
+
+    async def fake_connect(*_args, **_kwargs):
+        calls.append("handshake")
+        return _FakeSocket(("8.8.8.8", 80))
+
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+    )
+    with pytest.raises(ValueError, match="requires TLS"):
+        await client.connect()
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_mixed_private_dns_answer_cannot_receive_auth_header(monkeypatch):
+    import socket
+
+    config = WebSocketConfig(
+        url="wss://venue.example/ws", api_key="sensitive-token"
+    )
+    client = WebSocketClient(config)
+    calls = []
+
+    def mixed_dns(*_args, **_kwargs):
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443)),
+        ]
+
+    async def fake_connect(*_args, **_kwargs):
+        calls.append("handshake")
+        return _FakeSocket(("127.0.0.1", 443))
+
+    monkeypatch.setattr(socket, "getaddrinfo", mixed_dns)
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+    )
+    with pytest.raises(ValueError, match="disallowed"):
+        await client.connect()
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_websocket_auth_handshake_uses_validated_pinned_ip(monkeypatch):
+    import socket
+
+    config = WebSocketConfig(
+        url="wss://venue.example/ws", api_key="sensitive-token"
+    )
+    client = WebSocketClient(config)
+    captures = []
+
+    def approved_dns(*_args, **_kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
+
+    async def fake_connect(url, **kwargs):
+        captures.append((url, kwargs))
+        return _FakeSocket(("8.8.8.8", 443))
+
+    monkeypatch.setattr(socket, "getaddrinfo", approved_dns)
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+    )
+    await client.connect()
+    assert len(captures) == 1
+    uri, params = captures[0]
+    assert uri == "wss://venue.example/ws"
+    assert (params["host"], params["port"]) == ("8.8.8.8", 443)
+    header_key = (
+        "additional_headers" if "additional_headers" in params else "extra_headers"
+    )
+    assert params[header_key]["Authorization"] == "Token sensitive-token"
+    await client.disconnect()
