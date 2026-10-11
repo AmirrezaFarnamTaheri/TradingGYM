@@ -82,8 +82,9 @@ class EmergencyController:
             raise ValueError("invalid_emergency_state: unreadable record") from exc
         if (
             not isinstance(raw, dict)
-            or type(raw.get("halted")) is not bool
-            or type(raw.get("revision")) is not int
+            or not isinstance(raw.get("halted"), bool)
+            or not isinstance(raw.get("revision"), int)
+            or isinstance(raw["revision"], bool)
             or raw["revision"] < 0
             or any(
                 field in raw and not isinstance(raw[field], str)
