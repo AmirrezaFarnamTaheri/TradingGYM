@@ -9,14 +9,17 @@ environment action space; downstream clip/pre-trade-gate/coordinator still run.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from dataclasses import replace
+from typing import Any, Callable, Sequence
 
 import numpy as np
 
 from trading_gym.intelligence.base import IntelligenceBackend
 from trading_gym.intelligence.fusion_backend import FusionBackend
 from trading_gym.intelligence.rl_backend import RLPolicyBackend
-from trading_gym.intelligence.types import ActionKind, DecisionSignal
+from trading_gym.intelligence.types import (
+    ActionKind, BackendUnavailable, DecisionSignal, MarketContext
+)
 
 
 class IntelligencePolicyAdapter:
@@ -29,12 +32,22 @@ class IntelligencePolicyAdapter:
         action_low: float,
         action_high: float,
         fallback_backend: IntelligenceBackend | None = None,
+        fallback_backends: Sequence[IntelligenceBackend] | None = None,
         context_builder: Callable[[Any], dict[str, Any]] | None = None,
     ):
         if action_high <= action_low:
             raise ValueError("action_high must exceed action_low")
         self.backend = backend
         self.fallback = fallback_backend
+        self._fallback_chain = (
+            tuple(fallback_backends)
+            if fallback_backends is not None
+            else ((fallback_backend,) if fallback_backend is not None else ())
+        )
+        ids = [id(candidate) for candidate in (backend, *self._fallback_chain)]
+        if len(ids) != len(set(ids)):
+            raise ValueError("intelligence fallback chain contains duplicate backends")
+        self.last_failure_types: tuple[str, ...] = ()
         self.action_low = float(action_low)
         self.action_high = float(action_high)
         #: Populated after every predict() for evidence/telemetry surfaces.
@@ -85,81 +98,68 @@ class IntelligencePolicyAdapter:
             "n_features": int(max(0, arr.size - n_state)),
         }
 
-    def predict(self, observation: Any, deterministic: bool = True, **_: Any):
-        del deterministic  # advisory backends are always deterministic-ish
-        context = self.build_context(observation)
+    def _market_context(self, ctx: dict[str, Any]) -> MarketContext:
+        return MarketContext(
+            symbol=str(ctx.get("symbol", "UNKNOWN")),
+            position_units=float(
+                ctx.get("position_units", ctx.get("position_norm", 0.0))
+            ),
+            # Without environment wiring, observation tails are dimensionless
+            # ratios, never synthetic account balances in quote currency.
+            equity=float(ctx.get("equity", ctx.get("equity_ratio", 1.0))),
+            margin_level=ctx.get("margin_level"),
+            last_close=float(ctx.get("last_close", ctx.get("price_ratio", 1.0))),
+            prev_close=ctx.get("prev_close"),
+            recent_returns=tuple(ctx.get("recent_returns", ())),
+            drawdown_from_peak=ctx.get("drawdown_from_peak"),
+            extras={
+                key: float(value)
+                for key, value in ctx.items()
+                if isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and np.isfinite(value)
+            },
+        )
 
-        def to_context_obj(ctx: dict[str, Any]):
-            # Bridge dict-context into the MarketContext-compatible shape the
-            # backends expect, deriving sane fields where possible.
-            from trading_gym.intelligence.types import MarketContext
-
-            return MarketContext(
-                symbol=str(ctx.get("symbol", "UNKNOWN")),
-                position_units=float(
-                    ctx.get("position_units", ctx.get("position_norm", 0.0))
-                ),
-                # Without environment wiring, these are dimensionless
-                # observation ratios. Do not invent a $10,000 account balance.
-                equity=float(ctx.get("equity", ctx.get("equity_ratio", 1.0))),
-                margin_level=ctx.get("margin_level"),
-                last_close=float(ctx.get("last_close", ctx.get("price_ratio", 1.0))),
-                prev_close=ctx.get("prev_close"),
-                recent_returns=tuple(ctx.get("recent_returns", ())),
-                drawdown_from_peak=ctx.get("drawdown_from_peak"),
-                extras={
-                    key: float(value)
-                    for key, value in ctx.items()
-                    if isinstance(value, (int, float))
-                    and not isinstance(value, bool)
-                    and np.isfinite(value)
-                },
+    @staticmethod
+    def _run_backend(
+        backend: IntelligenceBackend, context: MarketContext, observation: Any
+    ) -> DecisionSignal:
+        if isinstance(backend, FusionBackend):
+            return backend.decide_with_observation(context, observation)
+        if isinstance(backend, RLPolicyBackend):
+            leverage, _ = backend.raw_predict(observation)
+            return DecisionSignal(
+                backend=backend.name,
+                action_kind=RLPolicyBackend.classify(leverage),
+                target_leverage=leverage,
+                confidence=0.7,
+                rationale=f"rl policy action {leverage:+.4f}",
             )
+        return backend.decide(context)
 
-        if isinstance(self.backend, RLPolicyBackend):
-            # Real RL inference consumes the environment observation directly.
+    def predict(self, observation: Any, deterministic: bool = True, **_: Any):
+        del deterministic  # downstream action gates still enforce limits
+        # Invalid market/account context is a non-degradable authority failure.
+        # Never manufacture fallback trades from a corrupt observation.
+        context = self._market_context(self.build_context(observation))
+        failures: list[str] = []
+        for index, backend in enumerate((self.backend, *self._fallback_chain)):
             try:
-                leverage, _ = self.backend.raw_predict(observation)
-                kind = RLPolicyBackend.classify(leverage)
-                self.last_signal = DecisionSignal(
-                    backend=self.backend.name,
-                    action_kind=kind,
-                    target_leverage=leverage,
-                    confidence=0.7,
-                    rationale=f"rl policy action {leverage:+.4f}",
-                )
-                return self._signal_to_action(self.last_signal), None
-            except Exception:
-                if self.fallback is None:
-                    raise
-                signal = self.fallback.decide(to_context_obj(context))
-                signal = type(signal)(
-                    backend=f"{self.fallback.name}(degraded)",
-                    action_kind=signal.action_kind,
-                    target_leverage=signal.target_leverage,
-                    confidence=signal.confidence,
+                signal = self._run_backend(backend, context, observation)
+                action = self._signal_to_action(signal)
+            except Exception as exc:
+                failures.append(f"{backend.name}:{type(exc).__name__}")
+                continue
+            if index:
+                signal = replace(
+                    signal,
+                    backend=f"{backend.name}(degraded)",
                     rationale=f"[fallback] {signal.rationale}",
                 )
-                self.last_signal = signal
-                return self._signal_to_action(signal), None
-
-        try:
-            if isinstance(self.backend, FusionBackend):
-                signal = self.backend.decide_with_observation(
-                    to_context_obj(context), observation
-                )
-            else:
-                signal = self.backend.decide(to_context_obj(context))
-        except Exception:
-            if self.fallback is None:
-                raise
-            signal = self.fallback.decide(to_context_obj(context))
-            signal = type(signal)(
-                backend=f"{self.fallback.name}(degraded)",
-                action_kind=signal.action_kind,
-                target_leverage=signal.target_leverage,
-                confidence=signal.confidence,
-                rationale=f"[fallback] {signal.rationale}",
-            )
-        self.last_signal = signal
-        return self._signal_to_action(signal), None
+            self.last_signal = signal
+            self.last_failure_types = tuple(failures)
+            return action, None
+        self.last_signal = None
+        self.last_failure_types = tuple(failures)
+        raise BackendUnavailable("no configured intelligence backend produced a decision")

@@ -109,8 +109,15 @@ def build_intelligence_policy(
             # Model-free AUTO still has the configured LLM capability;
             # previously this branch silently discarded it and chose rules.
             entries.insert(0, (llm, 100))
-        registry = BackendRegistry(entries)
-        backend = registry.select(None)
+        # Build a recovery-capable stack once, but choose the best *working*
+        # backend on each call. Startup health alone can become stale later.
+        if rl is not None and llm is not None:
+            entries.append((llm, 300))
+        entries.sort(key=lambda pair: pair[1])
+        if not entries:
+            raise ValueError("AUTO has no configured intelligence backends")
+        backend = entries[0][0]
+        remaining = tuple(item[0] for item in entries[1:])
 
     fallback = (
         rules
@@ -122,5 +129,6 @@ def build_intelligence_policy(
         action_low=action_low,
         action_high=action_high,
         fallback_backend=fallback,
+        fallback_backends=(remaining if config.mode is IntelligenceMode.AUTO else None),
         context_builder=context_builder,
     )
