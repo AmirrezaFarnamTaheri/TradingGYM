@@ -134,6 +134,51 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(self.model.predict.call_count, 5)
 
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_unknown_adapter_status_does_not_publish_success(
+        self, mock_sleep, mock_writer
+    ):
+        self.live_adapter.reconcile.return_value = {"status": "broker_maybe"}
+        with self.assertRaisesRegex(RuntimeError, "unrecognized live execution"):
+            await trade_loop(
+                self.env,
+                self.model,
+                self.client,
+                self.cfg,
+                live_adapter=self.live_adapter,
+            )
+        self.assertEqual(self.live_adapter.reconcile.call_count, 1)
+        self.env.step.assert_not_called()
+        mock_writer.return_value.write.assert_not_called()
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_rejected_short_entry_is_not_reported_as_success(
+        self, mock_sleep, mock_writer
+    ):
+        self.live_adapter.reconcile.return_value = {
+            "status": "skipped",
+            "reason": "short_not_allowed",
+        }
+        # Each observation is genuinely a new closed candle; five failed
+        # attempts must exhaust the bounded error budget.
+        snapshots = [self.make_feature_snapshot() for _ in range(6)]
+        for index, snapshot in enumerate(snapshots):
+            snapshot.base_candle_timestamp += index
+        self._snapshot_patcher.side_effect = snapshots
+        mock_sleep.side_effect = [None] * 5 + [AssertionError("loop did not stop")]
+        await trade_loop(
+            self.env,
+            self.model,
+            self.client,
+            self.cfg,
+            live_adapter=self.live_adapter,
+        )
+        self.assertEqual(self.live_adapter.reconcile.call_count, 5)
+        self.env.step.assert_not_called()
+        mock_writer.return_value.write.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

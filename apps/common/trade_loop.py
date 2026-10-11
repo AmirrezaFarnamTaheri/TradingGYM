@@ -22,6 +22,10 @@ from apps.common.runtime_files import (
 logger = logging.getLogger(__name__)
 
 
+class UnrecognizedExecutionStatus(RuntimeError):
+    """The execution adapter returned a state with unknown financial meaning."""
+
+
 async def trade_loop(
     env: MarginTradingEnv,
     model: BaseAlgorithm,
@@ -56,29 +60,18 @@ async def trade_loop(
             unwrapped_env = cast(MarginTradingEnv, env.unwrapped)
 
             if live_adapter:
-                # 1. Get latest market data (rate-limited)
-                async def get_equity():
-                    return await asyncio.to_thread(live_adapter.get_live_equity)
-
-                async def get_pos():
-                    return await asyncio.to_thread(live_adapter._get_net_position)
-
-                # We assume 'client.get_ticker(symbol)' will be used to update price
-                async def get_price():
-                    tickers = await asyncio.to_thread(client.get_ticker, cfg.env.symbol)
-                    return float(tickers.mid_price)
-
-                async def get_features():
-                    return await asyncio.to_thread(
-                        build_live_feature_snapshot,
-                        client,
-                        cfg,
-                    )
-
-                real_equity = float(await get_equity())
-                real_pos_dec = Decimal(str(await get_pos()))
-                current_price_float = float(await get_price())
-                feature_snapshot = await get_features()
+                # Read market state sequentially; no redundant async wrappers.
+                real_equity = float(
+                    await asyncio.to_thread(live_adapter.get_live_equity)
+                )
+                real_pos_dec = Decimal(
+                    str(await asyncio.to_thread(live_adapter._get_net_position))
+                )
+                tickers = await asyncio.to_thread(client.get_ticker, cfg.env.symbol)
+                current_price_float = float(tickers.mid_price)
+                feature_snapshot = await asyncio.to_thread(
+                    build_live_feature_snapshot, client, cfg
+                )
                 if not math.isfinite(real_equity) or real_equity <= 0:
                     raise ValueError("live equity must be finite and positive")
                 if not real_pos_dec.is_finite():
@@ -165,14 +158,9 @@ async def trade_loop(
                         f"{target_position_units:.6f} -> {clipped_target_units:.6f}"
                     )
 
-                # Adapter.reconcile takes (target_position_units, current_price)
-                async def do_execute():
-                    # reconcile is async in adapter definition
-                    return await live_adapter.reconcile(
-                        clipped_target_units, current_mid
-                    )
-
-                execution_result = await do_execute()
+                execution_result = await live_adapter.reconcile(
+                    clipped_target_units, current_mid
+                )
                 if not isinstance(execution_result, dict):
                     raise RuntimeError("execution adapter returned an invalid result")
                 status = execution_result.get("status")
@@ -180,9 +168,14 @@ async def trade_loop(
                     raise RuntimeError(
                         f"live execution failed ({execution_result.get('error_type', 'unknown')})"
                     )
-                if status == "skipped" and execution_result.get("reason") == "locked":
-                    raise RuntimeError(
-                        "live reconciliation was skipped because the adapter was locked"
+                if status == "skipped":
+                    if execution_result.get("reason") != "dust":
+                        raise RuntimeError("live reconciliation skipped without fill")
+                elif status not in {"executed", "simulated"}:
+                    # No code should interpret an unknown venue result as
+                    # success or continue submitting on a later candle.
+                    raise UnrecognizedExecutionStatus(
+                        "unrecognized live execution outcome"
                     )
 
                 # A venue submission acknowledgement is NOT an observed fill;
@@ -209,7 +202,10 @@ async def trade_loop(
             logger.debug(f"Step completed. Done: {done}, Truncated: {truncated}")
             logger.debug(f"Info: {info}")
 
-            consecutive_errors = 0  # Reset error counter on success
+            # An idle poll of the same closed candle is not proof that the
+            # previous failed execution recovered. Keep its error budget.
+            if not live_adapter or is_new_closed_candle:
+                consecutive_errors = 0
 
             # --- IPC REPLACEMENT: Send metrics to the API server ---
             metrics = {
@@ -232,6 +228,11 @@ async def trade_loop(
                 logger.warning("Episode finished. Resetting environment.")
                 obs, _ = env.reset()
 
+        except UnrecognizedExecutionStatus:
+            logger.critical(
+                "Unrecognized live order outcome; halting for reconciliation"
+            )
+            raise
         except requests.RequestException as exc:
             logger.error("API request failed error_type=%s", type(exc).__name__)
             consecutive_errors += 1
