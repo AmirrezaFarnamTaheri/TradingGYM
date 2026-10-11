@@ -144,3 +144,35 @@ def test_order_id_cannot_be_reused_after_release_or_settlement(ledger):
 def test_ledger_rejects_duplicate_currency_after_case_normalization():
     with pytest.raises(ValueError, match="duplicate_normalized_currency"):
         ReservationLedger({"usdt": D("100"), "USDT": D("200")})
+
+def test_concurrent_reservations_cannot_overcommit_same_currency():
+    from concurrent.futures import ThreadPoolExecutor
+    from time import sleep
+
+    ledger = ReservationLedger({"USDT": D("100")})
+    read_balance = ledger.available_balance
+
+    def slow_read(currency):
+        amount = read_balance(currency)
+        sleep(0.03)
+        return amount
+
+    ledger.available_balance = slow_read
+
+    def reserve(index):
+        try:
+            ledger.reserve(
+                order_id=f"concurrent-{index}",
+                currency="USDT",
+                amount=D("70"),
+            )
+        except ReservationError:
+            return False
+        return True
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        results = list(workers.map(reserve, range(2)))
+    assert results.count(True) == 1
+    assert results.count(False) == 1
+    assert ledger.snapshot()["USDT"]["reserved"] == D("70")
+    assert ledger.snapshot()["USDT"]["available"] == D("30")
