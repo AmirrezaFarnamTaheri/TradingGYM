@@ -134,7 +134,10 @@ class DataProviderRouter:
             or not 1 <= max_inflight_requests <= 10_000
         ):
             raise ValueError("max_inflight_requests must be between 1 and 10000")
-        if not math.isfinite(inflight_wait_seconds) or not 0 < inflight_wait_seconds <= 120:
+        if (
+            not math.isfinite(inflight_wait_seconds)
+            or not 0 < inflight_wait_seconds <= 120
+        ):
             raise ValueError("inflight_wait_seconds must be finite and positive")
         if not 1 <= max_cache_entries <= 100_000:
             raise ValueError("max_cache_entries must be between 1 and 100000")
@@ -155,6 +158,7 @@ class DataProviderRouter:
         self._providers: dict[str, ProviderRegistration] = {}
         self._cache: OrderedDict[str, _CacheRecord] = OrderedDict()
         self._cache_bytes = 0
+        self._topology_revision = 0
         self._inflight: dict[str, _InflightRequest] = {}
         self._lock = threading.Lock()
 
@@ -189,10 +193,19 @@ class DataProviderRouter:
                     recovery_timeout=recovery_timeout,
                 ),
             )
+            # A newly registered healthy provider can improve coverage.
+            # Invalidate old selections; incomplete in-flight reads cannot
+            # repopulate the new revision's cache.
+            self._topology_revision += 1
+            self._cache.clear()
+            self._cache_bytes = 0
 
     @staticmethod
     def _cache_key(
-        request: MarketDataRequest, *, routing_mode: str = "balanced", target_completeness: float = 0.95
+        request: MarketDataRequest,
+        *,
+        routing_mode: str = "balanced",
+        target_completeness: float = 0.95,
     ) -> str:
         # The same bars may be insufficient for a stricter quality setting.
         # Never serve a fast-mode partial result as a quality-mode cache hit.
@@ -279,10 +292,12 @@ class DataProviderRouter:
             raise ValueError("routing_mode must be fast, balanced or quality")
         if not math.isfinite(target) or not 0 <= target <= 1:
             raise ValueError("target_completeness must be finite and between 0 and 1")
-        key = self._cache_key(
+        request_key = self._cache_key(
             request, routing_mode=mode, target_completeness=target
         )
         with self._lock:
+            revision = self._topology_revision
+            key = f"{revision}:{request_key}"
             cached = self._cache.get(key)
             if cached and cached.expires_at > time.monotonic():
                 self._cache.move_to_end(key)
@@ -305,7 +320,8 @@ class DataProviderRouter:
                 frame=cached_envelope.frame.copy(deep=True),
                 from_cache=True,
             )
-        assert pending is not None
+        if pending is None:
+            raise RuntimeError("market_data_request_claim_failed")
         if not owner:
             if not pending.event.wait(self.inflight_wait_seconds):
                 raise TimeoutError("market_data_shared_request_timeout")
@@ -317,7 +333,7 @@ class DataProviderRouter:
                 pending.envelope, frame=pending.envelope.frame.copy(deep=True)
             )
         try:
-            outcome = self._fetch_uncached(request, key, mode, target)
+            outcome = self._fetch_uncached(request, key, mode, target, revision)
             pending.envelope = outcome
             return replace(outcome, frame=outcome.frame.copy(deep=True))
         except Exception as exc:
@@ -329,7 +345,7 @@ class DataProviderRouter:
                 pending.event.set()
 
     def _store_cache(
-        self, key: str, envelope: MarketDataEnvelope, *, ttl: float
+        self, key: str, envelope: MarketDataEnvelope, *, ttl: float, revision: int
     ) -> None:
         """Bound resident frame memory independently of the number of entries."""
         if ttl <= 0 or self.max_cache_bytes == 0:
@@ -339,6 +355,8 @@ class DataProviderRouter:
             return
         snapshot = replace(envelope, frame=envelope.frame.copy(deep=True))
         with self._lock:
+            if revision != self._topology_revision:
+                return
             previous = self._cache.pop(key, None)
             if previous is not None:
                 self._cache_bytes -= previous.bytes_estimate
@@ -357,6 +375,7 @@ class DataProviderRouter:
         key: str,
         mode: Literal["fast", "balanced", "quality"],
         target: float,
+        revision: int,
     ) -> MarketDataEnvelope:
         with self._lock:
             providers = sorted(
@@ -435,6 +454,6 @@ class DataProviderRouter:
                 ttl = self.cache_ttl_seconds
                 if best.completeness < target:
                     ttl = min(ttl, 5.0)
-                self._store_cache(key, best, ttl=ttl)
+                self._store_cache(key, best, ttl=ttl, revision=revision)
             return best
         raise RuntimeError("all market-data providers failed: " + " | ".join(failures))
