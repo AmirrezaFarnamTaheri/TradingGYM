@@ -647,3 +647,59 @@ async def test_cancel_confirmation_failure_preserves_unknown_order_state(
     assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
         "status"
     ] == "ambiguous"
+
+
+@pytest.mark.asyncio
+async def test_dict_short_close_ack_requires_broker_position_disappearance(
+    adapter, mock_client
+):
+    mock_client.close_short_position.return_value = {"success": True}
+    mock_client.get_short_positions.return_value = [
+        {"id": "short-1", "symbol": "BTCUSDT", "amount": "0.5"}
+    ]
+    with pytest.raises(MutationOutcomeUnknown, match="short_close_not_verified"):
+        await adapter._mutate(
+            "short.close",
+            side="buy",
+            quantity=Decimal("0"),
+            reference_id="short-1",
+        )
+    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
+        "status"
+    ] == "ambiguous"
+
+
+@pytest.mark.asyncio
+async def test_full_short_close_uses_broker_readback_not_generic_ack(
+    adapter, mock_client
+):
+    mock_client.close_short_position.return_value = {"success": True}
+    mock_client.get_short_positions.return_value = []
+    result = await adapter._mutate(
+        "short.close",
+        side="buy",
+        quantity=Decimal("0"),
+        reference_id="short-1",
+    )
+    assert result == {"success": True}
+    mock_client.get_short_positions.assert_called_once()
+    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
+        "status"
+    ] == "committed"
+
+
+@pytest.mark.asyncio
+async def test_partial_short_close_ack_without_fill_proof_remains_unresolved(
+    adapter, mock_client
+):
+    mock_client.close_short_position.return_value = {"success": True}
+    with pytest.raises(MutationOutcomeUnknown, match="partial_short_close_unverified"):
+        await adapter._mutate(
+            "short.close",
+            side="buy",
+            quantity=Decimal("0.2"),
+            reference_id="short-1",
+        )
+    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
+        "status"
+    ] == "ambiguous"
