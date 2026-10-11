@@ -51,8 +51,12 @@ class ReservationLedger:
                 raise ValueError(
                     "opening balances must be finite non-negative Decimals"
                 )
+            if currency_u in self._opening:
+                raise ValueError("duplicate_normalized_currency")
             self._opening[currency_u] = amount
         self._reserved_by_order: dict[str, dict[str, Decimal]] = {}
+        # A released or settled order ID is never a new reservation identity.
+        self._used_order_ids: set[str] = set()
         self._committed: dict[str, Decimal] = {c: ZERO for c in self._opening}
         self._events: list[LedgerEvent] = []
         self._sequence = 0
@@ -95,8 +99,8 @@ class ReservationLedger:
         if not isinstance(amount, Decimal) or not amount.is_finite() or amount <= ZERO:
             raise ValueError("reservation amount must be a finite positive Decimal")
         currency_u = self._require_currency(currency)
-        if order_id in self._reserved_by_order:
-            raise ReservationError(f"order {order_id} already holds a reservation")
+        if order_id in self._used_order_ids:
+            raise ReservationError(f"order {order_id} already used for reservation")
         available = self.available_balance(currency_u)
         if amount > available:
             raise ReservationError(
@@ -104,6 +108,7 @@ class ReservationLedger:
                 f"available {available}"
             )
         self._reserved_by_order[order_id] = {currency_u: amount}
+        self._used_order_ids.add(order_id)
         self._append("reserve", order_id, currency_u, amount)
 
     def release(self, *, order_id: str) -> bool:
