@@ -31,7 +31,11 @@ from typing import Callable
 
 from filelock import FileLock
 
-from trading_gym.common.persistence import append_jsonl, resolve_data_home
+from trading_gym.common.persistence import (
+    MAX_JSONL_RECORD_BYTES,
+    append_jsonl,
+    resolve_data_home,
+)
 
 MAX_ATTEMPTS = 5
 DEFAULT_BASE_DELAY_S = 0.5
@@ -178,11 +182,21 @@ class MutationOutbox:
                 raise MutationOutboxIntegrityError("mutation outbox is a symlink")
             if not path.exists():
                 return latest
-            with path.open("r", encoding="utf-8") as handle:
-                for number, line in enumerate(handle, start=1):
+            with path.open("rb") as handle:
+                number = 0
+                while line := handle.readline(MAX_JSONL_RECORD_BYTES + 1):
+                    number += 1
+                    if len(line) > MAX_JSONL_RECORD_BYTES:
+                        raise MutationOutboxIntegrityError(
+                            f"mutation outbox record exceeds limit at line {number}"
+                        )
+                    if not line.endswith(b"\n"):
+                        raise MutationOutboxIntegrityError(
+                            f"unterminated mutation outbox record at line {number}"
+                        )
                     try:
                         entry = json.loads(line)
-                    except json.JSONDecodeError as exc:
+                    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
                         raise MutationOutboxIntegrityError(
                             f"malformed mutation outbox record at line {number}"
                         ) from exc
@@ -208,13 +222,26 @@ class MutationOutbox:
                         )
                     key = entry["idempotency_key"]
                     previous = latest.get(key)
-                    if previous is not None and any(
-                        previous[field] != entry[field]
-                        for field in ("proposal_id", "operation", "payload_sha256")
-                    ):
+                    if previous is None and entry["status"] != "pending":
                         raise MutationOutboxIntegrityError(
-                            f"idempotency-key collision at line {number}"
+                            f"outcome without preceding pending intent at line {number}"
                         )
+                    if previous is not None:
+                        if any(
+                            previous[field] != entry[field]
+                            for field in ("proposal_id", "operation", "payload_sha256")
+                        ):
+                            raise MutationOutboxIntegrityError(
+                                f"idempotency-key collision at line {number}"
+                            )
+                        if (
+                            entry["status"] == "pending"
+                            or previous["status"] == "terminal"
+                            or (previous["status"] == "committed" and entry["status"] != "ambiguous")
+                        ):
+                            raise MutationOutboxIntegrityError(
+                                f"invalid transition for mutation at line {number}"
+                            )
                     latest[key] = entry
         return latest
 
@@ -347,8 +374,8 @@ class StabilityAwareBackoff:
 
     def next_delay(self) -> float:
         delay = delay_for_attempt(self._policy, self._attempt, rng=self._rng)
-        # Incrementing an already capped backoff adds no useful delay;
-        # bound the exponent to avoid failure after prolonged outages.
+        # Once backoff reaches its cap, continuing to increment the exponent
+        # adds no delay but eventually produces enormous integers/overflow.
         self._attempt = min(self._attempt + 1, 64)
         return delay
 

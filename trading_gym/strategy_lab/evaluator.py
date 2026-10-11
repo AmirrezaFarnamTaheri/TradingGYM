@@ -34,6 +34,8 @@ def validate_market_frame(frame: pd.DataFrame) -> None:
         raise ValueError("high is below another OHLC value")
     if (frame["low"] > frame[["open", "close", "high"]].min(axis=1)).any():
         raise ValueError("low is above another OHLC value")
+    if (frame.loc[:, ("open", "high", "low", "close")] <= 0).any().any():
+        raise ValueError("market prices must be positive")
     if (frame["volume"] < 0).any():
         raise ValueError("volume must be non-negative")
 

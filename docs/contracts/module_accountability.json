@@ -58,7 +58,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/aban_transport.py",
-      "sha256": "94f2fdbc0e1e3352db0c7a5fb193b2c1dc15732765c72a96953a012a60e16be4"
+      "sha256": "32ed3abbe8fdeb68c8949b903b9c41e641783d131c700f30da626c50b6165691"
     },
     {
       "owner": "trading_gym",
@@ -298,7 +298,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/common/persistence.py",
-      "sha256": "b20fb7cdeb409cd86cdfd6f77919d03256a0dabcb0ab217f64b223e07599c7ce"
+      "sha256": "de0e690f393861e96d7918a8cc8bd100f4df57b1e38244ab590331dbe825b464"
     },
     {
       "owner": "trading_gym",
@@ -438,7 +438,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/live_execution_adapter.py",
-      "sha256": "0185e93e09cb2e683c3a7b1c7f4a5b1f81aacc82e886c2f0f4e5903c50606f8c"
+      "sha256": "fead31e2582a29cc248daf1845565d09b2420995ebf27809b18930a900de52ee"
     },
     {
       "owner": "trading_gym",
@@ -1193,7 +1193,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/playground/runner.py",
-      "sha256": "fbe092fe15dacd1552ca05ec617d53efb453b3c15d2ab6ae8a0910a7d162db03"
+      "sha256": "adaac19119e7bea284c60625281553d66b2363d42dcbf7fb1873204e43a9bd59"
     },
     {
       "owner": "trading_gym",
@@ -1233,7 +1233,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/mutation_retry.py",
-      "sha256": "c840916ca0f5274caaf6992700a04a954fad357d113ba4bfb2c4f1d26d223204"
+      "sha256": "9f38c0d0b004bbadb8e09a9228e50ffb89d9dbfe6ecc616faeaa79597e198323"
     },
     {
       "owner": "trading_gym",
@@ -1248,7 +1248,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/runtime.py",
-      "sha256": "5b8300066cbbcbc208b849034012d7f9132885444efb1c98e9f61ae04fc67e1b"
+      "sha256": "54cd1b87f938427620a601bda5590715adbb863632d42ec913879beae3c55b1e"
     },
     {
       "owner": "trading_gym",
@@ -1438,7 +1438,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/rl/margin_trading_environment.py",
-      "sha256": "299466ca372c2595d56227e716f402798c16a604b67aa5988a04fb91ecde4778"
+      "sha256": "dc82a95e4c14dc692ecc619bd25fc34098b869c938ac854a0b9ff5f21333945d"
     },
     {
       "owner": "trading_gym",
@@ -1483,7 +1483,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/evaluator.py",
-      "sha256": "1881397cc796d675f943c6fe0f938cdcbedab5ea070515b59632a1ece2b3ddd1"
+      "sha256": "78b815e6a0ca848a0bf206d37b7a9cdd8c33e5d54a8b8274e900244e632ceaed"
     },
     {
       "owner": "trading_gym",
@@ -1548,7 +1548,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/treasury/reservations.py",
-      "sha256": "15a8e1bd4c3bcfaf231c61e43dac99fbaa3076f1dea2126125398aeeb8daed12"
+      "sha256": "baa37772aedde7b0d19c0a5badc1311f07885129c912a6994d20c67595588426"
     },
     {
       "owner": "trading_gym",

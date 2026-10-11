@@ -523,3 +523,53 @@ def test_committed_venue_operation_with_failed_local_commit_is_ambiguous():
         )
     assert attempts == ["sent"]
     assert len(ambiguous) == 1 and not terminal
+
+
+def test_outbox_rejects_terminal_record_without_durable_intent(tmp_path):
+    outbox = MutationOutbox(path=tmp_path / "outbox.jsonl")
+    outbox.record_outcome(
+        idempotency_key="missing-intent",
+        proposal_id="p1",
+        operation="spot.market",
+        payload_sha256="hash",
+        outcome="committed",
+    )
+    with pytest.raises(MutationOutboxIntegrityError, match="preceding pending"):
+        scan_outbox(outbox)
+
+
+def test_outbox_rejects_resurrection_of_resolved_intent(tmp_path):
+    outbox = MutationOutbox(path=tmp_path / "outbox.jsonl")
+    kwargs = dict(
+        idempotency_key="same-key",
+        proposal_id="p1",
+        operation="spot.market",
+        payload_sha256="hash",
+    )
+    outbox.record_pending(**kwargs)
+    outbox.record_outcome(**kwargs, outcome="terminal")
+    outbox.record_pending(**kwargs)
+    with pytest.raises(MutationOutboxIntegrityError, match="invalid transition"):
+        scan_outbox(outbox)
+
+
+def test_outbox_rejects_unterminated_or_oversize_journal_lines(tmp_path):
+    path = tmp_path / "outbox.jsonl"
+    entry = dict(
+        schema_version=1,
+        status="pending",
+        idempotency_key="test",
+        proposal_id="p1",
+        operation="spot.market",
+        payload_sha256="hash",
+        recorded_at="2026-01-01T00:00:00+00:00",
+    )
+    path.write_text(json.dumps(entry), encoding="utf-8")
+    with pytest.raises(MutationOutboxIntegrityError, match="unterminated"):
+        scan_outbox(MutationOutbox(path=path))
+
+    from trading_gym.common.persistence import MAX_JSONL_RECORD_BYTES
+
+    path.write_bytes(b"x" * (MAX_JSONL_RECORD_BYTES + 10) + b"\n")
+    with pytest.raises(MutationOutboxIntegrityError, match="exceeds"):
+        scan_outbox(MutationOutbox(path=path))

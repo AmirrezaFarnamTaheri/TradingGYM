@@ -278,3 +278,47 @@ class TestResultType:
         for trade in result.trades:
             assert {"entry_ts", "exit_ts", "pnl_quote", "cost_quote"} <= set(trade)
             assert trade["pnl_quote"] is not None
+
+
+class TestPlaygroundInputIntegrity:
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("initial_capital", float("nan")),
+            ("initial_capital", float("inf")),
+            ("fee_bps", float("nan")),
+            ("fee_bps", float("inf")),
+            ("fee_bps", 10000.0),
+            ("position_fraction", float("nan")),
+            ("position_fraction", float("inf")),
+        ],
+    )
+    def test_nonfinite_or_impossible_costs_rejected_at_admission(self, field, value):
+        with pytest.raises(ValueError):
+            make_spec(**{field: value})
+
+    @pytest.mark.parametrize("spread", [float("nan"), float("inf"), -0.01, 20000.0])
+    def test_nonfinite_negative_or_unaffordable_spreads_rejected(self, spread):
+        frame = make_frame()
+        frame.loc[frame.index[70], "spread_bps"] = spread
+        with pytest.raises(ValueError):
+            make_spec(window=frame)
+
+    def test_combined_fee_and_spread_cannot_produce_negative_units(self):
+        with pytest.raises(ValueError):
+            make_spec(fee_bps=9999.0, window=make_frame(spread_bps=4.0))
+
+    @pytest.mark.parametrize("price", [0.0, -5.0])
+    def test_zero_or_negative_market_prices_rejected(self, price):
+        frame = make_frame()
+        frame.loc[frame.index[15], ["open", "high", "low", "close"]] = price
+        with pytest.raises(ValueError):
+            make_spec(window=frame)
+
+    def test_duplicate_or_reversed_timestamp_rejected(self):
+        frame = make_frame()
+        for index in (frame.index.insert(1, frame.index[0])[:-1], frame.index[::-1]):
+            candidate = frame.copy()
+            candidate.index = index
+            with pytest.raises(ValueError):
+                make_spec(window=candidate)

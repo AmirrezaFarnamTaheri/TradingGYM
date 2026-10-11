@@ -214,7 +214,9 @@ The panic endpoint remains available even if audit delivery is degraded: it comm
 
 ## Testing
 
-Current full-suite state (Python 3.12, dependency-complete venv): **1668 passed, 3 skipped, 0 failures** (includes AXIOM-1 authz/arms/fusion/planner/playground/attribution/autonomy/revision/memory/tool-revision/forge/forge-API/kernel-parity/docs-truth/OpenAPI-currency suites; paper venue behind the adapter seam; the Rust kernel parity block runs when a compiled artifact is present). Frontend: Vitest **39/39** plus a green production Vite build.
+Implementation map: authorization scopes and grants live in `trading_gym/authz/`; advisory agent arms live in `trading_gym/agent/arms/`; decision fusion and planning live in `trading_gym/agent/fusion.py` and `trading_gym/agent/planner.py`; deterministic strategy exercises live in `trading_gym/playground/`.
+
+Validation results belong to the exact source revision and environment where they ran. Use [GitHub Actions](https://github.com/AmirrezaFarnamTaheri/TradingGYM/actions) for the latest Python 3.11/3.12 (Windows/Linux), frontend and compiled Rust-kernel checks. The commands below reproduce the local subsets. Skipped, environment-blocked and provider-dependent checks must be reported separately; do not infer live-trading readiness from a green suite.
 
 Core hardened matrix used for this release:
 
