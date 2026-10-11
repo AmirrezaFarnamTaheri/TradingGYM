@@ -254,19 +254,31 @@ class LiveExecutionAdapter:
             )
             result = receipt.get("result") if isinstance(receipt, dict) else None
             status = getattr(result, "status", None)
-            if status is not None:
+            if operation == "order.cancel":
+                # The cancellation SDK normally returns a plain dictionary.
+                # A successful HTTP response is not evidence that the order
+                # stopped matching; verify its terminal venue state.
+                if status != OrderStatus.CANCELED:
+                    try:
+                        details = self.api.get_order_details(reference_id)
+                    except Exception as exc:
+                        raise MutationOutcomeUnknown(
+                            "cancel_confirmation_unavailable"
+                        ) from exc
+                    if getattr(details, "status", None) != OrderStatus.CANCELED:
+                        raise MutationOutcomeUnknown("cancel_not_verified")
+            elif status is not None:
                 if status in {
                     OrderStatus.REJECTED,
                     OrderStatus.FAILED,
                     OrderStatus.CANCELED,
                 }:
-                    if operation != "order.cancel" or status != OrderStatus.CANCELED:
-                        raise ValueError("venue_order_rejected")
-                elif status != OrderStatus.FILLED:
+                    raise ValueError("venue_order_rejected")
+                if status != OrderStatus.FILLED:
                     # An acknowledged, possibly partially filled order must
                     # retain its reservation until authoritative reconciliation.
                     raise MutationOutcomeUnknown("venue_order_awaiting_fill")
-            elif did_reserve:
+            else:
                 # A non-typed response cannot prove settlement. Fail closed.
                 raise MutationOutcomeUnknown("venue_fill_status_unavailable")
             return receipt
