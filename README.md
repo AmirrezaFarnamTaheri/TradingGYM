@@ -20,7 +20,7 @@ Trading Gym is a governed reinforcement-learning trading platform that combines:
 - surveillance, privacy minimisation, counterparty exposure, liquidity-to-exit analysis, failover readiness, and bounded change-control evidence;
 - forensic chain-of-custody, control-effectiveness review, dependency blast-radius analysis, and rehearsed rollback-aware runbook assurance;
 - twenty bounded institutional intelligence planes spanning semantic mining, regimes, alpha, signal graphs, portfolio construction/twins, microstructure/routing/quality, agent workforce/memory, model lifecycle/explainability/causal research, data/feature integrity, enterprise risk, policy/compliance, distributed assurance, product collaboration, and scientific reproduction;
-- replay-safe automatic mutation retry: stable idempotency keys per logical mutation, bounded backoff with jitter, transient-vs-unknown-outcome classification, coordinator ambiguity holds with fail-closed escalation, and a durable outbox journal (see ADR-022);
+- conservative mutation delivery: stable idempotency keys within one logical attempt, bounded retries of proven pre-send failures, unknown-outcome escalation without replay, and a durable shared-path intent journal (see ADR-022);
 - statistical evidence battery: Probabilistic/Deflated Sharpe Ratio, Minimum Track Record Length, CSCV/PBO overfitting detection, BCa and moving-block bootstrap confidence intervals;
 - broker-faithful simulation depth: per-symbol contract-size/margin-rate multipliers, margin-level telemetry, a lot-level position ledger feeding a graded stop-out cascade (close-worst-lot-first with minimal restoring fractions), L2 depth-walk fills in the execution engine, volume-participation caps, calibrated discrete slippage distributions, an ideal-fill upper-bound oracle, balance reservations enforced across live mutations, a long/short collateral ledger with proportional margin release (posted collateral equity-faithful), and P&L decomposition with an honest residual bucket;
 - operational hardening: latching kill switch with stale-data detection, asymmetric re-entry cooldowns, timeframe-floored ATR stops with tiered ratchet take-profits, GO/NO-GO validation orchestrator, sealed experiment specs, fill reconciliation tolerances, Retry-After-aware token buckets, cross-broker order-status normalisation, lookahead-keyed feature caches, auditable pre-trade gate payloads, experience memory, capability-degradation ladders, deterministic position-limit risk gates feeding advisory LLM payloads, and no-trade trial pruning in HPO sweeps;
@@ -54,15 +54,16 @@ Broker and provider secrets are not stored in general state. Child processes rec
 
 The service is intentionally **single-tenant per process and `TRADING_GYM_HOME`**. Set `TRADING_GYM_DEPLOYMENT_MODE=single_tenant` and a stable `TRADING_GYM_TENANT_ID`. `TRADING_GYM_MULTI_TENANT=true`, any alternate deployment mode, or a mismatched `X-Tenant-ID` fails closed. Multi-tenant isolation is not claimed.
 
-## Automatic mutation retry
+## Governed mutation delivery and recovery
 
-Live venue mutations are retried automatically under ADR-022 rules:
+Live order submission follows ADR-022's conservative delivery rules:
 
-- one stable idempotency key per logical mutation; every attempt reuses it;
-- only provably pre-send network errors and explicit unknown-outcome errors are retried (bounded attempts, exponential backoff with jitter);
-- the coordinator latches an ambiguous key and refuses resubmission unless the venue adapter declares `supports_idempotent_replay`; clearing requires `mark_reconciled`;
-- every attempt is journalled to `TRADING_GYM_HOME/production/mutation_outbox.jsonl`; `scan_outbox()` lists intents awaiting reconciliation;
-- inherently idempotent operations (`order.cancel`) never taint their key.
+- One idempotency key identifies one logical mutation. Process-local receipt caching is not venue-side replay protection.
+- Only failures proven to occur *before* a network submission may be automatically retried, with a bounded attempt count and backoff. Aban does not advertise verified server-side order deduplication, so unknown post-send outcomes **must not be replayed**.
+- The durable journal records a pending intent before the first attempt and a subsequent outcome. An unresolved pending/ambiguous entry blocks fresh spending operations, including after restart, until independently reconciled.
+- Multiple processes can coordinate journal claims only when they share the same trusted `TRADING_GYM_HOME/production/mutation_outbox.jsonl` path. This is **not** a cross-machine capital-reservation or settlement system.
+- Reconciled ambiguous keys are tombstoned within the live coordinator; do not reuse them. Cancellation is permitted through the outbox when other intents are unresolved, but the venue must independently confirm the cancelled order.
+- The local treasury ledger uses estimated reservation amounts, not an authoritative broker fill/fee settlement oracle. Do not enable funded trading until an account-owner and broker-reconciliation contract is independently qualified.
 
 See `docs/architecture/ADR-022-replay-safe-automatic-mutation-retry.md` for the full decision record.
 
