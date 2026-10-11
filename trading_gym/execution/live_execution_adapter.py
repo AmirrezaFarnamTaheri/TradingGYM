@@ -396,6 +396,11 @@ class LiveExecutionAdapter:
                 side = "buy" if delta > 0 else "sell"
                 qty = abs(delta)
 
+                # A forbidden short leg must be rejected before selling any
+                # existing spot holdings during a long-to-short reversal.
+                if delta < 0 and target_dec < 0 and not is_shortable(self.symbol):
+                    return {"status": "skipped", "reason": "short_not_allowed"}
+
                 logger.info(
                     f"LIVE EXECUTION: {side.upper()} {qty} {self.symbol} @ {current_price}"
                 )
@@ -470,7 +475,7 @@ class LiveExecutionAdapter:
                             if remaining_to_cover > Decimal("0"):
                                 raise RuntimeError("short_coverage_incomplete")
 
-                        if remaining_buy > self.min_qty:
+                        if remaining_buy >= self.min_qty:
                             # Buy remaining on spot
                             resp = await self._mutate(
                                 "spot.market",
@@ -500,7 +505,7 @@ class LiveExecutionAdapter:
                         qty_to_sell = min(qty, current_pos)
                         remaining_short = qty - qty_to_sell
 
-                        if qty_to_sell > self.min_qty:
+                        if qty_to_sell >= self.min_qty:
                             resp = await self._mutate(
                                 "spot.market",
                                 side="sell",
@@ -510,29 +515,17 @@ class LiveExecutionAdapter:
                             )
                             order_id = resp.id
 
-                        if remaining_short > self.min_qty:
-                            # Enter Short
-                            if not is_shortable(self.symbol):
-                                logger.warning(
-                                    f"Short selling not allowed for {self.symbol}. Skipping short leg."
-                                )
-                            else:
-                                resp = await self._mutate(
-                                    "short.open",
-                                    side="sell",
-                                    quantity=remaining_short,
-                                    reserve_currency=self.base_asset,
-                                    reserve_amount=remaining_short,
-                                )
-                                order_id = resp.id
-                    else:
-                        # Pure Short Sell
-                        if not is_shortable(self.symbol):
-                            logger.warning(
-                                f"Short selling not allowed for {self.symbol}. Skipping."
+                        if remaining_short >= self.min_qty:
+                            resp = await self._mutate(
+                                "short.open",
+                                side="sell",
+                                quantity=remaining_short,
+                                reserve_currency=self.base_asset,
+                                reserve_amount=remaining_short,
                             )
-                            return {"status": "skipped", "reason": "short_not_allowed"}
-
+                            order_id = resp.id
+                    else:
+                        # Pure Short Sell (eligibility checked before mutation)
                         resp = await self._mutate(
                             "short.open",
                             side="sell",
@@ -542,6 +535,8 @@ class LiveExecutionAdapter:
                         )
                         order_id = resp.id
 
+                if order_id is None:
+                    return {"status": "skipped", "reason": "no_executable_leg"}
                 return {
                     "status": "executed",
                     "order_id": order_id,
