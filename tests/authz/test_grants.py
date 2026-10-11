@@ -80,9 +80,13 @@ class TestLedgerEvaluation:
         other = make_request(principal="agent-other", scopes=("research.**",))
         ledger.issue(other)
 
-        allowed = ledger.check("agent-axiom1", "trade.paper.order.submit", now=TEST_DECISION_TIME)
+        allowed = ledger.check(
+            "agent-axiom1", "trade.paper.order.submit", now=TEST_DECISION_TIME
+        )
         assert allowed.allowed
-        denied = ledger.check("agent-other", "trade.paper.order.submit", now=TEST_DECISION_TIME)
+        denied = ledger.check(
+            "agent-other", "trade.paper.order.submit", now=TEST_DECISION_TIME
+        )
         assert not denied.allowed
         assert denied.reason == "no_matching_scope"
 
@@ -94,7 +98,9 @@ class TestLedgerEvaluation:
     def test_require_returns_grant_or_raises(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         grant = ledger.issue(make_request(scopes=("trade.paper.**",)))
-        found = ledger.require("agent-axiom1", "trade.paper.order", now=TEST_DECISION_TIME)
+        found = ledger.require(
+            "agent-axiom1", "trade.paper.order", now=TEST_DECISION_TIME
+        )
         assert found.grant_id == grant.grant_id
         with pytest.raises(ScopeDenied):
             ledger.require("agent-axiom1", "trade.live.order", now=TEST_DECISION_TIME)
@@ -156,13 +162,13 @@ class TestEvaluation:
         decision = grant.evaluate(
             "trade.paper.order.submit",
             now=TEST_DECISION_TIME,
-            constraints={"max_notional_quote": 499}
+            constraints={"max_notional_quote": 499},
         )
         assert decision.allowed
         denied = grant.evaluate(
             "trade.paper.order.submit",
             now=TEST_DECISION_TIME,
-            constraints={"max_notional_quote": 501}
+            constraints={"max_notional_quote": 501},
         )
         assert not denied.allowed
         assert denied.reason == "constraint_max_notional_quote"

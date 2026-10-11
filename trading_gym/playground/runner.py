@@ -84,7 +84,9 @@ class PlaygroundRunSpec:
             or not index.is_unique
             or not index.is_monotonic_increasing
         ):
-            raise ValueError("playground bars need strictly increasing UTC-aware timestamps")
+            raise ValueError(
+                "playground bars need strictly increasing UTC-aware timestamps"
+            )
         if not isinstance(self.strategy, StrategySpec):
             raise ValueError("strategy must be a StrategySpec")
         if not math.isfinite(self.initial_capital) or self.initial_capital <= 0:
@@ -92,7 +94,10 @@ class PlaygroundRunSpec:
         # Costs >= 100% of purchase notional create zero/negative inventory.
         if not math.isfinite(self.fee_bps) or not 0 <= self.fee_bps < 10_000:
             raise ValueError("fee_bps must be finite and below 10000")
-        if not math.isfinite(self.position_fraction) or not 0.0 < self.position_fraction <= 1.0:
+        if (
+            not math.isfinite(self.position_fraction)
+            or not 0.0 < self.position_fraction <= 1.0
+        ):
             raise ValueError("position_fraction must be finite and within (0, 1]")
         if "spread_bps" in self.window:
             spread = self.window["spread_bps"].to_numpy(dtype=np.float64)
@@ -101,7 +106,9 @@ class PlaygroundRunSpec:
                 or (spread < 0).any()
                 or self.fee_bps + spread.max() / 2 >= 10_000
             ):
-                raise ValueError("spread_bps must be finite, non-negative and affordable")
+                raise ValueError(
+                    "spread_bps must be finite, non-negative and affordable"
+                )
 
     def manifest(self) -> dict[str, Any]:
         return {

@@ -58,7 +58,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/aban_transport.py",
-      "sha256": "32ed3abbe8fdeb68c8949b903b9c41e641783d131c700f30da626c50b6165691"
+      "sha256": "20f4df8695922ef08460dc5fb8663e3edcffd25cfaae89226f7f9f90c12437be"
     },
     {
       "owner": "trading_gym",
@@ -438,7 +438,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/live_execution_adapter.py",
-      "sha256": "fead31e2582a29cc248daf1845565d09b2420995ebf27809b18930a900de52ee"
+      "sha256": "8e1de668a893cd8a02fe56183f432167278a1c42943d83dd8ab1b5dec7e29545"
     },
     {
       "owner": "trading_gym",
@@ -1193,7 +1193,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/playground/runner.py",
-      "sha256": "adaac19119e7bea284c60625281553d66b2363d42dcbf7fb1873204e43a9bd59"
+      "sha256": "ad95f7d0cf175fa688bc3b74901adda381d38698ec37a297a0d9d4c1698307af"
     },
     {
       "owner": "trading_gym",
@@ -1233,7 +1233,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/mutation_retry.py",
-      "sha256": "9f38c0d0b004bbadb8e09a9228e50ffb89d9dbfe6ecc616faeaa79597e198323"
+      "sha256": "c36cf085c16868b154972cbe1cfc828312ed4e38f6e0ce3048f7390e62518105"
     },
     {
       "owner": "trading_gym",
@@ -1438,7 +1438,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/rl/margin_trading_environment.py",
-      "sha256": "dc82a95e4c14dc692ecc619bd25fc34098b869c938ac854a0b9ff5f21333945d"
+      "sha256": "43051268d06570428c02e8910e3bf59159267fb52550f7d04e54cf7609eb8d80"
     },
     {
       "owner": "trading_gym",
@@ -1548,7 +1548,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/treasury/reservations.py",
-      "sha256": "baa37772aedde7b0d19c0a5badc1311f07885129c912a6994d20c67595588426"
+      "sha256": "a17f9631996bd57bda1691cc2f2fc6d05e91a0a4c0ceeac094d80cd921d6903b"
     },
     {
       "owner": "trading_gym",

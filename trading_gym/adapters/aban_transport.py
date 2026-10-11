@@ -65,11 +65,19 @@ class AbanTransport:
 
     @staticmethod
     def _validate_local_intent(intent: VenueOrderIntent) -> None:
-        if intent.operation not in {"spot.market", "short.open", "short.close", "order.cancel"}:
+        if intent.operation not in {
+            "spot.market",
+            "short.open",
+            "short.close",
+            "order.cancel",
+        }:
             raise ValueError(f"unsupported Aban operation: {intent.operation}")
         if intent.operation == "spot.market":
             OrderSide(intent.side)
-        if intent.operation in {"short.close", "order.cancel"} and not intent.reference_id:
+        if (
+            intent.operation in {"short.close", "order.cancel"}
+            and not intent.reference_id
+        ):
             raise ValueError(f"{intent.operation} requires reference_id")
 
     def _dispatch(self, intent: VenueOrderIntent):

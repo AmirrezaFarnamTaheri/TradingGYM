@@ -104,10 +104,16 @@ async def test_reconcile_close_short_and_flip(adapter, mock_client):
 
     # Mock responses: the short close must have its own confirmed fill.
     mock_client.close_short_position.return_value = OrderResponse(
-        id="short_close", code="200", base_symbol="BTC", quote_symbol="USDT",
-        side=OrderSide.BUY, type="market", status=OrderStatus.FILLED,
+        id="short_close",
+        code="200",
+        base_symbol="BTC",
+        quote_symbol="USDT",
+        side=OrderSide.BUY,
+        type="market",
+        status=OrderStatus.FILLED,
         volume={"USDT": Decimal("25000")},
-        filled_volume={"BTC": Decimal("0.5")}, created_at="now",
+        filled_volume={"BTC": Decimal("0.5")},
+        created_at="now",
     )
     mock_client.place_market_order.return_value = OrderResponse(
         id="order_spot",
@@ -165,15 +171,27 @@ async def test_flatten(adapter, mock_client):
     adapter._get_net_position = MagicMock(return_value=Decimal("1.5"))
     mock_client.get_orders.return_value = {"data": [{"id": "open1"}]}
     mock_client.cancel_order.return_value = OrderResponse(
-        id="open1", code="200", base_symbol="BTC", quote_symbol="USDT",
-        side=OrderSide.SELL, type="market", status=OrderStatus.CANCELED,
-        volume={"BTC": Decimal("0")}, filled_volume={"BTC": Decimal("0")},
+        id="open1",
+        code="200",
+        base_symbol="BTC",
+        quote_symbol="USDT",
+        side=OrderSide.SELL,
+        type="market",
+        status=OrderStatus.CANCELED,
+        volume={"BTC": Decimal("0")},
+        filled_volume={"BTC": Decimal("0")},
         created_at="now",
     )
     mock_client.place_market_order.return_value = OrderResponse(
-        id="close_spot", code="200", base_symbol="BTC", quote_symbol="USDT",
-        side=OrderSide.SELL, type="market", status=OrderStatus.FILLED,
-        volume={"BTC": Decimal("1.5")}, filled_volume={"BTC": Decimal("1.5")},
+        id="close_spot",
+        code="200",
+        base_symbol="BTC",
+        quote_symbol="USDT",
+        side=OrderSide.SELL,
+        type="market",
+        status=OrderStatus.FILLED,
+        volume={"BTC": Decimal("1.5")},
+        filled_volume={"BTC": Decimal("1.5")},
         created_at="now",
     )
 

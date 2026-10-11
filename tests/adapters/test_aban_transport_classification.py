@@ -3,7 +3,10 @@
 from decimal import Decimal
 
 import pytest
-from requests.exceptions import ConnectTimeout, ConnectionError as RequestsConnectionError
+from requests.exceptions import (
+    ConnectTimeout,
+    ConnectionError as RequestsConnectionError,
+)
 
 from trading_gym.adapters.aban_transport import (
     AbanTransport,
@@ -85,9 +88,13 @@ def test_invalid_local_side_is_terminal_before_network():
     with pytest.raises(ValueError):
         transport.submit_order(
             VenueOrderIntent(
-                venue="abantether", operation="spot.market",
-                base_symbol="BTC", quote_symbol="USDT", side="invalid",
-                quantity=Decimal("1"), idempotency_key="local-error",
+                venue="abantether",
+                operation="spot.market",
+                base_symbol="BTC",
+                quote_symbol="USDT",
+                side="invalid",
+                quantity=Decimal("1"),
+                idempotency_key="local-error",
             )
         )
 

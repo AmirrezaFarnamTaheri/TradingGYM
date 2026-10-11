@@ -155,9 +155,7 @@ class LiveExecutionAdapter:
         if not qty.is_finite() or qty <= 0 or not price.is_finite() or price <= 0:
             raise ValueError("invalid_quote_reservation_inputs")
         rate = Decimal("1") + self._taker_fee_rate()
-        return (qty * price * rate).quantize(
-            Decimal("1e-8"), rounding=ROUND_UP
-        )
+        return (qty * price * rate).quantize(Decimal("1e-8"), rounding=ROUND_UP)
 
     async def _call_api(self, func, *args, **kwargs):
         """Run read-only SDK calls in a thread to avoid blocking the event loop."""
@@ -256,7 +254,11 @@ class LiveExecutionAdapter:
             result = receipt.get("result") if isinstance(receipt, dict) else None
             status = getattr(result, "status", None)
             if status is not None:
-                if status in {OrderStatus.REJECTED, OrderStatus.FAILED, OrderStatus.CANCELED}:
+                if status in {
+                    OrderStatus.REJECTED,
+                    OrderStatus.FAILED,
+                    OrderStatus.CANCELED,
+                }:
                     if operation != "order.cancel" or status != OrderStatus.CANCELED:
                         raise ValueError("venue_order_rejected")
                 elif status != OrderStatus.FILLED:

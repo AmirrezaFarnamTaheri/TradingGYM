@@ -356,7 +356,10 @@ class MarginTradingEnv(gym.Env):
             self.price_history.append(current_mid)
             self.position_history.append(float(self._state.position))
             return (
-                self._obs(), reward, terminated, truncated,
+                self._obs(),
+                reward,
+                terminated,
+                truncated,
                 info.to_dict() | {"skipped": True},
             )
 

@@ -117,6 +117,8 @@ def test_nonfinite_money_never_enters_reservation_ledger(amount):
         ledger.reserve(order_id="bad", currency="USDT", amount=amount)
     ledger.reserve(order_id="valid", currency="USDT", amount=D("10"))
     with pytest.raises(ValueError, match="finite positive"):
-        ledger.commit_settlement(order_id="valid", currency="USDT", settled_amount=amount)
+        ledger.commit_settlement(
+            order_id="valid", currency="USDT", settled_amount=amount
+        )
     assert ledger.available_balance("USDT") == D("90")
     assert ledger.reserved_for_order("valid")["USDT"] == D("10")

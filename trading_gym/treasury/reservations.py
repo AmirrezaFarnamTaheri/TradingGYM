@@ -43,8 +43,14 @@ class ReservationLedger:
             currency_u = currency.upper()
             if not currency_u or len(currency_u) > 20:
                 raise ValueError("currency codes must be 1-20 characters")
-            if not isinstance(amount, Decimal) or not amount.is_finite() or amount < ZERO:
-                raise ValueError("opening balances must be finite non-negative Decimals")
+            if (
+                not isinstance(amount, Decimal)
+                or not amount.is_finite()
+                or amount < ZERO
+            ):
+                raise ValueError(
+                    "opening balances must be finite non-negative Decimals"
+                )
             self._opening[currency_u] = amount
         self._reserved_by_order: dict[str, dict[str, Decimal]] = {}
         self._committed: dict[str, Decimal] = {c: ZERO for c in self._opening}

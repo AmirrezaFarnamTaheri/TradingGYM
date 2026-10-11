@@ -138,7 +138,9 @@ async def test_insufficient_balance_aborts_before_venue(config, client):
 
 
 @pytest.mark.asyncio
-async def test_sdk_response_validation_error_is_ambiguous_and_keeps_reservation(config, client):
+async def test_sdk_response_validation_error_is_ambiguous_and_keeps_reservation(
+    config, client
+):
     adapter = _adapter(config, client)
     adapter._get_net_position = MagicMock(return_value=D("0.0"))
     client.place_market_order.side_effect = ValueError("bad payload")
@@ -153,7 +155,9 @@ async def test_sdk_response_validation_error_is_ambiguous_and_keeps_reservation(
     assert snap["available"] == D("49950")
 
 
-@pytest.mark.parametrize("status", [OrderStatus.NEW, OrderStatus.PROCESSING, OrderStatus.OPEN])
+@pytest.mark.parametrize(
+    "status", [OrderStatus.NEW, OrderStatus.PROCESSING, OrderStatus.OPEN]
+)
 @pytest.mark.asyncio
 async def test_acknowledged_but_unfilled_order_keeps_reservation_and_blocks_next_order(
     config, client, status
@@ -166,8 +170,13 @@ async def test_acknowledged_but_unfilled_order_keeps_reservation_and_blocks_next
     result = await adapter.reconcile(1.0, 50000.0)
     assert result["status"] == "failed"
     assert result["error_type"] == "MutationOutcomeUnknown"
-    assert adapter._ensure_reservation_ledger().snapshot()["USDT"]["reserved"] == D("50050")
-    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"] == "ambiguous"
+    assert adapter._ensure_reservation_ledger().snapshot()["USDT"]["reserved"] == D(
+        "50050"
+    )
+    assert (
+        next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"]
+        == "ambiguous"
+    )
     client.place_market_order.reset_mock()
     again = await adapter.reconcile(1.0, 50000.0)
     assert again["status"] == "failed"
@@ -184,7 +193,10 @@ async def test_explicit_rejection_releases_reservation(config, client):
     result = await adapter.reconcile(1.0, 50000.0)
     assert result["status"] == "failed"
     assert adapter._ensure_reservation_ledger().snapshot()["USDT"]["reserved"] == D("0")
-    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"] == "terminal"
+    assert (
+        next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"]
+        == "terminal"
+    )
 
 
 @pytest.mark.asyncio
@@ -208,7 +220,9 @@ async def test_ambiguous_outcome_holds_reservation(config, client):
 
 
 @pytest.mark.asyncio
-async def test_ambiguous_outcome_with_default_retry_budget_never_releases(config, client):
+async def test_ambiguous_outcome_with_default_retry_budget_never_releases(
+    config, client
+):
     adapter = _adapter(config, client, max_attempts=3)
     adapter._get_net_position = MagicMock(return_value=D("0"))
     client.place_market_order.side_effect = TimeoutError("read timeout after submit")
@@ -226,11 +240,15 @@ async def test_ambiguous_outcome_with_default_retry_budget_never_releases(config
 
 
 @pytest.mark.asyncio
-async def test_prior_unresolved_order_blocks_new_trading_after_restart(config, client, tmp_path):
+async def test_prior_unresolved_order_blocks_new_trading_after_restart(
+    config, client, tmp_path
+):
     outbox = MutationOutbox(path=tmp_path / "resume-outbox.jsonl")
     outbox.record_pending(
-        idempotency_key="earlier-order", proposal_id="previous-proposal",
-        operation="spot.market", payload_sha256="previous-hash",
+        idempotency_key="earlier-order",
+        proposal_id="previous-proposal",
+        operation="spot.market",
+        payload_sha256="previous-hash",
     )
     adapter = _adapter(config, client, extra={"mutation_outbox": outbox})
     adapter._get_net_position = MagicMock(return_value=D("0"))
@@ -240,11 +258,15 @@ async def test_prior_unresolved_order_blocks_new_trading_after_restart(config, c
     assert result["error_type"] == "PermissionError"
     client.place_market_order.assert_not_called()
     # Pending-intent evidence remains available for external reconciliation.
-    assert [e["idempotency_key"] for e in outbox.latest_by_key().values()] == ["earlier-order"]
+    assert [e["idempotency_key"] for e in outbox.latest_by_key().values()] == [
+        "earlier-order"
+    ]
 
 
 @pytest.mark.asyncio
-async def test_pending_outbox_write_failure_releases_without_submitting(config, client, tmp_path):
+async def test_pending_outbox_write_failure_releases_without_submitting(
+    config, client, tmp_path
+):
     outbox = MutationOutbox(path=tmp_path / "nonexistent" / "outbox.jsonl")
     adapter = _adapter(config, client, extra={"mutation_outbox": outbox})
     adapter._get_net_position = MagicMock(return_value=D("0"))
@@ -304,6 +326,7 @@ def test_broker_blocked_funds_are_not_available_for_new_order(config, client):
     ledger = adapter._ensure_reservation_ledger()
     assert ledger.available_balance("USDT") == D("100")
     from trading_gym.treasury.reservations import ReservationError
+
     with pytest.raises(ReservationError, match="insufficient"):
         ledger.reserve(order_id="over", currency="USDT", amount=D("200"))
     assert ledger.available_balance("USDT") == D("100")
@@ -312,20 +335,28 @@ def test_broker_blocked_funds_are_not_available_for_new_order(config, client):
 @pytest.mark.asyncio
 async def test_commit_bookkeeping_failure_never_reports_order_success(config, client):
     from trading_gym.treasury.reservations import ReservationLedger
+
     adapter = _adapter(config, client)
     adapter._get_net_position = MagicMock(return_value=D("0"))
     client.place_market_order.return_value = _order("venue-accepted", OrderSide.BUY)
-    with patch.object(ReservationLedger, "commit_settlement", side_effect=OSError("disk full")):
+    with patch.object(
+        ReservationLedger, "commit_settlement", side_effect=OSError("disk full")
+    ):
         result = await adapter.reconcile(1.0, 50000.0)
     assert result["status"] == "failed"
     assert result["error_type"] == "MutationOutcomeUnknown"
     assert adapter._ensure_reservation_ledger().snapshot()["USDT"]["reserved"] > 0
-    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"] == "ambiguous"
+    assert (
+        next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"]
+        == "ambiguous"
+    )
     client.place_market_order.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_committed_outcome_journal_failure_retains_pending_barrier(config, client):
+async def test_committed_outcome_journal_failure_retains_pending_barrier(
+    config, client
+):
     outbox = MutationOutbox()
     adapter = _adapter(config, client, extra={"mutation_outbox": outbox})
     adapter._get_net_position = MagicMock(return_value=D("0"))

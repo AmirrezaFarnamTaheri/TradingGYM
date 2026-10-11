@@ -205,15 +205,17 @@ class MutationOutbox:
                             f"non-object mutation outbox record at line {number}"
                         )
                     required = (
-                        "idempotency_key", "proposal_id", "operation",
-                        "payload_sha256", "recorded_at",
+                        "idempotency_key",
+                        "proposal_id",
+                        "operation",
+                        "payload_sha256",
+                        "recorded_at",
                     )
                     if (
                         entry.get("schema_version") != OUTBOX_SCHEMA_VERSION
                         or entry.get("status") not in OUTBOX_STATUSES
                         or any(
-                            not isinstance(entry.get(field), str)
-                            or not entry[field]
+                            not isinstance(entry.get(field), str) or not entry[field]
                             for field in required
                         )
                     ):
@@ -237,7 +239,10 @@ class MutationOutbox:
                         if (
                             entry["status"] == "pending"
                             or previous["status"] == "terminal"
-                            or (previous["status"] == "committed" and entry["status"] != "ambiguous")
+                            or (
+                                previous["status"] == "committed"
+                                and entry["status"] != "ambiguous"
+                            )
                         ):
                             raise MutationOutboxIntegrityError(
                                 f"invalid transition for mutation at line {number}"

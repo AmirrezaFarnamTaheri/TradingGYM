@@ -273,8 +273,10 @@ def test_skipped_bar_still_accounts_for_mark_to_market_and_financing(
     )
     env.reset(seed=33)
     env._state = ExecutionState(
-        position=Decimal("1"), equity=Decimal("100"),
-        borrowed_base=Decimal("0"), borrowed_quote=Decimal("30"),
+        position=Decimal("1"),
+        equity=Decimal("100"),
+        borrowed_base=Decimal("0"),
+        borrowed_quote=Decimal("30"),
         average_entry_price=Decimal("100"),
     )
     env.prev_mid_price = 100.0

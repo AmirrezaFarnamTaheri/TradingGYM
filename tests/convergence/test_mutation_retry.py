@@ -151,7 +151,8 @@ def test_unknown_outcome_does_not_retry_or_release_on_default_policy():
 
     with pytest.raises(MutationOutcomeUnknown):
         execute_mutation_with_retry(
-            submit, policy=_policy(max_attempts=5),
+            submit,
+            policy=_policy(max_attempts=5),
             on_ambiguous=ambiguous.append,
             on_terminal=terminal.append,
             sleep=lambda _: None,
@@ -365,9 +366,12 @@ def test_same_idempotency_key_with_other_payload_is_rejected():
     with pytest.raises(PermissionError, match="idempotency_key_reused"):
         _bound_submit(coordinator, changed, consent)()
     assert len(venue.calls) == 1
-    assert original_receipt["payload_sha256"] != coordinator.bind_authorization(
-        changed, consent=consent, proposal_id="p-1"
-    ).payload_sha256
+    assert (
+        original_receipt["payload_sha256"]
+        != coordinator.bind_authorization(
+            changed, consent=consent, proposal_id="p-1"
+        ).payload_sha256
+    )
 
 
 def test_simultaneous_same_key_submits_only_once():
@@ -460,12 +464,17 @@ def test_outbox_scan_rejects_corrupt_line_instead_of_hiding_an_order(tmp_path):
 def test_outbox_rejects_colliding_mutation_payloads(tmp_path):
     outbox = MutationOutbox(path=tmp_path / "outbox.jsonl")
     outbox.record_pending(
-        idempotency_key="duplicate", proposal_id="p1",
-        operation="spot.market", payload_sha256="hash-a",
+        idempotency_key="duplicate",
+        proposal_id="p1",
+        operation="spot.market",
+        payload_sha256="hash-a",
     )
     outbox.record_outcome(
-        idempotency_key="duplicate", proposal_id="p2",
-        operation="spot.market", payload_sha256="hash-b", outcome="committed",
+        idempotency_key="duplicate",
+        proposal_id="p2",
+        operation="spot.market",
+        payload_sha256="hash-b",
+        outcome="committed",
     )
     with pytest.raises(MutationOutboxIntegrityError, match="collision"):
         outbox.latest_by_key()
@@ -473,11 +482,15 @@ def test_outbox_rejects_colliding_mutation_payloads(tmp_path):
 
 def test_independent_outbox_writers_share_process_lock(tmp_path):
     path = tmp_path / "outbox.jsonl"
+
     def record(index):
         MutationOutbox(path=path).record_pending(
-            idempotency_key=f"key-{index}", proposal_id="p",
-            operation="spot.market", payload_sha256=f"hash-{index}",
+            idempotency_key=f"key-{index}",
+            proposal_id="p",
+            operation="spot.market",
+            payload_sha256=f"hash-{index}",
         )
+
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(record, range(40)))
     assert len(MutationOutbox(path=path).latest_by_key()) == 40
@@ -486,6 +499,7 @@ def test_independent_outbox_writers_share_process_lock(tmp_path):
 def test_outbox_fsyncs_intent_before_return(tmp_path, monkeypatch):
     import os
     from trading_gym.common import persistence
+
     real_fsync = os.fsync
     fsynced = []
 
@@ -495,8 +509,10 @@ def test_outbox_fsyncs_intent_before_return(tmp_path, monkeypatch):
 
     monkeypatch.setattr(persistence.os, "fsync", observed_fsync)
     MutationOutbox(path=tmp_path / "outbox.jsonl").record_pending(
-        idempotency_key="durable", proposal_id="p",
-        operation="spot.market", payload_sha256="hash",
+        idempotency_key="durable",
+        proposal_id="p",
+        operation="spot.market",
+        payload_sha256="hash",
     )
     assert fsynced, "pending mutation must reach an fsync before venue contact"
 
@@ -512,7 +528,9 @@ def test_committed_venue_operation_with_failed_local_commit_is_ambiguous():
     def cannot_commit(_receipt):
         raise OSError("storage failed after broker accepted")
 
-    with pytest.raises(MutationOutcomeUnknown, match="local_post_submission_commit_unverified"):
+    with pytest.raises(
+        MutationOutcomeUnknown, match="local_post_submission_commit_unverified"
+    ):
         execute_mutation_with_retry(
             submit,
             policy=_policy(),
