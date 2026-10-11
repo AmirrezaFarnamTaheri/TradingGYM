@@ -39,6 +39,12 @@ except ImportError:  # pragma: no cover - fallback for older versions
 
 logger = logging.getLogger(__name__)
 
+# websockets 13.1 logs all opening handshake headers at DEBUG. The handshake
+# contains the venue Authorization secret. Use a private, unregistered protocol
+# logger pinned at WARNING so global application DEBUG cannot expose it.
+# Connection failures are independently recorded by the module logger.
+_WIRE_LOGGER = logging.Logger("trading_gym.abantether.ws_wire", level=logging.WARNING)
+
 _SYMBOL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$")
 
 
@@ -285,6 +291,7 @@ class WebSocketClient:
             "close_timeout": 10.0,
             "max_size": self.config.max_message_bytes,
             "max_queue": 32,
+            "logger": _WIRE_LOGGER,
         }
         if "additional_headers" in parameters:
             kwargs["additional_headers"] = headers
