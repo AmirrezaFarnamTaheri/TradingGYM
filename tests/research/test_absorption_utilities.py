@@ -131,6 +131,15 @@ def test_backoff_failure_resets_success_streak():
     assert second > 0
 
 
+def test_backoff_remains_bounded_after_long_outage():
+    backoff = StabilityAwareBackoff(_policy(), rng=__import__("random").Random(4))
+    for _ in range(2500):
+        assert backoff.next_delay() <= 1.0
+    for _ in range(5):
+        backoff.record_success()
+    assert backoff.next_delay() == pytest.approx(0.01)
+
+
 def test_stability_threshold_validation():
     with pytest.raises(ValueError):
         StabilityAwareBackoff(_policy(), stability_threshold=0)
