@@ -1,3 +1,32 @@
+# Hardening branch status — 2026-10-11
+
+**Status: draft / not cleared for merge or funded live trading.** This section tracks [PR #2](https://github.com/AmirrezaFarnamTaheri/TradingGYM/pull/2), not the earlier reconstructed-source release whose historical qualification record follows.
+
+The branch includes execution/outbox, broker readback, treasury, emergency, RL observation boundaries, API supervisor ownership, WebSocket handshake and authorization-log hardening. The separate RL and emergency-pagination draft PRs were integrated into PR #2 and closed as superseded. They were not merged into `main`.
+
+**Independent verification:** focused Python 3.13 tests with local dependency substitutions passed for new WebSocket, supervisor, RL-boundary and emergency-page scenarios. This is not a supported-environment release matrix. An earlier supported-environment CI revision passed approximately 1,750 tests per matrix leg but had two source-accountability manifest failures. That result applies to that older revision only.
+
+**CI at this checkpoint:** the latest GitHub Actions job matrix failed before runner allocation (zero assigned runners, zero executed steps, logs unavailable), so no current-head Python 3.11/3.12 Windows/Linux, Rust, type, frontend or security claim is made. The temporary one-time formatter was removed after it repeatedly failed to obtain a runner. **Black 24.10.0 formatting is still required** on the current checkout; the committed module-accountability manifest was recalculated from the source files, but must be regenerated after any formatting change.
+
+**Blocking external-release obligations:** a single authoritative capital reservation / settlement owner, actual venue fill/fee/collateral reconciliation, broker contract qualification and fault-injection, gross-neutral multi-leg emergency close design, supported Python and frontend matrix checks, and a verified human review. Without all relevant gates, funded execution remains prohibited by operating policy; the repository does not claim that source hardening alone enforces these external prerequisites.
+
+To complete a source-quality pass in a supported Python 3.12 checkout:
+
+```bash
+poetry install --with dev
+poetry run black .
+poetry run ruff check .
+poetry run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+poetry run python scripts/audit_module_accountability.py
+poetry run python scripts/audit_module_accountability.py --check
+poetry run pytest -m "not integration" -q
+cd frontend && npm ci && npm run test:ci && npm run build
+```
+
+These commands are **instructions, not claimed executed results**. Re-run the full GitHub CI matrix and review the exact resulting commit before merging. Restoration of GitHub-hosted runner availability is an external prerequisite.
+
+---
+
 # Trading Gym / AxiomForge 31.7.0+reconstructed.1
 
 ## Release identity
