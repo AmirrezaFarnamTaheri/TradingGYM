@@ -645,6 +645,7 @@ async def start_managed_process(
             **(metadata or {}),
         }
 
+    proc = None
     try:
         if before_spawn is not None:
             before_spawn()
@@ -666,23 +667,37 @@ async def start_managed_process(
             env=environment,
         )
         identity = capture_process_identity(proc.pid, command)
-    except (Exception, asyncio.CancelledError):
-        # CancelledError does not derive from Exception. Without this branch,
-        # a request cancelled during spawn leaves its "starting" reservation
-        # indefinitely occupied, making all future launches return 409.
+        info = {
+            **identity,
+            "status": "running",
+            "start_time": time.time(),
+            **(metadata or {}),
+        }
         async with PROCESS_LOCK:
-            if PROCESSES.get(process_key, {}).get("status") == "starting":
+            PROCESSES[process_key] = info
+    except (Exception, asyncio.CancelledError):
+        # Cancellation can happen after spawn but before the process is
+        # registered. Shut down a known child rather than abandoning it.
+        if proc is not None:
+            try:
+                if proc.returncode is None:
+                    try:
+                        proc.kill()
+                    except ProcessLookupError:
+                        pass
+                await proc.wait()
+            except Exception as cleanup_exc:
+                logger.error(
+                    "Failed to reap aborted process error_type=%s",
+                    type(cleanup_exc).__name__,
+                )
+        async with PROCESS_LOCK:
+            current = PROCESSES.get(process_key, {})
+            if current.get("status") == "starting" or (
+                proc is not None and current.get("pid") == proc.pid
+            ):
                 PROCESSES.pop(process_key, None)
         raise
-
-    info = {
-        **identity,
-        "status": "running",
-        "start_time": time.time(),
-        **(metadata or {}),
-    }
-    async with PROCESS_LOCK:
-        PROCESSES[process_key] = info
 
     if proc.stdout is not None:
         asyncio.create_task(stream_subprocess_logs(proc.stdout, source, proc.pid))
