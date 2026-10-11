@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 from unittest.mock import MagicMock, patch
 from decimal import Decimal
@@ -546,3 +547,25 @@ async def test_split_into_subminimum_legs_is_not_misreported_as_executed(
     assert result == {"status": "skipped", "reason": "no_executable_leg"}
     mock_client.place_market_order.assert_not_called()
     mock_client.create_short_sell.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_emergency_flatten_waits_for_inflight_reconciliation(
+    adapter, mock_client
+):
+    adapter._get_net_position = MagicMock(return_value=Decimal("0"))
+    mock_client.get_orders.return_value = {"data": []}
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_balance.return_value = [
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+        Balance(symbol="USDT", balance=Decimal("500"), blocked=Decimal("0")),
+    ]
+    await adapter._reconcile_lock.acquire()
+    emergency = asyncio.create_task(adapter.flatten())
+    await asyncio.sleep(0)
+    assert not emergency.done()
+    mock_client.get_orders.assert_not_called()
+    adapter._reconcile_lock.release()
+    assert await emergency is True
+    mock_client.get_orders.assert_called()
+    mock_client.place_market_order.assert_not_called()
