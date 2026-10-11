@@ -63,7 +63,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/aban_websocket.py",
-      "sha256": "56dfb3edb8e569020dcaa34945a61a7f2ce7ddada1c8ae96900d904094658b66"
+      "sha256": "67bf00213c89203abbdedcadc9d87c46e3751d9222a4700467a4ad04d9a336eb"
     },
     {
       "owner": "trading_gym",
@@ -438,7 +438,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/live_execution_adapter.py",
-      "sha256": "8fa4981f411c2916b52d4cf6808df4c70ceac7e45f5b836a9ad93613e5e3bfcc"
+      "sha256": "cc7be622a8f92ced028aac1a36cf764dc3d55fa02dfc7c80c7e14e9a342e70ae"
     },
     {
       "owner": "trading_gym",
@@ -1438,7 +1438,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/rl/margin_trading_environment.py",
-      "sha256": "43051268d06570428c02e8910e3bf59159267fb52550f7d04e54cf7609eb8d80"
+      "sha256": "7883e59909d9d9e7db3cb45f0ba284cfee27bdbac6601ee398c81eafabc0cf7f"
     },
     {
       "owner": "trading_gym",
