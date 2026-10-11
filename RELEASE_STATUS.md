@@ -1,5 +1,11 @@
 # Hardening branch status — 2026-10-11
 
+## Resilience and capacity pass — 2026-10-11
+
+The latest audit branch adds **generation-fenced provider and venue recovery** (stale completions cannot reverse a newer circuit decision), **bounded market-data fanout and cached-frame memory**, per-call fast/balanced/quality routing, immediate re-selection after new provider registration, and **intelligence fallback that preserves policy denial and input-integrity boundaries**. The core changes are exercised by a **61-pass targeted local Python 3.13 suite over reconstructed changed-module mirrors**, including deterministic RED-before/GREEN-after races. These results are **not** an exact-head supported-runtime full matrix. See [Resilience operating contract](docs/architecture/RESILIENCE-OPERATING-CONTRACT.md).
+
+The **production-live NO-GO** remains: shared authoritative capital/settlement, real broker contract and multi-leg emergency recovery, hosted CI runner availability, and pinned Black/type/frontend/Rust/system-level integration verification remain unqualified. No guarantee of zero remaining races, failures or future improvement is asserted.
+
 **Status: draft / not cleared for merge or funded live trading.** This section tracks [PR #2](https://github.com/AmirrezaFarnamTaheri/TradingGYM/pull/2), not the earlier reconstructed-source release whose historical qualification record follows.
 
 The branch includes execution/outbox, broker readback, treasury, emergency, RL observation boundaries, API supervisor ownership, WebSocket handshake and authorization-log hardening. The separate RL and emergency-pagination draft PRs were integrated into PR #2 and closed as superseded. They were not merged into `main`.

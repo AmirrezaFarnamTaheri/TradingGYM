@@ -262,6 +262,10 @@ poetry run ruff check apps trading_gym tests
 poetry run mypy apps trading_gym
 ```
 
+## Resilience and performance policy
+
+See [Resilience operating contract](docs/architecture/RESILIENCE-OPERATING-CONTRACT.md) for failure-domain ownership, recovery boundaries, configurable market-data modes, cache/throughput budgets, and required production fault-injection. Market data can operate in fast, balanced or quality modes on each request. Optional intelligence/metrics may degrade; governance, broker ambiguity and invalid account state cannot be bypassed.
+
 ## Operational recovery
 
 1. Stop authority-changing workers before repairing durable state.
