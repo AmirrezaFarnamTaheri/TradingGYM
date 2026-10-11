@@ -32,3 +32,5 @@ jobs:
           fi
 
 # Final pass includes reconciliation preflight and emergency serialization.
+
+# Final source update: cancellation and short-close readback contracts.
