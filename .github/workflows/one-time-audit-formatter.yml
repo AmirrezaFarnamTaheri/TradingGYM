@@ -54,3 +54,5 @@ jobs:
           done
           echo "Unable to finalize the branch after bounded retries" >&2
           exit 1
+
+# Final branch validation request. This workflow deletes itself on success.
