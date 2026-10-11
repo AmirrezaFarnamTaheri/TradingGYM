@@ -58,6 +58,9 @@ class LiveExecutionCoordinator:
         # after the request may have been delivered.  Retrying such a key is
         # only permitted when the venue itself replay-deduplicates.
         self._ambiguous_keys: set[str] = set()
+        # Resolved unknown keys are tombstoned, never available for another
+        # submission. A newly authorized logical operation needs a new key.
+        self._reconciled_keys: set[str] = set()
         # Serialize checks and submissions for this coordinator instance.
         # Otherwise concurrent callers can both observe an uncached key and
         # submit the same order before either has stored a receipt.
@@ -130,6 +133,8 @@ class LiveExecutionCoordinator:
             ):
                 raise PermissionError("idempotency_key_reused_for_different_mutation")
             return cached
+        if intent.idempotency_key in self._reconciled_keys:
+            raise PermissionError("reconciled_key_cannot_be_resubmitted")
         venue = self.venues[intent.venue]
         if intent.idempotency_key in self._ambiguous_keys and not getattr(
             venue, "supports_idempotent_replay", False
@@ -168,12 +173,13 @@ class LiveExecutionCoordinator:
     def mark_reconciled(self, idempotency_key: str) -> bool:
         """Clear a reconciliation hold once an operator resolved the outcome.
 
-        Returns True when a hold existed and was cleared.  This never mutates
-        venue state; it only permits a fresh governed submission under the
-        same idempotency key after human reconciliation.
+        Returns True when a hold existed and was cleared. This never mutates
+        venue state. The old key is permanently tombstoned in this session:
+        any new logical submission must use a fresh idempotency key.
         """
         with self._execution_lock:
             if idempotency_key not in self._ambiguous_keys:
                 return False
             self._ambiguous_keys.discard(idempotency_key)
+            self._reconciled_keys.add(idempotency_key)
             return True
