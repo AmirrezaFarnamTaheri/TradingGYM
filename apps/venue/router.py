@@ -74,6 +74,7 @@ class VenueRouter:
         self._min_error_samples = min_error_samples
         self._opened_at = 0.0
         self._probe_in_flight = False
+        self._generation = 0
         self._lock = threading.Lock()
 
     def _read(self, request: Callable[[VenueAdapter], T]) -> T:
@@ -87,16 +88,17 @@ class VenueRouter:
             if probing:
                 self._probe_in_flight = True
             use_primary = not opened or probing
+            generation = self._generation
         if use_primary:
             try:
                 value = request(primary)
             except Exception as exc:
-                self._record_failure(primary, probe=probing)
+                self._record_failure(primary, probe=probing, generation=generation)
                 if not (self.fail_open_secondary and self.policy.secondary):
                     raise
                 logger.warning("Primary market-data read failed error_type=%s", type(exc).__name__)
             else:
-                self._record_success(primary, probe=probing)
+                self._record_success(primary, probe=probing, generation=generation)
                 return value
         if self.fail_open_secondary and self.policy.secondary:
             # Read-only fallback is safe; it is not permission to switch the
@@ -116,28 +118,37 @@ class VenueRouter:
         with self._lock:
             if venue is self.policy.primary and self.primary_circuit_open:
                 raise RuntimeError("primary venue order circuit is open")
+            generation = self._generation
         try:
             order_id = venue.place_order(symbol, side, qty, price)
         except Exception:
-            self._record_failure(venue)
+            self._record_failure(venue, generation=generation)
             raise
-        self._record_success(venue)
+        self._record_success(venue, generation=generation)
         return order_id
 
-    def _record_success(self, venue: VenueAdapter, *, probe: bool = False) -> None:
+    def _record_success(
+        self, venue: VenueAdapter, *, probe: bool = False, generation: int | None = None
+    ) -> None:
         if venue is not self.policy.primary:
             return
         with self._lock:
+            if generation is not None and generation != self._generation:
+                return
             if probe:
                 self._reset_unlocked()
             else:
                 self._samples.append(False)
                 self.primary_total_count += 1
 
-    def _record_failure(self, venue: VenueAdapter, *, probe: bool = False) -> None:
+    def _record_failure(
+        self, venue: VenueAdapter, *, probe: bool = False, generation: int | None = None
+    ) -> None:
         if venue is not self.policy.primary:
             return
         with self._lock:
+            if generation is not None and generation != self._generation:
+                return
             self.primary_total_count += 1
             self.primary_error_count += 1
             self.last_error_time = time.monotonic()
@@ -149,6 +160,7 @@ class VenueRouter:
                 self.primary_circuit_open = True
                 self._opened_at = time.monotonic()
                 self._probe_in_flight = False
+                self._generation += 1
                 logger.error("Primary venue circuit opened")
 
     def _reset_unlocked(self) -> None:
@@ -157,6 +169,7 @@ class VenueRouter:
         self.primary_total_count = 0
         self._samples.clear()
         self._probe_in_flight = False
+        self._generation += 1
         self.last_reset_time = time.monotonic()
 
     def reset_circuit_breaker(self) -> None:
