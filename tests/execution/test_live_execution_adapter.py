@@ -6,6 +6,7 @@ from trading_gym.execution.live_execution_adapter import (
     DryRunLiveExecutionAdapter,
     LiveExecutionAdapter,
 )
+from trading_gym.production.mutation_retry import MutationOutbox
 from axiomforge.live_trading import LiveConsent
 from trading_gym.adapters.enhanced_aban_client import (
     EnhancedAbanClient,
@@ -392,6 +393,10 @@ async def test_flatten_succeeds_when_broker_confirms_no_gross_exposure(
     )
     assert await adapter.flatten() is True
     assert adapter._last_flatten_error == ""
+    # A closing fill is only resolved after the snapshot confirms flat.
+    assert [
+        row["status"] for row in adapter._mutation_outbox.latest_by_key().values()
+    ] == ["committed"]
 
 
 @pytest.mark.asyncio
@@ -442,3 +447,49 @@ async def test_reconcile_rejects_unreconcilable_short_inventory(
     assert result["status"] == "failed"
     mock_client.close_short_position.assert_not_called()
     mock_client.place_market_order.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_unverified_flatten_keeps_durable_reconciliation_hold_after_restart(
+    adapter, mock_client
+):
+    """A filled close with stale venue balances must not replay on restart."""
+    adapter._get_net_position = MagicMock(return_value=Decimal("1"))
+    mock_client.get_orders.return_value = {"data": []}
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("1000"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("1"), blocked=Decimal("0")),
+    ]
+    mock_client.place_market_order.return_value = OrderResponse(
+        id="first-fill",
+        code="200",
+        base_symbol="BTC",
+        quote_symbol="USDT",
+        side=OrderSide.SELL,
+        type="market",
+        status=OrderStatus.FILLED,
+        volume={"BTC": Decimal("1")},
+        filled_volume={"BTC": Decimal("1")},
+        created_at="now",
+    )
+    assert await adapter.flatten() is False
+    entries = adapter._mutation_outbox.latest_by_key()
+    assert len(entries) == 1
+    assert next(iter(entries.values()))["status"] == "ambiguous"
+
+    # Construct a fresh journal object, simulating a worker restart.
+    with patch(
+        "trading_gym.execution.live_execution_adapter.EnhancedAbanClient",
+        return_value=mock_client,
+    ):
+        fresh = LiveExecutionAdapter(
+            adapter.cfg,
+            "fake_token",
+            live_consent=adapter._live_consent,
+            proposal_id=adapter._proposal_id,
+            mutation_outbox=MutationOutbox(adapter._mutation_outbox.path),
+        )
+    fresh._get_net_position = MagicMock(return_value=Decimal("1"))
+    assert await fresh.flatten() is False
+    mock_client.place_market_order.assert_called_once()

@@ -26,6 +26,10 @@ class UnrecognizedExecutionStatus(RuntimeError):
     """The execution adapter returned a state with unknown financial meaning."""
 
 
+class PanicFlattenUnverified(RuntimeError):
+    """Emergency flatten needs explicit reconciliation before further orders."""
+
+
 async def trade_loop(
     env: MarginTradingEnv,
     model: BaseAlgorithm,
@@ -50,8 +54,8 @@ async def trade_loop(
             if panic_requested():
                 logger.critical("PANIC SIGNAL RECEIVED")
                 if not await handle_panic_request(live_adapter):
-                    raise RuntimeError(
-                        "panic flatten failed; signal retained for retry or restart"
+                    raise PanicFlattenUnverified(
+                        "panic flatten unverified; signal retained for reconciliation"
                     )
                 logger.critical("SYSTEM HALTED BY USER")
                 break
@@ -228,9 +232,9 @@ async def trade_loop(
                 logger.warning("Episode finished. Resetting environment.")
                 obs, _ = env.reset()
 
-        except UnrecognizedExecutionStatus:
+        except (UnrecognizedExecutionStatus, PanicFlattenUnverified):
             logger.critical(
-                "Unrecognized live order outcome; halting for reconciliation"
+                "Unverified live outcome; halting for reconciliation"
             )
             raise
         except requests.RequestException as exc:

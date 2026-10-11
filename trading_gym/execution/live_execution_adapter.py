@@ -170,6 +170,7 @@ class LiveExecutionAdapter:
         reference_id: str = "",
         reserve_currency: str | None = None,
         reserve_amount: Decimal | None = None,
+        require_flat_verification: bool = False,
     ):
         """Submit one payload-bound mutation through the sole production coordinator.
 
@@ -315,7 +316,11 @@ class LiveExecutionAdapter:
                 proposal_id=proposal_id,
                 operation=operation,
                 payload_sha256=payload_digest,
-                outcome="committed",
+                # Emergency closes remain unresolved until a separate venue
+                # snapshot confirms the gross portfolio is flat. Persist the
+                # hold before returning to flatten(), including across a crash.
+                outcome="ambiguous" if require_flat_verification else "committed",
+                detail="flatten_requires_verification" if require_flat_verification else "",
             )
 
         def on_ambiguous(exc: BaseException) -> None:
@@ -599,6 +604,13 @@ class LiveExecutionAdapter:
         self._last_flatten_error = ""
         logger.critical("🚨 EXECUTING EMERGENCY FLATTEN PROTOCOL")
         try:
+            previous = self._mutation_outbox.latest_by_key()
+            if any(
+                entry["status"] in {"pending", "ambiguous"}
+                for entry in previous.values()
+            ):
+                raise PermissionError("unresolved_mutations_require_reconciliation")
+
             # 1. Cancel open orders first
             open_orders_resp = await self._call_api(
                 self.api.get_orders,
@@ -624,40 +636,48 @@ class LiveExecutionAdapter:
             # 2. Get current net position
             current_pos = await asyncio.to_thread(self._get_net_position)
 
-            if abs(current_pos) < self.min_qty:
-                await self._verify_broker_flat()
-                logger.info("Broker confirms no gross exposure or open orders.")
-                return True
-
-            # 3. Market close
-            if current_pos > 0:
-                # Sell Spot
-                await self._mutate(
-                    "spot.market",
-                    side="sell",
-                    quantity=current_pos,
-                    reserve_currency=self.base_asset,
-                    reserve_amount=current_pos,
-                )
-            else:
-                # Close Short
-                short_positions = await self._call_api(self.api.get_short_positions)
-                my_shorts = [
-                    p for p in short_positions if p.get("symbol") == self.symbol
-                ]
-                if not my_shorts:
-                    raise RuntimeError("short_positions_missing_for_flatten")
-                for s in my_shorts:
+            if abs(current_pos) >= self.min_qty:
+                if current_pos > 0:
                     await self._mutate(
-                        "short.close",
-                        side="buy",
-                        quantity=Decimal("0"),
-                        reference_id=str(s["id"]),
+                        "spot.market",
+                        side="sell",
+                        quantity=current_pos,
+                        reserve_currency=self.base_asset,
+                        reserve_amount=current_pos,
+                        require_flat_verification=True,
                     )
+                else:
+                    short_positions = await self._call_api(
+                        self.api.get_short_positions
+                    )
+                    my_shorts = [
+                        p for p in short_positions if p.get("symbol") == self.symbol
+                    ]
+                    if not my_shorts:
+                        raise RuntimeError("short_positions_missing_for_flatten")
+                    for short in my_shorts:
+                        await self._mutate(
+                            "short.close",
+                            side="buy",
+                            quantity=Decimal("0"),
+                            reference_id=str(short["id"]),
+                            require_flat_verification=True,
+                        )
 
-            # Submission is not settlement. Confirm the observed broker state
-            # rather than claiming a flat portfolio based on local intent.
+            # The outbox keeps each closing fill ambiguous until this
+            # independent snapshot succeeds. A crash at any earlier point
+            # leaves pending/ambiguous evidence that blocks another order.
             await self._verify_broker_flat()
+            for key, entry in self._mutation_outbox.latest_by_key().items():
+                if key not in previous and entry["status"] == "ambiguous":
+                    self._mutation_outbox.record_outcome(
+                        idempotency_key=key,
+                        proposal_id=entry["proposal_id"],
+                        operation=entry["operation"],
+                        payload_sha256=entry["payload_sha256"],
+                        outcome="committed",
+                        detail="flatten_verified",
+                    )
             logger.critical("Emergency flatten verified by broker position snapshot")
             return True
 

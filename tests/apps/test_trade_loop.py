@@ -179,6 +179,25 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.env.step.assert_not_called()
         mock_writer.return_value.write.assert_not_called()
 
+    @patch("apps.common.trade_loop.panic_requested", return_value=True)
+    @patch("apps.common.trade_loop.handle_panic_request", new_callable=AsyncMock)
+    @patch("apps.common.trade_loop.MetricsWriter")
+    async def test_failed_panic_flatten_halts_worker_without_repeating(
+        self, mock_writer, mock_handle_panic, mock_panic_requested
+    ):
+        mock_handle_panic.return_value = False
+        with self.assertRaisesRegex(RuntimeError, "panic flatten unverified"):
+            await trade_loop(
+                self.env,
+                self.model,
+                self.client,
+                self.cfg,
+                live_adapter=self.live_adapter,
+            )
+        mock_handle_panic.assert_awaited_once_with(self.live_adapter)
+        self.live_adapter.reconcile.assert_not_called()
+        mock_writer.return_value.write.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
