@@ -7,7 +7,7 @@ from trading_gym.execution.live_execution_adapter import (
     DryRunLiveExecutionAdapter,
     LiveExecutionAdapter,
 )
-from trading_gym.production.mutation_retry import MutationOutbox
+from trading_gym.production.mutation_retry import MutationOutbox, MutationOutcomeUnknown
 from axiomforge.live_trading import LiveConsent
 from trading_gym.adapters.enhanced_aban_client import (
     EnhancedAbanClient,
@@ -569,3 +569,81 @@ async def test_emergency_flatten_waits_for_inflight_reconciliation(
     assert await emergency is True
     mock_client.get_orders.assert_called()
     mock_client.place_market_order.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_untyped_cancel_ack_is_unverified_until_order_detail_confirms(
+    adapter, mock_client
+):
+    mock_client.cancel_order.return_value = {"message": "accepted"}
+    mock_client.get_order_details.return_value = OrderResponse(
+        id="pending-order",
+        code="200",
+        base_symbol="BTC",
+        quote_symbol="USDT",
+        side=OrderSide.SELL,
+        type="market",
+        status=OrderStatus.OPEN,
+        volume={"BTC": Decimal("1")},
+        filled_volume={"BTC": Decimal("0")},
+        created_at="now",
+    )
+    with pytest.raises(MutationOutcomeUnknown, match="cancel_not_verified"):
+        await adapter._mutate(
+            "order.cancel",
+            side="none",
+            quantity=Decimal("0"),
+            reference_id="pending-order",
+        )
+    mock_client.cancel_order.assert_called_once_with("pending-order")
+    mock_client.get_order_details.assert_called_once_with("pending-order")
+    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
+        "status"
+    ] == "ambiguous"
+
+
+@pytest.mark.asyncio
+async def test_cancel_dict_ack_commits_only_after_confirmed_terminal_order(
+    adapter, mock_client
+):
+    mock_client.cancel_order.return_value = {"message": "accepted"}
+    mock_client.get_order_details.return_value = OrderResponse(
+        id="pending-order",
+        code="200",
+        base_symbol="BTC",
+        quote_symbol="USDT",
+        side=OrderSide.SELL,
+        type="market",
+        status=OrderStatus.CANCELED,
+        volume={"BTC": Decimal("1")},
+        filled_volume={"BTC": Decimal("0")},
+        created_at="now",
+    )
+    result = await adapter._mutate(
+        "order.cancel",
+        side="none",
+        quantity=Decimal("0"),
+        reference_id="pending-order",
+    )
+    assert result == {"message": "accepted"}
+    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
+        "status"
+    ] == "committed"
+
+
+@pytest.mark.asyncio
+async def test_cancel_confirmation_failure_preserves_unknown_order_state(
+    adapter, mock_client
+):
+    mock_client.cancel_order.return_value = {"message": "accepted"}
+    mock_client.get_order_details.side_effect = ConnectionError("venue offline")
+    with pytest.raises(MutationOutcomeUnknown, match="cancel_confirmation_unavailable"):
+        await adapter._mutate(
+            "order.cancel",
+            side="none",
+            quantity=Decimal("0"),
+            reference_id="pending-order",
+        )
+    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
+        "status"
+    ] == "ambiguous"
