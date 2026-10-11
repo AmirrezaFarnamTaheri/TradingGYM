@@ -174,11 +174,11 @@ class LiveExecutionAdapter:
     ):
         """Submit one payload-bound mutation through the sole production coordinator.
 
-        The mutation is retried automatically on transient network failures.
-        Every attempt reuses ONE idempotency key, so a retry after an
-        ambiguous failure observes the original receipt from the coordinator
-        instead of duplicating the venue order.  Each attempt is journalled to
-        the durable mutation outbox for post-hoc reconciliation.
+        Only proven pre-submission failures are automatically retried.
+        Every attempt uses one stable idempotency key; an unknown post-send
+        outcome instead remains unresolved because the venue does not provide
+        verified replay deduplication. A durable journal claim prevents a
+        second worker from starting a conflicting new mutation.
 
         When ``reserve_currency``/``reserve_amount`` are supplied (spending
         mutations), the funds are locked in the reservation ledger before any
