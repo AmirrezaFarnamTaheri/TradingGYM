@@ -215,3 +215,52 @@ def test_invalid_per_call_routing_never_contacts_a_provider():
     with pytest.raises(ValueError, match="target_completeness"):
         router.fetch(request(), target_completeness=float("nan"))
     assert provider.calls == 0
+
+
+def test_registering_healthy_provider_invalidates_stale_quality_cache():
+    class Sparse(Provider):
+        def fetch(self, req):
+            self.calls += 1
+            return frame(req, rows=2)
+
+    sparse, full = Sparse(), Provider()
+    router = DataProviderRouter(cache_ttl_seconds=60, routing_mode="quality")
+    router.register("sparse", sparse, priority=1)
+    assert router.fetch(request()).completeness == 0.5
+    assert router.fetch(request()).from_cache
+    router.register("full", full, priority=2)
+    improved = router.fetch(request())
+    assert improved.provider_id == "full"
+    assert improved.completeness == 1.0
+    assert not improved.from_cache
+    assert full.calls == 1
+
+
+def test_old_inflight_topology_cannot_poison_new_provider_cache():
+    class Sparse(Provider):
+        def __init__(self):
+            super().__init__()
+            self.enter = threading.Event()
+            self.release = threading.Event()
+
+        def fetch(self, req):
+            self.calls += 1
+            if self.calls == 1:
+                self.enter.set()
+                assert self.release.wait(3)
+            return frame(req, rows=2)
+
+    sparse, full = Sparse(), Provider()
+    router = DataProviderRouter(cache_ttl_seconds=60, routing_mode="quality")
+    router.register("sparse", sparse, priority=1)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        old_request = pool.submit(router.fetch, request())
+        assert sparse.enter.wait(2)
+        router.register("full", full, priority=2)
+        new_request = router.fetch(request())
+        assert new_request.provider_id == "full"
+        assert new_request.completeness == 1.0
+        sparse.release.set()
+        assert old_request.result(timeout=4).completeness == 0.5
+    assert router.fetch(request()).from_cache
+    assert full.calls == 1
