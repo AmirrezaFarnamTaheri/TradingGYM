@@ -108,8 +108,10 @@ class DegradationLadder(Generic[T]):
         if not self._modes:
             raise ValueError("DegradationLadder requires at least one CapabilityMode")
 
-    def run(self, context: dict) -> LadderOutcome[T]:
-        """Try every mode richest-first; the first validator-passing output wins.
+    def run(
+        self, context: dict, *, preferred_mode: str | None = None
+    ) -> LadderOutcome[T]:
+        """Try the preferred validated mode first, then all remaining fallbacks.
 
         A mode counts as failed when its handler raises (recorded as
         ``"error"`` with the exception type name only -- message text can carry
@@ -118,8 +120,15 @@ class DegradationLadder(Generic[T]):
         ``"invalid_output"``). If every mode fails, an unsuccessful outcome
         carrying ALL attempt records, in attempt order, is returned.
         """
+        modes = self._modes
+        if preferred_mode is not None:
+            if preferred_mode not in {mode.name for mode in modes}:
+                raise ValueError("unknown preferred capability mode")
+            modes = tuple(
+                sorted(modes, key=lambda mode: mode.name != preferred_mode)
+            )
         records: list[AttemptRecord] = []
-        for mode in self._modes:
+        for mode in modes:
             try:
                 value = mode.handler(context)
             except (
@@ -140,7 +149,18 @@ class DegradationLadder(Generic[T]):
                     )
                 )
                 continue
-            if not mode.validator(value):
+            try:
+                valid = bool(mode.validator(value))
+            except Exception as exc:  # validation is part of the fallible mode
+                records.append(
+                    AttemptRecord(
+                        mode=mode.name,
+                        outcome=OUTCOME_ERROR,
+                        detail=type(exc).__name__,
+                    )
+                )
+                continue
+            if not valid:
                 records.append(
                     AttemptRecord(
                         mode=mode.name,
