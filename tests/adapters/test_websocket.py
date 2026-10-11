@@ -637,3 +637,19 @@ async def test_unknown_connector_cannot_bypass_redirect_policy(monkeypatch):
     )
     with pytest.raises(RuntimeError, match="unsupported_websocket_redirect_policy"):
         await _open_no_redirect("wss://venue.example/ws", host="8.8.8.8", port=443)
+
+
+def test_protocol_debug_cannot_log_credential_headers_under_global_debug(monkeypatch):
+    import logging
+
+    ws_client = WebSocketClient(
+        WebSocketConfig(url="wss://8.8.8.8/ws", api_key="sensitive-token")
+    )
+    root_logger = logging.getLogger()
+    monkeypatch.setattr(root_logger, "level", logging.DEBUG)
+    kwargs = ws_client._connect_kwargs(
+        {"Authorization": "Token sensitive-token"}
+    )
+    assert not kwargs["logger"].isEnabledFor(logging.DEBUG)
+    assert kwargs["logger"].getEffectiveLevel() >= logging.WARNING
+    assert kwargs["logger"] is not root_logger
