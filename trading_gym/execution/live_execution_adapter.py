@@ -362,9 +362,17 @@ class LiveExecutionAdapter:
 
         async with self._reconcile_lock:
             try:
+                # A stale or malformed price cannot authorize *any* trade,
+                # including sells and shorts that do not reserve quote cash.
+                price_dec = Decimal(str(current_price))
+                target_dec = Decimal(str(target_position))
+                if not price_dec.is_finite() or price_dec <= 0:
+                    raise ValueError("invalid_reconciliation_price")
+                if not target_dec.is_finite():
+                    raise ValueError("invalid_target_position")
+
                 # 1. Get Current Real Position (Decimal)
                 current_pos = await asyncio.to_thread(self._get_net_position)
-                target_dec = Decimal(str(target_position))
 
                 delta = target_dec - current_pos
 
@@ -408,7 +416,26 @@ class LiveExecutionAdapter:
                         qty_to_cover = min(qty, abs_current_pos)
                         remaining_buy = qty - qty_to_cover
 
-                        # CRITICAL FIX: Handle multiple short positions properly
+                        # Validate venue inventory *before* any mutation.
+                        # Otherwise a missing short leg silently turns a
+                        # reversal into an additional, unintended spot buy.
+                        short_ids: set[str] = set()
+                        available_to_cover = Decimal("0")
+                        for short_pos in my_shorts:
+                            pid = str(short_pos["id"])
+                            amount = Decimal(str(short_pos["amount"]))
+                            if (
+                                pid in short_ids
+                                or not amount.is_finite()
+                                or amount <= 0
+                            ):
+                                raise ValueError("invalid_short_position_inventory")
+                            short_ids.add(pid)
+                            available_to_cover += amount
+                        if available_to_cover < qty_to_cover:
+                            raise ValueError("insufficient_short_position_inventory")
+
+                        # Close multiple short positions in FIFO order.
                         # Close positions in FIFO order until qty_to_cover is satisfied
                         if my_shorts and qty_to_cover > Decimal("0"):
                             remaining_to_cover = qty_to_cover
@@ -436,9 +463,7 @@ class LiveExecutionAdapter:
                                 order_id = f"close_short_{pid}"
 
                             if remaining_to_cover > Decimal("0"):
-                                logger.warning(
-                                    f"Could not cover full amount. Remaining: {remaining_to_cover}"
-                                )
+                                raise RuntimeError("short_coverage_incomplete")
 
                         if remaining_buy > self.min_qty:
                             # Buy remaining on spot
@@ -533,10 +558,45 @@ class LiveExecutionAdapter:
                     "error": str(exc),
                 }
 
+    async def _verify_broker_flat(self) -> None:
+        """Require positive evidence that gross exposure and open orders are gone.
+
+        A zero *net* position can hide an offsetting spot holding and short.
+        A venue fill receipt alone also does not prove an updated account
+        snapshot. Neither condition may be reported as a completed flatten.
+        """
+        balances = await self._call_api(self.api.get_balance)
+        shorts = await self._call_api(self.api.get_short_positions)
+        orders = await self._call_api(
+            self.api.get_orders,
+            base_symbol=self.base_asset,
+            quote_symbol=self.quote_asset,
+            status=[OrderStatus.NEW, OrderStatus.OPEN, OrderStatus.PROCESSING],
+        )
+        if not isinstance(balances, list) or not isinstance(shorts, list):
+            raise RuntimeError("broker_position_snapshot_unavailable")
+        if not isinstance(orders, dict) or not isinstance(orders.get("data"), list):
+            raise RuntimeError("broker_order_snapshot_unavailable")
+        for balance in balances:
+            if balance.symbol == self.base_asset:
+                gross = Decimal(str(balance.balance)) + Decimal(str(balance.blocked))
+                if not gross.is_finite() or gross < 0:
+                    raise ValueError("invalid_broker_spot_balance")
+                if gross >= self.min_qty:
+                    raise RuntimeError("gross_exposure_not_cleared")
+        for short in shorts:
+            if short.get("symbol") == self.symbol:
+                amount = Decimal(str(short["amount"]))
+                if not amount.is_finite() or amount < 0:
+                    raise ValueError("invalid_broker_short_balance")
+                if amount >= self.min_qty:
+                    raise RuntimeError("gross_exposure_not_cleared")
+        if orders["data"]:
+            raise RuntimeError("open_orders_not_cleared")
+
     async def flatten(self) -> bool:
-        """
-        EMERGENCY: Close all positions immediately.
-        """
+        """Attempt emergency reduction, reporting success only after verification."""
+        self._last_flatten_error = ""
         logger.critical("🚨 EXECUTING EMERGENCY FLATTEN PROTOCOL")
         try:
             # 1. Cancel open orders first
@@ -565,7 +625,8 @@ class LiveExecutionAdapter:
             current_pos = await asyncio.to_thread(self._get_net_position)
 
             if abs(current_pos) < self.min_qty:
-                logger.info("Position is already flat.")
+                await self._verify_broker_flat()
+                logger.info("Broker confirms no gross exposure or open orders.")
                 return True
 
             # 3. Market close
@@ -584,6 +645,8 @@ class LiveExecutionAdapter:
                 my_shorts = [
                     p for p in short_positions if p.get("symbol") == self.symbol
                 ]
+                if not my_shorts:
+                    raise RuntimeError("short_positions_missing_for_flatten")
                 for s in my_shorts:
                     await self._mutate(
                         "short.close",
@@ -592,7 +655,10 @@ class LiveExecutionAdapter:
                         reference_id=str(s["id"]),
                     )
 
-            logger.critical(f"🚨 FLATTEN EXECUTED. Closed {current_pos} {self.symbol}")
+            # Submission is not settlement. Confirm the observed broker state
+            # rather than claiming a flat portfolio based on local intent.
+            await self._verify_broker_flat()
+            logger.critical("Emergency flatten verified by broker position snapshot")
             return True
 
         except Exception as exc:
