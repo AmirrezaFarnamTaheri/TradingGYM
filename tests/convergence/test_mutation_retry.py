@@ -353,6 +353,10 @@ def test_ambiguous_key_requires_human_reconciliation_before_reuse():
     assert coordinator.mark_reconciled("reconcile-key-1") is True
     assert coordinator.mark_reconciled("reconcile-key-1") is False
     assert coordinator.ambiguous_keys() == ()
+    # Clearing an unknown outcome does not authorize replaying the old key.
+    with pytest.raises(PermissionError, match="reconciled_key_cannot_be_resubmitted"):
+        submit()
+    assert len(venue.calls) == 1
 
 
 def test_same_idempotency_key_with_other_payload_is_rejected():
