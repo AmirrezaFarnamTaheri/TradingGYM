@@ -55,6 +55,15 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
+.nav-button:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: -4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-button { transition: none; }
+}
+
 .nav-button.active {
   background: rgba(255, 255, 255, 0.15);
   border-left-color: #3498db;

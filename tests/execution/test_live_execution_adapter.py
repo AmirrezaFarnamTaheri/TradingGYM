@@ -17,6 +17,11 @@ from trading_gym.adapters.enhanced_aban_client import (
 )
 
 
+@pytest.fixture(autouse=True)
+def isolated_state_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
+
+
 @pytest.fixture
 def mock_config():
     cfg = MagicMock()
@@ -25,6 +30,7 @@ def mock_config():
     cfg.env.decimals.qty_for.return_value = 6
     cfg.env.decimals.price_for.return_value = 2
     cfg.env.decimals.min_qty_for.return_value = 0.001
+    cfg.env.cost.taker_fee_bps = 10.0
     return cfg
 
 
@@ -96,7 +102,13 @@ async def test_reconcile_close_short_and_flip(adapter, mock_client):
         {"id": "short1", "symbol": "BTCUSDT", "amount": 0.5}
     ]
 
-    # Mock responses
+    # Mock responses: the short close must have its own confirmed fill.
+    mock_client.close_short_position.return_value = OrderResponse(
+        id="short_close", code="200", base_symbol="BTC", quote_symbol="USDT",
+        side=OrderSide.BUY, type="market", status=OrderStatus.FILLED,
+        volume={"USDT": Decimal("25000")},
+        filled_volume={"BTC": Decimal("0.5")}, created_at="now",
+    )
     mock_client.place_market_order.return_value = OrderResponse(
         id="order_spot",
         code="200",
@@ -152,6 +164,18 @@ async def test_reconcile_sell_short(adapter, mock_client):
 async def test_flatten(adapter, mock_client):
     adapter._get_net_position = MagicMock(return_value=Decimal("1.5"))
     mock_client.get_orders.return_value = {"data": [{"id": "open1"}]}
+    mock_client.cancel_order.return_value = OrderResponse(
+        id="open1", code="200", base_symbol="BTC", quote_symbol="USDT",
+        side=OrderSide.SELL, type="market", status=OrderStatus.CANCELED,
+        volume={"BTC": Decimal("0")}, filled_volume={"BTC": Decimal("0")},
+        created_at="now",
+    )
+    mock_client.place_market_order.return_value = OrderResponse(
+        id="close_spot", code="200", base_symbol="BTC", quote_symbol="USDT",
+        side=OrderSide.SELL, type="market", status=OrderStatus.FILLED,
+        volume={"BTC": Decimal("1.5")}, filled_volume={"BTC": Decimal("1.5")},
+        created_at="now",
+    )
 
     await adapter.flatten()
 
@@ -186,6 +210,31 @@ def test_get_live_equity(adapter, mock_client):
 
     equity = adapter.get_live_equity()
     assert equity == 50100.0
+
+
+def test_unpriced_non_quote_asset_cannot_be_silently_omitted(adapter, mock_client):
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("1"), blocked=Decimal("0")),
+    ]
+    mock_client.get_ticker.return_value = {}
+    with pytest.raises(RuntimeError, match="unable to determine live equity"):
+        adapter.get_live_equity()
+
+
+def test_quote_reservation_rounds_up_and_rejects_invalid_prices(adapter):
+    cost = adapter._quote_cost(Decimal("1.000000001"), 1.0)
+    assert cost >= Decimal("1.000000001") * Decimal("1.001")
+    assert cost == Decimal("1.00100001")
+    for price in (float("nan"), float("inf"), 0, -1):
+        with pytest.raises(ValueError, match="invalid_quote_reservation_inputs"):
+            adapter._quote_cost(Decimal("1"), price)
+
+
+def test_missing_or_invalid_fee_configuration_fails_closed(adapter):
+    adapter.cfg.env.cost.taker_fee_bps = float("nan")
+    with pytest.raises(ValueError, match="invalid_taker_fee_configuration"):
+        adapter._quote_cost(Decimal("1"), 10.0)
 
 
 def test_get_live_equity_fails_closed_when_no_positive_equity(adapter, mock_client):

@@ -121,6 +121,8 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(float(call_args[1]), 50000.0)
 
         self.env.step.assert_called_with(0)
+        # "executed" is an acknowledgement, not a verified filled position.
+        self.assertEqual(self.env.unwrapped._state.position, Decimal("0.1"))
 
     @patch("apps.common.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)

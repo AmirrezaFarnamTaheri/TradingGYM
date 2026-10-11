@@ -13,6 +13,7 @@ Contract:
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,9 @@ from trading_gym.authz.grants import (
 from trading_gym.authz.scopes import ScopeError
 
 TEST_WINDOW = "2026-09-01T00:00:00Z"
+# Deliberate, fixed decision clock: these grants expire on 2026-10-01.
+# Keep expiry enforcement enabled while testing other grant semantics.
+TEST_DECISION_TIME = "2026-09-02T00:00:00Z"
 
 
 def make_request(**overrides: object) -> GrantRequest:
@@ -76,9 +80,9 @@ class TestLedgerEvaluation:
         other = make_request(principal="agent-other", scopes=("research.**",))
         ledger.issue(other)
 
-        allowed = ledger.check("agent-axiom1", "trade.paper.order.submit")
+        allowed = ledger.check("agent-axiom1", "trade.paper.order.submit", now=TEST_DECISION_TIME)
         assert allowed.allowed
-        denied = ledger.check("agent-other", "trade.paper.order.submit")
+        denied = ledger.check("agent-other", "trade.paper.order.submit", now=TEST_DECISION_TIME)
         assert not denied.allowed
         assert denied.reason == "no_matching_scope"
 
@@ -90,24 +94,24 @@ class TestLedgerEvaluation:
     def test_require_returns_grant_or_raises(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         grant = ledger.issue(make_request(scopes=("trade.paper.**",)))
-        found = ledger.require("agent-axiom1", "trade.paper.order")
+        found = ledger.require("agent-axiom1", "trade.paper.order", now=TEST_DECISION_TIME)
         assert found.grant_id == grant.grant_id
         with pytest.raises(ScopeDenied):
-            ledger.require("agent-axiom1", "trade.live.order")
+            ledger.require("agent-axiom1", "trade.live.order", now=TEST_DECISION_TIME)
 
 
 class TestEvaluation:
     def test_scope_match_allows_action(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         grant = ledger.issue(make_request(scopes=("trade.paper.**",)))
-        decision = grant.evaluate("trade.paper.order.submit")
+        decision = grant.evaluate("trade.paper.order.submit", now=TEST_DECISION_TIME)
         assert decision.allowed
         assert decision.matched_scope == "trade.paper.**"
 
     def test_unmatched_scope_denied(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         grant = ledger.issue(make_request(scopes=("trade.paper.**",)))
-        decision = grant.evaluate("trade.live.order.submit")
+        decision = grant.evaluate("trade.live.order.submit", now=TEST_DECISION_TIME)
         assert not decision.allowed
         assert decision.reason == "no_matching_scope"
 
@@ -125,8 +129,11 @@ class TestEvaluation:
         issued_at < expires_at is tautologically true, so omitting ``now`` used
         to keep an expired grant active on every production call path."""
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
-        grant = ledger.issue(make_request(issued_at=TEST_WINDOW, ttl_hours=1))
-        # No explicit now: evaluated against the wall clock.
+        issued_at = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        grant = ledger.issue(make_request(issued_at=issued_at, ttl_hours=1))
+        # No explicit now: evaluated against the actual wall clock.
         decision = grant.evaluate("trade.paper.order.submit")
         assert not decision.allowed
         assert decision.reason == "grant_expired"
@@ -147,11 +154,15 @@ class TestEvaluation:
             )
         )
         decision = grant.evaluate(
-            "trade.paper.order.submit", constraints={"max_notional_quote": 499}
+            "trade.paper.order.submit",
+            now=TEST_DECISION_TIME,
+            constraints={"max_notional_quote": 499}
         )
         assert decision.allowed
         denied = grant.evaluate(
-            "trade.paper.order.submit", constraints={"max_notional_quote": 501}
+            "trade.paper.order.submit",
+            now=TEST_DECISION_TIME,
+            constraints={"max_notional_quote": 501}
         )
         assert not denied.allowed
         assert denied.reason == "constraint_max_notional_quote"
@@ -161,6 +172,7 @@ class TestEvaluation:
         grant = ledger.issue(make_request(constraints=(("max_notional_quote", 500),)))
         breach = grant.evaluate(
             "trade.paper.order.submit",
+            now=TEST_DECISION_TIME,
             constraints={"max_notional_quote": 1000},
             breach=True,
         )
@@ -174,6 +186,7 @@ class TestEvaluation:
         with pytest.raises(ConstraintViolation):
             grant.evaluate(
                 "trade.paper.order.submit",
+                now=TEST_DECISION_TIME,
                 constraints={"max_notional_quote": 100},
             )
 

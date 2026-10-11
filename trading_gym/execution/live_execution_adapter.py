@@ -8,7 +8,7 @@ Handles state reconciliation and EMERGENCY FLATTENING.
 import logging
 import asyncio
 import json
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal, ROUND_DOWN, ROUND_UP
 from pathlib import Path
 from typing import Dict, Any
 
@@ -24,6 +24,7 @@ from trading_gym.production.mutation_retry import (
     MutationRetryPolicy,
     execute_mutation_with_retry,
     new_mutation_idempotency_key,
+    scan_outbox,
 )
 from trading_gym.production.pre_trade_gate import evaluate_pre_trade_gate
 from trading_gym.production.runtime import (
@@ -44,18 +45,13 @@ logger = logging.getLogger(__name__)
 #: Anything else (validation, auth, consent, emergency halt) aborts.
 DEFAULT_RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
     MutationOutcomeUnknown,
-    TimeoutError,
-    ConnectionError,
 )
 try:  # pragma: no cover - exercised only where requests is installed
     from requests import exceptions as _requests_exceptions
 
     DEFAULT_RETRYABLE_EXCEPTIONS = (
         MutationOutcomeUnknown,
-        _requests_exceptions.ConnectionError,
         _requests_exceptions.ConnectTimeout,
-        TimeoutError,
-        ConnectionError,
     )
 except Exception:  # pragma: no cover - requests is a hard dependency anyway
     pass
@@ -127,27 +123,40 @@ class LiveExecutionAdapter:
         if self._reservations is None:
             opening: dict[str, Decimal] = {}
             for b in self.api.get_balance():
-                total = b.balance + b.blocked
-                if total > 0:
-                    opening[b.symbol.upper()] = total
+                # The SDK distinguishes available balance from venue-blocked
+                # funds. Counting `blocked` as spendable permits new orders to
+                # commit funds already held by the venue.
+                available = b.balance
+                if not available.is_finite() or available < 0:
+                    raise ValueError("invalid_available_broker_balance")
+                currency = b.symbol.upper()
+                if currency in opening:
+                    raise ValueError("duplicate_broker_balance_currency")
+                opening[currency] = available
             self._reservations = ReservationLedger(
                 opening or {self.quote_asset.upper(): Decimal("0")}
             )
         return self._reservations
 
     def _taker_fee_rate(self) -> Decimal:
-        """Taker fee as a fraction; best-effort so exotic configs degrade to 0."""
+        """Reject missing/invalid fee assumptions rather than under-reserving."""
         try:
-            bps = float(self.cfg.env.cost.taker_fee_bps)
-        except Exception:  # noqa: BLE001 - missing cost config must not block
-            return Decimal("0")
-        return Decimal(str(max(0.0, bps))) / Decimal("10000")
+            bps = Decimal(str(self.cfg.env.cost.taker_fee_bps))
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise ValueError("invalid_taker_fee_configuration") from exc
+        if not bps.is_finite() or bps < 0:
+            raise ValueError("invalid_taker_fee_configuration")
+        return bps / Decimal("10000")
 
     def _quote_cost(self, quantity: Decimal, reference_price: float) -> Decimal:
-        """Estimated quote spend incl. taker fee, quantized for reservations."""
+        """Conservatively round the estimated spend up when reserving funds."""
+        qty = Decimal(str(quantity))
+        price = Decimal(str(reference_price))
+        if not qty.is_finite() or qty <= 0 or not price.is_finite() or price <= 0:
+            raise ValueError("invalid_quote_reservation_inputs")
         rate = Decimal("1") + self._taker_fee_rate()
-        return (Decimal(str(quantity)) * Decimal(str(reference_price)) * rate).quantize(
-            Decimal("1e-8"), rounding=ROUND_DOWN
+        return (qty * price * rate).quantize(
+            Decimal("1e-8"), rounding=ROUND_UP
         )
 
     async def _call_api(self, func, *args, **kwargs):
@@ -182,6 +191,14 @@ class LiveExecutionAdapter:
         """
         if self._live_consent is None or not self._proposal_id:
             raise PermissionError("governed_live_consent_required")
+
+        # The previous process may have lost the venue acknowledgement. A
+        # fresh idempotency key cannot repair that uncertainty and can create
+        # a second order. Block until an operator has reconciled the outbox.
+        if operation != "order.cancel" and scan_outbox(self._mutation_outbox):
+            # Risk-reducing cancellation of a known order remains available;
+            # new fills cannot proceed until prior unknown fills are resolved.
+            raise PermissionError("unresolved_mutations_require_reconciliation")
 
         idempotency_key = new_mutation_idempotency_key()
         proposal_id = self._proposal_id
@@ -231,19 +248,40 @@ class LiveExecutionAdapter:
                 consent=self._live_consent,
                 proposal_id=proposal_id,
             )
-            return self._coordinator.execute(
+            receipt = self._coordinator.execute(
                 intent,
                 authorization,
                 consent=self._live_consent,
             )
+            result = receipt.get("result") if isinstance(receipt, dict) else None
+            status = getattr(result, "status", None)
+            if status is not None:
+                if status in {OrderStatus.REJECTED, OrderStatus.FAILED, OrderStatus.CANCELED}:
+                    if operation != "order.cancel" or status != OrderStatus.CANCELED:
+                        raise ValueError("venue_order_rejected")
+                elif status != OrderStatus.FILLED:
+                    # An acknowledged, possibly partially filled order must
+                    # retain its reservation until authoritative reconciliation.
+                    raise MutationOutcomeUnknown("venue_order_awaiting_fill")
+            elif did_reserve:
+                # A non-typed response cannot prove settlement. Fail closed.
+                raise MutationOutcomeUnknown("venue_fill_status_unavailable")
+            return receipt
 
         def journal_pending() -> None:
-            outbox.record_pending(
-                idempotency_key=idempotency_key,
-                proposal_id=proposal_id,
-                operation=operation,
-                payload_sha256=payload_digest,
-            )
+            try:
+                outbox.record_pending(
+                    idempotency_key=idempotency_key,
+                    proposal_id=proposal_id,
+                    operation=operation,
+                    payload_sha256=payload_digest,
+                )
+            except Exception:
+                # The submit callback cannot run if the intent was not
+                # recorded; release the pre-send reservation instead.
+                if did_reserve:
+                    self._ensure_reservation_ledger().release(order_id=idempotency_key)
+                raise
 
         def journal_outcome(outcome: str, exc: BaseException | None) -> None:
             try:
@@ -261,18 +299,22 @@ class LiveExecutionAdapter:
                 )
 
         def on_committed(receipt: object) -> None:
-            journal_outcome("committed", None)
+            # Commit the reservation before publishing the durable "committed"
+            # marker. A settlement failure leaves the outbox pending/ambiguous
+            # instead of declaring success and making the funds spendable.
             if did_reserve:
-                try:
-                    self._ensure_reservation_ledger().commit_settlement(
-                        order_id=idempotency_key,
-                        currency=reserve_currency,  # type: ignore[arg-type]
-                        settled_amount=Decimal(str(reserve_amount)),
-                    )
-                except Exception:  # noqa: BLE001 - bookkeeping never masks trading
-                    logger.warning(
-                        "reservation settlement failed error_type=%s", "ledger_error"
-                    )
+                self._ensure_reservation_ledger().commit_settlement(
+                    order_id=idempotency_key,
+                    currency=reserve_currency,  # type: ignore[arg-type]
+                    settled_amount=Decimal(str(reserve_amount)),
+                )
+            outbox.record_outcome(
+                idempotency_key=idempotency_key,
+                proposal_id=proposal_id,
+                operation=operation,
+                payload_sha256=payload_digest,
+                outcome="committed",
+            )
 
         def on_ambiguous(exc: BaseException) -> None:
             journal_outcome("ambiguous", exc)
@@ -297,6 +339,7 @@ class LiveExecutionAdapter:
             on_committed=on_committed,
             on_ambiguous=on_ambiguous,
             on_terminal=on_terminal,
+            allow_unknown_replay=False,  # Aban venue has no verified replay deduplication.
         )
         return outcome.receipt["result"]
 
@@ -603,8 +646,9 @@ class LiveExecutionAdapter:
                 else:
                     # Convert to Quote
                     mid = get_mid_price(symbol)
-                    if mid > 0:
-                        total_equity += amount * mid
+                    if not mid.is_finite() or mid <= 0:
+                        raise ValueError("missing_or_invalid_asset_valuation")
+                    total_equity += amount * mid
 
             # 2. Short Positions PnL
             shorts = self.api.get_short_positions()
@@ -617,11 +661,11 @@ class LiveExecutionAdapter:
                     # Get current price for this symbol
                     current_mid = get_mid_price(self.base_asset)
 
-                    if current_mid > 0:
-                        # PnL = Amount * (Entry Price - Current Price)
-                        # If price drops (Entry > Current), PnL is positive.
-                        pnl = amt * (entry - current_mid)
-                        total_equity += pnl
+                    if not current_mid.is_finite() or current_mid <= 0:
+                        raise ValueError("missing_or_invalid_short_valuation")
+                    # PnL = Amount * (Entry Price - Current Price)
+                    pnl = amt * (entry - current_mid)
+                    total_equity += pnl
 
             if not total_equity.is_finite() or total_equity <= 0:
                 raise RuntimeError("live equity is unavailable or non-positive")

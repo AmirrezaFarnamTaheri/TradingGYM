@@ -185,9 +185,11 @@ async def trade_loop(
                         "live reconciliation was skipped because the adapter was locked"
                     )
 
-                # Synchronize only to a position the adapter actually executed or
-                # intentionally simulated. A skipped order retains observed state.
-                if status in {"executed", "simulated"}:
+                # A venue submission acknowledgement is NOT an observed fill;
+                # the broker may still be processing or partially filling it.
+                # Never publish the model target as an actual broker position.
+                # The next cycle independently observes authoritative balances.
+                if status == "simulated":
                     synchronized_position = Decimal(str(clipped_target_units))
                 else:
                     synchronized_position = real_pos_dec

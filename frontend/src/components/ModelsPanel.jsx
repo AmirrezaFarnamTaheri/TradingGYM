@@ -19,7 +19,7 @@ export default function ModelsPanel() {
   const setActiveModel = useStore(state => state.setActiveModel);
 
   // Fetch models
-  const { data: modelsData, isLoading, isError, error } = useQuery({
+  const { data: modelsData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['models'],
     queryFn: () => modelsAPI.list().then(r => r.data),
     refetchInterval: 5000,
@@ -96,7 +96,7 @@ export default function ModelsPanel() {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['models'] })}
+            onClick={() => refetch()}
           >
             Retry
           </button>

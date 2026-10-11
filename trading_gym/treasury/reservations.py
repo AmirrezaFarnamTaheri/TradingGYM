@@ -43,8 +43,8 @@ class ReservationLedger:
             currency_u = currency.upper()
             if not currency_u or len(currency_u) > 20:
                 raise ValueError("currency codes must be 1-20 characters")
-            if amount < ZERO:
-                raise ValueError("opening balances must be non-negative")
+            if not isinstance(amount, Decimal) or not amount.is_finite() or amount < ZERO:
+                raise ValueError("opening balances must be finite non-negative Decimals")
             self._opening[currency_u] = amount
         self._reserved_by_order: dict[str, dict[str, Decimal]] = {}
         self._committed: dict[str, Decimal] = {c: ZERO for c in self._opening}
@@ -86,8 +86,8 @@ class ReservationLedger:
         """Reserve ``amount`` for ``order_id``; refuses over-commitment."""
         if not order_id:
             raise ValueError("order_id is required")
-        if amount <= ZERO:
-            raise ValueError("reservation amount must be positive")
+        if not isinstance(amount, Decimal) or not amount.is_finite() or amount <= ZERO:
+            raise ValueError("reservation amount must be a finite positive Decimal")
         currency_u = self._require_currency(currency)
         if order_id in self._reserved_by_order:
             raise ReservationError(f"order {order_id} already holds a reservation")
@@ -125,8 +125,12 @@ class ReservationLedger:
             raise ReservationError(
                 f"order {order_id} holds no {currency_u} reservation"
             )
-        if settled_amount <= ZERO:
-            raise ValueError("settled_amount must be positive")
+        if (
+            not isinstance(settled_amount, Decimal)
+            or not settled_amount.is_finite()
+            or settled_amount <= ZERO
+        ):
+            raise ValueError("settled_amount must be a finite positive Decimal")
         reserved = per_order[currency_u]
         extra_needed = max(ZERO, settled_amount - reserved)
         if extra_needed > self.available_balance(currency_u):

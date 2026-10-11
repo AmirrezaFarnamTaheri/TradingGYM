@@ -8,11 +8,10 @@ try:  # pragma: no cover - requests is a declared hard dependency
     from requests import exceptions as _requests_exceptions
 
     _PRE_SEND_FAILURES: tuple[type[BaseException], ...] = (
-        _requests_exceptions.ConnectionError,
         _requests_exceptions.ConnectTimeout,
     )
 except Exception:  # pragma: no cover
-    _PRE_SEND_FAILURES = (ConnectionError,)
+    _PRE_SEND_FAILURES = ()
 
 # Operations whose replay cannot double a venue side effect even when the
 # first attempt's outcome is unknown (worst case: an idempotent no-op error).
@@ -34,9 +33,9 @@ class AbanTransport:
 
     * Local validation problems are raised before any network call and keep
       their original ``ValueError`` type — they are terminal.
-    * Failures that provably occurred before the request reached the venue
-      (connection refused, DNS, connect timeout) are re-raised unchanged and
-      remain safe to retry under the same idempotency key.
+    * Only failures with a proven pre-send contract (requests ConnectTimeout)
+      can be automatically replayed. The broad ConnectionError class includes
+      failures after submission, so it must be treated as ambiguous.
     * Anything else leaves the delivery outcome unprovable, so it is wrapped
       in :class:`MutationOutcomeUnknown`; the coordinator records the key as
       ambiguous and refuses replay unless the venue deduplicates.
@@ -46,10 +45,12 @@ class AbanTransport:
         self.client = client
 
     def submit_order(self, intent: VenueOrderIntent):
+        # Validate local inputs *outside* the transport exception boundary.
+        # An SDK ValueError/TypeError may result from parsing a response after
+        # a successful venue-side order and is NOT proof of non-submission.
+        self._validate_local_intent(intent)
         try:
             return self._dispatch(intent)
-        except (ValueError, TypeError):
-            raise
         except _PRE_SEND_FAILURES:
             # The request never reached the venue; a retry cannot duplicate.
             raise
@@ -61,6 +62,15 @@ class AbanTransport:
             raise MutationOutcomeUnknown(
                 f"outcome unknown after {intent.operation} with key {intent.idempotency_key}"
             ) from exc
+
+    @staticmethod
+    def _validate_local_intent(intent: VenueOrderIntent) -> None:
+        if intent.operation not in {"spot.market", "short.open", "short.close", "order.cancel"}:
+            raise ValueError(f"unsupported Aban operation: {intent.operation}")
+        if intent.operation == "spot.market":
+            OrderSide(intent.side)
+        if intent.operation in {"short.close", "order.cancel"} and not intent.reference_id:
+            raise ValueError(f"{intent.operation} requires reference_id")
 
     def _dispatch(self, intent: VenueOrderIntent):
         operation = intent.operation

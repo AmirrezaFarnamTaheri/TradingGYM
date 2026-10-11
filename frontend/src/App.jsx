@@ -46,7 +46,9 @@ const queryClient = new QueryClient({
       staleTime: 5000, // Consider data stale after 5 seconds
     },
     mutations: {
-      retry: 1,
+      // Network timeouts do not prove that a trade or approval was rejected.
+      // Automatic retries can duplicate non-idempotent POST operations.
+      retry: false,
     },
   },
 });
@@ -156,6 +158,27 @@ function AppContent() {
   const currentTab = tabs.find(tab => tab.key === activeTab);
   const ActiveComponent = currentTab?.component || SystemPanel;
 
+  function handleTabKeyDown(event, currentKey) {
+    const currentIndex = tabs.findIndex(tab => tab.key === currentKey);
+    const last = tabs.length - 1;
+    let nextIndex;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+      nextIndex = (currentIndex + 1) % tabs.length;
+    } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+      nextIndex = (currentIndex + last) % tabs.length;
+    } else if (event.key === 'Home') {
+      nextIndex = 0;
+    } else if (event.key === 'End') {
+      nextIndex = last;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    const nextKey = tabs[nextIndex].key;
+    setActiveTab(nextKey);
+    event.currentTarget.parentElement?.querySelector(`#tab-${nextKey}`)?.focus();
+  }
+
   return (
     <>
       <div className="app">
@@ -170,10 +193,13 @@ function AppContent() {
             {tabs.map(({ key, label, description }) => (
               <button
                 key={key}
+                id={`tab-${key}`}
                 role="tab"
                 aria-selected={activeTab === key}
-                aria-controls={`panel-${key}`}
+                aria-controls={activeTab === key ? `panel-${key}` : undefined}
+                tabIndex={activeTab === key ? 0 : -1}
                 onClick={() => setActiveTab(key)}
+                onKeyDown={(event) => handleTabKeyDown(event, key)}
                 className={`nav-button ${activeTab === key ? 'active' : ''}`}
                 title={description}
               >
@@ -220,7 +246,7 @@ function AppContent() {
             className="content-wrapper"
             role="tabpanel"
             id={`panel-${currentTab?.key}`}
-            aria-labelledby={currentTab?.key}
+            aria-labelledby={`tab-${currentTab?.key}`}
           >
             <ErrorBoundary>
               <Suspense fallback={<CardSkeleton />}>

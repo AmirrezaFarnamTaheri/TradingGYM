@@ -3,6 +3,7 @@
 from decimal import Decimal
 
 import pytest
+from requests.exceptions import ConnectTimeout, ConnectionError as RequestsConnectionError
 
 from trading_gym.adapters.aban_transport import (
     AbanTransport,
@@ -54,6 +55,41 @@ def test_unknown_outcome_wraps_non_idempotent_operations():
     transport = AbanTransport(_FlakyClient(RuntimeError("read timeout after send")))
     with pytest.raises(MutationOutcomeUnknown):
         transport.submit_order(_intent("spot.market"))
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        RequestsConnectionError("socket closed after request write"),
+        ValueError("malformed SDK response after request write"),
+        TypeError("unexpected SDK response shape"),
+    ],
+)
+def test_uncertain_sdk_failures_are_not_misclassified_as_pre_send(exc):
+    transport = AbanTransport(_FlakyClient(exc))
+    with pytest.raises(MutationOutcomeUnknown) as info:
+        transport.submit_order(_intent("spot.market"))
+    assert info.value.__cause__ is exc
+
+
+def test_connect_timeout_is_provably_pre_send():
+    timeout = ConnectTimeout("connection never established")
+    transport = AbanTransport(_FlakyClient(timeout))
+    with pytest.raises(ConnectTimeout) as info:
+        transport.submit_order(_intent("spot.market"))
+    assert info.value is timeout
+
+
+def test_invalid_local_side_is_terminal_before_network():
+    transport = AbanTransport(_FlakyClient(RuntimeError("SDK should not run")))
+    with pytest.raises(ValueError):
+        transport.submit_order(
+            VenueOrderIntent(
+                venue="abantether", operation="spot.market",
+                base_symbol="BTC", quote_symbol="USDT", side="invalid",
+                quantity=Decimal("1"), idempotency_key="local-error",
+            )
+        )
 
 
 def test_idempotent_cancel_keeps_original_error_for_retry():

@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 import random
-import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -30,7 +29,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from trading_gym.common.persistence import resolve_data_home
+from filelock import FileLock
+
+from trading_gym.common.persistence import append_jsonl, resolve_data_home
 
 MAX_ATTEMPTS = 5
 DEFAULT_BASE_DELAY_S = 0.5
@@ -94,17 +95,20 @@ OUTBOX_SCHEMA_VERSION = 1
 OUTBOX_STATUSES = frozenset({"pending", "committed", "ambiguous", "terminal"})
 
 
+class MutationOutboxIntegrityError(RuntimeError):
+    """The journal cannot safely establish which venue mutations are unresolved."""
+
+
 class MutationOutbox:
     """Append-only JSONL journal of governed mutation attempts.
 
-    One line per logical mutation: written with status ``pending`` before the
-    first submission attempt and rewritten with a terminal status once an
-    outcome is known.  Reading the journal yields the latest status per key.
+    One append per state transition: ``pending`` is fsynced before sending an
+    order, followed by a distinct durable outcome record. Reading the journal
+    verifies each record instead of silently hiding potentially live orders.
     """
 
     def __init__(self, path: Path | None = None):
         self._explicit_path = path
-        self._lock = threading.Lock()
 
     @property
     def path(self) -> Path:
@@ -156,29 +160,61 @@ class MutationOutbox:
         self._append(entry)
 
     def _append(self, entry: dict[str, str | int]) -> None:
-        line = json.dumps(entry, sort_keys=True, separators=(",", ":"))
-        path = self.path
-        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        with self._lock, open(path, "a", encoding="utf-8") as handle:
-            handle.write(line + "\n")
+        # This helper holds an inter-process lock, flushes and fsyncs the line.
+        # An unflushed "pending" record must never precede venue contact.
+        append_jsonl(self.path, entry)
 
     def latest_by_key(self) -> dict[str, dict[str, str]]:
-        """Collapse the journal to the newest record per idempotency key."""
+        """Verify journal records and return the newest state for each key.
+
+        A malformed line may represent a partially written intent for a real
+        order. Skipping it would silently declare that intent nonexistent.
+        Raise instead so the operator must reconcile the venue state.
+        """
         latest: dict[str, dict[str, str]] = {}
         path = self.path
-        if not path.exists():
-            return latest
-        with self._lock, open(path, "r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                key = str(entry.get("idempotency_key", ""))
-                if key:
+        with FileLock(str(path) + ".lock"):
+            if path.is_symlink():
+                raise MutationOutboxIntegrityError("mutation outbox is a symlink")
+            if not path.exists():
+                return latest
+            with path.open("r", encoding="utf-8") as handle:
+                for number, line in enumerate(handle, start=1):
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError as exc:
+                        raise MutationOutboxIntegrityError(
+                            f"malformed mutation outbox record at line {number}"
+                        ) from exc
+                    if not isinstance(entry, dict):
+                        raise MutationOutboxIntegrityError(
+                            f"non-object mutation outbox record at line {number}"
+                        )
+                    required = (
+                        "idempotency_key", "proposal_id", "operation",
+                        "payload_sha256", "recorded_at",
+                    )
+                    if (
+                        entry.get("schema_version") != OUTBOX_SCHEMA_VERSION
+                        or entry.get("status") not in OUTBOX_STATUSES
+                        or any(
+                            not isinstance(entry.get(field), str)
+                            or not entry[field]
+                            for field in required
+                        )
+                    ):
+                        raise MutationOutboxIntegrityError(
+                            f"invalid mutation outbox record at line {number}"
+                        )
+                    key = entry["idempotency_key"]
+                    previous = latest.get(key)
+                    if previous is not None and any(
+                        previous[field] != entry[field]
+                        for field in ("proposal_id", "operation", "payload_sha256")
+                    ):
+                        raise MutationOutboxIntegrityError(
+                            f"idempotency-key collision at line {number}"
+                        )
                     latest[key] = entry
         return latest
 
@@ -212,11 +248,14 @@ def execute_mutation_with_retry(
     on_terminal: Callable[[BaseException], None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
     rng: random.Random | None = None,
+    allow_unknown_replay: bool = False,
 ) -> RetryOutcome:
     """Run ``submit`` with bounded, replay-safe retries.
 
-    ``submit`` must be idempotent for a fixed idempotency key (the coordinator
-    guarantees this).  The callbacks map onto the outbox journal lifecycle.
+    ``submit`` must be bound to one fixed idempotency key. Unknown outcomes
+    are replayed only when the *upstream venue* demonstrably deduplicates the
+    same operation and key; process-local coordinator caching is insufficient.
+    The callbacks map onto the outbox journal lifecycle.
     """
     delays: list[float] = []
     last_exc: BaseException | None = None
@@ -225,22 +264,48 @@ def execute_mutation_with_retry(
             on_pending()
         try:
             receipt = submit()
-        except BaseException as exc:  # noqa: BLE001 - classification boundary
-            if policy.is_retryable(exc) and attempt < policy.max_attempts:
+        except Exception as exc:
+            # An ambiguous venue outcome is not a failed order. Never convert
+            # it into a terminal rejection and release reserved capital.
+            unknown = isinstance(exc, MutationOutcomeUnknown)
+            may_retry = policy.is_retryable(exc) and (
+                not unknown or allow_unknown_replay
+            )
+            if may_retry and attempt < policy.max_attempts:
                 delay = delay_for_attempt(policy, attempt, rng=rng)
                 delays.append(delay)
                 sleep(delay)
                 last_exc = exc
                 continue
-            # Terminal error, or retry budget exhausted after a transient one.
-            if on_ambiguous is not None and policy.is_retryable(exc):
-                on_ambiguous(exc)
+            if unknown:
+                if on_ambiguous is not None:
+                    on_ambiguous(exc)
             elif on_terminal is not None:
+                # Exhausted *pre-send* retries do not create an ambiguous
+                # broker order. A terminal operation is safe to release.
                 on_terminal(exc)
             raise
         else:
+            # The venue has accepted the mutation, but the local commit path
+            # can still fail (durability, accounting, storage exhaustion).
+            # Never convert that failure into a terminal order rejection or
+            # free the reservation: subsequent mutations must reconcile.
             if on_committed is not None:
-                on_committed(receipt)
+                try:
+                    on_committed(receipt)
+                except Exception as exc:
+                    local_unknown = MutationOutcomeUnknown(
+                        "local_post_submission_commit_unverified"
+                    )
+                    if on_ambiguous is not None:
+                        try:
+                            on_ambiguous(local_unknown)
+                        except Exception:
+                            # Keep the original local failure observable;
+                            # the durable pre-submission pending entry remains
+                            # authoritative when outcome journaling also fails.
+                            pass
+                    raise local_unknown from exc
             return RetryOutcome(
                 receipt=receipt,
                 attempts=attempt,

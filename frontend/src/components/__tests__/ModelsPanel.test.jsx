@@ -95,6 +95,7 @@ describe('ModelsPanel fetch errors', () => {
     await flushPromises();
 
     await waitForRendered(container, '.empty-state');
+    expect(modelsSpy).toHaveBeenCalledTimes(2);
     expect(container.querySelector('.error')).toBeNull();
 
     cleanup();

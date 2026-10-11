@@ -1,7 +1,11 @@
 """Automatic mutation retry: replay-safety, classification and journal tests."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from decimal import Decimal
+from threading import Barrier
+from time import sleep
 
 import pytest
 
@@ -9,6 +13,7 @@ from trading_gym.production.emergency import EmergencyController
 from trading_gym.production.mutation_retry import (
     MutationOutcomeUnknown,
     MutationOutbox,
+    MutationOutboxIntegrityError,
     MutationRetryPolicy,
     delay_for_attempt,
     execute_mutation_with_retry,
@@ -121,17 +126,53 @@ def test_unknown_exception_class_is_not_retried():
 
 def test_budget_exhaustion_marks_outcome_ambiguous():
     def submit():
-        raise TransientNetworkError("still down")
+        raise MutationOutcomeUnknown("lost acknowledgement")
 
     ambiguous = []
-    with pytest.raises(TransientNetworkError):
+    with pytest.raises(MutationOutcomeUnknown):
         execute_mutation_with_retry(
             submit,
             policy=_policy(max_attempts=2),
             on_ambiguous=ambiguous.append,
             sleep=lambda _: None,
+            allow_unknown_replay=True,
         )
     assert len(ambiguous) == 1
+
+
+def test_unknown_outcome_does_not_retry_or_release_on_default_policy():
+    calls = []
+    ambiguous = []
+    terminal = []
+
+    def submit():
+        calls.append(True)
+        raise MutationOutcomeUnknown("broker may have received this order")
+
+    with pytest.raises(MutationOutcomeUnknown):
+        execute_mutation_with_retry(
+            submit, policy=_policy(max_attempts=5),
+            on_ambiguous=ambiguous.append,
+            on_terminal=terminal.append,
+            sleep=lambda _: None,
+        )
+    assert len(calls) == 1
+    assert len(ambiguous) == 1
+    assert not terminal
+
+
+def test_presend_exhaustion_releases_rather_than_recording_ambiguous():
+    ambiguous, terminal = [], []
+    with pytest.raises(TransientNetworkError):
+        execute_mutation_with_retry(
+            lambda: (_ for _ in ()).throw(TransientNetworkError("pre-send")),
+            policy=_policy(max_attempts=2),
+            on_ambiguous=ambiguous.append,
+            on_terminal=terminal.append,
+            sleep=lambda _: None,
+        )
+    assert len(terminal) == 1
+    assert not ambiguous
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +276,7 @@ def test_unknown_outcome_on_replay_capable_venue_is_auto_retried():
         _bound_submit(coordinator, intent, consent),
         policy=_policy(),
         sleep=lambda _: None,
+        allow_unknown_replay=True,  # only the replay-capable test venue
     )
 
     assert len(venue.calls) == 2  # two HTTP attempts...
@@ -249,18 +291,20 @@ def test_unknown_outcome_without_replay_support_escalates_fail_closed():
     intent = _coordinator_intent("escalate-key-1")
 
     terminal: list[BaseException] = []
-    with pytest.raises(PermissionError) as excinfo:
+    ambiguous: list[BaseException] = []
+    with pytest.raises(MutationOutcomeUnknown):
         execute_mutation_with_retry(
             _bound_submit(coordinator, intent, consent),
             policy=_policy(max_attempts=3),
             on_terminal=terminal.append,
+            on_ambiguous=ambiguous.append,
             sleep=lambda _: None,
         )
 
-    # Exactly one venue attempt: the retry was refused by the coordinator.
     assert len(venue.calls) == 1
-    assert "ambiguous_mutation_requires_reconciliation" in str(excinfo.value)
-    assert terminal and isinstance(terminal[0], PermissionError)
+    assert coordinator.ambiguous_keys() == ("escalate-key-1",)
+    assert not terminal
+    assert len(ambiguous) == 1
 
 
 def test_emergency_halt_is_never_retried():
@@ -310,6 +354,46 @@ def test_ambiguous_key_requires_human_reconciliation_before_reuse():
     assert coordinator.ambiguous_keys() == ()
 
 
+def test_same_idempotency_key_with_other_payload_is_rejected():
+    venue = CountingVenue()
+    coordinator = LiveExecutionCoordinator({"counting": venue})
+    consent = _consent()
+    original = _coordinator_intent("collision-key")
+    original_receipt = _bound_submit(coordinator, original, consent)()
+    changed = replace(original, quantity=Decimal("1.25"))
+
+    with pytest.raises(PermissionError, match="idempotency_key_reused"):
+        _bound_submit(coordinator, changed, consent)()
+    assert len(venue.calls) == 1
+    assert original_receipt["payload_sha256"] != coordinator.bind_authorization(
+        changed, consent=consent, proposal_id="p-1"
+    ).payload_sha256
+
+
+def test_simultaneous_same_key_submits_only_once():
+    class SlowVenue(CountingVenue):
+        def submit(self, intent):
+            sleep(0.04)
+            return super().submit(intent)
+
+    venue = SlowVenue()
+    coordinator = LiveExecutionCoordinator({"counting": venue})
+    consent = _consent()
+    intent = _coordinator_intent("concurrent-key")
+    barrier = Barrier(9)
+
+    def submit():
+        barrier.wait(timeout=5)
+        return _bound_submit(coordinator, intent, consent)()
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(submit) for _ in range(8)]
+        barrier.wait(timeout=5)
+        receipts = [f.result(timeout=5) for f in futures]
+    assert len(venue.calls) == 1
+    assert all(receipt == receipts[0] for receipt in receipts)
+
+
 # ---------------------------------------------------------------------------
 # Outbox journal
 # ---------------------------------------------------------------------------
@@ -355,7 +439,7 @@ def test_outbox_rejects_invalid_outcome(tmp_path):
         )
 
 
-def test_outbox_scan_survives_corrupt_line(tmp_path):
+def test_outbox_scan_rejects_corrupt_line_instead_of_hiding_an_order(tmp_path):
     path = tmp_path / "outbox.jsonl"
     good = json.dumps(
         {
@@ -369,5 +453,73 @@ def test_outbox_scan_survives_corrupt_line(tmp_path):
         }
     )
     path.write_text("{broken json\n" + good + "\n", encoding="utf-8")
-    unresolved = scan_outbox(MutationOutbox(path=path))
-    assert [entry["idempotency_key"] for entry in unresolved] == ["k-ok"]
+    with pytest.raises(MutationOutboxIntegrityError, match="line 1"):
+        scan_outbox(MutationOutbox(path=path))
+
+
+def test_outbox_rejects_colliding_mutation_payloads(tmp_path):
+    outbox = MutationOutbox(path=tmp_path / "outbox.jsonl")
+    outbox.record_pending(
+        idempotency_key="duplicate", proposal_id="p1",
+        operation="spot.market", payload_sha256="hash-a",
+    )
+    outbox.record_outcome(
+        idempotency_key="duplicate", proposal_id="p2",
+        operation="spot.market", payload_sha256="hash-b", outcome="committed",
+    )
+    with pytest.raises(MutationOutboxIntegrityError, match="collision"):
+        outbox.latest_by_key()
+
+
+def test_independent_outbox_writers_share_process_lock(tmp_path):
+    path = tmp_path / "outbox.jsonl"
+    def record(index):
+        MutationOutbox(path=path).record_pending(
+            idempotency_key=f"key-{index}", proposal_id="p",
+            operation="spot.market", payload_sha256=f"hash-{index}",
+        )
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(record, range(40)))
+    assert len(MutationOutbox(path=path).latest_by_key()) == 40
+
+
+def test_outbox_fsyncs_intent_before_return(tmp_path, monkeypatch):
+    import os
+    from trading_gym.common import persistence
+    real_fsync = os.fsync
+    fsynced = []
+
+    def observed_fsync(fd):
+        fsynced.append(fd)
+        real_fsync(fd)
+
+    monkeypatch.setattr(persistence.os, "fsync", observed_fsync)
+    MutationOutbox(path=tmp_path / "outbox.jsonl").record_pending(
+        idempotency_key="durable", proposal_id="p",
+        operation="spot.market", payload_sha256="hash",
+    )
+    assert fsynced, "pending mutation must reach an fsync before venue contact"
+
+
+def test_committed_venue_operation_with_failed_local_commit_is_ambiguous():
+    """A broker submission can succeed while local durability fails."""
+    attempts, ambiguous, terminal = [], [], []
+
+    def submit():
+        attempts.append("sent")
+        return {"order": "at-venue"}
+
+    def cannot_commit(_receipt):
+        raise OSError("storage failed after broker accepted")
+
+    with pytest.raises(MutationOutcomeUnknown, match="local_post_submission_commit_unverified"):
+        execute_mutation_with_retry(
+            submit,
+            policy=_policy(),
+            on_committed=cannot_commit,
+            on_ambiguous=ambiguous.append,
+            on_terminal=terminal.append,
+            sleep=lambda _: None,
+        )
+    assert attempts == ["sent"]
+    assert len(ambiguous) == 1 and not terminal

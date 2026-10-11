@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import threading
 
 from axiomforge.live_trading import LiveConsent, validate_live_consent
 
@@ -57,6 +58,10 @@ class LiveExecutionCoordinator:
         # after the request may have been delivered.  Retrying such a key is
         # only permitted when the venue itself replay-deduplicates.
         self._ambiguous_keys: set[str] = set()
+        # Serialize checks and submissions for this coordinator instance.
+        # Otherwise concurrent callers can both observe an uncached key and
+        # submit the same order before either has stored a receipt.
+        self._execution_lock = threading.RLock()
 
     def bind_authorization(
         self,
@@ -87,6 +92,16 @@ class LiveExecutionCoordinator:
         *,
         consent: LiveConsent,
     ) -> dict[str, object]:
+        with self._execution_lock:
+            return self._execute_locked(intent, authorization, consent=consent)
+
+    def _execute_locked(
+        self,
+        intent: VenueOrderIntent,
+        authorization: OperationAuthorization,
+        *,
+        consent: LiveConsent,
+    ) -> dict[str, object]:
         validate_live_consent(
             consent,
             actor=authorization.actor,
@@ -106,8 +121,15 @@ class LiveExecutionCoordinator:
             raise PermissionError("idempotency_mismatch")
         if intent.venue not in self.venues:
             raise KeyError("unknown_venue")
-        if intent.idempotency_key in self._receipts:
-            return self._receipts[intent.idempotency_key]
+        cached = self._receipts.get(intent.idempotency_key)
+        if cached is not None:
+            if (
+                cached["payload_sha256"] != digest
+                or cached["proposal_id"] != authorization.proposal_id
+                or cached["actor"] != authorization.actor
+            ):
+                raise PermissionError("idempotency_key_reused_for_different_mutation")
+            return cached
         venue = self.venues[intent.venue]
         if intent.idempotency_key in self._ambiguous_keys and not getattr(
             venue, "supports_idempotent_replay", False
@@ -140,7 +162,8 @@ class LiveExecutionCoordinator:
 
     def ambiguous_keys(self) -> tuple[str, ...]:
         """Keys with unprovable submission outcomes awaiting reconciliation."""
-        return tuple(sorted(self._ambiguous_keys))
+        with self._execution_lock:
+            return tuple(sorted(self._ambiguous_keys))
 
     def mark_reconciled(self, idempotency_key: str) -> bool:
         """Clear a reconciliation hold once an operator resolved the outcome.
@@ -149,7 +172,8 @@ class LiveExecutionCoordinator:
         venue state; it only permits a fresh governed submission under the
         same idempotency key after human reconciliation.
         """
-        if idempotency_key not in self._ambiguous_keys:
-            return False
-        self._ambiguous_keys.discard(idempotency_key)
-        return True
+        with self._execution_lock:
+            if idempotency_key not in self._ambiguous_keys:
+                return False
+            self._ambiguous_keys.discard(idempotency_key)
+            return True

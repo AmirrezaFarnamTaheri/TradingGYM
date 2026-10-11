@@ -256,3 +256,91 @@ def test_live_mode_constructs(minimal_env_config, minimal_feature_config, mock_i
         np.array([0.0], dtype=np.float32)
     )
     assert isinstance(obs, np.ndarray)
+
+
+def test_skipped_bar_still_accounts_for_mark_to_market_and_financing(
+    minimal_env_config, minimal_feature_config, mock_inputs
+):
+    """A spread-based no-trade bar is not a no-P&L/no-risk bar."""
+    env = MarginTradingEnv(
+        features=mock_inputs["features"],
+        prices_mid=mock_inputs["prices_mid"],
+        prices_high=mock_inputs["prices_high"],
+        prices_low=mock_inputs["prices_low"],
+        cfg=minimal_env_config,
+        features_cfg=minimal_feature_config,
+        training_stats={"mean": 0.0, "std": 1.0},
+    )
+    env.reset(seed=33)
+    env._state = ExecutionState(
+        position=Decimal("1"), equity=Decimal("100"),
+        borrowed_base=Decimal("0"), borrowed_quote=Decimal("30"),
+        average_entry_price=Decimal("100"),
+    )
+    env.prev_mid_price = 100.0
+    env.price[env.t] = 102.0
+    env.price_high[env.t] = 103.0
+    env.price_low[env.t] = 101.0
+    env._raw_features[env.t, env.feature_index["spread_ratio"]] = 1.0
+
+    _, reward, _, _, info = env.step(np.array([1.0]))
+
+    assert info["skipped"] is True
+    assert float(env.equity) < 102.0  # financing still charged
+    assert float(env.equity) > 100.0  # price appreciation still booked
+    assert info["financing_paid"] > 0.0
+    assert reward == pytest.approx(env._reward(100.0))
+    assert reward > 0
+    assert len(env.equity_history) == 2
+    assert len(env.price_history) == 2
+    assert len(env.position_history) == 2
+
+
+def test_skipped_bar_does_not_bypass_emergency_breaker(
+    minimal_env_config, minimal_feature_config, mock_inputs
+):
+    env = MarginTradingEnv(
+        features=mock_inputs["features"],
+        prices_mid=mock_inputs["prices_mid"],
+        prices_high=mock_inputs["prices_high"],
+        prices_low=mock_inputs["prices_low"],
+        cfg=minimal_env_config,
+        features_cfg=minimal_feature_config,
+        training_stats={"mean": 0.0, "std": 1.0},
+    )
+    env.reset(seed=33)
+    env._raw_features[env.t, env.feature_index["spread_ratio"]] = 1.0
+    env.breaker = MagicMock()
+    env.breaker.check.return_value = True
+    env.breaker.trip_reason = "test_risk_stop"
+
+    _, _, terminated, truncated, info = env.step(0.0)
+
+    assert env.breaker.check.called
+    assert terminated is True
+    assert truncated is False
+    assert info["reason"] == "test_risk_stop"
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_market_bar_and_action_are_rejected_before_equity_mutation(
+    minimal_env_config, minimal_feature_config, mock_inputs, invalid
+):
+    env = MarginTradingEnv(
+        features=mock_inputs["features"],
+        prices_mid=mock_inputs["prices_mid"],
+        prices_high=mock_inputs["prices_high"],
+        prices_low=mock_inputs["prices_low"],
+        cfg=minimal_env_config,
+        features_cfg=minimal_feature_config,
+        training_stats={"mean": 0.0, "std": 1.0},
+    )
+    env.reset(seed=33)
+    initial_equity = env.equity
+    with pytest.raises(ValueError, match="Trading action must be finite"):
+        env.step(invalid)
+    assert env.equity == initial_equity
+    env.price[env.t] = invalid
+    with pytest.raises(ValueError, match="Market bar prices must be finite"):
+        env.step(0.0)
+    assert env.equity == initial_equity

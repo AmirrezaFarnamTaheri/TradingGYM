@@ -17,14 +17,16 @@ npm install
 # Copy example env file
 cp .env.example .env
 
-# Edit .env and set your API key (must match API server)
+# Adjust public API/WS endpoints only if the proxy differs from defaults.
+# Enter the API key in the running app, not in this file.
 nano .env
 ```
 
 Example `.env`:
 ```
-VITE_API_BASE=http://localhost:8000
-VITE_API_KEY=your-api-key-here
+VITE_API_URL=/api/v1
+# VITE_WS_URL is optional; by default it follows the current page's origin.
+# Do not put credentials in VITE_ variables: they are public build inputs.
 ```
 
 ### 3. Start Development Server
@@ -45,14 +47,14 @@ Output will be in `dist/`
 
 ## Features
 
-### 6 Main Panels
+### Operator workspace
 
-1. **⚙️ Config Panel** - View configuration (read-only)
-2. **📊 Data Panel** - Download data and generate features
-3. **🤖 Training Panel** - Train models with live log console
-4. **📈 Models Panel** - Manage models, set active, run backtests
-5. **💱 Trading Panel** - Governed paper/live start, panic, emergency control, and live metrics
-6. **🛡️ Convergence Panel** - Proposals, approvals, evidence, identity, deployment, accounting, lineage, recovery, and assurance readiness
+The sidebar currently has 12 panels for production authority, institutional analysis,
+research/intelligence, Forge and memory, playground, grants, system health,
+configuration, data, training, models and trading.
+
+Mutation requests never retry automatically: a lost response may represent an
+executed operation. Check the authoritative backend state before resubmission.
 
 ### Real-Time Features
 
@@ -127,8 +129,8 @@ The UI is non-authoritative: readiness cards and evidence reports cannot promote
 ### Can't Connect to API
 
 1. Make sure API server is running: `poetry run python apps/api/main.py`
-2. Check API base URL in `.env` matches your API server
-3. Verify API key matches between frontend `.env` and backend `.env`
+2. Check `VITE_API_URL` or the Vite proxy targets your API server.
+3. Enter the backend `API_KEY` in the app's session login; never embed it in a Vite build.
 
 ### WebSocket Not Connecting
 

@@ -105,3 +105,18 @@ def test_cross_currency_isolation(ledger):
     ledger.reserve(order_id="btc-o", currency="BTC", amount=D("0.5"))
     assert ledger.available_balance("USDT") == D("10_000")
     assert ledger.available_balance("BTC") == D("0.5")
+
+
+@pytest.mark.parametrize("amount", [D("NaN"), D("Infinity"), D("-Infinity")])
+def test_nonfinite_money_never_enters_reservation_ledger(amount):
+    with pytest.raises(ValueError, match="finite non-negative"):
+        ReservationLedger({"USDT": amount})
+
+    ledger = ReservationLedger({"USDT": D("100")})
+    with pytest.raises(ValueError, match="finite positive"):
+        ledger.reserve(order_id="bad", currency="USDT", amount=amount)
+    ledger.reserve(order_id="valid", currency="USDT", amount=D("10"))
+    with pytest.raises(ValueError, match="finite positive"):
+        ledger.commit_settlement(order_id="valid", currency="USDT", settled_amount=amount)
+    assert ledger.available_balance("USDT") == D("90")
+    assert ledger.reserved_for_order("valid")["USDT"] == D("10")
