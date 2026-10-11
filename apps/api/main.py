@@ -41,7 +41,7 @@ import re
 import psutil
 import secrets
 from uuid import uuid4
-from filelock import FileLock
+from filelock import FileLock, Timeout
 from trading_gym.common.config import AppConfig
 from pydantic import ValidationError
 
@@ -274,19 +274,28 @@ def prune_zombies():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage app startup and shutdown."""
+    """Keep one API supervisor per local data home for its entire lifetime."""
     logger.info("FastAPI starting up...")
-
-    # 0. Validate Environment
-    validate_environment()
-
-    # 1. Prune Zombies to ensure clean slate
-    prune_zombies()
-
-    yield
-
-    logger.info("FastAPI shutting down...")
-    await cleanup_processes()
+    runtime_root = resolve_data_home() / "runtime"
+    if runtime_root.is_symlink():
+        raise ValueError("api_runtime_root_symlink")
+    runtime_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    instance_lock = FileLock(str(runtime_root / "api-supervisor.lock"))
+    try:
+        instance_lock.acquire(timeout=0)
+    except Timeout as exc:
+        raise RuntimeError("api_supervisor_already_running_for_data_home") from exc
+    try:
+        # This supervisor alone may adopt/prune application child processes.
+        validate_environment()
+        prune_zombies()
+        try:
+            yield
+        finally:
+            logger.info("FastAPI shutting down...")
+            await cleanup_processes()
+    finally:
+        instance_lock.release()
 
 
 # ============================================================================
