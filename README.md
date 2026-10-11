@@ -54,6 +54,8 @@ Broker and provider secrets are not stored in general state. Child processes rec
 
 The service is intentionally **single-tenant per process and `TRADING_GYM_HOME`**. Set `TRADING_GYM_DEPLOYMENT_MODE=single_tenant` and a stable `TRADING_GYM_TENANT_ID`. `TRADING_GYM_MULTI_TENANT=true`, any alternate deployment mode, or a mismatched `X-Tenant-ID` fails closed. Multi-tenant isolation is not claimed.
 
+**API supervisor limit:** run only one API process per local `TRADING_GYM_HOME` (for example, `uvicorn` without `--workers`). The API now holds a cross-process `runtime/api-supervisor.lock` for its lifespan and refuses a second process sharing that directory, rather than allowing two independent process registries to issue trading commands. This does not coordinate machines using separate data roots and is not an authorization to operate a multi-host funded account.
+
 ## Governed mutation delivery and recovery
 
 Live order submission follows ADR-022's conservative delivery rules:
