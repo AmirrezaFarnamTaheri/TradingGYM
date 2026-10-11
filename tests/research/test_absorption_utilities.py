@@ -87,6 +87,28 @@ def test_gate_denies_unknown_operation_and_bad_key():
     )
 
 
+def test_gate_rejects_cancel_with_a_positive_quantity():
+    payload = evaluate_pre_trade_gate(
+        operation="order.cancel",
+        quantity=Decimal("0.1"),
+        idempotency_key="b" * 32,
+        reference_id="pending-order",
+    )
+    assert payload.allowed is False
+    assert "quantity_valid" in payload.denial_reasons
+
+
+@pytest.mark.parametrize("quantity", [Decimal("0"), Decimal("0.1")])
+def test_gate_accepts_full_or_partial_short_close(quantity):
+    payload = evaluate_pre_trade_gate(
+        operation="short.close",
+        quantity=quantity,
+        idempotency_key="a" * 32,
+        reference_id="short-1",
+    )
+    assert payload.allowed is True
+
+
 # ---------------------------------------------------------------------------
 # Stability-aware backoff (kraken session-reset refinement)
 # ---------------------------------------------------------------------------
