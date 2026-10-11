@@ -9,6 +9,7 @@ configuration time and immediately before connecting.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import inspect
 import json
 import logging
@@ -279,15 +280,17 @@ class WebSocketClient:
             allow_private=self.config.allow_private_url,
             resolve_dns=False,
         )
-        if (
-            self.config.api_key
-            and urlparse(self.config.url).scheme != "wss"
-            and not self.config.allow_private_url
-        ):
-            raise ValueError("authenticated public WebSocket requires TLS")
         tcp_host, tcp_port = await _validated_tcp_target(
             self.config.url, allow_private=self.config.allow_private_url
         )
+        if (
+            self.config.api_key
+            and urlparse(self.config.url).scheme != "wss"
+            and not ipaddress.ip_address(tcp_host).is_loopback
+        ):
+            # The private-network opt-in is not a blanket permission to send
+            # account credentials over plaintext connections to public IPs.
+            raise ValueError("authenticated non-loopback WebSocket requires TLS")
         headers: Dict[str, str] = {}
         if self.config.api_key:
             headers["Authorization"] = f"Token {self.config.api_key}"

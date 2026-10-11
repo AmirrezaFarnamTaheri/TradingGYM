@@ -540,3 +540,27 @@ async def test_websocket_auth_handshake_uses_validated_pinned_ip(monkeypatch):
     )
     assert params[header_key]["Authorization"] == "Token sensitive-token"
     await client.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_private_opt_in_does_not_allow_public_plaintext_credentials(
+    monkeypatch
+):
+    config = WebSocketConfig(
+        url="ws://8.8.8.8/ws",
+        api_key="private-token",
+        allow_private_url=True,
+    )
+    client = WebSocketClient(config)
+    sent = []
+
+    async def fake_connect(*_args, **_kwargs):
+        sent.append("credential_handshake")
+        return _FakeSocket(("8.8.8.8", 80))
+
+    monkeypatch.setattr(
+        "trading_gym.adapters.aban_websocket.websockets.connect", fake_connect
+    )
+    with pytest.raises(ValueError, match="requires TLS"):
+        await client.connect()
+    assert not sent
