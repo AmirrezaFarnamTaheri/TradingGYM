@@ -61,3 +61,45 @@ def test_provider_status_re_resolves_and_blocks_private_destination(
     )
     with pytest.raises(ValueError, match="disallowed"):
         provider_status(config())
+
+
+@pytest.mark.parametrize(
+    ("http_status", "expected"),
+    [
+        (200, "reachable"),
+        (204, "reachable"),
+        (302, "unavailable"),
+        (401, "unauthorized"),
+        (403, "unauthorized"),
+        (404, "unavailable"),
+        (429, "unavailable"),
+        (503, "degraded"),
+    ],
+)
+def test_provider_status_only_considers_successful_http_health_reachable(
+    monkeypatch: pytest.MonkeyPatch, http_status: int, expected: str
+) -> None:
+    from types import SimpleNamespace
+
+    from trading_gym.agent import providers as module
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-token")
+    monkeypatch.setattr(module, "validate_base_url", lambda url, **kw: url)
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            assert kwargs["follow_redirects"] is False
+            assert kwargs["trust_env"] is False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, url, *, headers):
+            assert headers["Authorization"] == "Bearer test-token"
+            return SimpleNamespace(status_code=http_status)
+
+    monkeypatch.setattr(module.httpx, "Client", FakeClient)
+    assert provider_status(config())["status"] == expected

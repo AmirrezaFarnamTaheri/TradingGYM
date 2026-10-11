@@ -248,10 +248,19 @@ def provider_status(
             trust_env=False,
         ) as client:
             response = client.get(destination, headers=headers)
+        code = response.status_code
+        if 200 <= code < 300:
+            status = "reachable"
+        elif code in (401, 403):
+            status = "unauthorized"
+        elif code >= 500:
+            status = "degraded"
+        else:
+            status = "unavailable"
         return {
             "provider_id": config.provider_id,
-            "status": "reachable" if response.status_code < 500 else "degraded",
-            "http_status": response.status_code,
+            "status": status,
+            "http_status": code,
         }
     except httpx.HTTPError as exc:
         return {
