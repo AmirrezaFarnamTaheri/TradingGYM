@@ -4,18 +4,15 @@ The Aban client deliberately never retries mutating calls: a naive retry can
 double an order after an ambiguous network failure.  This module adds the
 missing piece — *safe* automatic mutation retry:
 
-1. Every logical mutation keeps ONE stable idempotency key for all attempts.
-   ``LiveExecutionCoordinator`` returns the cached receipt when a key is
-   re-submitted, so if the first attempt actually reached the venue and only
-   the response was lost, the retry observes the original outcome instead of
-   duplicating the order.
-2. Only explicitly transient failures are retried (bounded attempts,
-   exponential backoff with jitter).  Validation, authorization, consent and
-   emergency-halt errors abort immediately.
-3. A durable outbox journal records every attempt before submission and its
-   outcome afterwards; intents whose outcome stayed ambiguous are surfaced by
-   :func:`scan_outbox` so operators can reconcile them.  The journal is
-   evidence, not authority: nothing is ever re-submitted from disk.
+1. Every logical mutation uses ONE idempotency key throughout a bounded
+   set of attempts. Process-local receipt caching prevents duplicate calls
+   only within the same coordinator session; it is not venue idempotency.
+2. Only failures known to occur before submission are automatically retried.
+   Unknown delivery outcomes require actual venue-side replay deduplication,
+   which the Aban adapter does not claim. Consent and safety failures abort.
+3. A durable outbox journal records pending intents before submission and
+   outcomes afterwards. Unresolved operations block fresh orders, including
+   after restart. The journal is evidence, not a broker settlement oracle.
 """
 
 from __future__ import annotations
