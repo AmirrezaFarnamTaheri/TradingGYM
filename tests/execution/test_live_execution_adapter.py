@@ -728,3 +728,48 @@ async def test_invalid_broker_open_order_count_rejected(adapter, mock_client, to
     mock_client.get_orders.return_value = {"total": total, "data": []}
     with pytest.raises(RuntimeError, match="invalid_broker_order_count"):
         await adapter._verify_broker_flat()
+
+
+@pytest.mark.parametrize(
+    "available,blocked",
+    [
+        (Decimal("NaN"), Decimal("0")),
+        (Decimal("-0.1"), Decimal("0")),
+        (Decimal("1"), Decimal("-0.5")),
+        (Decimal("Infinity"), Decimal("0")),
+    ],
+)
+def test_net_position_rejects_invalid_base_balances(
+    adapter, mock_client, available, blocked
+):
+    mock_client.get_balance.return_value = [
+        Balance(symbol="BTC", balance=available, blocked=blocked)
+    ]
+    with pytest.raises(ValueError, match="invalid_broker_base_balance"):
+        adapter._get_net_position()
+
+
+def test_net_position_rejects_duplicate_base_balance_rows(adapter, mock_client):
+    mock_client.get_balance.return_value = [
+        Balance(symbol="BTC", balance=Decimal("1"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("2"), blocked=Decimal("0")),
+    ]
+    with pytest.raises(ValueError, match="duplicate_broker_base_balance"):
+        adapter._get_net_position()
+
+
+@pytest.mark.parametrize("amount", ["NaN", "-0.1", "Infinity"])
+def test_net_position_rejects_invalid_short_inventory(
+    adapter, mock_client, amount
+):
+    mock_client.get_short_positions.return_value = [
+        {"symbol": "BTCUSDT", "amount": amount}
+    ]
+    with pytest.raises(ValueError, match="invalid_broker_short_position"):
+        adapter._get_net_position()
+
+
+def test_net_position_requires_actual_short_snapshot(adapter, mock_client):
+    mock_client.get_short_positions.return_value = None
+    with pytest.raises(ValueError, match="broker_position_snapshot_unavailable"):
+        adapter._get_net_position()
