@@ -615,7 +615,7 @@ class LiveExecutionAdapter:
             raise RuntimeError("broker_order_snapshot_unavailable")
         total = orders.get("total")
         if total is not None:
-            if type(total) is not int or total < 0:
+            if not isinstance(total, int) or isinstance(total, bool) or total < 0:
                 raise RuntimeError("invalid_broker_order_count")
             if total:
                 # One page of order data cannot prove that other pages are
