@@ -146,6 +146,17 @@ describe('AuthzPanel health visibility', () => {
   });
 });
 
+describe('AuthzPanel malformed responses', () => {
+  it('does not display no grants for a malformed server response', async () => {
+    grantsSpy.mockResolvedValueOnce({ data: { grants: null } });
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    const errorBox = await waitForRendered(container, '.error');
+    expect(errorBox.textContent).toContain('Invalid grants response');
+    expect(container.textContent).not.toContain('No active grants');
+    cleanup();
+  });
+});
+
 describe('session API key storage contract (security review M-4)', () => {
   test('api.js never persists the gateway key to localStorage', () => {
     const source = fs.readFileSync(path.resolve('src/api.js'), 'utf8');
