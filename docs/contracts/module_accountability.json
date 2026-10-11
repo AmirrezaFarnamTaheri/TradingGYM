@@ -438,7 +438,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/live_execution_adapter.py",
-      "sha256": "8e1de668a893cd8a02fe56183f432167278a1c42943d83dd8ab1b5dec7e29545"
+      "sha256": "05e6f332ce50da29e7a5d19e49c10ab169f5d5aff33c0f1582f8f50ce34b00bd"
     },
     {
       "owner": "trading_gym",
@@ -1228,7 +1228,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/emergency.py",
-      "sha256": "04e78238ea969241d4658a4151db6794717f3058fb2e7646f36be7aa5e8a9b55"
+      "sha256": "3e1212323fce9c4f7ca058a0eae81c218abccf91b5b03b72c149ecb1cfe0f6c3"
     },
     {
       "owner": "trading_gym",
