@@ -665,8 +665,18 @@ class LiveExecutionAdapter:
                     OrderStatus.PROCESSING,
                 ],  # type: ignore
             )
-            # get_orders returns Dict, keys: total, data (list)
-            open_orders = open_orders_resp.get("data", [])
+            # Refuse incomplete pagination before cancelling or reducing
+            # exposure: unseen orders can execute after a new market close.
+            if not isinstance(open_orders_resp, dict) or not isinstance(
+                open_orders_resp.get("data"), list
+            ):
+                raise RuntimeError("broker_open_order_snapshot_unavailable")
+            open_orders = open_orders_resp["data"]
+            total = open_orders_resp.get("total")
+            if not isinstance(total, int) or isinstance(total, bool) or total < 0:
+                raise RuntimeError("invalid_broker_order_count")
+            if total != len(open_orders):
+                raise RuntimeError("broker_open_order_page_incomplete")
 
             for order in open_orders:
                 await self._mutate(

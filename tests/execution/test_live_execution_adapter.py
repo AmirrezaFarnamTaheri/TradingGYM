@@ -171,7 +171,7 @@ async def test_reconcile_sell_short(adapter, mock_client):
 @pytest.mark.asyncio
 async def test_flatten(adapter, mock_client):
     adapter._get_net_position = MagicMock(return_value=Decimal("1.5"))
-    mock_client.get_orders.return_value = {"data": [{"id": "open1"}]}
+    mock_client.get_orders.return_value = {"total": 1, "data": [{"id": "open1"}]}
     mock_client.cancel_order.return_value = OrderResponse(
         id="open1",
         code="200",
@@ -203,6 +203,32 @@ async def test_flatten(adapter, mock_client):
     mock_client.place_market_order.assert_called_with(
         OrderSide.SELL, "BTC", "USDT", Decimal("1.5")
     )
+
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"total": 2, "data": [{"id": "visible-only"}]},
+        {"total": 0, "data": [{"id": "unexpected"}]},
+        {"data": [{"id": "visible-only"}]},
+        {"total": 1, "data": None},
+    ],
+)
+@pytest.mark.asyncio
+async def test_flatten_refuses_incomplete_broker_order_pages_before_mutation(
+    adapter, mock_client, response
+):
+    adapter._get_net_position = MagicMock(return_value=Decimal("1"))
+    mock_client.get_orders.return_value = response
+
+    assert await adapter.flatten() is False
+    assert adapter._last_flatten_error
+    mock_client.cancel_order.assert_not_called()
+    mock_client.place_market_order.assert_not_called()
+    mock_client.create_short_sell.assert_not_called()
+    mock_client.close_short_position.assert_not_called()
+    adapter._get_net_position.assert_not_called()
 
 
 def test_get_live_equity(adapter, mock_client):
