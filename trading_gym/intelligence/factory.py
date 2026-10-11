@@ -8,7 +8,7 @@ RL/absent, meaning "keep using the model directly" (byte-identical legacy path).
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from trading_gym.agent.providers import ProviderRepository
 from trading_gym.intelligence.base import IntelligenceBackend
@@ -28,6 +28,7 @@ def build_intelligence_policy(
     action_low: float,
     action_high: float,
     provider_repository: ProviderRepository | None = None,
+    context_builder: Callable[[Any], dict[str, Any]] | None = None,
 ):
     """Assemble the configured backend stack.
 
@@ -121,4 +122,5 @@ def build_intelligence_policy(
         action_low=action_low,
         action_high=action_high,
         fallback_backend=fallback,
+        context_builder=context_builder,
     )

@@ -486,3 +486,126 @@ def test_model_free_auto_degrades_to_rules_without_provider():
         action_high=20,
     )
     assert adapter.backend.name == "rules"
+
+
+def test_market_context_builder_uses_true_equity_prices_and_returns():
+    from types import SimpleNamespace
+
+    from trading_gym.intelligence.wiring import build_market_context
+
+    state = SimpleNamespace(
+        live_mode=True,
+        price=np.array([130.0]),
+        equity=600.0,
+        position=1.25,
+        price_history=[100.0, 110.0, 120.0],
+        equity_history=[1000.0, 1200.0, 900.0],
+        _margin_level=lambda price: 0.4,
+    )
+    context = build_market_context(
+        SimpleNamespace(unwrapped=state), symbol="BTCUSDT"
+    )
+    assert context["symbol"] == "BTCUSDT"
+    assert context["equity"] == 600
+    assert context["position_units"] == 1.25
+    assert context["last_close"] == 130
+    assert context["prev_close"] == 120
+    assert len(context["recent_returns"]) == 3
+    assert context["recent_returns"][0] == pytest.approx(130 / 120 - 1)
+    assert context["drawdown_from_peak"] == pytest.approx(0.5)
+    assert context["margin_level"] == 0.4
+
+
+def test_rules_mode_exploits_real_environment_momentum_instead_of_holding():
+    from types import SimpleNamespace
+
+    from trading_gym.common.intelligence_config import (
+        IntelligenceConfig,
+        IntelligenceMode,
+    )
+    from trading_gym.intelligence.wiring import build_trading_policy
+
+    state = SimpleNamespace(
+        live_mode=True,
+        price=np.array([130.0]),
+        equity=600.0,
+        position=0.0,
+        price_history=[100.0, 110.0, 120.0],
+        equity_history=[600.0],
+        _margin_level=lambda price: None,
+    )
+    space = SimpleNamespace(low=np.array([-5.0]), high=np.array([20.0]))
+    env = SimpleNamespace(unwrapped=state, action_space=space)
+    cfg = SimpleNamespace(
+        intelligence=IntelligenceConfig(mode=IntelligenceMode.RULES),
+        env=SimpleNamespace(symbol="BTCUSDT"),
+    )
+    policy = build_trading_policy(cfg, model=None, env=env)
+    result, _ = policy.predict(np.zeros(6))
+    assert result[0] > 0
+    assert policy.last_signal.action_kind == ActionKind.LONG
+
+
+def test_real_context_failure_prevents_fabricated_rules_execution():
+    from types import SimpleNamespace
+
+    from trading_gym.intelligence.wiring import build_market_context
+
+    state = SimpleNamespace(
+        live_mode=True,
+        price=np.array([100.0]),
+        equity=float("nan"),
+        position=0.0,
+        price_history=[100.0],
+        equity_history=[1000.0],
+    )
+    with pytest.raises(ValueError, match="account or price state"):
+        build_market_context(
+            SimpleNamespace(unwrapped=state), symbol="BTCUSDT"
+        )
+
+
+def test_fusion_governor_receives_actual_account_context():
+    from types import SimpleNamespace
+
+    from trading_gym.intelligence.wiring import build_market_context
+
+    class CapturingGovernor(_Scripted):
+        def decide(self, context):
+            self.last_context = context
+            return super().decide(context)
+
+    governor = CapturingGovernor(
+        "llm", _sig(ActionKind.LONG, 2.5, 0.8)
+    )
+    state = SimpleNamespace(
+        live_mode=True,
+        price=np.array([130.0]),
+        equity=1500.0,
+        position=2.0,
+        price_history=[90.0, 100.0, 120.0],
+        equity_history=[2000.0],
+        _margin_level=lambda price: 0.6,
+    )
+    env = SimpleNamespace(unwrapped=state)
+    fusion = FusionBackend(
+        rl_backend=RLPolicyBackend(_FakeModel(4.0)),
+        llm_backend=governor,
+    )
+    policy = IntelligencePolicyAdapter(
+        fusion,
+        action_low=-5,
+        action_high=20,
+        context_builder=lambda obs: build_market_context(
+            env, symbol="BTCUSDT"
+        ),
+    )
+    action, _ = policy.predict(np.zeros(6))
+    assert float(action[0]) == pytest.approx(2.0)
+    assert governor.last_context.symbol == "BTCUSDT"
+    assert governor.last_context.equity == pytest.approx(1500.0)
+    assert governor.last_context.last_close == 130.0
+    assert governor.last_context.prev_close == 120.0
+    assert governor.last_context.recent_returns[0] == pytest.approx(
+        130 / 120 - 1
+    )

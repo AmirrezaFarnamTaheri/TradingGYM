@@ -37,6 +37,70 @@ def resolve_action_bounds(env: Any) -> tuple[float, float]:
     return low, high
 
 
+def build_market_context(env: Any, *, symbol: str) -> dict[str, Any]:
+    """Extract actual account state for rules and LLM arbitration.
+
+    Normalised observation tails are not cash balances or market prices.
+    Reject missing/nonfinite source state instead of inventing dollar amounts
+    or letting a fallback trade on fabricated inventory.
+    """
+    underlying = getattr(env, "unwrapped", env)
+    prices = np.asarray(underlying.price, dtype=float)
+    if prices.ndim != 1 or prices.size == 0:
+        raise ValueError("environment market price history is unavailable")
+    index = -1 if underlying.live_mode else int(underlying.t)
+    price = float(prices[index])
+    equity = float(underlying.equity)
+    position = float(underlying.position)
+    if (
+        not all(np.isfinite(x) for x in (price, equity, position))
+        or price <= 0
+        or equity <= 0
+    ):
+        raise ValueError("environment account or price state is invalid")
+
+    previous = list(getattr(underlying, "price_history", ())[-9:])
+    if any(not np.isfinite(float(value)) or float(value) <= 0 for value in previous):
+        raise ValueError("environment historical prices are invalid")
+    closes = [float(value) for value in previous]
+    if not closes or closes[-1] != price:
+        closes.append(price)
+    prev_close = closes[-2] if len(closes) >= 2 else None
+    returns = tuple(
+        (closes[i] / closes[i - 1]) - 1.0
+        for i in range(len(closes) - 1, 0, -1)
+    )
+    if not all(np.isfinite(value) for value in returns):
+        raise ValueError("environment recent returns are invalid")
+
+    equity_history = list(getattr(underlying, "equity_history", ())[-1000:])
+    if any(not np.isfinite(float(value)) for value in equity_history):
+        raise ValueError("environment equity history is invalid")
+    peak = max((float(value) for value in equity_history), default=equity)
+    peak = max(peak, equity)
+    drawdown = max(0.0, 1.0 - equity / peak)
+
+    margin_provider = getattr(underlying, "_margin_level", None)
+    margin_level = margin_provider(price) if callable(margin_provider) else None
+    if margin_level is not None:
+        margin_level = float(margin_level)
+        if not np.isfinite(margin_level):
+            raise ValueError("environment margin state is invalid")
+
+    if not isinstance(symbol, str) or not symbol.strip():
+        raise ValueError("environment symbol is unavailable")
+    return {
+        "symbol": symbol,
+        "equity": equity,
+        "position_units": position,
+        "last_close": price,
+        "prev_close": prev_close,
+        "recent_returns": returns,
+        "drawdown_from_peak": drawdown,
+        "margin_level": margin_level,
+    }
+
+
 def build_trading_policy(
     cfg: AppConfig,
     model: Any,
@@ -59,4 +123,7 @@ def build_trading_policy(
         action_low=low,
         action_high=high,
         provider_repository=provider_repository,
+        context_builder=lambda _observation: build_market_context(
+            env, symbol=cfg.env.symbol
+        ),
     )

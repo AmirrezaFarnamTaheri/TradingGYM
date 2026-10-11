@@ -71,6 +71,13 @@ class IntelligencePolicyAdapter:
         equity_ratio = float(np.exp(state[0])) if state.size > 0 else 1.0
         price_ratio = float(np.exp(state[1])) if state.size > 1 else 1.0
         position_norm = float(state[2]) if state.size > 2 else 0.0
+        if (
+            not np.isfinite(equity_ratio)
+            or not np.isfinite(price_ratio)
+            or equity_ratio <= 0
+            or price_ratio <= 0
+        ):
+            raise ValueError("normalized observation ratios are invalid")
         return {
             "equity_ratio": equity_ratio,
             "price_ratio": price_ratio,
@@ -92,14 +99,20 @@ class IntelligencePolicyAdapter:
                 position_units=float(
                     ctx.get("position_units", ctx.get("position_norm", 0.0))
                 ),
-                equity=float(ctx.get("equity", 1.0)) * 10_000.0,
+                # Without environment wiring, these are dimensionless
+                # observation ratios. Do not invent a $10,000 account balance.
+                equity=float(ctx.get("equity", ctx.get("equity_ratio", 1.0))),
                 margin_level=ctx.get("margin_level"),
                 last_close=float(ctx.get("last_close", ctx.get("price_ratio", 1.0))),
-                prev_close=None,
-                recent_returns=tuple(),
+                prev_close=ctx.get("prev_close"),
+                recent_returns=tuple(ctx.get("recent_returns", ())),
                 drawdown_from_peak=ctx.get("drawdown_from_peak"),
                 extras={
-                    k: float(v) for k, v in ctx.items() if isinstance(v, (int, float))
+                    key: float(value)
+                    for key, value in ctx.items()
+                    if isinstance(value, (int, float))
+                    and not isinstance(value, bool)
+                    and np.isfinite(value)
                 },
             )
 
