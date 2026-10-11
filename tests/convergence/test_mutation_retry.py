@@ -595,3 +595,88 @@ def test_outbox_rejects_unterminated_or_oversize_journal_lines(tmp_path):
     path.write_bytes(b"x" * (MAX_JSONL_RECORD_BYTES + 10) + b"\n")
     with pytest.raises(MutationOutboxIntegrityError, match="exceeds"):
         scan_outbox(MutationOutbox(path=path))
+
+
+
+def test_atomic_claim_prevents_concurrent_live_intents(tmp_path):
+    """Independent workers cannot both clear the same outbox preflight."""
+    path = tmp_path / "shared_outbox.jsonl"
+
+    def claim(index):
+        try:
+            MutationOutbox(path).claim_pending(
+                idempotency_key=f"live-{index}",
+                proposal_id="proposal-1",
+                operation="spot.market",
+                payload_sha256=f"hash-{index}",
+            )
+        except PermissionError as exc:
+            return f"denied:{exc}"
+        return f"accepted:{index}"
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        results = list(workers.map(claim, range(2)))
+    assert sum(value.startswith("accepted:") for value in results) == 1
+    assert sum(
+        value == "denied:unresolved_mutations_require_reconciliation"
+        for value in results
+    ) == 1
+
+    # A proven terminal failure frees the slot, without resurrecting the
+    # original idempotency key or allowing an unverified pending request.
+    latest = MutationOutbox(path).latest_by_key()
+    assert len(latest) == 1
+    key, entry = next(iter(latest.items()))
+    with pytest.raises(MutationOutboxIntegrityError, match="already_recorded"):
+        MutationOutbox(path).claim_pending(
+            idempotency_key=key,
+            proposal_id=entry["proposal_id"],
+            operation=entry["operation"],
+            payload_sha256=entry["payload_sha256"],
+        )
+    MutationOutbox(path).record_outcome(
+        idempotency_key=key,
+        proposal_id=entry["proposal_id"],
+        operation=entry["operation"],
+        payload_sha256=entry["payload_sha256"],
+        outcome="terminal",
+    )
+    MutationOutbox(path).claim_pending(
+        idempotency_key="next-logical-operation",
+        proposal_id="proposal-1",
+        operation="spot.market",
+        payload_sha256="new-hash",
+    )
+    assert MutationOutbox(path).latest_by_key()["next-logical-operation"][
+        "status"
+    ] == "pending"
+
+
+def test_atomic_claim_rejects_corrupt_prior_outbox(tmp_path):
+    path = tmp_path / "journal.jsonl"
+    path.write_text('{"truncated":true}', encoding="utf-8")
+    with pytest.raises(MutationOutboxIntegrityError, match="unterminated"):
+        MutationOutbox(path).claim_pending(
+            idempotency_key="fresh",
+            proposal_id="proposal",
+            operation="spot.market",
+            payload_sha256="sha",
+        )
+    assert path.read_text(encoding="utf-8") == '{"truncated":true}'
+
+
+def test_atomic_claim_keeps_cancellation_possible_during_unknown_outcome(tmp_path):
+    outbox = MutationOutbox(tmp_path / "outbox.jsonl")
+    outbox.claim_pending(
+        idempotency_key="unknown-buy",
+        proposal_id="proposal",
+        operation="spot.market",
+        payload_sha256="hash-buy",
+    )
+    outbox.claim_pending(
+        idempotency_key="cancel-pending-order",
+        proposal_id="proposal",
+        operation="order.cancel",
+        payload_sha256="hash-cancel",
+    )
+    assert len(scan_outbox(outbox)) == 2
