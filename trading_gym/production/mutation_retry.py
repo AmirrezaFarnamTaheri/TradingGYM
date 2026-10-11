@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from filelock import FileLock
+from filelock import FileLock, Timeout
 
 from trading_gym.common.persistence import (
     MAX_JSONL_RECORD_BYTES,
@@ -138,6 +138,46 @@ class MutationOutbox:
             "recorded_at": datetime.now(timezone.utc).isoformat(),
         }
         self._append(entry)
+
+    def claim_pending(
+        self,
+        *,
+        idempotency_key: str,
+        proposal_id: str,
+        operation: str,
+        payload_sha256: str,
+    ) -> None:
+        """Atomically reserve the only unresolved governed submission slot.
+
+        A scan followed by an append is unsafe when two independent workers
+        see the same clear journal. The claim lock covers both operations,
+        including readers in other processes. Regular record_pending remains
+        available for journal ingestion and repair tooling.
+        """
+        path = self.path
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            with FileLock(str(path) + ".claim.lock", timeout=5):
+                latest = self.latest_by_key()
+                if idempotency_key in latest:
+                    raise MutationOutboxIntegrityError(
+                        "idempotency_key_already_recorded"
+                    )
+                if operation != "order.cancel" and any(
+                    row["status"] in {"pending", "ambiguous"}
+                    for row in latest.values()
+                ):
+                    raise PermissionError(
+                        "unresolved_mutations_require_reconciliation"
+                    )
+                self.record_pending(
+                    idempotency_key=idempotency_key,
+                    proposal_id=proposal_id,
+                    operation=operation,
+                    payload_sha256=payload_sha256,
+                )
+        except Timeout as exc:
+            raise PermissionError("mutation_journal_claim_timeout") from exc
 
     def record_outcome(
         self,
