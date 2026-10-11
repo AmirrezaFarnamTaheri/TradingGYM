@@ -433,7 +433,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/fill_models.py",
-      "sha256": "0e6495ba62f30f8fc06ca4a268f34735a3c144384fd4474de2fa2d5d4ba0dc7f"
+      "sha256": "110ff69cc7fa16ce4dbb7ea7ee30e724104d89d3c21e15da64ecb51f4a9f5746"
     },
     {
       "owner": "trading_gym",

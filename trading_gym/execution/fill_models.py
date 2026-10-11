@@ -15,6 +15,7 @@ seed — this is the deterministic-cost research contract.
 
 from __future__ import annotations
 
+import math
 import random
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
@@ -153,11 +154,16 @@ class CalibratedSlippageModel:
     def __init__(self, buckets: Sequence[SlippageBucket], *, seed: int = 42):
         if not buckets:
             raise ValueError("at least one slippage bucket is required")
-        total = sum(b.probability for b in buckets)
+        if any(
+            not math.isfinite(bucket.probability) or bucket.probability < 0
+            for bucket in buckets
+        ):
+            raise ValueError("bucket probabilities must be finite and non-negative")
+        total = sum(bucket.probability for bucket in buckets)
         if abs(total - 1.0) > 1e-9:
             raise ValueError("bucket probabilities must sum to 1")
-        if any(b.bps < 0 or b.probability < 0 for b in buckets):
-            raise ValueError("buckets must have non-negative bps and probability")
+        if any(bucket.bps < 0 for bucket in buckets):
+            raise ValueError("buckets must have non-negative bps")
         self._buckets: list[SlippageBucket] = list(buckets)
         self._rng = random.Random(seed)
 
@@ -188,7 +194,11 @@ class CalibratedSlippageModel:
             price = _quantize_tick(max(Decimal("0.0000001"), mid_price - slip), tick)
         else:
             raise ValueError(f"unsupported side {side!r}")
-        notional = (price * quantity).quantize(tick, rounding=ROUND_DOWN)
+        if not price.is_finite() or price <= ZERO:
+            raise ValueError("calibrated slippage produced a non-positive fill price")
+        # A *price* tick is not a quote-notional increment. Rounding the
+        # product by the price tick discards value for fractional quantities.
+        notional = price * quantity
         return FillResult(
             filled_quantity=quantity,
             average_price=price,

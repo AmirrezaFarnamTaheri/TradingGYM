@@ -130,3 +130,24 @@ def test_probability_validation():
         CalibratedSlippageModel([SlippageBucket(0, 0.9)], seed=1)
     with pytest.raises(ValueError):
         CalibratedSlippageModel([SlippageBucket(-5, 1.0)], seed=1)
+
+
+@pytest.mark.parametrize("probability", [float("nan"), -0.01])
+def test_calibrated_slippage_rejects_invalid_bucket_probability(probability):
+    with pytest.raises(ValueError, match="probabilit"):
+        CalibratedSlippageModel([SlippageBucket(0, probability)], seed=1)
+
+
+def test_calibrated_slippage_rejects_zero_tick_price_instead_of_zero_value_fill():
+    model = CalibratedSlippageModel([SlippageBucket(10000, 1.0)], seed=1)
+    with pytest.raises(ValueError, match="price"):
+        model.apply(side="sell", mid_price=D("100"), quantity=D("1"), tick=D("0.01"))
+
+
+def test_calibrated_slippage_preserves_exact_quote_notional():
+    model = CalibratedSlippageModel([SlippageBucket(10, 1.0)], seed=1)
+    result = model.apply(
+        side="buy", mid_price=D("100"), quantity=D("0.003"), tick=D("0.01")
+    )
+    assert result.average_price == D("100.10")
+    assert result.notional == result.average_price * result.filled_quantity
