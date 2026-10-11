@@ -438,7 +438,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/live_execution_adapter.py",
-      "sha256": "40e920082df7ce95042212384b5b9a9391fd32cfacb56f882348764aeac83722"
+      "sha256": "863f10425f095f56168f87e333935fadba25a647314acdc202f460e069b9fd95"
     },
     {
       "owner": "trading_gym",
@@ -1233,7 +1233,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/mutation_retry.py",
-      "sha256": "c36cf085c16868b154972cbe1cfc828312ed4e38f6e0ce3048f7390e62518105"
+      "sha256": "90bfd5902f40a707e1835c9260830fccd29d4cbda5e7f55233a5183629b8b7d8"
     },
     {
       "owner": "trading_gym",
@@ -1248,7 +1248,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/runtime.py",
-      "sha256": "54cd1b87f938427620a601bda5590715adbb863632d42ec913879beae3c55b1e"
+      "sha256": "76f67341ce0d41da2c8c8111ac22e9ca932ec04d3c69d8256fdec8ba5b9c6403"
     },
     {
       "owner": "trading_gym",
