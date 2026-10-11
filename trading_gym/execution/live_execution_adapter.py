@@ -267,6 +267,30 @@ class LiveExecutionAdapter:
                         ) from exc
                     if getattr(details, "status", None) != OrderStatus.CANCELED:
                         raise MutationOutcomeUnknown("cancel_not_verified")
+            elif operation == "short.close" and status is None:
+                # The SDK returns an untyped dict for short closure. A full
+                # close is provable if the referenced short is absent from an
+                # independent venue position snapshot. Partial closes need a
+                # fill receipt, not a generic HTTP success message.
+                if quantity > 0:
+                    raise MutationOutcomeUnknown("partial_short_close_unverified")
+                try:
+                    positions = self.api.get_short_positions()
+                except Exception as exc:
+                    raise MutationOutcomeUnknown(
+                        "short_close_confirmation_unavailable"
+                    ) from exc
+                if not isinstance(positions, list) or any(
+                    not isinstance(position, dict) for position in positions
+                ):
+                    raise MutationOutcomeUnknown(
+                        "short_close_confirmation_unavailable"
+                    )
+                if any(
+                    str(position.get("id")) == reference_id
+                    for position in positions
+                ):
+                    raise MutationOutcomeUnknown("short_close_not_verified")
             elif status is not None:
                 if status in {
                     OrderStatus.REJECTED,
