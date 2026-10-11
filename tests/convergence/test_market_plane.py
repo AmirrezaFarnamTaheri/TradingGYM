@@ -133,3 +133,65 @@ def test_market_request_requires_aware_bounded_window() -> None:
             end=datetime(2026, 1, 2, tzinfo=timezone.utc),
             max_rows=10,
         )
+
+
+def _router_request():
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    return start, MarketDataRequest(
+        instrument_id="BINANCE:BTCUSDT",
+        timeframe="5m",
+        start=start,
+        end=start + timedelta(minutes=15),
+        max_rows=4,
+    )
+
+
+def test_balanced_market_router_uses_complete_secondary_before_degraded_primary():
+    start, request = _router_request()
+    sparse = Provider(frame(start, 2))
+    complete = Provider(frame(start, 4))
+    router = DataProviderRouter(routing_mode="balanced", target_completeness=0.95)
+    router.register("sparse", sparse, priority=1)
+    router.register("complete", complete, priority=2)
+    result = router.fetch(request)
+    assert result.provider_id == "complete"
+    assert result.completeness == 1.0
+    assert result.attempted_providers == ("sparse", "complete")
+
+
+def test_fast_market_router_uses_first_valid_provider_to_minimize_latency():
+    start, request = _router_request()
+    sparse = Provider(frame(start, 2))
+    complete = Provider(frame(start, 4))
+    router = DataProviderRouter(routing_mode="fast", target_completeness=0.95)
+    router.register("sparse", sparse, priority=1)
+    router.register("complete", complete, priority=2)
+    result = router.fetch(request)
+    assert result.provider_id == "sparse"
+    assert result.completeness == 0.5
+    assert "coverage below configured quality target" in result.warnings
+    assert complete.calls == 0
+
+
+def test_quality_market_router_prefers_best_available_coverage():
+    start, request = _router_request()
+    first, better, failed = Provider(frame(start, 2)), Provider(frame(start, 3)), Provider(OSError("down"))
+    router = DataProviderRouter(routing_mode="quality", cache_ttl_seconds=120)
+    router.register("failed", failed, priority=1)
+    router.register("first", first, priority=2)
+    router.register("better", better, priority=3)
+    result = router.fetch(request)
+    assert result.provider_id == "better"
+    assert result.completeness == 0.75
+    assert result.attempted_providers == ("failed", "first", "better")
+    assert "coverage below configured quality target" in result.warnings
+
+
+def test_market_routing_mode_rejects_invalid_quality_policy():
+    for kwargs in (
+        {"routing_mode": "surprise"},
+        {"target_completeness": float("nan")},
+        {"target_completeness": 1.1},
+    ):
+        with pytest.raises(ValueError):
+            DataProviderRouter(**kwargs)

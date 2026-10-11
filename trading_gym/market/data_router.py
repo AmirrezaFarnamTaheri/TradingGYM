@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Protocol
+from typing import Literal, Protocol
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -105,6 +106,8 @@ class DataProviderRouter:
         cache_ttl_seconds: float = 30.0,
         max_cache_entries: int = 1024,
         max_providers: int = 64,
+        routing_mode: Literal["fast", "balanced", "quality"] = "balanced",
+        target_completeness: float = 0.95,
     ) -> None:
         if cache_ttl_seconds < 0:
             raise ValueError("cache_ttl_seconds must be non-negative")
@@ -112,6 +115,12 @@ class DataProviderRouter:
             raise ValueError("max_cache_entries must be between 1 and 100000")
         if not 1 <= max_providers <= 1_000:
             raise ValueError("max_providers must be between 1 and 1000")
+        if routing_mode not in {"fast", "balanced", "quality"}:
+            raise ValueError("routing_mode must be fast, balanced or quality")
+        if not math.isfinite(target_completeness) or not 0 <= target_completeness <= 1:
+            raise ValueError("target_completeness must be finite and between 0 and 1")
+        self.routing_mode = routing_mode
+        self.target_completeness = target_completeness
         self.cache_ttl_seconds = cache_ttl_seconds
         self.max_cache_entries = max_cache_entries
         self.max_providers = max_providers
@@ -236,6 +245,7 @@ class DataProviderRouter:
             )
             + 1
         )
+        best: MarketDataEnvelope | None = None
         for provider in providers:
             attempted.append(provider.provider_id)
             try:
@@ -261,19 +271,17 @@ class DataProviderRouter:
                     warnings=warnings,
                     attempted_providers=tuple(attempted),
                 )
-                if self.cache_ttl_seconds > 0:
-                    with self._lock:
-                        cached_envelope = replace(
-                            envelope, frame=envelope.frame.copy(deep=True)
-                        )
-                        self._cache[key] = _CacheRecord(
-                            time.monotonic() + self.cache_ttl_seconds,
-                            cached_envelope,
-                        )
-                        self._cache.move_to_end(key)
-                        while len(self._cache) > self.max_cache_entries:
-                            self._cache.popitem(last=False)
-                return replace(envelope, frame=envelope.frame.copy(deep=True))
+                if best is None or envelope.completeness > best.completeness:
+                    best = envelope
+                # Fast optimizes latency/provider cost. Balanced stops as soon
+                # as coverage meets its target. Quality samples remaining
+                # healthy providers unless coverage is already perfect.
+                if (
+                    self.routing_mode == "fast"
+                    or (self.routing_mode == "balanced" and completeness >= self.target_completeness)
+                    or (self.routing_mode == "quality" and completeness == 1.0)
+                ):
+                    break
             except (
                 CircuitOpenError,
                 RateLimitExceeded,
@@ -286,4 +294,25 @@ class DataProviderRouter:
                 Exception
             ) as exc:  # provider boundary: fail over but do not leak details
                 failures.append(f"{provider.provider_id}:{type(exc).__name__}")
+        if best is not None:
+            notes = best.warnings
+            if best.completeness < self.target_completeness:
+                notes = (*notes, "coverage below configured quality target")
+            best = replace(best, attempted_providers=tuple(attempted), warnings=notes)
+            if self.cache_ttl_seconds > 0:
+                # Incomplete historical data can be repaired by its provider;
+                # recheck it sooner instead of pinning a degraded snapshot for
+                # the full healthy cache lifetime.
+                ttl = self.cache_ttl_seconds
+                if best.completeness < self.target_completeness:
+                    ttl = min(ttl, 5.0)
+                with self._lock:
+                    self._cache[key] = _CacheRecord(
+                        time.monotonic() + ttl,
+                        replace(best, frame=best.frame.copy(deep=True)),
+                    )
+                    self._cache.move_to_end(key)
+                    while len(self._cache) > self.max_cache_entries:
+                        self._cache.popitem(last=False)
+            return replace(best, frame=best.frame.copy(deep=True))
         raise RuntimeError("all market-data providers failed: " + " | ".join(failures))
