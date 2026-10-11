@@ -595,6 +595,11 @@ class LiveExecutionAdapter:
             raise RuntimeError("open_orders_not_cleared")
 
     async def flatten(self) -> bool:
+        """Serialize emergency closing with ordinary reconciliation mutations."""
+        async with self._reconcile_lock:
+            return await self._flatten_locked()
+
+    async def _flatten_locked(self) -> bool:
         """Attempt emergency reduction, reporting success only after verification."""
         self._last_flatten_error = ""
         logger.critical("🚨 EXECUTING EMERGENCY FLATTEN PROTOCOL")
