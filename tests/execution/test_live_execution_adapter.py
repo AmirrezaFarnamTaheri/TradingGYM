@@ -703,3 +703,28 @@ async def test_partial_short_close_ack_without_fill_proof_remains_unresolved(
     assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
         "status"
     ] == "ambiguous"
+
+
+@pytest.mark.asyncio
+async def test_paginated_open_order_count_prevents_false_flat_verification(
+    adapter, mock_client
+):
+    mock_client.get_balance.return_value = [
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_orders.return_value = {"total": 11, "data": []}
+    with pytest.raises(RuntimeError, match="open_orders_not_cleared"):
+        await adapter._verify_broker_flat()
+
+
+@pytest.mark.parametrize("total", [-1, "0", True])
+@pytest.mark.asyncio
+async def test_invalid_broker_open_order_count_rejected(adapter, mock_client, total):
+    mock_client.get_balance.return_value = [
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_orders.return_value = {"total": total, "data": []}
+    with pytest.raises(RuntimeError, match="invalid_broker_order_count"):
+        await adapter._verify_broker_flat()
