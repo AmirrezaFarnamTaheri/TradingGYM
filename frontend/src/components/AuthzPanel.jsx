@@ -54,6 +54,17 @@ export default function AuthzPanel() {
   });
 
   const grants = grantsQuery.data?.grants ?? [];
+  // An absent or failed health response is not proof that the grant ledger
+  // is valid. Only an affirmative response may be displayed as healthy.
+  const ledgerState = healthQuery.isPending
+    ? 'checking'
+    : healthQuery.isError
+      ? 'UNAVAILABLE'
+      : healthQuery.data?.ledger_valid === true
+        ? 'valid'
+        : healthQuery.data?.ledger_valid === false
+          ? 'CORRUPT'
+          : 'UNAVAILABLE';
 
   return (
     <section className="panel authz-panel" aria-label="Authorization grants">
@@ -62,7 +73,7 @@ export default function AuthzPanel() {
         Wildcard capability grants delegate bounded authority to principals.
         Ledger:{' '}
         <strong data-testid="ledger-state">
-          {healthQuery.data?.ledger_valid === false ? 'CORRUPT' : 'valid'}
+          {ledgerState}
         </strong>{' '}
         ({healthQuery.data?.entries ?? 0} entries). Revocation is terminal.
       </p>
@@ -131,7 +142,7 @@ export default function AuthzPanel() {
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['authz-grants'] })}
+              onClick={() => grantsQuery.refetch()}
             >
               Retry
             </button>
