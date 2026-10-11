@@ -347,7 +347,9 @@ class StabilityAwareBackoff:
 
     def next_delay(self) -> float:
         delay = delay_for_attempt(self._policy, self._attempt, rng=self._rng)
-        self._attempt += 1
+        # Incrementing an already capped backoff adds no useful delay;
+        # bound the exponent to avoid failure after prolonged outages.
+        self._attempt = min(self._attempt + 1, 64)
         return delay
 
     def record_success(self) -> None:
