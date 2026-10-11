@@ -273,7 +273,7 @@ class LiveExecutionAdapter:
 
         def journal_pending() -> None:
             try:
-                outbox.record_pending(
+                outbox.claim_pending(
                     idempotency_key=idempotency_key,
                     proposal_id=proposal_id,
                     operation=operation,
