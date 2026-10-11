@@ -86,9 +86,9 @@ def read_json(path: Path, default: Any, *, max_bytes: int = MAX_DOCUMENT_BYTES) 
     # leaves a window in which the path can be swapped for a symlink, letting
     # the read follow a link out of the private data home (TOCTOU).
     with FileLock(str(path) + ".lock"):
+        _reject_symlink(path)
         if not path.exists():
             return copy.deepcopy(default)
-        _reject_symlink(path)
         try:
             size = path.stat().st_size
             if size > max_bytes:
@@ -146,8 +146,7 @@ def atomic_write_text(
         )
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     with FileLock(str(path) + ".lock"):
-        if path.exists():
-            _reject_symlink(path)
+        _reject_symlink(path)
         descriptor, temp_name = tempfile.mkstemp(
             prefix=f".{path.name}.", dir=str(path.parent)
         )
@@ -187,8 +186,7 @@ def append_jsonl(path: Path, value: Any) -> None:
             attempted=len(line.encode("utf-8")),
         )
     with FileLock(str(path) + ".lock"):
-        if path.exists():
-            _reject_symlink(path)
+        _reject_symlink(path)
         existed = path.exists()
         with path.open("a", encoding="utf-8", newline="\n") as handle:
             handle.write(line)
