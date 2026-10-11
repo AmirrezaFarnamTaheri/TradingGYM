@@ -373,3 +373,47 @@ def test_llm_health_reports_provider_status_without_name_error(monkeypatch):
     assert probes == [("probe-llm", 3.0)]
     assert health.available is False
     assert health.detail == "unreachable"
+
+
+def test_fusion_adapter_uses_real_rl_prediction_then_llm_veto():
+    model = _FakeModel(4.0)
+    llm = _Scripted("llm", _sig(ActionKind.HOLD, 0.0, 0.9))
+    fusion = FusionBackend(rl_backend=RLPolicyBackend(model), llm_backend=llm)
+    adapter = IntelligencePolicyAdapter(fusion, action_low=-5, action_high=20)
+    action, _ = adapter.predict(np.zeros(6))
+    assert float(action[0]) == pytest.approx(0.0)
+    assert "VETOED" in adapter.last_signal.rationale
+
+
+def test_fusion_governor_outage_falls_back_to_rl_and_recovers():
+    model = _FakeModel(3.0)
+    gov = _Scripted("llm", error=True)
+    fusion = FusionBackend(rl_backend=RLPolicyBackend(model), llm_backend=gov)
+    adapter = IntelligencePolicyAdapter(fusion, action_low=-5, action_high=20)
+    unavailable_action, _ = adapter.predict(np.zeros(6))
+    assert float(unavailable_action[0]) == pytest.approx(3.0)
+    assert "governor-unavailable" in adapter.last_signal.rationale
+    gov.error = False
+    gov.signal = _sig(ActionKind.LONG, 2.5, 0.9)
+    healthy_action, _ = adapter.predict(np.zeros(6))
+    assert float(healthy_action[0]) == pytest.approx(1.5)
+    assert "scaled" in adapter.last_signal.rationale
+
+
+def test_fusion_executor_outage_uses_explicit_rules_fallback():
+    class DeadModel:
+        def predict(self, obs, deterministic=True):
+            raise RuntimeError("GPU down")
+    fusion = FusionBackend(
+        rl_backend=RLPolicyBackend(DeadModel()),
+        llm_backend=_Scripted("llm", _sig(ActionKind.HOLD, 0.0, 0.9)),
+    )
+    adapter = IntelligencePolicyAdapter(
+        fusion,
+        action_low=-5,
+        action_high=20,
+        fallback_backend=DeterministicRuleBackend(),
+    )
+    action, _ = adapter.predict(np.zeros(6))
+    assert np.isfinite(action).all()
+    assert adapter.last_signal.backend == "rules(degraded)"

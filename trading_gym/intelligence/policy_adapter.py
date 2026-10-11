@@ -14,6 +14,7 @@ from typing import Any, Callable
 import numpy as np
 
 from trading_gym.intelligence.base import IntelligenceBackend
+from trading_gym.intelligence.fusion_backend import FusionBackend
 from trading_gym.intelligence.rl_backend import RLPolicyBackend
 from trading_gym.intelligence.types import ActionKind, DecisionSignal
 
@@ -130,7 +131,12 @@ class IntelligencePolicyAdapter:
                 return self._signal_to_action(signal), None
 
         try:
-            signal = self.backend.decide(to_context_obj(context))
+            if isinstance(self.backend, FusionBackend):
+                signal = self.backend.decide_with_observation(
+                    to_context_obj(context), observation
+                )
+            else:
+                signal = self.backend.decide(to_context_obj(context))
         except Exception:
             if self.fallback is None:
                 raise
