@@ -106,6 +106,61 @@ def test_env_reset(minimal_env_config, minimal_feature_config, mock_inputs):
     assert env.t >= env.warmup_steps
 
 
+
+@pytest.mark.parametrize("rows", [1, 201])
+def test_offline_environment_rejects_history_without_next_observation(
+    rows, minimal_env_config, minimal_feature_config, mock_inputs
+):
+    with pytest.raises(ValueError, match="at least two market bars after warmup"):
+        MarginTradingEnv(
+            features=mock_inputs["features"].iloc[:rows],
+            prices_mid=mock_inputs["prices_mid"][:rows],
+            prices_high=mock_inputs["prices_high"][:rows],
+            prices_low=mock_inputs["prices_low"][:rows],
+            cfg=minimal_env_config,
+            features_cfg=minimal_feature_config,
+            training_stats={"center": {}, "scale": {}},
+        )
+
+
+def test_offline_one_step_returns_valid_next_observation(
+    minimal_env_config, minimal_feature_config, mock_inputs
+):
+    rows = 202
+    env = MarginTradingEnv(
+        features=mock_inputs["features"].iloc[:rows],
+        prices_mid=mock_inputs["prices_mid"][:rows],
+        prices_high=mock_inputs["prices_high"][:rows],
+        prices_low=mock_inputs["prices_low"][:rows],
+        cfg=minimal_env_config,
+        features_cfg=minimal_feature_config,
+        training_stats={"center": {}, "scale": {}},
+    )
+    env.reset(seed=17)
+    observation, _, terminated, truncated, _ = env.step(
+        np.array([0.0], dtype=np.float32)
+    )
+    assert observation.shape == env.observation_space.shape
+    assert np.isfinite(observation).all()
+    assert not terminated
+    assert truncated
+
+
+def test_live_environment_rejects_empty_history(
+    minimal_env_config, minimal_feature_config, mock_inputs
+):
+    with pytest.raises(ValueError, match="at least one market bar"):
+        MarginTradingEnv(
+            features=mock_inputs["features"].iloc[:0],
+            prices_mid=mock_inputs["prices_mid"][:0],
+            prices_high=mock_inputs["prices_high"][:0],
+            prices_low=mock_inputs["prices_low"][:0],
+            cfg=minimal_env_config,
+            features_cfg=minimal_feature_config,
+            live_mode=True,
+        )
+
+
 def test_env_step_basic(minimal_env_config, minimal_feature_config, mock_inputs):
     env = MarginTradingEnv(
         features=mock_inputs["features"],

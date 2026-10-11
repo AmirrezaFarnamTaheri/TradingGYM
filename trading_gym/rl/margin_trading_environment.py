@@ -138,7 +138,16 @@ class MarginTradingEnv(gym.Env):
             if not self.live_mode:
                 self.warmup_steps = 0
 
+        # An offline step advances t before returning the next observation.
+        # There must therefore be a second available bar after warmup.
+        # Live mode uses rolling buffers and does not advance t in that way.
+        if self.T < 1:
+            raise ValueError("Trading environment needs at least one market bar")
         available_steps = self.T - self.warmup_steps - 1
+        if not self.live_mode and available_steps < 1:
+            raise ValueError(
+                "Offline environment needs at least two market bars after warmup"
+            )
         self.max_steps = min(1000, available_steps)
         if self.max_steps <= 0:
             self.max_steps = 1
