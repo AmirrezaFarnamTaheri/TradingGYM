@@ -666,7 +666,10 @@ async def start_managed_process(
             env=environment,
         )
         identity = capture_process_identity(proc.pid, command)
-    except Exception:
+    except (Exception, asyncio.CancelledError):
+        # CancelledError does not derive from Exception. Without this branch,
+        # a request cancelled during spawn leaves its "starting" reservation
+        # indefinitely occupied, making all future launches return 409.
         async with PROCESS_LOCK:
             if PROCESSES.get(process_key, {}).get("status") == "starting":
                 PROCESSES.pop(process_key, None)
