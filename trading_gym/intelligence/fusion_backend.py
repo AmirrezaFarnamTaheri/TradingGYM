@@ -109,6 +109,10 @@ class FusionBackend(IntelligenceBackend):
 
         try:
             gov = self.llm.decide(context)
+        except PermissionError:
+            # Authorization and policy refusals are not availability failures.
+            # Never turn a revoked governor into permission for ungated RL.
+            raise
         except Exception as exc:  # noqa: BLE001 - governor loss degrades to pure RL
             return DecisionSignal(
                 backend=self.name,

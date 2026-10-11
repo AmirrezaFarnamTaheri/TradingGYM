@@ -35,8 +35,12 @@ class IntelligencePolicyAdapter:
         fallback_backends: Sequence[IntelligenceBackend] | None = None,
         context_builder: Callable[[Any], dict[str, Any]] | None = None,
     ):
-        if action_high <= action_low:
-            raise ValueError("action_high must exceed action_low")
+        if (
+            not np.isfinite(float(action_low))
+            or not np.isfinite(float(action_high))
+            or action_high <= action_low
+        ):
+            raise ValueError("action bounds must be finite and ordered")
         self.backend = backend
         self.fallback = fallback_backend
         self._fallback_chain = (
@@ -58,6 +62,13 @@ class IntelligencePolicyAdapter:
         return float(min(self.action_high, max(self.action_low, value)))
 
     def _signal_to_action(self, signal: DecisionSignal) -> np.ndarray:
+        # Reject contradictory decisions rather than turning a declared long
+        # into a short after deriving direction from a negative numeric value.
+        if (
+            (signal.action_kind is ActionKind.LONG and signal.target_leverage < 0)
+            or (signal.action_kind is ActionKind.SHORT and signal.target_leverage > 0)
+        ):
+            raise ValueError("decision direction conflicts with target leverage")
         # Action space is signed target leverage (see MarginTradingEnv).
         if signal.action_kind is ActionKind.HOLD or signal.target_leverage == 0.0:
             magnitude = 0.0
@@ -76,14 +87,19 @@ class IntelligencePolicyAdapter:
         variables plus the raw feature vector length — features themselves are
         opaque to backends by design (they reason on state, not z-scores).
         """
+        arr = np.asarray(observation, dtype=float).ravel()
+        # The actual observation is consumed by RL even if a custom market
+        # context builder is configured. A corrupt feature cannot be ignored
+        # merely because the fallback rules would not inspect that feature.
+        if arr.size < 3 or not np.isfinite(arr).all():
+            raise ValueError("trading observation is incomplete or nonfinite")
         if self._context_builder is not None:
             return self._context_builder(observation)
-        arr = np.asarray(observation, dtype=float).ravel()
         n_state = 3
-        state = arr[-n_state:] if arr.size >= n_state else arr
-        equity_ratio = float(np.exp(state[0])) if state.size > 0 else 1.0
-        price_ratio = float(np.exp(state[1])) if state.size > 1 else 1.0
-        position_norm = float(state[2]) if state.size > 2 else 0.0
+        state = arr[-n_state:]
+        equity_ratio = float(np.exp(state[0]))
+        price_ratio = float(np.exp(state[1]))
+        position_norm = float(state[2])
         if (
             not np.isfinite(equity_ratio)
             or not np.isfinite(price_ratio)
@@ -99,7 +115,7 @@ class IntelligencePolicyAdapter:
         }
 
     def _market_context(self, ctx: dict[str, Any]) -> MarketContext:
-        return MarketContext(
+        context = MarketContext(
             symbol=str(ctx.get("symbol", "UNKNOWN")),
             position_units=float(
                 ctx.get("position_units", ctx.get("position_norm", 0.0))
@@ -120,6 +136,33 @@ class IntelligencePolicyAdapter:
                 and np.isfinite(value)
             },
         )
+        mandatory = (
+            context.position_units,
+            context.equity,
+            context.last_close,
+        )
+        optional = (
+            context.prev_close,
+            context.margin_level,
+            context.drawdown_from_peak,
+        )
+        if (
+            not all(np.isfinite(value) for value in mandatory)
+            or context.equity <= 0
+            or context.last_close <= 0
+            or any(value is not None and not np.isfinite(value) for value in optional)
+            or (
+                context.prev_close is not None
+                and context.prev_close <= 0
+            )
+            or (
+                context.drawdown_from_peak is not None
+                and context.drawdown_from_peak < 0
+            )
+            or any(not np.isfinite(value) for value in context.recent_returns)
+        ):
+            raise ValueError("market/account context is invalid")
+        return context
 
     @staticmethod
     def _run_backend(
@@ -148,6 +191,13 @@ class IntelligencePolicyAdapter:
             try:
                 signal = self._run_backend(backend, context, observation)
                 action = self._signal_to_action(signal)
+            except PermissionError:
+                # An authorization or risk policy denial is not a provider
+                # outage. Switching to a lower-fidelity backend would bypass
+                # the same authority that denied the original decision.
+                self.last_signal = None
+                self.last_failure_types = tuple((*failures, f"{backend.name}:PermissionError"))
+                raise
             except Exception as exc:
                 failures.append(f"{backend.name}:{type(exc).__name__}")
                 continue
