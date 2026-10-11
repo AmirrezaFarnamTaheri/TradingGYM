@@ -63,7 +63,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/aban_websocket.py",
-      "sha256": "888feffa1a204a434469240150e79b34825d1e9412716e930dc9f5832b449161"
+      "sha256": "56dfb3edb8e569020dcaa34945a61a7f2ce7ddada1c8ae96900d904094658b66"
     },
     {
       "owner": "trading_gym",
@@ -438,7 +438,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/live_execution_adapter.py",
-      "sha256": "863f10425f095f56168f87e333935fadba25a647314acdc202f460e069b9fd95"
+      "sha256": "8fa4981f411c2916b52d4cf6808df4c70ceac7e45f5b836a9ad93613e5e3bfcc"
     },
     {
       "owner": "trading_gym",
@@ -1233,7 +1233,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/mutation_retry.py",
-      "sha256": "90bfd5902f40a707e1835c9260830fccd29d4cbda5e7f55233a5183629b8b7d8"
+      "sha256": "65a906546e52912248901c80e91b50eabcff8e8558a21f2a89241ca2bae409a1"
     },
     {
       "owner": "trading_gym",
@@ -1243,7 +1243,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/pre_trade_gate.py",
-      "sha256": "201e95bd6c618f76df54526dea3c9b2ceff2cbdf128748c70c495aa49e0a4f6c"
+      "sha256": "a2e9f0f0dcec0dd0aa2b8c75d38f53f4ea45c846f9846a1e2cde681ab3109fb1"
     },
     {
       "owner": "trading_gym",
@@ -1548,7 +1548,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/treasury/reservations.py",
-      "sha256": "a17f9631996bd57bda1691cc2f2fc6d05e91a0a4c0ceeac094d80cd921d6903b"
+      "sha256": "4bd78c897029d384f931309a613eb7eedc95dd90dd6c3fa21cc4afb209f09848"
     },
     {
       "owner": "trading_gym",
