@@ -123,7 +123,9 @@ def build_trading_policy(
         action_low=low,
         action_high=high,
         provider_repository=provider_repository,
-        context_builder=lambda _observation: build_market_context(
-            env, symbol=cfg.env.symbol
+        context_builder=(
+            (lambda _observation: build_market_context(env, symbol=cfg.env.symbol))
+            if getattr(cfg, "env", None) is not None
+            else None
         ),
     )
