@@ -70,12 +70,11 @@ def evaluate_pre_trade_gate(
     )
 
     quantity_ok = isinstance(quantity, Decimal) and quantity.is_finite()
-    # short.close and order.cancel both carry zero quantity by convention:
-    # a close-everything / cancel-everything intent. A positive quantity on
-    # either is a caller bug worth surfacing. Every other operation must
-    # supply a strictly positive size.
-    zero_by_convention = operation in {"short.close", "order.cancel"}
-    if zero_by_convention:
+    # Cancellation is quantity-free. A short close can be partial (positive
+    # amount) or complete (zero); other orders require positive units.
+    if operation == "order.cancel":
+        quantity_ok = quantity_ok and quantity == 0
+    elif operation == "short.close":
         quantity_ok = quantity_ok and quantity >= 0
     else:
         quantity_ok = quantity_ok and quantity > 0
