@@ -5,7 +5,7 @@ import { renderWithClient, flushPromises, waitForRendered } from '../../test-uti
 
 import AuthzPanel from '../AuthzPanel';
 
-const { grantsSpy, revokeSpy, toastSpies } = vi.hoisted(() => ({
+const { grantsSpy, revokeSpy, healthSpy, toastSpies } = vi.hoisted(() => ({
   grantsSpy: vi.fn(() =>
     Promise.resolve({
       data: {
@@ -22,6 +22,9 @@ const { grantsSpy, revokeSpy, toastSpies } = vi.hoisted(() => ({
     })
   ),
   revokeSpy: vi.fn(() => Promise.resolve({ data: { state: 'revoked' } })),
+  healthSpy: vi.fn(() =>
+    Promise.resolve({ data: { ledger_valid: true, entries: 3 } })
+  ),
   toastSpies: {
     info: vi.fn(),
     success: vi.fn(),
@@ -33,7 +36,7 @@ const { grantsSpy, revokeSpy, toastSpies } = vi.hoisted(() => ({
 vi.mock('../../api', () => ({
   authzAPI: {
     listGrants: grantsSpy,
-    health: vi.fn(() => Promise.resolve({ data: { ledger_valid: true, entries: 3 } })),
+    health: healthSpy,
     check: vi.fn(() => Promise.resolve({ data: { allowed: true, reason: 'ok' } })),
     issue: vi.fn(),
     revoke: revokeSpy,
@@ -113,6 +116,32 @@ describe('AuthzPanel fetch errors', () => {
     await waitForRendered(container, 'table.grants-table tbody tr');
     expect(container.querySelector('.error')).toBeNull();
 
+    cleanup();
+  });
+});
+
+describe('AuthzPanel health visibility', () => {
+  it('never reports valid when the health endpoint is unavailable', async () => {
+    healthSpy.mockRejectedValueOnce(new Error('health endpoint offline'));
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    const ledger = await waitForRendered(
+      container,
+      '[data-testid="ledger-state"]',
+      (node) => node.textContent === 'UNAVAILABLE'
+    );
+    expect(ledger.textContent).toBe('UNAVAILABLE');
+    cleanup();
+  });
+
+  it('reports explicitly corrupt ledger state', async () => {
+    healthSpy.mockResolvedValueOnce({ data: { ledger_valid: false, entries: 3 } });
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    const ledger = await waitForRendered(
+      container,
+      '[data-testid="ledger-state"]',
+      (node) => node.textContent === 'CORRUPT'
+    );
+    expect(ledger.textContent).toBe('CORRUPT');
     cleanup();
   });
 });
