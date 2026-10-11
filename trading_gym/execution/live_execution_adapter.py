@@ -809,26 +809,46 @@ class LiveExecutionAdapter:
             raise RuntimeError("unable to determine live equity") from exc
 
     def _get_net_position(self) -> Decimal:
-        """
-        Calculate net position: Spot Balance - Short Obligations
-        Returns: Decimal
-        """
-        # 1. Spot Balance
+        """Read a finite broker net position without silently dropping rows."""
         balances = self.api.get_balance()
-        spot_bal = Decimal("0.0")
-        for b in balances:
-            if b.symbol == self.base_asset:
-                spot_bal = b.balance + b.blocked
-                break
-
-        # 2. Short Position
-        short_bal = Decimal("0.0")
         shorts = self.api.get_short_positions()
-        for s in shorts:
-            if s.get("symbol") == self.symbol:
-                short_bal += Decimal(str(s.get("amount", 0)))
+        if not isinstance(balances, list) or not isinstance(shorts, list):
+            raise ValueError("broker_position_snapshot_unavailable")
 
-        return spot_bal - short_bal
+        spot_bal = Decimal("0")
+        seen_base = False
+        for balance in balances:
+            if balance.symbol != self.base_asset:
+                continue
+            if seen_base:
+                raise ValueError("duplicate_broker_base_balance")
+            seen_base = True
+            available = Decimal(str(balance.balance))
+            blocked = Decimal(str(balance.blocked))
+            if (
+                not available.is_finite()
+                or not blocked.is_finite()
+                or available < 0
+                or blocked < 0
+            ):
+                raise ValueError("invalid_broker_base_balance")
+            spot_bal = available + blocked
+
+        short_bal = Decimal("0")
+        for short in shorts:
+            if not isinstance(short, dict):
+                raise ValueError("invalid_broker_short_position")
+            if short.get("symbol") != self.symbol:
+                continue
+            amount = Decimal(str(short["amount"]))
+            if not amount.is_finite() or amount < 0:
+                raise ValueError("invalid_broker_short_position")
+            short_bal += amount
+
+        result = spot_bal - short_bal
+        if not result.is_finite():
+            raise ValueError("invalid_broker_net_position")
+        return result
 
 
 class DryRunLiveExecutionAdapter(LiveExecutionAdapter):
