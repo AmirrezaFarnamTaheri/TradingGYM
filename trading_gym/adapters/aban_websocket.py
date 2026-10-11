@@ -104,6 +104,30 @@ async def _validated_tcp_target(url: str, *, allow_private: bool) -> tuple[str, 
     return addresses[0], port
 
 
+async def _open_no_redirect(uri: str, **kwargs: Any) -> Any:
+    """Forbid handshake redirects before any unvetted second connection.
+
+    websockets 13.1's legacy connector silently resets the pinned TCP host on
+    cross-origin redirects while retaining the Authorization header. Newer
+    connectors use a different redirect hook. Refuse unknown connector shapes.
+    """
+    connector = websockets.connect(uri, **kwargs)
+    if hasattr(connector, "process_redirect"):
+        # websockets' modern asyncio connector expects an exception return.
+        connector.process_redirect = lambda _exc: ValueError(
+            "websocket_redirect_forbidden"
+        )
+    elif hasattr(connector, "handle_redirect"):
+        # websockets 13.1 legacy connector calls this before reopening TCP.
+        def reject_redirect(_uri: str) -> None:
+            raise ValueError("websocket_redirect_forbidden")
+
+        connector.handle_redirect = reject_redirect
+    else:
+        raise RuntimeError("unsupported_websocket_redirect_policy")
+    return await connector
+
+
 @dataclass
 class WebSocketConfig:
     """Validated configuration for :class:`WebSocketClient`."""
@@ -295,7 +319,7 @@ class WebSocketClient:
         if self.config.api_key:
             headers["Authorization"] = f"Token {self.config.api_key}"
         try:
-            self._ws = await websockets.connect(
+            self._ws = await _open_no_redirect(
                 self.config.url,
                 host=tcp_host,
                 port=tcp_port,
