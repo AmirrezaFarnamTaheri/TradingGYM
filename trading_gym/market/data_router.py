@@ -8,7 +8,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Literal, Protocol
 
@@ -97,6 +97,14 @@ class MarketDataEnvelope:
 class _CacheRecord:
     expires_at: float
     envelope: MarketDataEnvelope
+    bytes_estimate: int
+
+
+@dataclass
+class _InflightRequest:
+    event: threading.Event = field(default_factory=threading.Event)
+    envelope: MarketDataEnvelope | None = None
+    error: Exception | None = None
 
 
 class DataProviderRouter:
@@ -105,12 +113,29 @@ class DataProviderRouter:
         *,
         cache_ttl_seconds: float = 30.0,
         max_cache_entries: int = 1024,
+        max_cache_bytes: int = 256 * 1024 * 1024,
+        max_inflight_requests: int = 128,
+        inflight_wait_seconds: float = 10.0,
         max_providers: int = 64,
         routing_mode: Literal["fast", "balanced", "quality"] = "balanced",
         target_completeness: float = 0.95,
     ) -> None:
-        if cache_ttl_seconds < 0:
-            raise ValueError("cache_ttl_seconds must be non-negative")
+        if not math.isfinite(cache_ttl_seconds) or cache_ttl_seconds < 0:
+            raise ValueError("cache_ttl_seconds must be finite and non-negative")
+        if (
+            not isinstance(max_cache_bytes, int)
+            or isinstance(max_cache_bytes, bool)
+            or not 0 <= max_cache_bytes <= 4 * 1024**3
+        ):
+            raise ValueError("max_cache_bytes must be between 0 and 4GiB")
+        if (
+            not isinstance(max_inflight_requests, int)
+            or isinstance(max_inflight_requests, bool)
+            or not 1 <= max_inflight_requests <= 10_000
+        ):
+            raise ValueError("max_inflight_requests must be between 1 and 10000")
+        if not math.isfinite(inflight_wait_seconds) or not 0 < inflight_wait_seconds <= 120:
+            raise ValueError("inflight_wait_seconds must be finite and positive")
         if not 1 <= max_cache_entries <= 100_000:
             raise ValueError("max_cache_entries must be between 1 and 100000")
         if not 1 <= max_providers <= 1_000:
@@ -123,9 +148,14 @@ class DataProviderRouter:
         self.target_completeness = target_completeness
         self.cache_ttl_seconds = cache_ttl_seconds
         self.max_cache_entries = max_cache_entries
+        self.max_cache_bytes = max_cache_bytes
+        self.max_inflight_requests = max_inflight_requests
+        self.inflight_wait_seconds = inflight_wait_seconds
         self.max_providers = max_providers
         self._providers: dict[str, ProviderRegistration] = {}
         self._cache: OrderedDict[str, _CacheRecord] = OrderedDict()
+        self._cache_bytes = 0
+        self._inflight: dict[str, _InflightRequest] = {}
         self._lock = threading.Lock()
 
     def register(
@@ -161,8 +191,19 @@ class DataProviderRouter:
             )
 
     @staticmethod
-    def _cache_key(request: MarketDataRequest) -> str:
-        return hashlib.sha256(request.model_dump_json().encode("utf-8")).hexdigest()
+    def _cache_key(
+        request: MarketDataRequest, *, routing_mode: str = "balanced", target_completeness: float = 0.95
+    ) -> str:
+        # The same bars may be insufficient for a stricter quality setting.
+        # Never serve a fast-mode partial result as a quality-mode cache hit.
+        identity = (
+            request.model_dump_json()
+            + "|"
+            + routing_mode
+            + "|"
+            + repr(target_completeness)
+        )
+        return hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
     @staticmethod
     def _hash_frame(frame: pd.DataFrame) -> str:
@@ -184,12 +225,13 @@ class DataProviderRouter:
     ) -> tuple[pd.DataFrame, tuple[str, ...]]:
         if not isinstance(frame, pd.DataFrame):
             raise TypeError("provider must return a pandas DataFrame")
+        # Reject oversized results before copying a potentially huge frame.
+        if len(frame) > request.max_rows:
+            raise ValueError(
+                f"provider returned {len(frame)} rows, above {request.max_rows}"
+            )
         output = frame.copy()
         warnings: list[str] = []
-        if len(output) > request.max_rows:
-            raise ValueError(
-                f"provider returned {len(output)} rows, above {request.max_rows}"
-            )
         if not isinstance(output.index, pd.DatetimeIndex):
             raise ValueError("market-data frame must use a DatetimeIndex")
         if output.index.tz is None:
@@ -215,20 +257,108 @@ class DataProviderRouter:
         raw = provider.adapter.fetch(request)
         return DataProviderRouter._normalise(raw, request)
 
-    def fetch(self, request: MarketDataRequest) -> MarketDataEnvelope:
-        key = self._cache_key(request)
-        now_mono = time.monotonic()
+    def fetch(
+        self,
+        request: MarketDataRequest,
+        *,
+        routing_mode: Literal["fast", "balanced", "quality"] | None = None,
+        target_completeness: float | None = None,
+    ) -> MarketDataEnvelope:
+        """Coalesce equal reads and isolate each caller from cached frame edits.
+
+        Routing can be selected per request without mutating the router's
+        default policy; cache identity includes the selected quality contract.
+        """
+        mode = self.routing_mode if routing_mode is None else routing_mode
+        target = (
+            self.target_completeness
+            if target_completeness is None
+            else target_completeness
+        )
+        if mode not in {"fast", "balanced", "quality"}:
+            raise ValueError("routing_mode must be fast, balanced or quality")
+        if not math.isfinite(target) or not 0 <= target <= 1:
+            raise ValueError("target_completeness must be finite and between 0 and 1")
+        key = self._cache_key(
+            request, routing_mode=mode, target_completeness=target
+        )
         with self._lock:
             cached = self._cache.get(key)
-            if cached and cached.expires_at > now_mono:
+            if cached and cached.expires_at > time.monotonic():
                 self._cache.move_to_end(key)
-                return replace(
-                    cached.envelope,
-                    frame=cached.envelope.frame.copy(deep=True),
-                    from_cache=True,
-                )
-            if cached:
-                self._cache.pop(key, None)
+                cached_envelope = cached.envelope
+            else:
+                cached_envelope = None
+                if cached:
+                    self._cache_bytes -= self._cache.pop(key).bytes_estimate
+                pending = self._inflight.get(key)
+                owner = pending is None
+                if owner:
+                    if len(self._inflight) >= self.max_inflight_requests:
+                        raise RuntimeError("market_data_concurrent_request_limit")
+                    pending = _InflightRequest()
+                    self._inflight[key] = pending
+        if cached_envelope is not None:
+            # Large DataFrame copies must not hold the shared routing lock.
+            return replace(
+                cached_envelope,
+                frame=cached_envelope.frame.copy(deep=True),
+                from_cache=True,
+            )
+        assert pending is not None
+        if not owner:
+            if not pending.event.wait(self.inflight_wait_seconds):
+                raise TimeoutError("market_data_shared_request_timeout")
+            if pending.error is not None:
+                raise RuntimeError("market_data_shared_request_failed") from pending.error
+            if pending.envelope is None:
+                raise RuntimeError("market_data_shared_request_missing_result")
+            return replace(
+                pending.envelope, frame=pending.envelope.frame.copy(deep=True)
+            )
+        try:
+            outcome = self._fetch_uncached(request, key, mode, target)
+            pending.envelope = outcome
+            return replace(outcome, frame=outcome.frame.copy(deep=True))
+        except Exception as exc:
+            pending.error = exc
+            raise
+        finally:
+            with self._lock:
+                self._inflight.pop(key, None)
+                pending.event.set()
+
+    def _store_cache(
+        self, key: str, envelope: MarketDataEnvelope, *, ttl: float
+    ) -> None:
+        """Bound resident frame memory independently of the number of entries."""
+        if ttl <= 0 or self.max_cache_bytes == 0:
+            return
+        size = int(envelope.frame.memory_usage(index=True, deep=True).sum())
+        if size > self.max_cache_bytes:
+            return
+        snapshot = replace(envelope, frame=envelope.frame.copy(deep=True))
+        with self._lock:
+            previous = self._cache.pop(key, None)
+            if previous is not None:
+                self._cache_bytes -= previous.bytes_estimate
+            self._cache[key] = _CacheRecord(time.monotonic() + ttl, snapshot, size)
+            self._cache_bytes += size
+            while (
+                len(self._cache) > self.max_cache_entries
+                or self._cache_bytes > self.max_cache_bytes
+            ):
+                _, dropped = self._cache.popitem(last=False)
+                self._cache_bytes -= dropped.bytes_estimate
+
+    def _fetch_uncached(
+        self,
+        request: MarketDataRequest,
+        key: str,
+        mode: Literal["fast", "balanced", "quality"],
+        target: float,
+    ) -> MarketDataEnvelope:
+        with self._lock:
             providers = sorted(
                 self._providers.values(),
                 key=lambda item: (item.priority, item.provider_id),
@@ -277,9 +407,9 @@ class DataProviderRouter:
                 # as coverage meets its target. Quality samples remaining
                 # healthy providers unless coverage is already perfect.
                 if (
-                    self.routing_mode == "fast"
-                    or (self.routing_mode == "balanced" and completeness >= self.target_completeness)
-                    or (self.routing_mode == "quality" and completeness == 1.0)
+                    mode == "fast"
+                    or (mode == "balanced" and completeness >= target)
+                    or (mode == "quality" and completeness == 1.0)
                 ):
                     break
             except (
@@ -296,23 +426,15 @@ class DataProviderRouter:
                 failures.append(f"{provider.provider_id}:{type(exc).__name__}")
         if best is not None:
             notes = best.warnings
-            if best.completeness < self.target_completeness:
+            if best.completeness < target:
                 notes = (*notes, "coverage below configured quality target")
             best = replace(best, attempted_providers=tuple(attempted), warnings=notes)
             if self.cache_ttl_seconds > 0:
-                # Incomplete historical data can be repaired by its provider;
-                # recheck it sooner instead of pinning a degraded snapshot for
-                # the full healthy cache lifetime.
+                # Incomplete historical data is rechecked rather than cached
+                # for the entire healthy response TTL.
                 ttl = self.cache_ttl_seconds
-                if best.completeness < self.target_completeness:
+                if best.completeness < target:
                     ttl = min(ttl, 5.0)
-                with self._lock:
-                    self._cache[key] = _CacheRecord(
-                        time.monotonic() + ttl,
-                        replace(best, frame=best.frame.copy(deep=True)),
-                    )
-                    self._cache.move_to_end(key)
-                    while len(self._cache) > self.max_cache_entries:
-                        self._cache.popitem(last=False)
-            return replace(best, frame=best.frame.copy(deep=True))
+                self._store_cache(key, best, ttl=ttl)
+            return best
         raise RuntimeError("all market-data providers failed: " + " | ".join(failures))
