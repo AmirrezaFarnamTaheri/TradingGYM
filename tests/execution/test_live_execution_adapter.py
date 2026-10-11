@@ -324,3 +324,121 @@ async def test_reconcile_dust(adapter, mock_client):
     assert res["reason"] == "dust"
 
     mock_client.place_market_order.assert_not_called()
+@pytest.mark.asyncio
+async def test_flatten_net_zero_does_not_mask_offsetting_spot_and_shorts(
+    adapter, mock_client
+):
+    """A zero net is not a flat portfolio if offsetting gross legs remain."""
+    adapter._get_net_position = MagicMock(return_value=Decimal("0"))
+    mock_client.get_orders.return_value = {"data": []}
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("1000"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("1"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = [
+        {"id": "hedged-short", "symbol": "BTCUSDT", "amount": "1"}
+    ]
+    assert await adapter.flatten() is False
+    assert "gross_exposure" in adapter._last_flatten_error
+    mock_client.place_market_order.assert_not_called()
+    mock_client.close_short_position.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_flatten_requires_verified_post_order_position(adapter, mock_client):
+    """A successful venue fill does not itself prove an emergency is complete."""
+    adapter._get_net_position = MagicMock(return_value=Decimal("1"))
+    mock_client.get_orders.return_value = {"data": []}
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("1000"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("1"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.place_market_order.return_value = OrderResponse(
+        id="filled", code="200", base_symbol="BTC", quote_symbol="USDT",
+        side=OrderSide.SELL, type="market", status=OrderStatus.FILLED,
+        volume={"BTC": Decimal("1")},
+        filled_volume={"BTC": Decimal("1")},
+        created_at="now",
+    )
+    assert await adapter.flatten() is False
+    assert "gross_exposure" in adapter._last_flatten_error
+    mock_client.place_market_order.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_flatten_succeeds_when_broker_confirms_no_gross_exposure(
+    adapter, mock_client
+):
+    adapter._get_net_position = MagicMock(return_value=Decimal("1"))
+    mock_client.get_orders.return_value = {"data": []}
+    mock_client.get_balance.side_effect = [
+        [
+            Balance(symbol="USDT", balance=Decimal("1000"), blocked=Decimal("0")),
+            Balance(symbol="BTC", balance=Decimal("1"), blocked=Decimal("0")),
+        ],
+        [
+            Balance(symbol="USDT", balance=Decimal("1000"), blocked=Decimal("0")),
+            Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+        ],
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.place_market_order.return_value = OrderResponse(
+        id="filled", code="200", base_symbol="BTC", quote_symbol="USDT",
+        side=OrderSide.SELL, type="market", status=OrderStatus.FILLED,
+        volume={"BTC": Decimal("1")},
+        filled_volume={"BTC": Decimal("1")},
+        created_at="now",
+    )
+    assert await adapter.flatten() is True
+    assert adapter._last_flatten_error == ""
+
+
+@pytest.mark.asyncio
+async def test_reconcile_does_not_buy_spot_when_short_inventory_missing(
+    adapter, mock_client
+):
+    adapter._get_net_position = MagicMock(return_value=Decimal("-0.5"))
+    mock_client.get_short_positions.return_value = []
+    result = await adapter.reconcile(1.0, 50000.0)
+    assert result["status"] == "failed"
+    mock_client.close_short_position.assert_not_called()
+    mock_client.place_market_order.assert_not_called()
+
+
+@pytest.mark.parametrize("price", [float("nan"), float("inf"), 0.0, -5.0])
+@pytest.mark.asyncio
+async def test_reconcile_rejects_invalid_price_even_for_sell_and_short(
+    adapter, mock_client, price
+):
+    adapter._get_net_position = MagicMock(return_value=Decimal("0"))
+    with patch(
+        "trading_gym.execution.live_execution_adapter.is_shortable", return_value=True
+    ):
+        result = await adapter.reconcile(-0.5, price)
+    assert result["status"] == "failed"
+    mock_client.create_short_sell.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "shorts",
+    [
+        [{"id": "s1", "symbol": "BTCUSDT", "amount": "0.1"}],
+        [{"id": "s1", "symbol": "BTCUSDT", "amount": "NaN"}],
+        [{"id": "s1", "symbol": "BTCUSDT", "amount": "-1"}],
+        [
+            {"id": "s1", "symbol": "BTCUSDT", "amount": "0.5"},
+            {"id": "s1", "symbol": "BTCUSDT", "amount": "0.5"},
+        ],
+    ],
+)
+@pytest.mark.asyncio
+async def test_reconcile_rejects_unreconcilable_short_inventory(
+    adapter, mock_client, shorts
+):
+    adapter._get_net_position = MagicMock(return_value=Decimal("-0.5"))
+    mock_client.get_short_positions.return_value = shorts
+    result = await adapter.reconcile(1.0, 50000.0)
+    assert result["status"] == "failed"
+    mock_client.close_short_position.assert_not_called()
+    mock_client.place_market_order.assert_not_called()
