@@ -72,3 +72,13 @@ The anchor contains exactly `seq` (integer, not boolean) and `head`
 truncation while the anchor survives; a privileged actor who removes both
 the journal and anchor still needs an **external trusted checkpoint** to
 be detected. Those stronger, externally anchored guarantees are not claimed.
+
+## Constrained issuance must be serializable and unambiguous (2026-10-14)
+
+`GrantLedger.issue` now rejects malformed constraint names, duplicate
+ceiling entries, nonnumeric/boolean/negative/non-finite ceiling values, and
+more than 32 distinct ceilings before appending to the signed journal.
+Boolean TTLs no longer pass the Python integer check. This prevents
+invalid or ambiguous new signed records, while preserving the ability
+to parse existing, historically malformed records for independent
+forensic review and explicit revocation.

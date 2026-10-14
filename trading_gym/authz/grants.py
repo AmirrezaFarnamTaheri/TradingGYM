@@ -51,6 +51,8 @@ _GENESIS_HASH = "0" * 64
 _PRINCIPAL_RE = r"^[a-z0-9][a-z0-9._-]{2,63}$"
 _PRINCIPAL_COMPILED = re.compile(_PRINCIPAL_RE)
 _MAX_SCOPES_PER_GRANT = 32
+_MAX_CONSTRAINTS_PER_GRANT = 32
+_CONSTRAINT_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _MAX_TTL_HOURS = 24 * 365 * 5
 _ANCHOR_SEQ = "seq"
 _ANCHOR_HEAD = "head"
@@ -570,7 +572,11 @@ class GrantLedger:
         issued_at = _parse_iso(at or request.issued_at)
         if not _PRINCIPAL_COMPILED.match(request.principal):
             raise ValueError(f"invalid principal {request.principal!r}")
-        if not isinstance(request.ttl_hours, int) or request.ttl_hours <= 0:
+        if (
+            not isinstance(request.ttl_hours, int)
+            or isinstance(request.ttl_hours, bool)
+            or request.ttl_hours <= 0
+        ):
             raise ValueError("ttl_hours must be a positive integer")
         if request.ttl_hours > _MAX_TTL_HOURS:
             raise ValueError(f"ttl_hours exceeds the {_MAX_TTL_HOURS}-hour ceiling")
@@ -589,7 +595,30 @@ class GrantLedger:
         while grant_id in self._grants:
             grant_id = "gw-" + uuid.uuid4().hex[:12]
         expires_at = issued_at + timedelta(hours=request.ttl_hours)
-        constraints = {k: v for k, v in request.constraints}
+        if len(request.constraints) > _MAX_CONSTRAINTS_PER_GRANT:
+            raise ConstraintViolation("grant has too many constraint ceilings")
+        constraints: dict[str, float] = {}
+        for item in request.constraints:
+            if not isinstance(item, (tuple, list)) or len(item) != 2:
+                raise ConstraintViolation("invalid constraint ceiling entry")
+            name, ceiling = item
+            if (
+                not isinstance(name, str)
+                or not _CONSTRAINT_NAME_RE.fullmatch(name)
+            ):
+                raise ConstraintViolation("invalid constraint ceiling name")
+            if name in constraints:
+                raise ConstraintViolation(f"duplicate constraint ceiling {name!r}")
+            if (
+                not isinstance(ceiling, (int, float))
+                or isinstance(ceiling, bool)
+                or (isinstance(ceiling, float) and not math.isfinite(ceiling))
+                or ceiling < 0
+            ):
+                raise ConstraintViolation(
+                    f"constraint ceiling {name!r} must be finite and nonnegative"
+                )
+            constraints[name] = ceiling
         grant = Grant(
             grant_id=grant_id,
             principal=request.principal,

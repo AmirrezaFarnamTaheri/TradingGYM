@@ -1,5 +1,18 @@
 # Hardening branch status — 2026-10-11
 
+## New-grant constraint issuance validation (2026-10-14)
+
+New grants reject invalid, duplicated or non-finite/negative constraint
+ceilings and non-canonical names before creating signed journal records.
+Python boolean TTLs no longer count as one hour. Historical malformed
+records are still parseable and fail closed during evaluation, rather than
+being silently rewritten. Isolated red/green tests exposed eight input
+acceptance bugs and passed 21 accumulated scenarios after correction.
+Repository tests were updated and expanded; the full Python matrix remains
+unverified while GitHub-hosted jobs receive no runners.
+
+
+
 ## Authz journal truncation/corruption integrity (2026-10-14)
 
 Fixed hash-ledger replay accepting an entirely emptied journal when its
