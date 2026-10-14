@@ -25,6 +25,7 @@ from trading_gym.common.audit_outbox import (
     verify_outbox_digest,
 )
 from trading_gym.common.security import validate_base_url
+from trading_gym.intelligence.llm_key_pool import credential_references
 from trading_gym.governance.ledger import AuditLedger
 
 
@@ -44,6 +45,10 @@ class ProviderConfig(BaseModel):
     base_url: str | None = None
     health_path: Annotated[str, Field(pattern=r"^/[A-Za-z0-9_./-]{0,199}$")] = "/models"
     api_key_env: Annotated[str | None, Field(pattern=r"^[A-Z][A-Z0-9_]{1,79}$")] = None
+    api_key_envs: Annotated[tuple[str, ...], Field(max_length=16)] = ()
+    # Default: honor shared organization/project 429s; only enable when the
+    # provider documents independent per-key rate-limit buckets.
+    rotate_on_rate_limit: bool = False
     command: Annotated[str | None, Field(pattern=r"^[A-Za-z0-9_.-]{1,120}$")] = None
     allow_private_network: bool = False
     enabled: bool = True
@@ -56,8 +61,17 @@ class ProviderConfig(BaseModel):
             raise ValueError("health_path must be a simple absolute path")
         return value
 
+    @property
+    def credential_refs(self) -> tuple[str, ...]:
+        """Ordered env references, supporting both legacy and fleet config."""
+        return credential_references(
+            *((self.api_key_env,) if self.api_key_env else ()),
+            *self.api_key_envs,
+        )
+
     @model_validator(mode="after")
     def validate_kind(self) -> "ProviderConfig":
+        refs = self.credential_refs
         if self.kind in {ProviderKind.OPENAI_COMPATIBLE, ProviderKind.LOCAL}:
             if not self.base_url:
                 raise ValueError("HTTP providers require base_url")
@@ -71,9 +85,9 @@ class ProviderConfig(BaseModel):
             raise ValueError("CLI providers must not define base_url")
         if self.kind is ProviderKind.CLI and not self.command:
             raise ValueError("CLI providers require command")
-        if self.kind is ProviderKind.CLI and self.api_key_env is not None:
-            raise ValueError("CLI providers must not define api_key_env")
-        if self.kind is ProviderKind.OPENAI_COMPATIBLE and not self.api_key_env:
+        if self.kind is ProviderKind.CLI and refs:
+            raise ValueError("CLI providers must not define API credentials")
+        if self.kind is ProviderKind.OPENAI_COMPATIBLE and not refs:
             raise ValueError(
                 "OpenAI-compatible providers require an API-key environment reference"
             )
@@ -221,11 +235,12 @@ def provider_status(
             "status": "available" if executable else "unavailable",
             "command": Path(config.command or "").name if config.command else None,
         }
-    if config.api_key_env and not os.getenv(config.api_key_env):
+    references = config.credential_refs
+    available_refs = [name for name in references if os.getenv(name)]
+    if references and not available_refs:
         return {
             "provider_id": config.provider_id,
             "status": "missing_credential_reference",
-            "api_key_env": config.api_key_env,
         }
 
     # Re-resolve immediately before every outbound request. This closes stored-URL
@@ -239,8 +254,10 @@ def provider_status(
     )
     destination = urljoin(base_url.rstrip("/") + "/", config.health_path.lstrip("/"))
     headers: dict[str, str] = {}
-    if config.api_key_env:
-        headers["Authorization"] = f"Bearer {os.environ[config.api_key_env]}"
+    if available_refs:
+        # Health is advisory only; the real inference request rotates keys
+        # and never depends on GET /models being exposed by the provider.
+        headers["Authorization"] = f"Bearer {os.environ[available_refs[0]]}"
     try:
         with httpx.Client(
             timeout=timeout_seconds,
