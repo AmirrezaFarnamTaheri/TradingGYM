@@ -147,3 +147,17 @@ def test_extra_decision_fields_cannot_inject_trade_instructions():
     result["answers"]["direction"]["place_order_now"] = True
     with pytest.raises(ValueError, match="systemone_"):
         parse_decision(result, confidence_floor=0.5, max_leverage=1)
+
+
+def test_explicit_low_confidence_hold_does_not_escalate_to_risk_on_fallback():
+    payload = _result(
+        selected="hold",
+        probabilities={"hold": 0.51, "long": 0.30, "short": 0.19},
+        confidence=0.40,
+    )
+    selected, leverage, _, explanation = parse_decision(
+        payload, confidence_floor=0.65, max_leverage=1,
+    )
+    assert selected == "hold"
+    assert leverage == 0
+    assert "hold" in explanation
