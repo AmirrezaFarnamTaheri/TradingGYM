@@ -68,6 +68,17 @@ Independent credentials are used for separate authorities:
 | `AUDIT_HMAC_KEY` or `AUDIT_HMAC_KEYRING_JSON` + `AUDIT_HMAC_KEY_ID` | authenticated audit entries, historical verification, rotation, and sealing |
 | `ACTOR_CREDENTIALS_JSON` | principal-bound proposer, approver, executor, operator, and auditor roles |
 
+**Production emergency-state transitions:** changing the durable
+`/api/v1/production/emergency` halt marker now requires gateway API access,
+the independent `X-Approval-Key`, an authenticated `operator` principal
+(`X-Actor` with `X-Actor-Key`) and a distinct authenticated `approver`
+principal (`X-Approver` with `X-Approver-Key`). Both principals must be
+registered in `ACTOR_CREDENTIALS_JSON` with separate secrets and their
+required roles. Mere header names or a shared approval key cannot clear
+a production halt. The normal panic and independent emergency kill-all
+controls are unchanged. Emergency state changes remain revision-checked,
+with strict boolean/revision types.
+
 Broker and provider secrets are not stored in general state. Child processes receive only explicitly delegated secret variables. Actor, audit-keyring, approval, emergency, worker, and gateway credentials are stripped unless a child has an explicit, narrow need.
 
 The service is intentionally **single-tenant per process and `TRADING_GYM_HOME`**. Set `TRADING_GYM_DEPLOYMENT_MODE=single_tenant` and a stable `TRADING_GYM_TENANT_ID`. `TRADING_GYM_MULTI_TENANT=true`, any alternate deployment mode, or a mismatched `X-Tenant-ID` fails closed. Multi-tenant isolation is not claimed.
