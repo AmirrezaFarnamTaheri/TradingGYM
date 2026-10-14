@@ -1,5 +1,16 @@
 # Hardening branch status — 2026-10-11
 
+## Caution sizing and immutable-weight interoperability — 2026-10-14
+
+An additional agent hardening correction preserves copying and dataclass
+projection of validated read-only fusion weights, including pickle roundtrips.
+The cautious vote threshold still tightens, but the leverage multiplier is
+applied only once after the fusion ceiling, rather than squaring the factor
+for limit-clamped decisions. Regression tests have been added to
+`test_agent_fusion.py` and `test_planner_memory.py`. Isolated reproduction
+checks passed; the exact PR-head CI suite is still blocked by runner
+allocation. No funded venue execution was performed.
+
 ## Advisory-decision authority and finite-value guards — 2026-10-14
 
 This addition to PR #2 tightens the agent decision boundary without

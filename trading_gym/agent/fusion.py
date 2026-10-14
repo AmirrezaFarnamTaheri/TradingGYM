@@ -28,7 +28,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Mapping, Sequence
+from typing import Iterator, Mapping, Sequence
 
 from trading_gym.agent.arms.base import ArmProposal
 from trading_gym.intelligence.types import (
@@ -45,6 +45,36 @@ __all__ = [
 ]
 
 _FUSION_BACKEND = "fusion"
+
+
+class _FrozenWeightEntries(Mapping[tuple[str, str], float]):
+    """Read-only validated weights with safe stdlib copy/serialization."""
+
+    def __init__(self, entries: Mapping[tuple[str, str], float]) -> None:
+        self._entries = MappingProxyType(dict(entries))
+
+    def __getitem__(self, key: tuple[str, str]) -> float:
+        return self._entries[key]
+
+    def __iter__(self) -> Iterator[tuple[str, str]]:
+        return iter(self._entries)
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Mapping) and dict(self._entries) == dict(other)
+
+    def __repr__(self) -> str:
+        return f"_FrozenWeightEntries({dict(self._entries)!r})"
+
+    def __deepcopy__(self, memo: dict[int, object]) -> dict[tuple[str, str], float]:
+        # dataclasses.asdict() deep-copies non-dict mappings. Return a plain
+        # detached dict for serialization; the live object remains read-only.
+        return dict(self._entries)
+
+    def __reduce__(self):
+        return (type(self), (dict(self._entries),))
 
 
 @dataclass(frozen=True)
@@ -68,7 +98,12 @@ class FusionWeights:
                 raise ValueError(f"weight for {key!r} must be finite")
             if weight < 0:
                 raise ValueError(f"weight for {key!r} must be non-negative")
-        object.__setattr__(self, "entries", MappingProxyType(entries))
+        object.__setattr__(self, "entries", _FrozenWeightEntries(entries))
+
+    def __deepcopy__(self, memo: dict[int, object]) -> FusionWeights:
+        # A validated frozen snapshot is safe to share, including through
+        # deepcopy(FusionConfig(...)); never clone into a writable dict.
+        return self
 
     @classmethod
     def from_pairs(cls, *pairs: tuple[tuple[str, str], float]) -> "FusionWeights":

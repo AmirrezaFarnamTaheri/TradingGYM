@@ -260,7 +260,11 @@ class TierCascadePlanner:
 
 
 def _tighten(config: FusionConfig, caution: CautionState) -> FusionConfig:
-    """Apply a caution state to a fusion config (tighten-only, clamped)."""
+    """Tighten vote thresholds; final leverage is reduced once in _derisk.
+
+    Scaling the cap here as well would apply the leverage multiplier twice
+    whenever an uncautioned proposal saturates the configured limit.
+    """
 
     return FusionConfig(
         weights=config.weights,
@@ -270,7 +274,7 @@ def _tighten(config: FusionConfig, caution: CautionState) -> FusionConfig:
         quorum_confidence=min(
             1.0, config.quorum_confidence + caution.quorum_confidence_delta
         ),
-        max_leverage=config.max_leverage * caution.leverage_multiplier,
+        max_leverage=config.max_leverage,
     )
 
 
