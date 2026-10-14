@@ -881,5 +881,20 @@ class DryRunLiveExecutionAdapter(LiveExecutionAdapter):
         }
 
     async def flatten(self) -> bool:
+        """Never mutate the venue or mistake a simulated close for real flatness.
+
+        A dry-run panic stops the worker regardless. The durable signal may
+        only be cleared if an independent, read-only gross position/open-order
+        snapshot proves there is nothing funded left to flatten.
+        """
         logger.critical("DRY RUN: panic flatten requested; no live order submitted")
+        self._last_flatten_error = ""
+        try:
+            await self._verify_broker_flat()
+        except Exception as exc:
+            self._last_flatten_error = f"{type(exc).__name__}: {exc}"
+            logger.critical(
+                "DRY RUN: flatten unverified; panic signal must remain active"
+            )
+            return False
         return True
