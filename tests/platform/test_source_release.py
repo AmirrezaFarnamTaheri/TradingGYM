@@ -35,3 +35,13 @@ def test_source_release_builder_emits_safe_complete_archive(tmp_path: Path) -> N
             for name in names
         )
         assert archive.testzip() is None
+        assert not any(
+            name.startswith(expected_root + "trading_gym/data/manifests/")
+            and name.endswith(".lock")
+            for name in names
+        )
+        assert not any(
+            name.startswith(expected_root + "rust/axiom_kernel/")
+            and name.endswith(".exit")
+            for name in names
+        )
