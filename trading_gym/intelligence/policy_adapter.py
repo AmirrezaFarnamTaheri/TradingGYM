@@ -161,11 +161,29 @@ class IntelligencePolicyAdapter:
             )
             or (
                 context.drawdown_from_peak is not None
-                and context.drawdown_from_peak < 0
+                and not 0 <= context.drawdown_from_peak <= 1
             )
+            or type(context.is_live) is not bool
             or any(not np.isfinite(value) for value in context.recent_returns)
         ):
             raise ValueError("market/account context is invalid")
+        # This check MUST precede the fallback chain. A malformed upstream
+        # risk limit or indicator cannot become an ordinary provider outage
+        # that silently falls through to a more permissive decision backend.
+        for values, maximum in (
+            (context.risk_limits, 20),
+            (context.market_features, 32),
+        ):
+            if len(values) > maximum or any(
+                not isinstance(name, str)
+                or not name
+                or len(name) > 80
+                or isinstance(value, bool)
+                or not isinstance(value, (float, int, np.number))
+                or not np.isfinite(float(value))
+                for name, value in values.items()
+            ):
+                raise ValueError("market/account context is invalid")
         return context
 
     @staticmethod
