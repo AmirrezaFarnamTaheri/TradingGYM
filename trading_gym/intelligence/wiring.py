@@ -37,7 +37,12 @@ def resolve_action_bounds(env: Any) -> tuple[float, float]:
     return low, high
 
 
-def build_market_context(env: Any, *, symbol: str) -> dict[str, Any]:
+def build_market_context(
+    env: Any,
+    *,
+    symbol: str,
+    risk_limits: dict[str, float] | None = None,
+) -> dict[str, Any]:
     """Extract actual account state for rules and LLM arbitration.
 
     Normalised observation tails are not cash balances or market prices.
@@ -98,6 +103,11 @@ def build_market_context(env: Any, *, symbol: str) -> dict[str, Any]:
         "recent_returns": returns,
         "drawdown_from_peak": drawdown,
         "margin_level": margin_level,
+        "is_live": bool(getattr(underlying, "live_mode", False)),
+        "market_evidence": dict(
+            getattr(underlying, "latest_feature_provenance", {}) or {}
+        ),
+        "risk_limits": dict(risk_limits or {}),
     }
 
 
@@ -107,6 +117,7 @@ def build_trading_policy(
     env: Any,
     *,
     provider_repository: Any | None = None,
+    working_memory: Any | None = None,
 ) -> IntelligencePolicyAdapter | None:
     """Assemble the configured backend, or ``None`` for legacy RL-only runs.
 
@@ -123,8 +134,18 @@ def build_trading_policy(
         action_low=low,
         action_high=high,
         provider_repository=provider_repository,
+        working_memory=working_memory,
         context_builder=(
-            (lambda _observation: build_market_context(env, symbol=cfg.env.symbol))
+            (
+                lambda _observation: build_market_context(
+                    env,
+                    symbol=cfg.env.symbol,
+                    risk_limits={
+                        "min_leverage": low,
+                        "max_leverage": high,
+                    },
+                )
+            )
             if getattr(cfg, "env", None) is not None
             else None
         ),
