@@ -168,7 +168,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/adapters/orderbook_integrity.py",
-      "sha256": "5d5de7eeb3e16e747880252f7ac1b134094dde8fb0e3d3ee11c52cbee8f91fa9"
+      "sha256": "984f9027accb6b44a995e565f1747ea42e73c6e01cb804cfb1ce30fb4e79033a"
     },
     {
       "owner": "trading_gym",
@@ -1083,7 +1083,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/orderbook.py",
-      "sha256": "1ce0ce7dae10fb1a6b12922d59dc8057e40f8e924f5accf1fe7c61a63c3a7742"
+      "sha256": "4bf4241867ad2550787242a46f7d13424b15f2cbea2f7d4909ca0000163b29a7"
     },
     {
       "owner": "trading_gym",
