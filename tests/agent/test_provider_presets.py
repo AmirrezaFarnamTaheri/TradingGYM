@@ -73,3 +73,21 @@ def test_no_credential_values_or_token_defaults_in_preset_listing():
     all_presets = list_provider_presets()
     assert all("model" not in item for item in all_presets)
     assert all("enabled" not in item for item in all_presets)
+
+
+def test_every_disabled_template_is_accepted_by_actual_governed_provider_schema():
+    from trading_gym.agent.providers import ProviderConfig
+
+    for preset in list_provider_presets():
+        refs = ["OPENROUTER_KEY_REFERENCE"] if preset["kind"] == "openai_compatible" else []
+        config = ProviderConfig.model_validate(render_provider_preset(
+            preset["preset_id"],
+            provider_id="reviewed-" + preset["preset_id"],
+            model="operator-verified-model",
+            credential_refs=refs,
+        ))
+        assert config.enabled is False
+        assert config.wire_protocol == preset["wire_protocol"]
+        assert config.base_url == preset["base_url"]
+        if config.wire_protocol == "systemone":
+            assert config.systemone_path == "/v1/systemone"
