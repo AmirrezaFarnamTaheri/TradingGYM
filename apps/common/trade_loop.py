@@ -111,6 +111,15 @@ async def trade_loop(
                     unwrapped_env.update_features(feature_snapshot.feature_row)
                     last_base_candle_timestamp = feature_snapshot.base_candle_timestamp
 
+                # Source metadata describes the last FULLY CLOSED market bar,
+                # not the later best bid/ask quote. System-1 uses this to
+                # reject stale snapshots and avoid fabricated prompt context.
+                unwrapped_env.latest_feature_provenance = {
+                    "bar_open_unix": int(feature_snapshot.base_candle_timestamp),
+                    "bar_seconds": int(cfg.features.timeframes[0].bar_minutes) * 60,
+                    "source_sha256": feature_snapshot.source_sha256,
+                }
+
                 # 3. Update the latest tradable mid. Feature generation is based
                 # only on fully closed candles; the current ticker is state, not a
                 # replacement for the feature vector.
