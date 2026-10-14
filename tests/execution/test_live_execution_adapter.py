@@ -912,3 +912,59 @@ def test_only_governed_live_adapter_can_acknowledge_shared_panic(
         )
     assert ungoverned_live.can_acknowledge_panic is False
     assert dry_run_with_live_fields.can_acknowledge_panic is False
+
+
+@pytest.mark.asyncio
+async def test_flat_verification_requires_explicit_base_balance_row(
+    adapter, mock_client
+):
+    """Missing BTC balance must not be interpreted as zero funded exposure."""
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0"))
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_orders.return_value = {"total": 0, "data": []}
+    with pytest.raises(ValueError, match="missing_broker_base_balance"):
+        await adapter._verify_broker_flat()
+
+
+@pytest.mark.asyncio
+async def test_flat_verification_rejects_negative_blocked_balance(
+    adapter, mock_client
+):
+    """A negative hold cannot cancel genuine spot exposure in the sum."""
+    mock_client.get_balance.return_value = [
+        Balance(symbol="BTC", balance=Decimal("1"), blocked=Decimal("-1"))
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_orders.return_value = {"total": 0, "data": []}
+    with pytest.raises(ValueError, match="invalid_broker_spot_balance"):
+        await adapter._verify_broker_flat()
+
+
+@pytest.mark.asyncio
+async def test_flat_verification_rejects_duplicate_base_balance_rows(
+    adapter, mock_client
+):
+    """Duplicate balances make broker position evidence ambiguous."""
+    mock_client.get_balance.return_value = [
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_orders.return_value = {"total": 0, "data": []}
+    with pytest.raises(ValueError, match="duplicate_broker_base_balance"):
+        await adapter._verify_broker_flat()
+
+
+@pytest.mark.asyncio
+async def test_flat_verification_accepts_explicit_zero_base_snapshot(
+    adapter, mock_client
+):
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_orders.return_value = {"total": 0, "data": []}
+    await adapter._verify_broker_flat()
