@@ -420,3 +420,20 @@ def test_status_separates_working_memory_disclosure_from_experience_consent(
     payload = response.json()
     assert payload["system1_memory_enabled"] is False
     assert payload["system1_working_memory_enabled"] is True
+
+
+
+def test_intelligence_status_lists_disabled_provider_presets_without_credentials(
+    tmp_path,
+):
+    response = _client(_app(tmp_path / "missing.yaml")).get(
+        "/intelligence/status?probe_limit=0", headers=AUTH,
+    )
+    assert response.status_code == 200
+    presets = response.json()["provider_presets"]
+    assert {"go-systemone", "openjev-decider", "ollama", "openrouter"} <= {
+        preset["preset_id"] for preset in presets
+    }
+    assert all(preset["enabled_by_default"] is False for preset in presets)
+    assert all("api_key" not in str(preset).lower() for preset in presets)
+    assert "ROUTER_KEY_ONE" not in response.text
