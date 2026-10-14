@@ -155,3 +155,43 @@ class TestScopeSet:
     def test_first_segment_literal_is_enforced_for_grantability(self) -> None:
         with pytest.raises(ScopeError):
             ScopeSet.parse(("**",))
+
+class TestHighRiskNewDelegation:
+    @pytest.mark.parametrize(
+        "pattern",
+        (
+            "trade.**",
+            "trade.*.order.submit",
+            "trade.live.**",
+            "trade.live.btcusdt.order.*",
+            "production.jobs.*",
+            "economic.x402.**",
+            "x402.payment.*",
+            "payments.**",
+            "venue.order.**",
+            "research.production.*",
+        ),
+    )
+    def test_rejects_high_risk_wildcards_for_new_issuance(self, pattern: str) -> None:
+        assert not ScopePattern.parse(pattern).is_issuable()
+
+    @pytest.mark.parametrize(
+        "pattern",
+        (
+            "trade.paper.**",
+            "research.**",
+            "audit.read.*",
+            "playground.**",
+            "trade.live.btcusdt.order.submit",
+            "economic.x402.payment.execute",
+        ),
+    )
+    def test_paper_research_and_explicit_economic_scopes_allowed(
+        self, pattern: str
+    ) -> None:
+        assert ScopePattern.parse(pattern).is_issuable()
+
+    def test_legacy_broad_patterns_remain_parseable_for_revoke(self) -> None:
+        old = ScopeSet.parse(("trade.live.**",))
+        assert old.match("trade.live.order.submit") is not None
+        assert not old.patterns[0].is_issuable()

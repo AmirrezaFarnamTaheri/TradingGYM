@@ -243,3 +243,32 @@ class TestGrantLedgerIntegrity:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         with pytest.raises(ScopeError):
             ledger.issue(make_request(scopes=()))
+
+@pytest.mark.parametrize(
+    "pattern",
+    ("trade.**", "trade.live.*", "production.**", "x402.pay.*"),
+)
+def test_new_high_risk_wildcard_grants_are_rejected_without_writing_journal(
+    tmp_path: Path, pattern: str
+) -> None:
+    ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+    with pytest.raises(ScopeError, match="wildcard"):
+        ledger.issue(make_request(scopes=(pattern,)))
+    assert ledger.events() == ()
+
+
+def test_existing_legacy_grant_record_can_still_be_parsed() -> None:
+    from trading_gym.authz.grants import Grant
+
+    legacy = {
+        "grant_id": "gw-111111111111",
+        "principal": "agent-axiom1",
+        "scopes": ["trade.live.**"],
+        "state": "active",
+        "issued_at": TEST_WINDOW,
+        "expires_at": "2026-10-01T00:00:00Z",
+        "issued_by": "operator-1",
+    }
+    loaded = Grant.from_record(legacy)
+    assert loaded.scopes.patterns[0].text == "trade.live.**"
+    assert not loaded.scopes.patterns[0].is_issuable()
