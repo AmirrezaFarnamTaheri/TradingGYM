@@ -290,3 +290,25 @@ class TestEscalationType:
         engine = FusionEngine(FusionConfig())
         fused = engine.fuse([], make_context(), regime="trend")
         assert isinstance(fused, DisagreementEscalated)
+
+def test_fusion_weight_snapshots_support_dataclass_projection_and_deepcopy() -> None:
+    """Read-only snapshots must remain compatible with audit/copy tooling."""
+    import copy
+    import pickle
+    from dataclasses import asdict
+
+    raw = {("rules", "trend"): 1.0}
+    weights = FusionWeights(entries=raw)
+    raw[("rules", "trend")] = 0.0
+    config = FusionConfig(weights=weights)
+
+    projected = asdict(config)
+    assert projected["weights"]["entries"][("rules", "trend")] == 1.0
+    projected["weights"]["entries"][("rules", "trend")] = 0.1
+    assert config.weights.effective("rules", "trend") == 1.0
+
+    cloned = copy.deepcopy(config)
+    restored = pickle.loads(pickle.dumps(config))
+    assert cloned.weights == restored.weights == config.weights
+    with pytest.raises(TypeError):
+        cloned.weights.entries[("rules", "trend")] = 0.0  # type: ignore[index]
