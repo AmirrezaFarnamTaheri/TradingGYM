@@ -36,6 +36,9 @@ class IntelligenceConfig(BaseModel):
     system1_timeout_seconds: float = Field(default=5.0, gt=0, le=20)
     #: Only opt in when the trading lessons may be disclosed to the provider.
     system1_use_experience_memory: bool = False
+    #: Settled short-term cycle P&L is sensitive; external disclosure is
+    #: independently opt-in, even when experience journal access is disabled.
+    system1_use_working_memory: bool = False
     #: Fusion arbitration knobs (see FusionBackend).
     fusion_leverage_cap: float = Field(default=5.0, gt=0)
     fusion_veto_confidence: float = Field(default=0.75, ge=0, le=1)
