@@ -23,7 +23,7 @@ Roster (tier order):
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Sequence
 
 import numpy as np
 
@@ -342,6 +342,7 @@ def default_registry(
     rule_backend: IntelligenceBackend | None = None,
     rl_model: Any | None = None,
     llm_backend: IntelligenceBackend | None = None,
+    system1_backends: Sequence[IntelligenceBackend] = (),
 ) -> ArmRegistry:
     """Build the default octopus roster from the available capability set."""
 
@@ -390,6 +391,18 @@ def default_registry(
             required_scopes=frozenset(),
         )
     )
+    # System-1 fast models sit alongside local policy models, only after
+    # cheaper rules/statistics fail to settle the decision. They are advisory
+    # and require the same research LLM scope as a T4 hosted model.
+    for fast in system1_backends:
+        registry.register(
+            BackendArm(
+                backend=fast,
+                tier=ArmTier.T3_MODEL,
+                cost=_cost(80.0, 400.0, credits=1.0),
+                required_scopes=frozenset({"research.llm.invoke"}),
+            )
+        )
     if rl_model is not None:
         registry.register(
             BackendArm(
