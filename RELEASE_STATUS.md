@@ -1,5 +1,20 @@
 # Hardening branch status — 2026-10-11
 
+## Training start and browser release identity — 2026-10-14
+
+The Training Lab now supplies the required `model_version` in
+`POST /api/v1/train/start` and requires an explicit, validated registry
+identifier before enabling the start action. Its default config was the
+nonexistent `training_t4.yaml`; it now chooses tracked
+`config/training_local.yaml` and still supports `training_rtx3050.yaml`.
+New Vitest cases exercise form input and JSON payload serialization.
+The operator footer derives its version from `frontend/package.json`
+instead of an obsolete hard-coded label. The backend FastAPI metadata,
+generated OpenAPI and complete hosted frontend matrix remain separately
+unqualified, as do live-capital deployment gates.
+
+
+
 ## Risk-observation integrity and availability-probe isolation — 2026-10-14
 
 The advisory risk guard now rejects non-finite configured position caps

@@ -3,8 +3,13 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { trainingAPI, createWebSocket } from '../api';
 import useStore from '../store';
 
+// Must match TrainingStartRequest.model_version in the FastAPI schema.
+const MODEL_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
+
 export default function TrainingPanel() {
-  const [configName, setConfigName] = useState('training_t4.yaml');
+  const [configName, setConfigName] = useState('training_local.yaml');
+  const [modelVersion, setModelVersion] = useState('');
+  const validModelVersion = MODEL_VERSION_PATTERN.test(modelVersion);
   const logsEndRef = useRef(null);
 
   const logs = useStore(state => state.logs);
@@ -54,7 +59,7 @@ export default function TrainingPanel() {
 
   // Start/Stop mutations
   const startMutation = useMutation({
-    mutationFn: () => trainingAPI.start(configName),
+    mutationFn: ({ config, version }) => trainingAPI.start(config, version),
     onSuccess: () => {
       clearLogs();
     },
@@ -102,10 +107,10 @@ export default function TrainingPanel() {
             onChange={(e) => setConfigName(e.target.value)}
             disabled={isRunning}
             className="config-select"
-            aria-label="Select training configuration file (T4 or RTX3050)"
+            aria-label="Select training configuration file (Local or RTX3050)"
             aria-describedby="config-help"
           >
-            <option value="training_t4.yaml">training_t4.yaml (16GB VRAM)</option>
+            <option value="training_local.yaml">training_local.yaml (local/default)</option>
             <option value="training_rtx3050.yaml">training_rtx3050.yaml (4GB VRAM)</option>
           </select>
           <small id="config-help" style={{ display: 'block', marginTop: '5px', color: '#666' }}>
@@ -113,10 +118,36 @@ export default function TrainingPanel() {
           </small>
         </div>
 
+        <div className="config-selector">
+          <label htmlFor="training-model-version">Model registry version:</label>
+          <input
+            id="training-model-version"
+            className="config-select"
+            type="text"
+            value={modelVersion}
+            onChange={(e) => setModelVersion(e.target.value)}
+            maxLength={120}
+            pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,119}"
+            aria-describedby="training-model-version-help"
+            aria-invalid={modelVersion.length > 0 && !validModelVersion}
+            disabled={isRunning || startMutation.isPending}
+            placeholder="e.g. btc-ppo-v2"
+            autoComplete="off"
+            required
+          />
+          <small id="training-model-version-help">
+            Required registry identifier (letters, digits, periods, underscores,
+            hyphens; maximum 120 characters).
+          </small>
+        </div>
+
         <div className="control-buttons">
           <button
-            onClick={() => startMutation.mutate()}
-            disabled={isRunning || startMutation.isPending}
+            onClick={() => startMutation.mutate({
+              config: configName,
+              version: modelVersion,
+            })}
+            disabled={isRunning || startMutation.isPending || !validModelVersion}
             className={`btn ${isRunning ? 'btn-disabled' : 'btn-success'}`}
             aria-label={isRunning ? 'Training is running' : 'Start training with selected configuration'}
             aria-busy={startMutation.isPending}

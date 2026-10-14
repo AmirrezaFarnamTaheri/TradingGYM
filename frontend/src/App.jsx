@@ -8,11 +8,12 @@
  * - Tab-based navigation for different panels
  *
  * @module App
- * @version 4.2.0
+ * @see ../package.json (authoritative frontend release version)
  */
 
 import { lazy, Suspense, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import appPackage from '../package.json';
 // Shell-critical providers stay eager: they must render before any panel loads.
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
@@ -210,7 +211,7 @@ function AppContent() {
 
           <div className="sidebar-footer">
             <div className="footer-info">
-              <p className="footer-version">v31.7.0+reconstructed.1</p>
+              <p className="footer-version">v{appPackage.version}</p>
               <p className="footer-copyright">© 2026 Trading Gym</p>
               <p className="footer-note" style={{ fontSize: '10px', marginTop: '5px', opacity: 0.7 }}>
                 Evidence-qualified; deployment qualification remains environment-specific

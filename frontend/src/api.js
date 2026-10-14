@@ -5,7 +5,7 @@
  * All endpoints are protected by API key authentication (X-API-Key header).
  *
  * @module api
- * @version 11.0.0
+ * @see /api/v1 (versioned route prefix)
  */
 
 import axios from 'axios';
@@ -187,11 +187,15 @@ export const configAPI = {
 export const trainingAPI = {
   /**
    * Start a training run with specified configuration
-   * @param {string} configName - Name of config file (e.g., 'training_t4.yaml')
-   * @returns {Promise<{status: string, pid: number, config: string}>}
+   * @param {string} configName - An existing training YAML profile
+   * @param {string} modelVersion - Required safe registry identifier
+   * @returns {Promise<{status: string, pid: number, config: string, model_version: string}>}
    */
-  start: (configName = 'training_t4.yaml') =>
-    api.post('/train/start', { config_name: configName }),
+  start: (configName, modelVersion) =>
+    api.post('/train/start', {
+      config_name: configName,
+      model_version: modelVersion,
+    }),
 
   /**
    * Stop the currently running training process gracefully
