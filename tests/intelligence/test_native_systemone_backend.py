@@ -241,3 +241,11 @@ def test_post_only_native_endpoint_reports_reachability_on_http_405(monkeypatch)
     assert report["status"] == "reachable"
     assert report["http_status"] == 405
     assert urls == ["http://127.0.0.1:8080/v1/systemone"]
+
+
+def test_public_intelligence_exports_include_native_adapter_and_errors():
+    import trading_gym.intelligence as api
+    assert api.NativeSystemOneDecisionBackend is NativeSystemOneDecisionBackend
+    assert api.httpx_systemone_transport is httpx_systemone_transport
+    assert issubclass(api.BackendUnavailable, RuntimeError)
+
