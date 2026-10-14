@@ -1,6 +1,44 @@
 # Hardening branch status — 2026-10-11
 
 
+## 22-archive native System-One and holdout-verification convergence — 2026-10-15
+
+The latest user-supplied 12 archives extend the earlier ten to **22 ZIP files,
+8,247 file entries, 1,574 nested folders, 7,923 unique SHA-256 payload hashes,
+and 280 identical-content groups**. See ADR-039 for individual donor
+subsystems, actual adoption decisions and second-order product-plane analysis.
+The metadata register is exhaustive; method-by-method semantic proof,
+compilation and legal qualification of every donor are **not** claimed.
+
+Implemented on this draft branch:
+- `ProviderConfig.wire_protocol=systemone` is opt-in; CLI providers are
+  excluded, native POST-only route health is distinguished from chat `/models`,
+  and regular LLM/chat mode rejects typed providers instead of issuing a
+  malformed chat call.
+- `NativeSystemOneDecisionBackend` and strict `systemone_protocol` accept
+  bounded, provenance-checked `system1.market.v1` structured JSON state;
+  send two independent choice/noul questions in one inference request; verify
+  finite normalized distributions, winning labels, operator confidence,
+  risk-off veto and local leverage ceilings. Key rotation, attempt budgets,
+  DNS/redirect/proxy protection and immutable authority gates are preserved.
+- The policy adapter validates finite risk limits, named feature values,
+  boolean live flags and realistic drawdown **before** any backend fallback.
+- `systemone_evaluation` and `scripts/evaluate_systemone.py` form an
+  offline holdout assessment plane: replay hashes, label-time checks, Brier,
+  ECE, coverage, accepted accuracy and latency p95; no raw context, prompts,
+  user keys or inferred trading qualification in reports.
+
+An isolated Python implementation suite (controlled external dependencies)
+passed **40/40 tests**, and `jev-model-router` donor's self-contained Python
+suite passed **60 tests with one skip**. These are not a green
+repository-level certification. The exact PR-head Python 3.11/3.12, frontend,
+Rust, OpenAPI generation, source-manifest verification, broker integration,
+real Go System-One inference and capital emergency gates are **UNVERIFIED**.
+GitHub Actions workers have previously reported failures without allocating
+any executable job steps. PR remains draft. Funded/live **NO-GO**.
+
+
+
 ## Ten-archive convergence and operator observability — 2026-10-15
 
 The existing draft PR #2 was augmented without merging, changing `main`,
