@@ -220,7 +220,7 @@ addressed on the draft PR:
   update**; the exact FastAPI generated file must still pass
   `python scripts/export_openapi.py --check` on a full repository checkout.
 
-The isolated source mirror now passes **46/46** bounded protocol, native
+The isolated source mirror now passes **64/64** bounded protocol, native
 backend, model-identity, hold, evaluation, CLI and promotion-integrity checks. Additional
 repository tests for authority prevalidation, consent, health, navigation,
 and API behavior were authored but **have not been executed on PR-head
@@ -238,6 +238,47 @@ not authenticate users or verify the underlying evidence bytes**. The
 governed principal registry, approval factors and independent deployment
 gates remain authoritative; its resulting record cannot itself qualify
 funded-live trading.
+
+## Second-order routing preview and operator-presets plane
+
+The donor routers (`jev-model-router`, Jev Auto Router, Jev Codex Router
+and JevLoop) optimize model choice, but TradingGYM cannot safely treat a
+ranked provider as a new source of execution or trading authority.
+
+The new pure `trading_gym.intelligence.model_route_preview.preview_route`
+accepts at most 64 **operator-supplied** model candidates with explicit
+SHA-256 metadata references. Hard exclusions include unknown price,
+unavailable/unprobed health, exhausted request admission, missing required
+capabilities, unsuitable wire protocols, insufficient context window,
+excessive measured p95 latency and absent remote-context consent. A
+deterministic hash-bound report names the lowest estimated-cost qualified
+provider, the rejected alternatives and their reason codes. Both
+`selection_hint_only` and `non_authoritative` are always true.
+
+`scripts/preview_model_route.py --inventory ... --request ...` provides a
+bounded, read-only research CLI. It rejects duplicate JSON properties,
+malformed numbers, oversized files and secret-bearing unexpected fields
+without printing raw records. **No model request or financial mutation**
+is executed, and metadata hashes do not prove price or capability accuracy.
+
+The new `trading_gym.agent.provider_presets` catalogue supplies six
+**disabled-by-default example templates** (Go System-One, OpenJev decider,
+Ollama, LM Studio, vLLM, OpenRouter). A template cannot register, enable or
+authenticate itself: operators must specify a model ID and any hosted
+credential **environment references**, then use the governed provider
+repository to validate and explicitly save the disabled configuration.
+The `/intelligence/status` response and existing Model Fleet panel show
+the templates in a non-mutating table. This is not an extension to the live
+broker order-routing plane.
+
+The isolated Python source-mirror regression suite ran **64/64 passing**
+cases, including six provider-template tests and twelve routing-related
+cases, against constrained dependency substitutes. Exact-head integration,
+JS rendering, compiled Rust and external model/broker verification remain
+**unverified**. Separately, an explicit weak HOLD from either System-One
+native or chat backends now returns zero leverage rather than being treated
+as an outage capable of triggering a risk-on fallback; the GitHub regression
+for the existing chat backend still needs exact-head execution.
 
 ## Verification boundary and remaining gates
 
