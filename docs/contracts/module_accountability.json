@@ -868,7 +868,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/__init__.py",
-      "sha256": "265a6324568042dac404c2ec0817be3d56a764457e9365ba533cfe9d2ef989ce"
+      "sha256": "3709792bb10ed2f82eb15c46522e4a956a42ce3d9e8c30d5889bedc617c354c7"
     },
     {
       "owner": "trading_gym",
@@ -914,6 +914,11 @@
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/rule_backend.py",
       "sha256": "0b2d2355e9c5e746bc32d5e158cee962ee8d573164d7978117376166c81bd8c3"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/intelligence/systemone_evaluation.py",
+      "sha256": "21ae7f7195ecf2ee66e9718ed454cca230928b1f17e878182ef35a562997f0c4"
     },
     {
       "owner": "trading_gym",
