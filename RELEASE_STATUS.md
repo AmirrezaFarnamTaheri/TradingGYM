@@ -1,5 +1,38 @@
 # Hardening branch status — 2026-10-11
 
+## System-1 context and provider-key fleet — 2026-10-15
+
+The existing LLM path had one environment-key reference, sent a truncated
+4,000-character market JSON document, and did not supply the agent's own
+working/experience memory or trustworthy live-bar source provenance.
+This branch now adds:
+
+- per-provider ordered credential *environment references* with bounded,
+  file-locked process-fleet rotation, key-independent cooldowns and
+  sanitized HTTP failure handling; no secret values are persisted;
+- a short, total HTTP request deadline and retry budget, no redirect/proxy
+  inheritance, fail-closed 403 handling, project-level 429 cooloff by default,
+  and optional per-key rotation only for providers with documented
+  independent rate-limit buckets;
+- a deterministic, bounded, source-hashed System-1 market packet combining
+  real account/risk inputs, recent returns, selected normalized closed-bar
+  indicators, verified timestamps/freshness and optional settled memory;
+- strict four-field JSON response validation, low-confidence escalation,
+  conservative leverage cap, configurable fast-model fleet and optional deep
+  LLM/rules fallback without laundering PermissionError into authorization;
+- dry-run live model-free policy integration, read-only System-1 status, and
+  explicit refusal to admit unqualified fast models to funded live execution.
+
+Focused isolated red/green verification covered **12 key rotation/failover**
+and **7 context** cases (19/19 passed on Python 3.13). Dedicated
+repository-level tests were added, but full Python 3.11/3.12, frontend,
+Rust, provider-integration, formatting, security and broker suites remain
+**UNVERIFIED** because hosted GitHub Actions jobs are not executing.
+This is not a measured low-latency/alpha or real-provider qualification.
+See ADR-036 for operational configuration and context contracts.
+
+
+
 ## Generation-fenced live panic acknowledgement — 2026-10-15
 
 Reproduced three control-plane hazards: a worker without a live adapter
