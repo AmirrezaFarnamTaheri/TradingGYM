@@ -968,3 +968,24 @@ async def test_flat_verification_accepts_explicit_zero_base_snapshot(
     mock_client.get_short_positions.return_value = []
     mock_client.get_orders.return_value = {"total": 0, "data": []}
     await adapter._verify_broker_flat()
+
+
+def test_net_position_does_not_infer_missing_base_balance_as_zero(
+    adapter, mock_client
+):
+    """A truncated balance response cannot become a new trading baseline."""
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0"))
+    ]
+    mock_client.get_short_positions.return_value = []
+    with pytest.raises(ValueError, match="missing_broker_base_balance"):
+        adapter._get_net_position()
+
+
+def test_net_position_accepts_explicit_zero_base_balance(adapter, mock_client):
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = []
+    assert adapter._get_net_position() == Decimal("0")
