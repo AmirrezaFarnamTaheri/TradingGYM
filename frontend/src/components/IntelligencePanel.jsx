@@ -155,6 +155,38 @@ export default function IntelligencePanel() {
             </table>
           )}
 
+          {Array.isArray(status.provider_presets) && status.provider_presets.length > 0 && (
+            <section className="provider-presets" aria-labelledby="provider-presets-heading">
+              <h3 id="provider-presets-heading">Provider templates</h3>
+              <p className="muted">
+                Read-only reference templates. None is installed, enabled, or
+                authorized to send account context by appearing here.
+              </p>
+              <table className="intelligence-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Provider family</th>
+                    <th scope="col">Protocol</th>
+                    <th scope="col">Default state</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {status.provider_presets.map((preset) => (
+                    <tr key={preset.preset_id}>
+                      <td>{preset.display_name}</td>
+                      <td>{preset.wire_protocol}</td>
+                      <td>
+                        {preset.enabled_by_default
+                          ? 'Requires explicit review'
+                          : 'Disabled by default'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
           {status.compute && (
             <div className="info-box" style={{ marginTop: 12 }}>
               <p>
