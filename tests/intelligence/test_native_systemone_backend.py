@@ -249,3 +249,28 @@ def test_public_intelligence_exports_include_native_adapter_and_errors():
     assert api.httpx_systemone_transport is httpx_systemone_transport
     assert issubclass(api.BackendUnavailable, RuntimeError)
 
+
+@pytest.mark.parametrize("wrong_model", [None, "other-checkpoint", 42])
+def test_response_must_be_from_configured_model_not_unqualified_fallback(
+    wrong_model,
+):
+    payload = _answer()
+    if wrong_model is None:
+        payload.pop("model")
+    else:
+        payload["model"] = wrong_model
+    backend = NativeSystemOneDecisionBackend(
+        _provider(), transport=lambda _body: payload,
+    )
+    with pytest.raises(PermissionError, match="model_identity_mismatch"):
+        backend.decide(_context())
+
+
+def test_invalid_max_leverage_rejected_before_native_model_request():
+    sent = []
+    backend = NativeSystemOneDecisionBackend(
+        _provider(), transport=lambda body: sent.append(body),
+    )
+    with pytest.raises(PermissionError, match="invalid_risk_limit"):
+        backend.decide(_context(risk_limits={"max_leverage": -2.0}))
+    assert not sent
