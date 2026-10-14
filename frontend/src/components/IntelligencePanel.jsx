@@ -118,6 +118,12 @@ export default function IntelligencePanel() {
                 {status.system1_memory_enabled ? 'Enabled' : 'Disabled'}
               </p>
             )}
+            {typeof status.system1_working_memory_enabled === 'boolean' && (
+              <p>
+                <strong>Working-memory P&amp;L disclosure:</strong>{' '}
+                {status.system1_working_memory_enabled ? 'Enabled' : 'Disabled'}
+              </p>
+            )}
             <p className="muted">{status.note}</p>
           </div>
 
