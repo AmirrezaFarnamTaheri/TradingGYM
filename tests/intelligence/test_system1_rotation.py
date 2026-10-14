@@ -291,3 +291,30 @@ def test_factory_integrates_system1_without_a_trained_rl_model():
         provider_repository=Repository(),
     )
     assert policy.backend.name == "system1:fast-one"
+
+
+def test_system1_rejects_unadvertised_decision_fields():
+    from trading_gym.intelligence.llm_backend import LLMTransportResponse
+    from trading_gym.intelligence.system1_backend import System1DecisionBackend
+
+    config = ProviderConfig(
+        provider_id="fast-one",
+        display_name="local",
+        kind=ProviderKind.LOCAL,
+        model="fast",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    backend = System1DecisionBackend(
+        config,
+        transport=lambda url, messages: LLMTransportResponse(
+            content=json.dumps({
+                "action": "long",
+                "target_leverage": 0.5,
+                "confidence": 0.9,
+                "rationale": "momentum",
+                "place_order_now": True,
+            })
+        ),
+    )
+    with pytest.raises(BackendUnavailable, match="system1_invalid_structured"):
+        backend.decide(_context())
