@@ -22,6 +22,11 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from trading_gym.agent.providers import ProviderConfig, provider_status
+from trading_gym.intelligence.llm_request_budget import (
+    ProviderRequestBudget,
+    RequestBudgetUnavailable,
+    default_request_budget_path,
+)
 from trading_gym.intelligence.llm_key_pool import (
     CredentialPool,
     CredentialsUnavailable,
@@ -86,6 +91,15 @@ def httpx_transport(
         else None
     )
 
+    budget = (
+        ProviderRequestBudget(
+            default_request_budget_path(config.provider_id, config.base_url or ""),
+            limit=config.max_requests_per_hour,
+        )
+        if config.max_requests_per_hour is not None
+        else None
+    )
+
     def call(base_url: str, messages: list[dict[str, str]]) -> LLMTransportResponse:
         body = {
             "model": config.model,
@@ -106,6 +120,11 @@ def httpx_transport(
             headers = {"Content-Type": "application/json"}
             if secret:
                 headers["Authorization"] = f"Bearer {secret}"
+            # Charge every real upstream attempt, including retries and 401s.
+            # A depleted/corrupt shared budget never permits key failover to
+            # bypass the same operator's total provider request ceiling.
+            if budget is not None:
+                budget.reserve()
             with httpx.Client(
                 timeout=remaining, follow_redirects=False, trust_env=False
             ) as client:
@@ -137,6 +156,8 @@ def httpx_transport(
             return LLMTransportResponse(content=content)
         except PermissionError:
             raise  # provider authorization denial cannot degrade to a trade
+        except RequestBudgetUnavailable as exc:
+            raise PermissionError("provider_request_budget_denied") from exc
         except CredentialsUnavailable as exc:
             raise BackendUnavailable(str(exc)) from exc
         except BackendUnavailable:
