@@ -17,6 +17,7 @@ from trading_gym.agent.persistent_experience import (
 )
 from trading_gym.common.persistence import resolve_data_home
 from trading_gym.intelligence.system1_backend import System1DecisionBackend
+from trading_gym.intelligence.systemone_native_backend import NativeSystemOneDecisionBackend
 from trading_gym.intelligence.base import IntelligenceBackend
 from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
 from trading_gym.intelligence.fusion_backend import FusionBackend
@@ -69,9 +70,11 @@ def build_intelligence_policy(
             raise ValueError(
                 f"provider {config.llm_provider_id!r} not found/enabled in hub"
             )
+        if matches[0].wire_protocol != "openai_chat":
+            raise ValueError("native System-One providers cannot serve chat LLM mode")
         return LLMDecisionBackend(matches[0])
 
-    def resolve_system1() -> tuple[System1DecisionBackend, ...]:
+    def resolve_system1() -> tuple[IntelligenceBackend, ...]:
         if not config.system1_provider_ids:
             return ()
         if len(config.system1_provider_ids) != len(set(config.system1_provider_ids)):
@@ -104,8 +107,14 @@ def build_intelligence_policy(
                 raise ValueError(
                     f"System-1 provider {provider_id!r} is missing, disabled or not HTTP"
                 )
+            # The native choice/noul/score wire format is not OpenAI chat.
+            backend_type = (
+                NativeSystemOneDecisionBackend
+                if provider.wire_protocol == "systemone"
+                else System1DecisionBackend
+            )
             result.append(
-                System1DecisionBackend(
+                backend_type(
                     provider,
                     confidence_floor=config.system1_confidence_floor,
                     max_leverage=config.system1_max_leverage,
