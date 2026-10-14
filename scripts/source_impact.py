@@ -18,14 +18,27 @@ import re
 
 _EXTENSIONS = frozenset({".py", ".js", ".jsx", ".mjs", ".ts", ".tsx", ".rs"})
 _EXCLUDED_DIRS = frozenset(
-    {".git", ".venv", "venv", "node_modules", "__pycache__", "dist", "build", "target", ".next"}
+    {
+        ".git",
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        "dist",
+        "build",
+        "target",
+        ".next",
+    }
 )
 _JS_IMPORT = re.compile(
     r"(?:^|\n)\s*(?:import|export)\s+(?:[^\n;]*?\s+from\s+)?[\"'](\.[^\"']+)[\"']"
     r"|\b(?:import|require)\s*\(\s*[\"'](\.[^\"']+)[\"']\s*\)",
     re.MULTILINE,
 )
-_RS_MOD = re.compile(r"(?:^|\n)\s*(?:pub\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;", re.MULTILINE)
+_RS_MOD = re.compile(
+    r"(?:^|\n)\s*(?:pub\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;",
+    re.MULTILINE,
+)
 _RS_USE = re.compile(r"(?:^|\n)\s*use\s+crate::([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE)
 
 
@@ -116,8 +129,12 @@ def _javascript_imports(path: str, content: str, paths: set[str]) -> set[str]:
             else:
                 segments.append(segment)
         raw = "/".join(segments)
-        candidates = [raw, *(raw + ext for ext in (".ts", ".tsx", ".js", ".jsx", ".mjs"))]
-        candidates.extend(f"{raw}/index{ext}" for ext in (".ts", ".tsx", ".js", ".jsx", ".mjs"))
+        candidates = [
+            raw, *(raw + ext for ext in (".ts", ".tsx", ".js", ".jsx", ".mjs"))
+        ]
+        candidates.extend(
+            f"{raw}/index{ext}" for ext in (".ts", ".tsx", ".js", ".jsx", ".mjs")
+        )
         for candidate in candidates:
             if candidate in paths and candidate != path:
                 result.add(candidate)
@@ -136,7 +153,11 @@ def _rust_imports(path: str, content: str, paths: set[str]) -> set[str]:
                 break
     # Crate-root module paths resolve from src/; procedural macro expansion
     # and conditional compilation remain beyond this lower-bound index.
-    crate_src = Path(*Path(path).parts[: Path(path).parts.index("src") + 1]) if "src" in Path(path).parts else base
+    crate_src = (
+        Path(*Path(path).parts[: Path(path).parts.index("src") + 1])
+        if "src" in Path(path).parts
+        else base
+    )
     for match in _RS_USE.finditer(content):
         name = match.group(1)
         for target in (crate_src / f"{name}.rs", crate_src / name / "mod.rs"):
@@ -188,7 +209,11 @@ def evaluate_source_changes(
         raise ValueError("source graph changed paths cannot be empty")
     roots = []
     for path in changed:
-        if not isinstance(path, str) or Path(path).is_absolute() or ".." in Path(path).parts:
+        if (
+            not isinstance(path, str)
+            or Path(path).is_absolute()
+            or ".." in Path(path).parts
+        ):
             raise ValueError("invalid or outside source graph path")
         if path not in index:
             raise ValueError(f"unknown source graph changed path: {path}")
@@ -215,7 +240,9 @@ def evaluate_source_changes(
         "schema": "tradinggym.source-impact.v1",
         "coverage": "static_lower_bound",
         "source_files": len(index),
-        "languages": dict(sorted(Counter(row["language"] for row in index.values()).items())),
+        "languages": dict(
+            sorted(Counter(row["language"] for row in index.values()).items())
+        ),
         "changed": roots,
         "impacted": sorted(routes),
         "paths": dict(sorted(routes.items())),
@@ -230,7 +257,9 @@ def evaluate_source_changes(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument(
+        "--root", type=Path, default=Path(__file__).resolve().parents[1]
+    )
     parser.add_argument("--changed", nargs="+", required=True, metavar="PATH")
     args = parser.parse_args()
     result = evaluate_source_changes(build_source_index(args.root), args.changed)
