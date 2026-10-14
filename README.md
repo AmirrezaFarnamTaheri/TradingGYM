@@ -32,6 +32,19 @@ Trading Gym is a governed reinforcement-learning trading platform that combines:
 
 > **Qualification status:** source-hardened and extensively validated in the supplied environment. It is **not represented as universally production-ready**. Live exchange behaviour, credentials, deployment isolation, disaster recovery, sustained load, the complete dependency-qualified suite, and the frontend production build must be validated in the intended environment before real funds are used.
 
+## Source archive confidentiality
+
+The source ZIP builder uses **tracked Git source files only**, rather than
+walking the working directory. It refuses to run outside the source Git
+checkout, rejects tracked secret-bearing `.env` files and symlink-backed
+paths, and does not follow untracked wallet credentials, runtime journals,
+or local scratch files. See `tests/platform/test_source_release.py`.
+
+These packaging controls do not establish that a tracked source file is
+free from embedded credentials. Secret scanning, release signatures, clean
+source review, reproducible builds, and actual environment qualification
+remain distinct release requirements.
+
 ## Security and authority model
 
 Live order authority is intentionally narrow:
