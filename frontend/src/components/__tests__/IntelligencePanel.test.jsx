@@ -65,4 +65,35 @@ describe('Intelligence model fleet status', () => {
     expect(container.textContent).not.toContain('private-budget.json');
     cleanup();
   });
+
+  it('shows curated presets as read-only and disabled by default', async () => {
+    statusSpy.mockResolvedValueOnce({
+      data: {
+        mode: 'system1', note: 'advisory only', selected_hint: 'unavailable',
+        backends: [],
+        provider_presets: [
+          {
+            preset_id: 'go-systemone', display_name: 'Go System-One',
+            kind: 'local', wire_protocol: 'systemone',
+            base_url: 'http://127.0.0.1:8080', enabled_by_default: false,
+          },
+          {
+            preset_id: 'openrouter', display_name: 'OpenRouter hosted',
+            kind: 'openai_compatible', wire_protocol: 'openai_chat',
+            base_url: 'https://openrouter.ai/api/v1',
+            enabled_by_default: false,
+          },
+        ],
+      },
+    });
+    const { container, cleanup } = renderWithClient(<IntelligencePanel />);
+    await flushPromises();
+    await waitForRendered(container, '.provider-presets');
+    expect(container.textContent).toContain('Go System-One');
+    expect(container.textContent).toContain('OpenRouter hosted');
+    expect(container.textContent).toContain('Disabled by default');
+    expect(container.querySelector('.provider-presets button')).toBeNull();
+    cleanup();
+  });
+
 });
