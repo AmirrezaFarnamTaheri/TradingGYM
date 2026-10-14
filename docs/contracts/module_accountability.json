@@ -438,7 +438,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/live_execution_adapter.py",
-      "sha256": "cc7be622a8f92ced028aac1a36cf764dc3d55fa02dfc7c80c7e14e9a342e70ae"
+      "sha256": "a53030749d81fad52416a9319dceab43ceba6b7e87193070dc7b4beff0f3ee10"
     },
     {
       "owner": "trading_gym",
