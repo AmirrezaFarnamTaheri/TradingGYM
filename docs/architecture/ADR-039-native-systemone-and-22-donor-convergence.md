@@ -154,6 +154,43 @@ does not override existing funded-live qualification.
    gross-flat emergency evidence and independent risk controls. No donor
    supplies a production-certified substitute.
 
+
+## Implemented second-order calibration and replay evidence plane
+
+The standalone, **offline only** `systemone_evaluation.evaluate_records()`
+and `scripts/evaluate_systemone.py` analyze independently prepared held-out
+records rather than initiating network or brokerage requests. The records
+contain a model ID, SHA-256 context/source references, decision time, label
+availability time, three directional probabilities, one risk-off probability,
+a held-out outcome label and finite elapsed milliseconds. Arbitrary extra
+fields (including raw prompts or secrets), train-split labels, malformed
+probabilities, unavailable future labels and duplicate model-context records
+are rejected. A user-supplied as-of timestamp is required by the CLI.
+
+The deterministic report includes Brier score, ECE (ten bins), accepted
+coverage, accuracy among accepted decisions, abstention/risk-off counts,
+p95 latency and separate hash commitments for normalized source records and
+the report. Hashes support replay matching but **do not authenticate the
+upstream source or ground truth**. The evaluator is not a trainer, PnL
+simulator, calibration method, promoter, or independent market-risk auditor.
+Every report sets `eligible_for_funded_live=false`.
+
+Example:
+
+```sh
+python scripts/evaluate_systemone.py \
+  --records /path/to/hashed-holdout.jsonl \
+  --as-of-unix 1790000000 \
+  --confidence-floor 0.75
+```
+
+This is the higher-level convergence of JevLoop metering, JevRev's
+separate evidence-first review, and Go System One's explicit warning about
+uncalibrated probabilities. The isolated, controlled Python suite now covers
+40 protocol, adapter, evaluation and CLI cases. Full exact-branch test
+verification and representative real-model holdouts remain outstanding.
+
+
 ## Verification boundary and remaining gates
 
 The exact pure protocol contract ran **20/20 tests in an isolated Python
