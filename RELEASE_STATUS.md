@@ -1,5 +1,21 @@
 # Hardening branch status — 2026-10-11
 
+## Native crypto evidence qualification gate — 2026-10-14
+
+`trading_gym/crypto/assurance.py` now explicitly refuses to mark a native
+cryptography manifest ready for human review if its build was not completed,
+source SHA-256 is malformed, compiler identity is missing, or vector count is
+not a positive integer. Boolean and incompatible numeric shapes cannot
+silently satisfy these checks. The results remain advisory only and
+deliberately retain `constant_time_claim=False` and `audit_claim=False`.
+The missing `gm-crypto-rs` source remains unrecovered and its intentionally
+inert placeholder is not used as a cryptographic implementation. This
+change does not provide native-crypto audit evidence or live execution
+clearance. A local isolated red/green test cycle showed 12 failures on
+the previous helper and 17 passing cases after the fix; full CI remains
+a separate release requirement.
+
+
 ## Authz operator warning and resilient training telemetry — 2026-10-14
 
 The authorization panel now shows an actionable warning when the
