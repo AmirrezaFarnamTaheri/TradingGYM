@@ -1,5 +1,18 @@
 # Hardening branch status — 2026-10-11
 
+## Feature fixture integrity (not synthetic lake manifests) — 2026-10-14
+
+A new verifier and regression suite check all tracked
+`trading_gym/data/*_5m_features.parquet` fixtures against their existing
+`SHA256SUMS` hashes. The pinned feature fixtures differ from runtime
+`BTC/5m/part_*.parquet` lake partitions, so no fake 28-symbol Merkle
+manifests were generated. Four isolated verification tests passed,
+covering complete, mutated, missing and untracked fixtures; the exact
+repository snapshot integrity test remains part of the hosted suite
+awaiting CI execution. See `docs/architecture/FEATURE-FIXTURE-INTEGRITY.md`.
+
+
+
 ## Operator navigation workspace and scroll containment — 2026-10-14
 
 The operator sidebar now groups all twelve existing panels into four
