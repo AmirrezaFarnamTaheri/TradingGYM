@@ -35,6 +35,7 @@ class MarketContext:
     is_live: bool = False
     market_evidence: dict[str, Any] = field(default_factory=dict)
     risk_limits: dict[str, float] = field(default_factory=dict)
+    market_features: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
