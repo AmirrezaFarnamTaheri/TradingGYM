@@ -116,13 +116,23 @@ def test_risk_off_is_explicit_hold_not_unverified_directional_order():
     assert result.target_leverage == 0
 
 
-def test_invalid_distribution_degrades_without_trading_signal():
+def test_malformed_native_distribution_is_terminal_authority_refusal():
     wrong = _answer()
     wrong["answers"]["direction"]["probabilities"]["long"] = float("nan")
     backend = NativeSystemOneDecisionBackend(
         _provider(), transport=lambda body: wrong
     )
-    with pytest.raises(BackendUnavailable, match="systemone_"):
+    with pytest.raises(PermissionError, match="systemone_invalid_model_output"):
+        backend.decide(_context())
+
+
+def test_weak_direction_allows_explicit_fallback_without_fabricating_a_trade():
+    weak = _answer()
+    weak["answers"]["direction"]["confidence"] = 0.2
+    backend = NativeSystemOneDecisionBackend(
+        _provider(), transport=lambda body: weak
+    )
+    with pytest.raises(BackendUnavailable, match="systemone_low_confidence"):
         backend.decide(_context())
 
 
