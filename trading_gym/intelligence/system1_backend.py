@@ -88,7 +88,13 @@ class System1DecisionBackend(LLMDecisionBackend):
 
     def decide(self, context: MarketContext) -> DecisionSignal:
         signal = super().decide(context)
-        if signal.confidence < self.confidence_floor:
+        # An explicit low-confidence HOLD is a conservative abstention.
+        # Escalating it as a provider failure could make the configured
+        # rules fallback open a position against that abstention.
+        if (
+            signal.confidence < self.confidence_floor
+            and signal.action_kind.value != "hold"
+        ):
             raise BackendUnavailable("system1_low_confidence_escalate")
         magnitude = min(abs(signal.target_leverage), self.max_leverage)
         bounded = math.copysign(magnitude, signal.target_leverage)
