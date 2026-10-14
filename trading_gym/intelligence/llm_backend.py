@@ -76,6 +76,8 @@ def httpx_transport(
 
     from trading_gym.common.security import validate_base_url
 
+    if config.wire_protocol != "openai_chat":
+        raise ValueError("native System-One providers cannot use chat transport")
     references = config.credential_refs
     pool = (
         CredentialPool(
@@ -255,6 +257,8 @@ class LLMDecisionBackend(IntelligenceBackend):
         system_prompt: str | None = None,
         strict_json_only: bool = False,
     ):
+        if provider_config.wire_protocol != "openai_chat":
+            raise ValueError("native System-One providers require their typed adapter")
         self.config = provider_config
         self.name = backend_name or "llm"
         self._context_formatter = context_formatter or build_system1_packet
