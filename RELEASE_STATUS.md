@@ -1,5 +1,27 @@
 # Hardening branch status — 2026-10-11
 
+## Generation-fenced live panic acknowledgement — 2026-10-15
+
+Reproduced three control-plane hazards: a worker without a live adapter
+could erase the shared panic signal, a second panic written during the
+first flatten could be deleted by the first acknowledgement, and a
+dry-run worker could retire the global signal before the actual live
+executor stopped. A panic acknowledgement now requires an admitted
+live-execution owner and checks a bounded snapshot of the exact on-disk
+signal generation (device, inode, modification time, size, SHA-256)
+under the same process lock used by signal writers. New or malformed
+signals are retained; no broker mutation is performed by the
+acknowledgement helper. The dry-run adapter also requires read-only
+proof of zero gross broker exposure and no open orders to report a
+verified flat result, but is never allowed to retire a global panic.
+Targeted regressions cover adapterless observers, same-content
+replacement, newer panic generations, bad signal records and normal
+acknowledgements. Isolated reference suites passed: 6 panic cases
+and 2 dry-run cases; **full exact-head CI is still unverified** and
+funded-live execution remains NO-GO.
+
+
+
 ## Principal-bound emergency halt state — 2026-10-14
 
 Resolved an identity spoofing gap in `POST /api/v1/production/emergency`.
