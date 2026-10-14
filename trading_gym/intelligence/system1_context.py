@@ -173,7 +173,9 @@ def build_system1_packet(
         ):
             raise PermissionError("invalid_live_market_provenance")
         age = float(now()) - (timestamp + interval)
-        if not math.isfinite(age) or age < -3 or age > max(300, interval * 3):
+        # A future close cannot become "verified_closed_bar", even within
+        # a clock-skew tolerance. Wait for the actual observed close.
+        if not math.isfinite(age) or age < 0 or age > max(300, interval * 3):
             raise PermissionError("stale_live_market_provenance")
         freshness = {
             "status": "verified_closed_bar",
