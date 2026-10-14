@@ -331,8 +331,7 @@ class LLMDecisionBackend(IntelligenceBackend):
         if self._strict_json_only:
             raw = outcome.value
             if (
-                not {"action", "target_leverage", "confidence", "rationale"}
-                <= set(raw)
+                set(raw) != {"action", "target_leverage", "confidence", "rationale"}
                 or raw.get("action") not in ("hold", "long", "short")
                 or type(raw.get("target_leverage")) not in (float, int)
                 or type(raw.get("confidence")) not in (float, int)
