@@ -1,5 +1,15 @@
 # Hardening branch status — 2026-10-11
 
+## Canonical backend training default — 2026-10-14
+
+The backend Pydantic `TrainingStartRequest.config_name` default now selects
+the tracked `training_local.yaml` profile, matching the repaired frontend
+Training Lab. Generated OpenAPI schema metadata and a release-contract test
+were updated together to prohibit advertising a nonexistent training
+default. This change does not relax the required `model_version` field.
+
+
+
 ## Native crypto evidence qualification gate — 2026-10-14
 
 `trading_gym/crypto/assurance.py` now explicitly refuses to mark a native

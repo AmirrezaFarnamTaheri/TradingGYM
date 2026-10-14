@@ -448,7 +448,7 @@ class TrainingStartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     config_name: str = Field(
-        default="training_t4.yaml",
+        default="training_local.yaml",
         min_length=5,
         max_length=120,
         pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*\.ya?ml$",
