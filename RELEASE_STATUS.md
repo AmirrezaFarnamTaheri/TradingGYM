@@ -1,5 +1,50 @@
 # Hardening branch status — 2026-10-11
 
+
+## Ten-archive convergence and operator observability — 2026-10-15
+
+The existing draft PR #2 was augmented without merging, changing `main`,
+or authorizing funded live operations. Ten user-supplied source ZIP archives
+were indexed at metadata level (4,210 member files, 1,124 nested folder paths,
+3,929 distinct SHA-256 hashes); duplicate contents and broad integration
+seams are recorded in ADR-038. Classification does **not** mean every donor
+function has been semantically reviewed or ported.
+
+Focused changes:
+- A validated order-book snapshot now rejects non-finite levels, boolean
+  sequences/quantities, duplicate price points, crossed books, and unbounded
+  level generators; a failed feed stream invalidates sequence state and
+  mandates a fresh full snapshot. An explicitly read-only helper calculates
+  finite spread, book-depth imbalance and microprice diagnostics without
+  granting any trade authority.
+- Offline `scripts/source_impact.py` builds a bounded digest-bound,
+  lower-bound file-import graph for Python, JS/TS and limited Rust and returns
+  transitive source impact with file hashes; it does not pretend to be a
+  complete compiler, call graph or deployment authorization gate.
+- The existing but previously unmounted `IntelligencePanel` is now
+  accessible under the four existing workspaces. Its read-only status
+  displays System-1 roster, memory consent posture and provider request
+  admission. Exhausted or corrupted provider budgets report unavailable
+  and cannot appear healthy. No credentials or ledger file paths are returned.
+- Added targeted tests for graph traversal, feed poisoning and oversized
+  inputs, independent view navigation, sanitized API data and operator UI.
+
+**Verification:** the isolated source mirror on Python 3.13 passed
+**21/21 focused tests** (15 market-book, 6 source-impact) with Python syntax
+compilation. These tests are not the complete exact-head repository suite.
+Frontend Vitest/build, real provider contracts, Rust, security, broker,
+Python 3.11/3.12 and code formatter qualification remain **unverified**.
+Hosted CI run [#38648120845](https://github.com/AmirrezaFarnamTaheri/TradingGYM/actions/runs/38648120845)
+marked nine required job groups as failed with **zero reported execution
+steps**; runner allocation/environment must be restored and all checks
+rerun on the final head before any merge or release.
+
+Capital ownership, measured real-venue settlement/fill/fee reconciliation,
+distributed fencing and independently verified gross-flat recovery remain
+funded-live NO-GO requirements. ADR-038 describes the separate second-order
+architecture and explicitly deferred donor imports.
+
+
 ## System-1 context and provider-key fleet — 2026-10-15
 
 The existing LLM path had one environment-key reference, sent a truncated
