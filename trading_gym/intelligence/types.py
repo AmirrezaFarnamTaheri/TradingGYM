@@ -30,6 +30,11 @@ class MarketContext:
     recent_returns: tuple[float, ...] = ()  # most recent first, bounded count
     drawdown_from_peak: float | None = None
     extras: dict[str, float] = field(default_factory=dict)
+    # Real-time candle provenance and risk bounds are optional on historical
+    # tests but mandatory for fresh live System-1 advice.
+    is_live: bool = False
+    market_evidence: dict[str, Any] = field(default_factory=dict)
+    risk_limits: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
