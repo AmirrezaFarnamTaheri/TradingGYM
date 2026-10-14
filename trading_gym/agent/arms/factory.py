@@ -40,6 +40,16 @@ from trading_gym.intelligence.types import (
 __all__ = ["RiskGuardBackend", "default_registry"]
 
 
+def _finite_observation(value: object) -> bool:
+    """Treat missing, nonsensical or non-finite risk values as invalid."""
+    if isinstance(value, (str, bytes, bool)):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return False
+
+
 def _cost(p50_ms: float, p99_ms: float, credits: float = 0.0) -> CostModel:
     return CostModel(
         latency_p50_ms=p50_ms, latency_p99_ms=p99_ms, credits_per_call=credits
@@ -66,8 +76,8 @@ class RiskGuardBackend(IntelligenceBackend):
     ) -> None:
         if not 0.0 < drawdown_warn < drawdown_floor < 1.0:
             raise ValueError("require 0 < drawdown_warn < drawdown_floor < 1")
-        if max_position_units <= 0:
-            raise ValueError("max_position_units must be positive")
+        if not _finite_observation(max_position_units) or max_position_units <= 0:
+            raise ValueError("max_position_units must be positive and finite")
         self.inner = inner
         self.drawdown_floor = float(drawdown_floor)
         self.drawdown_warn = float(drawdown_warn)
@@ -81,6 +91,17 @@ class RiskGuardBackend(IntelligenceBackend):
         return self.inner.health()
 
     def decide(self, context: MarketContext) -> DecisionSignal:
+        # A NaN position/drawdown makes every '>' comparison false, bypassing
+        # the risk veto. Deny before invoking the inner strategy; planner
+        # propagates PermissionError instead of falling through to another arm.
+        if context.position_units is not None and not _finite_observation(
+            context.position_units
+        ):
+            raise PermissionError("invalid_position_state")
+        drawdown = context.drawdown_from_peak
+        if drawdown is not None and not _finite_observation(drawdown):
+            raise PermissionError("invalid_drawdown_state")
+
         inner_signal = self.inner.decide(context)
 
         if (
@@ -98,7 +119,6 @@ class RiskGuardBackend(IntelligenceBackend):
                 ),
             )
 
-        drawdown = context.drawdown_from_peak
         if drawdown is not None and drawdown >= self.drawdown_floor:
             return DecisionSignal(
                 backend=self.name,

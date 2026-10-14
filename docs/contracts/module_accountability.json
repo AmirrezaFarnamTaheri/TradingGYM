@@ -103,7 +103,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/arms/factory.py",
-      "sha256": "31b185d53e20a7a4256c7b520bb5a3ec7aaf38ef47c2771f348b3b9a9d90ddea"
+      "sha256": "f7c6f7b65c73c0ee5cc1abe463170cfa2a024f0cc2274f036a9e4874ab4d8e89"
     },
     {
       "owner": "trading_gym",
@@ -163,7 +163,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/planner.py",
-      "sha256": "c09b1e1337574cd5e37db13cecef8fa1977419c8d83ca90d717394af6e1d6f03"
+      "sha256": "49bb7e56ca60b63c87a9275949aba9be755cb16a28ce7fd4ee2f6de03156ed33"
     },
     {
       "owner": "trading_gym",

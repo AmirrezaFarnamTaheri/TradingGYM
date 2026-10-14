@@ -1,5 +1,17 @@
 # Hardening branch status — 2026-10-11
 
+## Risk-observation integrity and availability-probe isolation — 2026-10-14
+
+The advisory risk guard now rejects non-finite configured position caps
+and denies non-finite position/drawdown observations before invoking
+the wrapped strategy. Its authority denial propagates through the
+planner instead of permitting a fallback arm. A transient availability
+probe error is now benched as a provider failure, while explicit
+`PermissionError` remains an unbypassable authorization denial.
+Focused regression cases were added in `test_factory_budget.py` and
+`test_planner.py`. Source-mirror checks passed; full GitHub Actions
+remains blocked before runner allocation.
+
 ## Vote-mass overflow and direction/exposure invariants — 2026-10-14
 
 Additional advisory-plane safety cases revealed that individually finite

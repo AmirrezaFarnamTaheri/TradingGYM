@@ -245,7 +245,14 @@ class TierCascadePlanner:
     ) -> str | None:
         """Return a bench reason, or None when the arm may run."""
 
-        if not arm.is_available():
+        try:
+            available = arm.is_available()
+        except PermissionError:
+            # Authority denial is not a transient provider-health failure.
+            raise
+        except Exception:  # noqa: BLE001 - one failing probe must not abort the cycle
+            return _BENCH_ERROR
+        if not available:
             return _BENCH_UNAVAILABLE
         for scope in sorted(arm.required_scopes):
             decision = ledger.check(principal, scope)
