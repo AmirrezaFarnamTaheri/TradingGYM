@@ -1,5 +1,31 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 advisory authority and closed-bar follow-up
+
+A new ADR-041 and targeted regression coverage were added to PR #2:
+
+- Reject structurally malformed or contradictory model output as a **terminal
+  authority failure**, not a trigger for a new risk-on fallback. Recoverable
+  provider/model outages retain the explicit configured degradation chain.
+- Native System-One's malformed probability envelope is non-degradable;
+  recognized low confidence remains a recoverable signal.
+- For live System-1 evidence, `bar_open + interval` must not be later than
+  `now`; previously permitted future-closing bars no longer claim
+  `verified_closed_bar`.
+- Model-routing previews reject unknown request-budget capacity.
+- Repaired the source manifest's two omitted modules:
+  `trading_gym/intelligence/llm_key_pool.py` and
+  `trading_gym/intelligence/system1_context.py`. The branch has 346 Python
+  source modules under the accountability generator's roots.
+
+**Verification:** RED-to-GREEN local source-mirror tests reproduced the
+failure modes; the focused final runs report 66/66 broader isolated tests,
+13/13 policy/freshness tests, and clean syntax compilation. **These are not
+exact-head full-repository CI, Rust, browser, or broker tests.** The latest
+observed PR head has no confirmed successful GitHub Actions workflow run.
+Funding/execution authorization is unchanged: **NO-GO**.
+
+
 
 ## 22-archive native System-One and holdout-verification convergence — 2026-10-15
 
