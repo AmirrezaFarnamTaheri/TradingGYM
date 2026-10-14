@@ -1,4 +1,5 @@
 """Principal-bound, two-person emergency halt control."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -36,7 +37,9 @@ def create_production_router(verify_api_key: Callable[..., Any]) -> APIRouter:
     def authority() -> dict[str, object]:
         state = emergency.snapshot()
         return {
-            "single_live_authority": "trading_gym.production.runtime.LiveExecutionCoordinator",
+            "single_live_authority": (
+                "trading_gym.production.runtime.LiveExecutionCoordinator"
+            ),
             "wallet_custody": False,
             "operation_specific_authorization": True,
             "emergency_halted": state.halted,
