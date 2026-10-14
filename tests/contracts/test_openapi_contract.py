@@ -55,3 +55,27 @@ def test_axiom1_routers_are_published() -> None:
         "/api/v1/forge/kernel",
     ):
         assert expected in paths, f"{expected} is mounted but not published"
+
+
+def test_emergency_transition_requires_both_principal_credential_headers() -> None:
+    contract = json.loads((ROOT / "docs/contracts/openapi.json").read_text())
+    operation = contract["paths"]["/api/v1/production/emergency"]["post"]
+    headers = {
+        entry["name"]: entry
+        for entry in operation["parameters"]
+        if entry["in"] == "header"
+    }
+    assert {
+        "X-Actor",
+        "X-Approver",
+        "X-API-Key",
+        "X-Approval-Key",
+        "X-Actor-Key",
+        "X-Approver-Key",
+    } <= headers.keys()
+    assert headers["X-Actor"]["required"]
+    assert headers["X-Approver"]["required"]
+    assert not headers["X-Actor-Key"]["required"]
+    assert not headers["X-Approver-Key"]["required"]
+    # Missing principal factors deny in handler with 403. They are
+    # nullable only at schema level so the failure is a consistent 403.
