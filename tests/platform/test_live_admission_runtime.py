@@ -83,3 +83,82 @@ def test_live_coordinator_rejects_tamper_expiry_and_emergency_halt(tmp_path) -> 
     )
     with pytest.raises(PermissionError, match="emergency_halt"):
         coordinator.execute(i, auth, consent=c)
+
+
+@pytest.mark.asyncio
+async def test_model_free_system1_runs_only_in_non_mutating_live_dry_run(
+    monkeypatch,
+) -> None:
+    from types import SimpleNamespace
+
+    from apps.live import main as live
+    from trading_gym.common.intelligence_config import IntelligenceConfig
+    import trading_gym.intelligence.wiring as wiring
+
+    cfg = SimpleNamespace(
+        intelligence=IntelligenceConfig(
+            mode="system1",
+            system1_provider_ids=("fast-one",),
+        ),
+        features=SimpleNamespace(timeframes=[]),
+    )
+    policy = object()
+    calls: list[object] = []
+
+    class FakeAdapter:
+        def __init__(self, *args, **kwargs):
+            self.api = object()
+
+    monkeypatch.setattr(live, "DryRunLiveExecutionAdapter", FakeAdapter)
+    monkeypatch.setattr(
+        live, "load_environment_inputs", lambda cfg, timeframe: object()
+    )
+    monkeypatch.setattr(
+        live, "create_environment", lambda cfg, data, live_mode: object()
+    )
+    monkeypatch.setattr(
+        wiring, "build_trading_policy", lambda cfg, model, env: policy
+    )
+
+    async def trade(**kwargs):
+        calls.append(kwargs["model"])
+
+    monkeypatch.setattr(live, "trade_loop", trade)
+    monkeypatch.setattr(
+        live.PPO,
+        "load",
+        lambda snapshot: pytest.fail("System-1 dry-run loaded a model"),
+    )
+    await live.run_live_trading(
+        cfg, None, None, "fake-token", True
+    )
+    assert calls == [policy]
+
+
+@pytest.mark.asyncio
+async def test_unqualified_system1_never_enters_funded_live_execution(
+    monkeypatch,
+) -> None:
+    from types import SimpleNamespace
+    from apps.live import main as live
+    from trading_gym.common.intelligence_config import IntelligenceConfig
+
+    cfg = SimpleNamespace(
+        intelligence=IntelligenceConfig(
+            mode="system1",
+            system1_provider_ids=("fast-one",),
+        )
+    )
+    monkeypatch.setattr(
+        live.PPO,
+        "load",
+        lambda snapshot: pytest.fail("unqualified System-1 loaded a model"),
+    )
+    with pytest.raises(PermissionError, match="unqualified_live_intelligence"):
+        await live.run_live_trading(
+            cfg,
+            None,
+            None,
+            "fake-token",
+            False,
+        )
