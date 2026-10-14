@@ -164,3 +164,24 @@ def test_invalid_risk_or_feature_context_cannot_trigger_unguarded_fallback(overr
     with pytest.raises(ValueError, match="market/account context"):
         adapter(primary, fallback, builder=bad_context).predict(np.zeros(6))
     assert primary.calls == fallback.calls == 0
+
+
+@pytest.mark.parametrize(
+    "constraints",
+    [
+        {"max_leverage": -1.0},
+        {"min_leverage": 2.0, "max_leverage": 1.0},
+    ],
+)
+def test_semantically_invalid_risk_limits_cannot_trigger_rules_fallback(
+    constraints,
+):
+    primary = DecisionBackend()
+    fallback = DecisionBackend()
+
+    def impossible_context(obs):
+        return context_builder(obs) | {"risk_limits": constraints}
+
+    with pytest.raises(ValueError, match="market/account context"):
+        adapter(primary, fallback, builder=impossible_context).predict(np.zeros(6))
+    assert primary.calls == fallback.calls == 0
