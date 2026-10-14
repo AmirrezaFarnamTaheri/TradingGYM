@@ -107,6 +107,10 @@ class ProviderConfig(BaseModel):
             raise ValueError("CLI providers must not define API credentials")
         if self.kind is ProviderKind.CLI and self.wire_protocol != "openai_chat":
             raise ValueError("CLI providers cannot use System-One HTTP protocol")
+        if self.wire_protocol == "systemone" and self.rotate_on_rate_limit:
+            # Native Go System-One returns HTTP 429 when its *global*
+            # scorer is busy; rotating credentials cannot create capacity.
+            raise ValueError("native System-One does not support rate-limit key rotation")
         if self.kind is ProviderKind.OPENAI_COMPATIBLE and not refs:
             raise ValueError(
                 "OpenAI-compatible providers require an API-key environment reference"
