@@ -324,6 +324,7 @@ app.add_middleware(
         "X-API-Key",
         "X-Actor",
         "X-Actor-Key",
+        "X-Approver-Key",
         "X-Approval-Key",
         "X-Worker-Key",
         "X-Emergency-Key",
