@@ -30,6 +30,10 @@ from trading_gym.intelligence.llm_backend import (
 )
 from trading_gym.intelligence.policy_adapter import IntelligencePolicyAdapter
 from trading_gym.intelligence.system1_backend import System1DecisionBackend
+from trading_gym.intelligence.systemone_native_backend import (
+    NativeSystemOneDecisionBackend,
+    httpx_systemone_transport,
+)
 from trading_gym.intelligence.system1_context import build_system1_packet
 from trading_gym.intelligence.registry import BackendRegistry
 from trading_gym.intelligence.rl_backend import RLPolicyBackend
@@ -38,6 +42,7 @@ from trading_gym.common.intelligence_config import IntelligenceConfig, Intellige
 from trading_gym.intelligence.factory import build_intelligence_policy
 from trading_gym.intelligence.types import (
     BackendHealth,
+    BackendUnavailable,
     DecisionSignal,
     MarketContext,
 )
@@ -52,6 +57,8 @@ __all__ = [
     "RLPolicyBackend",
     "LLMDecisionBackend",
     "System1DecisionBackend",
+    "NativeSystemOneDecisionBackend",
+    "httpx_systemone_transport",
     "build_system1_packet",
     "LLMTransport",
     "httpx_transport",
