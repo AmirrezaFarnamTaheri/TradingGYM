@@ -274,3 +274,8 @@ def test_invalid_max_leverage_rejected_before_native_model_request():
     with pytest.raises(PermissionError, match="invalid_risk_limit"):
         backend.decide(_context(risk_limits={"max_leverage": -2.0}))
     assert not sent
+
+
+def test_native_global_busy_rate_limits_cannot_be_bypassed_by_key_rotation():
+    with pytest.raises(ValueError, match="rate"):
+        _provider(rotate_on_rate_limit=True)
