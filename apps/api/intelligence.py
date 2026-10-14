@@ -20,6 +20,11 @@ from trading_gym.agent.providers import (
     provider_status,
 )
 from trading_gym.common.intelligence_config import IntelligenceMode
+from trading_gym.intelligence.llm_request_budget import (
+    ProviderRequestBudget,
+    RequestBudgetUnavailable,
+    default_request_budget_path,
+)
 
 
 def _torch_report() -> dict[str, Any]:
@@ -156,6 +161,31 @@ def create_intelligence_router(
             else:
                 st = {"provider_id": pc.provider_id, "status": "not_probed"}
                 available = None
+            budget_state = None
+            if pc.max_requests_per_hour is not None:
+                try:
+                    admission = ProviderRequestBudget(
+                        default_request_budget_path(
+                            pc.provider_id, pc.base_url or ""
+                        ),
+                        limit=pc.max_requests_per_hour,
+                    ).status()
+                    budget_state = {
+                        "state": (
+                            "exhausted" if admission["remaining"] == 0 else "available"
+                        ),
+                        "used": admission["used"],
+                        "remaining": admission["remaining"],
+                        "ceiling": admission["ceiling"],
+                        "window_start": admission["window_start"],
+                    }
+                    if admission["remaining"] == 0:
+                        available = False
+                except (RequestBudgetUnavailable, ValueError, OSError):
+                    # An untrusted budget state must not look like an
+                    # available provider; do not disclose disk details.
+                    budget_state = {"state": "unavailable"}
+                    available = False
             provider_availability[pc.provider_id] = available
             backends.append(
                 {
@@ -163,6 +193,7 @@ def create_intelligence_router(
                     "available": available,
                     "device": None,
                     "detail": json.dumps(st),
+                    "request_budget": budget_state,
                 }
             )
 
@@ -212,6 +243,7 @@ def create_intelligence_router(
             "system1_provider_ids": system1_provider_ids,
             "system1_memory_enabled": system1_memory_enabled,
             "backends": backends,
+            "compute": torch_info,
             "provider_inventory_error": provider_error,
             "providers_total": len(providers),
             "providers_probed": min(probe_limit, len(providers)),
