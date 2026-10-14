@@ -1,5 +1,19 @@
 # Hardening branch status — 2026-10-11
 
+## Source ZIP confidentiality and inventory — 2026-10-14
+
+The source ZIP builder now reads the Git-tracked inventory instead of
+recursively archiving the entire working directory. Untracked `.env`,
+wallet-secret, and temporary files are excluded; tracked dotenv secrets,
+symlink-backed tracked paths, missing sources and non-Git invocations fail
+closed. Four isolated Git-checkout tests passed on the revised builder
+after reproducing the pre-fix `.env` leak. SHA-256 of the output ZIP is
+computed in a bounded stream rather than reading the whole archive into
+memory. The exact full-repository build and hosted CI matrix have not
+yet executed successfully because runners remain unavailable.
+
+
+
 ## Atomic authorization grant transitions (2026-10-14)
 
 The ledger's existing chain lock now guards lifecycle preconditions *after*
