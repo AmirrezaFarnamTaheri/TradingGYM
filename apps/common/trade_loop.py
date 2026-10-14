@@ -119,6 +119,28 @@ async def trade_loop(
                     "bar_seconds": int(cfg.features.timeframes[0].bar_minutes) * 60,
                     "source_sha256": feature_snapshot.source_sha256,
                 }
+                # The feature row is validated and computed from CLOSED bars.
+                # Preserve a small named subset, without pretending normalized
+                # indicators are absolute prices or executable broker balances.
+                priority_terms = (
+                    "rsi", "atr", "macd", "vol", "spread",
+                    "momentum", "trend", "ema", "sma", "return",
+                )
+                labelled = [
+                    (name, float(value))
+                    for name, value in zip(
+                        feature_snapshot.feature_columns,
+                        feature_snapshot.feature_row,
+                    )
+                    if name and len(name) <= 64
+                ]
+                labelled.sort(
+                    key=lambda pair: (
+                        not any(term in pair[0].lower() for term in priority_terms),
+                        pair[0],
+                    )
+                )
+                unwrapped_env.latest_feature_summary = dict(labelled[:12])
 
                 # 3. Update the latest tradable mid. Feature generation is based
                 # only on fully closed candles; the current ticker is state, not a
