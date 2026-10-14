@@ -302,6 +302,7 @@ async def test_dry_run_adapter_never_submits_or_cancels_orders(
     ):
         dry_run = DryRunLiveExecutionAdapter(mock_config, "fake_token")
 
+    assert dry_run.can_acknowledge_panic is False
     dry_run._get_net_position = MagicMock(return_value=Decimal("0.25"))
     result = await dry_run.reconcile(1.0, 50000.0)
     assert result["status"] == "simulated"
@@ -891,3 +892,23 @@ async def test_dry_run_refuses_unverified_open_orders(
     assert "open_orders_not_cleared" in dry_run._last_flatten_error
     mock_client.place_market_order.assert_not_called()
     mock_client.cancel_order.assert_not_called()
+
+
+def test_only_governed_live_adapter_can_acknowledge_shared_panic(
+    adapter, mock_config, mock_client
+) -> None:
+    assert adapter.can_acknowledge_panic is True
+
+    with patch(
+        "trading_gym.execution.live_execution_adapter.EnhancedAbanClient",
+        return_value=mock_client,
+    ):
+        ungoverned_live = LiveExecutionAdapter(mock_config, "fake_token")
+        dry_run_with_live_fields = DryRunLiveExecutionAdapter(
+            mock_config,
+            "fake_token",
+            live_consent=adapter._live_consent,
+            proposal_id=adapter._proposal_id,
+        )
+    assert ungoverned_live.can_acknowledge_panic is False
+    assert dry_run_with_live_fields.can_acknowledge_panic is False
