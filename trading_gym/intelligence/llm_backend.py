@@ -13,13 +13,25 @@ coordinator.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import os
 import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
 from trading_gym.agent.providers import ProviderConfig, provider_status
+from trading_gym.intelligence.llm_key_pool import (
+    CredentialPool,
+    CredentialsUnavailable,
+    default_rotation_path,
+    request_with_rotation,
+)
+from trading_gym.intelligence.system1_context import (
+    MAX_CONTEXT_CHARS,
+    build_system1_packet,
+)
 from trading_gym.agent.degradation_ladder import (
     AttemptRecord,
     CapabilityMode,
@@ -34,9 +46,6 @@ from trading_gym.intelligence.types import (
     MarketContext,
 )
 
-MAX_CONTEXT_CHARS = 4_000
-
-
 @dataclass(frozen=True)
 class LLMTransportResponse:
     content: str
@@ -50,47 +59,92 @@ Transport = Callable[[str, list[dict[str, str]]], LLMTransportResponse]
 def httpx_transport(
     config: ProviderConfig, *, timeout_seconds: float = 20.0
 ) -> Transport:
-    """Production transport honouring the provider hub's security posture."""
-    import os
+    """Bounded model request with process-shared multi-key failover.
+
+    Key values exist only in environment variables and outgoing headers.
+    Request/response redirects and untrusted proxy environment are disabled.
+    All HTTP/status errors are normalized without leaking credential values.
+    """
     from urllib.parse import urljoin
 
     import httpx
 
     from trading_gym.common.security import validate_base_url
 
-    def call(base_url: str, messages: list[dict[str, str]]) -> LLMTransportResponse:
-        base = validate_base_url(
-            base_url,
-            allow_private=config.allow_private_network,
-            allow_loopback=config.kind.value == "local",
-            resolve_dns=True,
+    references = config.credential_refs
+    pool = (
+        CredentialPool(
+            references,
+            state_path=default_rotation_path(
+                config.provider_id,
+                config.base_url or "",
+                config.model,
+                references,
+            ),
         )
-        headers: dict[str, str] = {"Content-Type": "application/json"}
-        if config.api_key_env:
-            headers["Authorization"] = (
-                f"Bearer {os.environ.get(config.api_key_env, '')}"
-            )
+        if references
+        else None
+    )
+
+    def call(base_url: str, messages: list[dict[str, str]]) -> LLMTransportResponse:
         body = {
             "model": config.model,
             "messages": messages,
             "temperature": 0.2,
             "max_tokens": 300,
         }
-        with httpx.Client(
-            timeout=timeout_seconds, follow_redirects=False, trust_env=False
-        ) as client:
-            response = client.post(
-                urljoin(base.rstrip("/") + "/", "chat/completions"),
-                headers=headers,
-                json=body,
+
+        def post(secret: str, remaining: float) -> httpx.Response:
+            # Re-check the destination immediately before each retry, not just
+            # at startup (prevent stored-address and DNS-rebinding bypasses).
+            base = validate_base_url(
+                base_url,
+                allow_private=config.allow_private_network,
+                allow_loopback=config.kind.value == "local",
+                resolve_dns=True,
             )
-        response.raise_for_status()
-        payload = response.json()
-        content = payload["choices"][0]["message"]["content"]
-        return LLMTransportResponse(content=str(content))
+            headers = {"Content-Type": "application/json"}
+            if secret:
+                headers["Authorization"] = f"Bearer {secret}"
+            with httpx.Client(
+                timeout=remaining, follow_redirects=False, trust_env=False
+            ) as client:
+                return client.post(
+                    urljoin(base.rstrip("/") + "/", "chat/completions"),
+                    headers=headers,
+                    json=body,
+                )
+
+        try:
+            if pool is not None:
+                response = request_with_rotation(
+                    pool,
+                    post,
+                    timeout_seconds=timeout_seconds,
+                    rotate_on_rate_limit=config.rotate_on_rate_limit,
+                )
+            else:
+                response = post("", timeout_seconds)
+                if response.status_code == 403:
+                    raise PermissionError("provider_access_denied")
+                response.raise_for_status()
+            if len(response.content) > 256 * 1024:
+                raise BackendUnavailable("LLM provider response exceeds byte budget")
+            payload = response.json()
+            content = payload["choices"][0]["message"]["content"]
+            if not isinstance(content, str):
+                raise BackendUnavailable("LLM response content is not text")
+            return LLMTransportResponse(content=content)
+        except PermissionError:
+            raise  # provider authorization denial cannot degrade to a trade
+        except CredentialsUnavailable as exc:
+            raise BackendUnavailable(str(exc)) from exc
+        except BackendUnavailable:
+            raise
+        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+            raise BackendUnavailable("LLM provider transport unavailable") from exc
 
     return call
-
 
 _SYSTEM_PROMPT = (
     "You are the governance analyst of a trading system. You receive a compact "
@@ -175,8 +229,17 @@ class LLMDecisionBackend(IntelligenceBackend):
         *,
         transport: Transport | None = None,
         timeout_seconds: float = 20.0,
+        context_formatter: Callable[[MarketContext], str] | None = None,
+        backend_name: str | None = None,
+        system_prompt: str | None = None,
+        strict_json_only: bool = False,
     ):
         self.config = provider_config
+        self.name = backend_name or "llm"
+        self._context_formatter = context_formatter or build_system1_packet
+        self._system_prompt = system_prompt or _SYSTEM_PROMPT
+        self._strict_json_only = bool(strict_json_only)
+        self.last_context_sha256: str | None = None
         self._explicit_transport = transport is not None
         self._transport: Transport = transport or httpx_transport(
             provider_config, timeout_seconds=timeout_seconds
@@ -199,20 +262,21 @@ class LLMDecisionBackend(IntelligenceBackend):
             ),
         ]
         self._ladder: DegradationLadder[dict[str, Any] | None] = DegradationLadder(
-            ladder_modes
+            ladder_modes[:1] if self._strict_json_only else ladder_modes
         )
 
     def is_available(self) -> bool:
-        if self._explicit_transport:
-            # Injected transports are test/embedded contexts: never probe.
-            return True
-        try:
-            status = provider_status(self.config, timeout_seconds=3.0)
-        except Exception:
-            # This is an optional advisory backend. DNS/probe/credential
-            # failures must not take down the intelligence health surface.
+        """Cheap local availability; model-listing is not a chat preflight.
+
+        Hosted inference rotates credentials at call time; health probes may
+        be unsupported or observe the wrong key in a multi-key fleet.
+        """
+        if not self.config.enabled:
             return False
-        return status.get("status") in {"reachable", "available"}
+        if self._explicit_transport:
+            return True
+        refs = self.config.credential_refs
+        return not refs or any(os.getenv(ref) for ref in refs)
 
     def health(self) -> BackendHealth:
         if self._explicit_transport:
@@ -239,15 +303,18 @@ class LLMDecisionBackend(IntelligenceBackend):
     def decide(self, context: MarketContext) -> DecisionSignal:
         if not self.config.enabled:
             raise BackendUnavailable("configured LLM provider is disabled")
-        if self.config.api_key_env and not os.getenv(self.config.api_key_env):
-            raise BackendUnavailable("LLM credential reference is unavailable")
-        # A preflight GET /models before every /chat/completions doubles latency
-        # and can reject healthy chat endpoints that disable model listing.
-        # The actual bounded request is the source of truth; failures degrade
-        # through the caller's explicit fallback path.
-        snapshot = json.dumps(context.to_dict(), sort_keys=True)[:MAX_CONTEXT_CHARS]
+        refs = self.config.credential_refs
+        if refs and not any(os.getenv(ref) for ref in refs):
+            if not self._explicit_transport:
+                raise BackendUnavailable("LLM credential reference is unavailable")
+        # Never truncate a JSON document mid-field; required market, risk and
+        # provenance data must survive context-budget compaction intact.
+        snapshot = self._context_formatter(context)
+        if not isinstance(snapshot, str) or len(snapshot) > 16_000:
+            raise BackendUnavailable("LLM context is not bounded JSON")
+        self.last_context_sha256 = hashlib.sha256(snapshot.encode()).hexdigest()
         messages = [
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": self._system_prompt},
             {"role": "user", "content": snapshot},
         ]
         response = self._transport(self.config.base_url or "", messages)
@@ -261,6 +328,29 @@ class LLMDecisionBackend(IntelligenceBackend):
             raise BackendUnavailable(
                 f"llm output unparseable after ladder ({len(records)} attempts)"
             )
+        if self._strict_json_only:
+            raw = outcome.value
+            if (
+                not {"action", "target_leverage", "confidence", "rationale"}
+                <= set(raw)
+                or raw.get("action") not in ("hold", "long", "short")
+                or type(raw.get("target_leverage")) not in (float, int)
+                or type(raw.get("confidence")) not in (float, int)
+                or not isinstance(raw.get("rationale"), str)
+            ):
+                raise BackendUnavailable("system1_invalid_structured_response")
+            leverage_raw = float(raw["target_leverage"])
+            confidence_raw = float(raw["confidence"])
+            if (
+                not math.isfinite(leverage_raw)
+                or not math.isfinite(confidence_raw)
+                or not -20 <= leverage_raw <= 20
+                or not 0 <= confidence_raw <= 1
+                or (raw["action"] == "hold" and leverage_raw != 0)
+                or (raw["action"] == "long" and leverage_raw <= 0)
+                or (raw["action"] == "short" and leverage_raw >= 0)
+            ):
+                raise BackendUnavailable("system1_invalid_structured_response")
         kind, leverage, confidence, rationale = _normalise_decision(outcome.value)
         return DecisionSignal(
             backend=self.name,
