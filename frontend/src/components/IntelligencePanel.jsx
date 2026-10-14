@@ -36,6 +36,25 @@ function AvailabilityDot({ available }) {
   );
 }
 
+function ProviderRequestBudgetCell({ budget }) {
+  if (!budget) return <span aria-label="No request cap configured">—</span>;
+  if (budget.state === 'unavailable') {
+    return <strong role="status">Budget unavailable — admission denied</strong>;
+  }
+  if (budget.state === 'exhausted') {
+    return (
+      <strong role="status">
+        Exhausted ({budget.used} / {budget.ceiling})
+      </strong>
+    );
+  }
+  return (
+    <span aria-label={`Provider requests this UTC hour: ${budget.used} of ${budget.ceiling}`}>
+      {budget.used} / {budget.ceiling} this UTC hour
+    </span>
+  );
+}
+
 export default function IntelligencePanel() {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
@@ -88,6 +107,17 @@ export default function IntelligencePanel() {
                 <strong>Auto-selection hint:</strong> {status.selected_hint}
               </p>
             )}
+            {status.system1_provider_ids?.length > 0 && (
+              <p>
+                <strong>Fast-model roster:</strong> {status.system1_provider_ids.join(', ')}
+              </p>
+            )}
+            {typeof status.system1_memory_enabled === 'boolean' && (
+              <p>
+                <strong>Experience memory:</strong>{' '}
+                {status.system1_memory_enabled ? 'Enabled' : 'Disabled'}
+              </p>
+            )}
             <p className="muted">{status.note}</p>
           </div>
 
@@ -101,6 +131,7 @@ export default function IntelligencePanel() {
                   <th scope="col">Backend</th>
                   <th scope="col">Status</th>
                   <th scope="col">Device</th>
+                  <th scope="col">Request budget</th>
                 </tr>
               </thead>
               <tbody>
@@ -111,6 +142,7 @@ export default function IntelligencePanel() {
                       <AvailabilityDot available={b.available} />
                     </td>
                     <td>{b.device || '—'}</td>
+                    <td><ProviderRequestBudgetCell budget={b.request_budget} /></td>
                   </tr>
                 ))}
               </tbody>
