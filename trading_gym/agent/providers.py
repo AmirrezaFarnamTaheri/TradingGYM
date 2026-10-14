@@ -48,6 +48,8 @@ class ProviderConfig(BaseModel):
     # Default: honor shared organization/project 429s; only enable when the
     # provider documents independent per-key rate-limit buckets.
     rotate_on_rate_limit: bool = False
+    # Optional all-key, all-model, cross-process hourly HTTP attempt ceiling.
+    max_requests_per_hour: Annotated[int | None, Field(strict=True, ge=1, le=100_000)] = None
     command: Annotated[str | None, Field(pattern=r"^[A-Za-z0-9_.-]{1,120}$")] = None
     allow_private_network: bool = False
     enabled: bool = True
