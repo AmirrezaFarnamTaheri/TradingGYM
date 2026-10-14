@@ -23,7 +23,7 @@ const { grantsSpy, revokeSpy, healthSpy, toastSpies } = vi.hoisted(() => ({
   ),
   revokeSpy: vi.fn(() => Promise.resolve({ data: { state: 'revoked' } })),
   healthSpy: vi.fn(() =>
-    Promise.resolve({ data: { ledger_valid: true, entries: 3 } })
+    Promise.resolve({ data: { ledger_valid: true, entries: 3, legacy_high_risk_wildcard_grants: 0 } })
   ),
   toastSpies: {
     info: vi.fn(),
@@ -172,5 +172,37 @@ describe('session API key storage contract (security review M-4)', () => {
     );
     expect(authzSource).toMatch(/Revocation is terminal/);
     expect(authzSource).toMatch(/ADR-028/);
+  });
+});
+
+describe('Legacy wildcard grant warnings', () => {
+  it('makes outstanding high-risk legacy grants visible to operators', async () => {
+    healthSpy.mockResolvedValueOnce({
+      data: {
+        ledger_valid: true,
+        entries: 3,
+        legacy_high_risk_wildcard_grants: 2,
+      },
+    });
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    const banner = await waitForRendered(
+      container,
+      '[data-testid="legacy-grants-warning"]'
+    );
+    expect(banner.getAttribute('role')).toBe('alert');
+    expect(banner.textContent).toContain('2 legacy high-risk wildcard');
+    expect(banner.textContent).toContain('revocation');
+    cleanup();
+  });
+
+  it('does not interpret absent legacy count as zero risk', async () => {
+    healthSpy.mockResolvedValueOnce({ data: { ledger_valid: true, entries: 3 } });
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    const banner = await waitForRendered(
+      container,
+      '[data-testid="legacy-grants-unknown"]'
+    );
+    expect(banner.textContent).toContain('unavailable');
+    cleanup();
   });
 });
