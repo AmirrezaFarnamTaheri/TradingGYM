@@ -19,6 +19,7 @@ from trading_gym.agent.providers import (
     ProviderRepository,
     provider_status,
 )
+from trading_gym.agent.provider_presets import list_provider_presets
 from trading_gym.common.intelligence_config import IntelligenceMode
 from trading_gym.intelligence.llm_request_budget import (
     ProviderRequestBudget,
@@ -253,6 +254,7 @@ def create_intelligence_router(
             "system1_memory_enabled": system1_memory_enabled,
             "system1_working_memory_enabled": system1_working_memory_enabled,
             "backends": backends,
+            "provider_presets": list_provider_presets(),
             "compute": torch_info,
             "provider_inventory_error": provider_error,
             "providers_total": len(providers),
