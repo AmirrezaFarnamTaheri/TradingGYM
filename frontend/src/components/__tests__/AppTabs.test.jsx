@@ -50,3 +50,35 @@ describe('Operator workspace tab accessibility', () => {
     }
   });
 });
+
+it('keeps all twelve destinations reachable across four workspaces', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => { root.render(<App />); });
+    const labels = Array.from(
+      container.querySelectorAll('.sidebar-workspace-label')
+    ).map((node) => node.textContent);
+    expect(labels).toEqual([
+      'Execution & Risk',
+      'Research & Playground',
+      'Agent & Model Forge',
+      'Governance & System',
+    ]);
+    expect(container.querySelectorAll('[role="tab"]')).toHaveLength(12);
+
+    const lastResearchTab = container.querySelector('#tab-data');
+    await act(async () => {
+      lastResearchTab.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'ArrowDown', bubbles: true,
+      }));
+    });
+    const firstModelTab = container.querySelector('#tab-forge');
+    expect(firstModelTab.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(firstModelTab);
+  } finally {
+    await act(async () => { root.unmount(); });
+    container.remove();
+  }
+});
