@@ -225,7 +225,11 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
                 risk_ceiling=risk_cap,
             )
         except ValueError as exc:
-            raise BackendUnavailable(str(exc)) from exc
+            if str(exc) == "systemone_low_confidence_escalate":
+                raise BackendUnavailable(str(exc)) from exc
+            # A malformed distribution or incompatible typed answer is
+            # non-degradable evidence corruption, not a temporary outage.
+            raise PermissionError("systemone_invalid_model_output") from exc
         return DecisionSignal(
             backend=self.name,
             action_kind=ActionKind(action),
