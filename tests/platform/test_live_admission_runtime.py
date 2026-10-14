@@ -93,8 +93,6 @@ async def test_model_free_system1_runs_only_in_non_mutating_live_dry_run(
 
     from apps.live import main as live
     from trading_gym.common.intelligence_config import IntelligenceConfig
-    import trading_gym.intelligence.wiring as wiring
-
     cfg = SimpleNamespace(
         intelligence=IntelligenceConfig(
             mode="system1",
@@ -117,7 +115,7 @@ async def test_model_free_system1_runs_only_in_non_mutating_live_dry_run(
         live, "create_environment", lambda cfg, data, live_mode: object()
     )
     monkeypatch.setattr(
-        wiring, "build_trading_policy", lambda cfg, model, env: policy
+        live, "build_trading_policy", lambda cfg, model, env: policy
     )
 
     async def trade(**kwargs):
