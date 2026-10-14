@@ -184,6 +184,18 @@ class IntelligencePolicyAdapter:
                 for name, value in values.items()
             ):
                 raise ValueError("market/account context is invalid")
+        limits = context.risk_limits
+        max_leverage = limits.get("max_leverage")
+        min_leverage = limits.get("min_leverage")
+        if (
+            (max_leverage is not None and max_leverage < 0)
+            or (
+                max_leverage is not None
+                and min_leverage is not None
+                and min_leverage > max_leverage
+            )
+        ):
+            raise ValueError("market/account context is invalid")
         return context
 
     @staticmethod
