@@ -17877,6 +17877,15 @@
             ],
             "title": "Api Key Env"
           },
+          "api_key_envs": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Api Key Envs",
+            "type": "array"
+          },
           "base_url": {
             "anyOf": [
               {
@@ -17920,6 +17929,19 @@
           "kind": {
             "$ref": "#/components/schemas/ProviderKind"
           },
+          "max_requests_per_hour": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Requests Per Hour"
+          },
           "metadata": {
             "additionalProperties": true,
             "title": "Metadata",
@@ -17934,6 +17956,26 @@
           "provider_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_.-]{1,79}$",
             "title": "Provider Id",
+            "type": "string"
+          },
+          "rotate_on_rate_limit": {
+            "default": false,
+            "title": "Rotate On Rate Limit",
+            "type": "boolean"
+          },
+          "systemone_path": {
+            "default": "/v1/systemone",
+            "pattern": "^/[A-Za-z0-9_./-]{0,199}$",
+            "title": "Systemone Path",
+            "type": "string"
+          },
+          "wire_protocol": {
+            "default": "openai_chat",
+            "enum": [
+              "openai_chat",
+              "systemone"
+            ],
+            "title": "Wire Protocol",
             "type": "string"
           }
         },
