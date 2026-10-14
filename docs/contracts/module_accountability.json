@@ -1,91 +1,6 @@
 {
   "modules": [
     {
-      "owner": "axiomforge",
-      "path": "axiomforge/__init__.py",
-      "sha256": "84c8bfd10ad3f5ea512dcdb505d33f2604c8e7aec6e3c4b7a8ec4a363c8ffa77"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/decision_lifecycle.py",
-      "sha256": "492f932da8507ef3228e8caab7310914dbdb7c49828f72c8a74c844755fbc9db"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/live_trading.py",
-      "sha256": "68dc556d47466766706ce23dbb2c23e28c86057cfaa492b6dd3f33636db2419f"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/next_level/agent_lab.py",
-      "sha256": "71567ef43bdce047ea4bc094d212e666f24f05b64debaae2b4057a47b7f5e734"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/analytics.py",
-      "sha256": "1fa9f1a996091e9bf3842290f8b477a1a37d826b937d6f7833739078b15da192"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/artifacts.py",
-      "sha256": "4140528aa03f8cbbc120636d294ec9e1921a35b451bee4a1d1aac21ccf9cfb95"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/base.py",
-      "sha256": "2cd143a56d59026606e706e5e588edcf8ddc7cfe1e1c78ba5a360ff5d023b62b"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/conditional.py",
-      "sha256": "dbdf46a3d9e24b0f3ce589cc51992352a0760350dacebd70fbf0c060cc60b5b2"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/durable_execution.py",
-      "sha256": "f888e42b9f06787f337cf8ebe01da7379701d36afe4a891c40df8e50651de7fb"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/external_state.py",
-      "sha256": "46330d1a0cc94df99763bf6460454b80783755cd84514c47327e4e53bb93f6f2"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/finance.py",
-      "sha256": "e9778d6552b4fefea311d9a185718e970b8ff8ef2fc12b1aba827c411ee43ad4"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/lineage.py",
-      "sha256": "45f583c7d6b7494fada3084e6462e5de94dbf9544bce80f63a3a4d8986e19fe6"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/model_evidence.py",
-      "sha256": "0c2b813eca69dbe49db575c34c6ba614d391a83cc936282e3cff0e6c15f7c0d8"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/policy.py",
-      "sha256": "540effd144fba5156a7a321babca3729454eef5f1cb78dd6a4d59f2423cdf0a3"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/supply_chain.py",
-      "sha256": "6c138f2481d68a9a648eb0bb54bbc6fac0cb88ba2adc0bb1296cd57e6b4c8dd4"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/telemetry.py",
-      "sha256": "9524e076e20a234a2d167a82b29c40c51a7384558a0a4ccaf3dcbaa012005373"
-    },
-    {
-      "owner": "axiomforge",
-      "path": "axiomforge/oss_integrations/validation.py",
-      "sha256": "3ad742e87d088227ee550b4a19edb31bac60dd92ed2a46b134808643eb424222"
-    },
-    {
       "owner": "trading_gym",
       "path": "trading_gym/__init__.py",
       "sha256": "e3e11f3bb277b0af2b4fae7baeed2ffdc4e30831ce73cf67ff7287a9f311368d"
@@ -253,7 +168,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/providers.py",
-      "sha256": "42c9af06973c97e5470cffea01de13c03e3fed602208ca259bd63fe4f283a547"
+      "sha256": "a7653d354b310439bd6e97abcef5b1475d98d2aca511375126723ee467a3b574"
     },
     {
       "owner": "trading_gym",
@@ -963,7 +878,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/factory.py",
-      "sha256": "ffe3c990c527dfbbb8d334904b1a9549ad35173821dfd23f63ac3f940b1e3be4"
+      "sha256": "31b9e7ea2d0ed06c2b0ad5a03d6dc93613a0d9b5df60398e810f1e2b61f438b6"
     },
     {
       "owner": "trading_gym",
@@ -973,7 +888,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/llm_backend.py",
-      "sha256": "3fd3ec0382bfafe8674fa8493a6fe141e7fee09dae512dddb58103f7b32f388f"
+      "sha256": "fa194731f39261b60c88469e375fc0f2d153cb70875f941a330190c44b07ccd0"
     },
     {
       "owner": "trading_gym",
@@ -983,7 +898,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/policy_adapter.py",
-      "sha256": "c0cd3f53d01237d2f86106f939d692b562d4024074c143220868397f0ff6983b"
+      "sha256": "b1000192391ad77ce4eae7f51650bef5e3e5525eb0f0eb9ce6a09323fd441173"
     },
     {
       "owner": "trading_gym",
@@ -999,6 +914,16 @@
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/rule_backend.py",
       "sha256": "0b2d2355e9c5e746bc32d5e158cee962ee8d573164d7978117376166c81bd8c3"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/intelligence/systemone_native_backend.py",
+      "sha256": "714203958b54b5b6ce6ed9d62cd16125e031ba0861bbf9c6ded499f8097059f8"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/intelligence/systemone_protocol.py",
+      "sha256": "fcb248e1353da21f77eb5dc4c820af8e64739151c32a7ad7dbe94ed07ec4dc3d"
     },
     {
       "owner": "trading_gym",
@@ -1689,6 +1614,91 @@
       "owner": "trading_gym",
       "path": "trading_gym/visualization/training_plots.py",
       "sha256": "08325e6b40dacd3a47133f816a0191888b79e53de5e3763277e77df18c7ebbf1"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/__init__.py",
+      "sha256": "84c8bfd10ad3f5ea512dcdb505d33f2604c8e7aec6e3c4b7a8ec4a363c8ffa77"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/decision_lifecycle.py",
+      "sha256": "492f932da8507ef3228e8caab7310914dbdb7c49828f72c8a74c844755fbc9db"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/live_trading.py",
+      "sha256": "68dc556d47466766706ce23dbb2c23e28c86057cfaa492b6dd3f33636db2419f"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/next_level/agent_lab.py",
+      "sha256": "71567ef43bdce047ea4bc094d212e666f24f05b64debaae2b4057a47b7f5e734"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/analytics.py",
+      "sha256": "1fa9f1a996091e9bf3842290f8b477a1a37d826b937d6f7833739078b15da192"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/artifacts.py",
+      "sha256": "4140528aa03f8cbbc120636d294ec9e1921a35b451bee4a1d1aac21ccf9cfb95"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/base.py",
+      "sha256": "2cd143a56d59026606e706e5e588edcf8ddc7cfe1e1c78ba5a360ff5d023b62b"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/conditional.py",
+      "sha256": "dbdf46a3d9e24b0f3ce589cc51992352a0760350dacebd70fbf0c060cc60b5b2"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/durable_execution.py",
+      "sha256": "f888e42b9f06787f337cf8ebe01da7379701d36afe4a891c40df8e50651de7fb"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/external_state.py",
+      "sha256": "46330d1a0cc94df99763bf6460454b80783755cd84514c47327e4e53bb93f6f2"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/finance.py",
+      "sha256": "e9778d6552b4fefea311d9a185718e970b8ff8ef2fc12b1aba827c411ee43ad4"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/lineage.py",
+      "sha256": "45f583c7d6b7494fada3084e6462e5de94dbf9544bce80f63a3a4d8986e19fe6"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/model_evidence.py",
+      "sha256": "0c2b813eca69dbe49db575c34c6ba614d391a83cc936282e3cff0e6c15f7c0d8"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/policy.py",
+      "sha256": "540effd144fba5156a7a321babca3729454eef5f1cb78dd6a4d59f2423cdf0a3"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/supply_chain.py",
+      "sha256": "6c138f2481d68a9a648eb0bb54bbc6fac0cb88ba2adc0bb1296cd57e6b4c8dd4"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/telemetry.py",
+      "sha256": "9524e076e20a234a2d167a82b29c40c51a7384558a0a4ccaf3dcbaa012005373"
+    },
+    {
+      "owner": "axiomforge",
+      "path": "axiomforge/oss_integrations/validation.py",
+      "sha256": "3ad742e87d088227ee550b4a19edb31bac60dd92ed2a46b134808643eb424222"
     }
   ]
 }
