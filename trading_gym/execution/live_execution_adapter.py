@@ -883,6 +883,9 @@ class LiveExecutionAdapter:
                 raise ValueError("invalid_broker_short_position")
             short_bal += amount
 
+        if not seen_base:
+            # Missing broker rows are not proof of an empty funded account.
+            raise ValueError("missing_broker_base_balance")
         result = spot_bal - short_bal
         if not result.is_finite():
             raise ValueError("invalid_broker_net_position")
