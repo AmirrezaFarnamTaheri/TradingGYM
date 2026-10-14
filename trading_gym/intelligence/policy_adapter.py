@@ -131,6 +131,7 @@ class IntelligencePolicyAdapter:
             is_live=ctx.get("is_live", False),
             market_evidence=dict(ctx.get("market_evidence") or {}),
             risk_limits=dict(ctx.get("risk_limits") or {}),
+            market_features=dict(ctx.get("market_features") or {}),
             extras={
                 key: float(value)
                 for key, value in ctx.items()
