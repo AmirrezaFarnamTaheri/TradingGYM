@@ -121,6 +121,19 @@ def build_system1_packet(
             _finite(v) for v in context.recent_returns[:_MAX_RETURNS]
         ],
     }
+    raw_features = getattr(context, "market_features", {}) or {}
+    if not isinstance(raw_features, Mapping) or len(raw_features) > 32:
+        raise ValueError("invalid named market indicators")
+    indicators: dict[str, float] = {}
+    for raw_name, value in sorted(raw_features.items()):
+        if not isinstance(raw_name, str):
+            raise ValueError("invalid named market indicators")
+        name = raw_name.lower()
+        if not _TAG_RE.fullmatch(name):
+            raise ValueError("invalid named market indicators")
+        indicators[name] = _finite(value)
+    if indicators:
+        market["normalized_indicators"] = indicators
     account = {
         "equity": _finite(context.equity, positive=True),
         "position_units": _finite(context.position_units),
@@ -207,6 +220,9 @@ def build_system1_packet(
         result = encode()
     if len(result) > max_chars:
         packet.pop("working_memory", None)
+        result = encode()
+    if len(result) > max_chars:
+        packet["market"].pop("normalized_indicators", None)
         result = encode()
     if len(result) > max_chars:
         packet["market"]["recent_returns"] = (
