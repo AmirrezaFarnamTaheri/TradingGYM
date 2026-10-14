@@ -128,6 +128,9 @@ class IntelligencePolicyAdapter:
             prev_close=ctx.get("prev_close"),
             recent_returns=tuple(ctx.get("recent_returns", ())),
             drawdown_from_peak=ctx.get("drawdown_from_peak"),
+            is_live=ctx.get("is_live", False),
+            market_evidence=dict(ctx.get("market_evidence") or {}),
+            risk_limits=dict(ctx.get("risk_limits") or {}),
             extras={
                 key: float(value)
                 for key, value in ctx.items()
