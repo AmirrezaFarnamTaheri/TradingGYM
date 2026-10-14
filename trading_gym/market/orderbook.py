@@ -9,6 +9,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+MAX_BOOK_LEVELS = 100_000
+
 
 @dataclass(frozen=True)
 class OrderBookSnapshot:
@@ -21,6 +23,8 @@ class OrderBookSnapshot:
             raise ValueError("invalid book sequence")
         if not self.bids or not self.asks:
             raise ValueError("incomplete book")
+        if len(self.bids) > MAX_BOOK_LEVELS or len(self.asks) > MAX_BOOK_LEVELS:
+            raise ValueError("too many book levels")
         for levels in (self.bids, self.asks):
             prices: set[float] = set()
             for level in levels:
