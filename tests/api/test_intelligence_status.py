@@ -312,3 +312,90 @@ def test_status_does_not_fabricate_healthy_system1_when_probe_fails(
         if item["name"] == "system1:remote-gpt"
     )
     assert fast["available"] is False
+
+def test_status_exposes_read_only_request_budget_and_depleted_model(tmp_path, monkeypatch):
+    import apps.api.intelligence as intelligence
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+    from trading_gym.intelligence.llm_request_budget import ProviderRequestBudget
+
+    class CappedRepo:
+        def list(self):
+            return [
+                ProviderConfig(
+                    provider_id="fast",
+                    kind=ProviderKind.LOCAL,
+                    display_name="Local fast",
+                    model="fast-v1",
+                    base_url="http://127.0.0.1:11434/v1",
+                    max_requests_per_hour=1,
+                )
+            ]
+
+    path = tmp_path / "budget.json"
+    monkeypatch.setattr(
+        intelligence, "default_request_budget_path", lambda *_: path
+    )
+    monkeypatch.setattr(
+        intelligence, "provider_status",
+        lambda _config, *, timeout_seconds: {
+            "provider_id": "fast", "status": "reachable"
+        },
+    )
+    ProviderRequestBudget(path, limit=1).reserve()
+    app = FastAPI()
+    app.include_router(create_intelligence_router(
+        _verify, provider_repository=CappedRepo(),
+    ))
+    response = TestClient(app).get("/intelligence/status", headers=AUTH)
+    assert response.status_code == 200
+    data = response.json()
+    entry = next(item for item in data["backends"] if item["name"] == "llm:fast")
+    assert entry["available"] is False
+    assert entry["request_budget"]["state"] == "exhausted"
+    assert entry["request_budget"]["remaining"] == 0
+    assert entry["request_budget"]["ceiling"] == 1
+    assert data["status"] == "degraded"
+    assert "compute" in data
+    assert "budget.json" not in response.text
+
+
+def test_status_does_not_expose_corrupt_request_budget_details(tmp_path, monkeypatch):
+    import apps.api.intelligence as intelligence
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+
+    class CappedRepo:
+        def list(self):
+            return [
+                ProviderConfig(
+                    provider_id="fast",
+                    kind=ProviderKind.LOCAL,
+                    display_name="Local fast",
+                    model="fast-v1",
+                    base_url="http://127.0.0.1:11434/v1",
+                    max_requests_per_hour=1,
+                )
+            ]
+
+    budget_path = tmp_path / "private-budget.json"
+    budget_path.write_text("{invalid")
+    monkeypatch.setattr(
+        intelligence, "default_request_budget_path", lambda *_: budget_path
+    )
+    app = FastAPI()
+    app.include_router(create_intelligence_router(
+        _verify, provider_repository=CappedRepo(),
+    ))
+    response = TestClient(app).get(
+        "/intelligence/status?probe_limit=0", headers=AUTH
+    )
+    assert response.status_code == 200
+    entry = next(
+        item for item in response.json()["backends"] if item["name"] == "llm:fast"
+    )
+    assert entry["available"] is False
+    assert entry["request_budget"] == {"state": "unavailable"}
+    assert "private-budget" not in response.text
