@@ -5,7 +5,10 @@ import math
 import pytest
 
 from trading_gym.adapters.orderbook_integrity import OrderBookIntegrityGate
-from trading_gym.market.orderbook import OrderBookSnapshot, normalized_orderbook_features
+from trading_gym.market.orderbook import (
+    OrderBookSnapshot,
+    normalized_orderbook_features,
+)
 
 
 def sample():
