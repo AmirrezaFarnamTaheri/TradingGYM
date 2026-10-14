@@ -68,13 +68,23 @@ class IntelligencePolicyAdapter:
         return float(min(self.action_high, max(self.action_low, value)))
 
     def _signal_to_action(self, signal: DecisionSignal) -> np.ndarray:
-        # Reject contradictory decisions rather than turning a declared long
-        # into a short after deriving direction from a negative numeric value.
+        # An incoherent model decision is a policy violation, not a
+        # recoverable provider outage: falling back could open exposure
+        # after the upstream signal itself failed validation.
         if (
-            (signal.action_kind is ActionKind.LONG and signal.target_leverage < 0)
+            not isinstance(signal, DecisionSignal)
+            or type(signal.action_kind) is not ActionKind
+            or isinstance(signal.target_leverage, (bool, np.bool_))
+            or not isinstance(signal.target_leverage, (int, float, np.number))
+            or not np.isfinite(signal.target_leverage)
+            or isinstance(signal.confidence, (bool, np.bool_))
+            or not isinstance(signal.confidence, (int, float, np.number))
+            or not np.isfinite(signal.confidence)
+            or not 0 <= signal.confidence <= 1
+            or (signal.action_kind is ActionKind.LONG and signal.target_leverage < 0)
             or (signal.action_kind is ActionKind.SHORT and signal.target_leverage > 0)
         ):
-            raise ValueError("decision direction conflicts with target leverage")
+            raise PermissionError("invalid_intelligence_decision")
         # Action space is signed target leverage (see MarginTradingEnv).
         if signal.action_kind is ActionKind.HOLD or signal.target_leverage == 0.0:
             magnitude = 0.0
@@ -238,9 +248,20 @@ class IntelligencePolicyAdapter:
                 self.last_signal = None
                 self.last_failure_types = tuple((*failures, f"{backend.name}:PermissionError"))
                 raise
-            except Exception as exc:
+            except (RuntimeError, OSError) as exc:
+                # Recoverable provider/model outages may use the explicitly
+                # configured fallback chain. PermissionError was already
+                # handled above and cannot silently degrade.
                 failures.append(f"{backend.name}:{type(exc).__name__}")
                 continue
+            except Exception as exc:
+                # Bugs and malformed model outputs (ValueError/TypeError,
+                # arithmetic faults, etc.) are not network outages.
+                self.last_signal = None
+                self.last_failure_types = tuple(
+                    (*failures, f"{backend.name}:{type(exc).__name__}")
+                )
+                raise PermissionError("intelligence_backend_invalid_failure") from exc
             if index:
                 signal = replace(
                     signal,
