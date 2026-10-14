@@ -247,3 +247,68 @@ def test_auto_status_prefers_healthy_llm_and_probes_with_bounded_budget(tmp_path
 def test_status_validates_operator_probe_budget(tmp_path):
     client = _client(_app(tmp_path / "missing.yaml"))
     assert client.get("/intelligence/status?probe_limit=999", headers=AUTH).status_code == 422
+
+
+def test_status_exposes_system1_fleet_without_credential_values(
+    tmp_path, monkeypatch
+):
+    import apps.api.intelligence as intelligence
+
+    monkeypatch.setattr(
+        intelligence,
+        "provider_status",
+        lambda cfg, *, timeout_seconds: {
+            "provider_id": cfg.provider_id,
+            "status": "reachable",
+        },
+    )
+    config = tmp_path / "app.yaml"
+    config.write_text(
+        "intelligence:\n"
+        "  mode: system1\n"
+        "  system1_provider_ids: [remote-gpt, local-ollama]\n"
+        "  system1_use_experience_memory: true\n",
+        encoding="utf-8",
+    )
+    result = _client(_app(config)).get("/intelligence/status", headers=AUTH)
+    assert result.status_code == 200
+    payload = result.json()
+    assert payload["mode"] == "system1"
+    assert payload["system1_provider_ids"] == ["remote-gpt", "local-ollama"]
+    assert payload["system1_memory_enabled"] is True
+    assert payload["selected_hint"] == "system1:remote-gpt"
+    assert "system1:remote-gpt" in [
+        item["name"] for item in payload["backends"]
+    ]
+    assert "REMOTE_LLM_KEY_UNSET_ON_PURPOSE" not in result.text
+
+
+def test_status_does_not_fabricate_healthy_system1_when_probe_fails(
+    tmp_path, monkeypatch
+):
+    import apps.api.intelligence as intelligence
+
+    monkeypatch.setattr(
+        intelligence,
+        "provider_status",
+        lambda cfg, *, timeout_seconds: {
+            "provider_id": cfg.provider_id,
+            "status": "unreachable",
+        },
+    )
+    config = tmp_path / "app.yaml"
+    config.write_text(
+        "intelligence:\n"
+        "  mode: system1\n"
+        "  system1_provider_ids: [remote-gpt]\n",
+        encoding="utf-8",
+    )
+    result = _client(_app(config)).get("/intelligence/status", headers=AUTH)
+    assert result.status_code == 200
+    payload = result.json()
+    assert payload["selected_hint"] == "unavailable"
+    fast = next(
+        item for item in payload["backends"]
+        if item["name"] == "system1:remote-gpt"
+    )
+    assert fast["available"] is False
