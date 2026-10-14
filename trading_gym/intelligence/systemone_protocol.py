@@ -133,10 +133,13 @@ def parse_decision(
         raise ValueError("systemone_choice_disagrees_with_distribution")
     if risk_off >= 0.5:
         return "hold", 0.0, risk_off, "risk-off probability veto; uncalibrated, advisory only"
-    if confidence < confidence_floor or peak < confidence_floor:
-        raise ValueError("systemone_low_confidence_escalate")
+    # A model's explicit HOLD is itself a conservative result. A weak HOLD
+    # must not be promoted to a fallback trading model by classifying it as
+    # an ordinary provider failure.
     if label == "hold" or risk_ceiling == 0:
         return "hold", 0.0, confidence, "typed hold; uncalibrated, advisory only"
+    if confidence < confidence_floor or peak < confidence_floor:
+        raise ValueError("systemone_low_confidence_escalate")
     magnitude = min(max_leverage, risk_ceiling) if risk_ceiling is not None else max_leverage
     return (
         label,
