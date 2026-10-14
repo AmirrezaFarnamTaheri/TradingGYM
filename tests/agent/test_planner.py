@@ -338,6 +338,51 @@ class TestDeterminism:
 
 
 class TestPlannerGuards:
+    def test_permission_denial_does_not_fall_through_to_another_arm(
+        self, tmp_path
+    ) -> None:  # type: ignore[no-untyped-def]
+        invoked: list[str] = []
+
+        class _Denied(DeterministicRuleBackend):
+            def __init__(self) -> None:
+                super().__init__()
+                self.name = "denied"
+
+            def decide(self, context: MarketContext) -> DecisionSignal:
+                invoked.append("denied")
+                raise PermissionError("risk_authority_denied")
+
+        class _Fallback(DeterministicRuleBackend):
+            def __init__(self) -> None:
+                super().__init__()
+                self.name = "fallback"
+
+            def decide(self, context: MarketContext) -> DecisionSignal:
+                invoked.append("fallback")
+                return DecisionSignal(
+                    backend=self.name,
+                    action_kind=ActionKind.LONG,
+                    target_leverage=1.0,
+                    confidence=0.9,
+                    rationale="would otherwise trade",
+                )
+
+        planner = TierCascadePlanner(
+            build_registry(
+                rules_arm("denied", backend=_Denied()),
+                rules_arm("fallback", backend=_Fallback(), tier=ArmTier.T2_STATS),
+            ),
+            FusionConfig(),
+        )
+        with pytest.raises(PermissionError, match="risk_authority_denied"):
+            planner.run(
+                make_context(),
+                regime="trend",
+                principal="agent-axiom1",
+                ledger=make_grants(tmp_path),
+            )
+        assert invoked == ["denied"]
+
     def test_arm_decide_crash_benches_not_aborts(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
         class _Boom(DeterministicRuleBackend):
             def __init__(self) -> None:
