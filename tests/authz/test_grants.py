@@ -188,9 +188,33 @@ class TestEvaluation:
 
     def test_non_numeric_constraint_value_rejected(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
-        grant = ledger.issue(make_request(constraints=(("max_notional_quote", "500"),)))
         with pytest.raises(ConstraintViolation):
-            grant.evaluate(
+            ledger.issue(
+                make_request(constraints=(("max_notional_quote", "500"),))
+            )
+        assert ledger.events() == ()
+
+    def test_historical_non_numeric_ceiling_fails_on_direct_evaluation(
+        self,
+    ) -> None:
+        # Signed historical records must remain parseable for revocation and
+        # forensic review, despite being forbidden on new issuance.
+        from trading_gym.authz.grants import Grant
+
+        legacy = Grant.from_record(
+            {
+                "grant_id": "gw-ffffffffffff",
+                "principal": "agent-axiom1",
+                "scopes": ["trade.paper.**"],
+                "state": GrantState.ACTIVE,
+                "issued_at": TEST_WINDOW,
+                "expires_at": "2026-10-01T00:00:00Z",
+                "issued_by": "operator-1",
+                "constraints": {"max_notional_quote": "500"},
+            }
+        )
+        with pytest.raises(ConstraintViolation):
+            legacy.evaluate(
                 "trade.paper.order.submit",
                 now=TEST_DECISION_TIME,
                 constraints={"max_notional_quote": 100},
@@ -375,17 +399,15 @@ class TestOverlappingGrantRiskControls:
         assert denial.reason == "invalid_constraints"
 
     @pytest.mark.parametrize("ceiling", [float("nan"), float("inf")])
-    def test_bad_ceiling_does_not_get_ignored_at_ledger_level(
+    def test_bad_ceiling_is_rejected_before_journal_append(
         self, tmp_path: Path, ceiling: float
     ) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
-        ledger.issue(make_request(constraints=(("max_notional_quote", ceiling),)))
-        denial = ledger.check(
-            "agent-axiom1", "trade.paper.order.submit",
-            now=TEST_DECISION_TIME, constraints={"max_notional_quote": 1},
-        )
-        assert not denial.allowed
-        assert denial.reason == "invalid_constraints"
+        with pytest.raises(ConstraintViolation):
+            ledger.issue(
+                make_request(constraints=(("max_notional_quote", ceiling),))
+            )
+        assert ledger.events() == ()
 
     def test_future_dated_grant_cannot_be_used_before_issuance(
         self, tmp_path: Path
@@ -473,7 +495,7 @@ class TestGrantAnchorCorruptionRegression:
         self, tmp_path: Path
     ) -> None:
         path = tmp_path / "grants.jsonl"
-        path.write_text("null\\n", encoding="utf-8")
+        path.write_text("null" + chr(10), encoding="utf-8")
         with pytest.raises(GrantLedgerIntegrityError):
             GrantLedger.open(path)
 
@@ -495,3 +517,71 @@ class TestGrantAnchorCorruptionRegression:
         reopened = GrantLedger.open(path)
         assert reopened.verify()["entries"] == 1
         assert reopened.get(grant.grant_id).state == GrantState.ACTIVE
+
+
+class TestGrantIssuanceConstraintValidation:
+    @pytest.mark.parametrize(
+        "ceiling",
+        ["500", True, float("nan"), float("inf"), float("-inf"), -1],
+    )
+    def test_invalid_numeric_ceilings_never_enter_journal(
+        self, tmp_path: Path, ceiling: object
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        with pytest.raises(ConstraintViolation):
+            ledger.issue(
+                make_request(constraints=(("max_notional_quote", ceiling),))
+            )
+        assert ledger.events() == ()
+
+    def test_duplicate_ceiling_names_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        with pytest.raises(ConstraintViolation, match="duplicate"):
+            ledger.issue(
+                make_request(
+                    constraints=(
+                        ("max_notional_quote", 500),
+                        ("max_notional_quote", 1000),
+                    )
+                )
+            )
+
+    def test_malformed_constraint_name_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        with pytest.raises(ConstraintViolation, match="name"):
+            ledger.issue(
+                make_request(constraints=(("max_notional_quote!" , 100),))
+            )
+
+    def test_boolean_ttl_must_not_be_treated_as_one_hour(
+        self, tmp_path: Path
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        with pytest.raises(ValueError, match="ttl_hours"):
+            ledger.issue(make_request(ttl_hours=True))
+
+    def test_multiple_valid_numeric_ceilings_are_preserved(
+        self, tmp_path: Path
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        grant = ledger.issue(
+            make_request(
+                constraints=(
+                    ("max_notional_quote", 500),
+                    ("max_orders_per_hour", 10),
+                )
+            )
+        )
+        assert grant.constraints == {
+            "max_notional_quote": 500,
+            "max_orders_per_hour": 10,
+        }
+        assert grant.evaluate(
+            "trade.paper.order.submit",
+            now=TEST_DECISION_TIME,
+            constraints={"max_notional_quote": 450, "max_orders_per_hour": 9},
+        ).allowed
