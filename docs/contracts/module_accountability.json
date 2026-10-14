@@ -228,12 +228,12 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/authz/grants.py",
-      "sha256": "2da590e53194d2bbb4224d460c207fe1861ddacdef9db73710d1950d92511c58"
+      "sha256": "7451f411ff9ed614e1bdc368350b89d656c60f005d50c424778ef9b98b95d808"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/authz/scopes.py",
-      "sha256": "37c21a37bfb883fe9d25f3f4f07ce8ebdb5bc986d1efca8f9acbc269b3182827"
+      "sha256": "e505d6e6a5a2f3b796699b50b9a8f437b2383792cdf35f6e0f6b9b3e4b24822b"
     },
     {
       "owner": "trading_gym",

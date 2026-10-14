@@ -1,8 +1,21 @@
 # Hardening branch status — 2026-10-11
 
+## New delegated-scope guard — 2026-10-14
+
+Issuing a new wildcard grant across live trading, production or
+economic/payment/venue operations is prohibited at `GrantLedger.issue`.
+Explicit scopes and non-funded `trade.paper.**` remain supported.
+Previously signed grants retain their existing grammar, so old journals
+can be verified and revoked; API authz health now counts legacy broad
+grants needing review before any funded use. Tests cover direct ledger
+issuance, API issuance, narrow grants and historical parse compatibility.
+This does not replace real broker admission/settlement qualification.
+
+
+
 ## Generated artifact hygiene — 2026-10-14
 
-Removed seven zero-byte local synchronization/Rust exit-code artifacts
+Removed three empty lock and four generated Rust exit-code artifacts
 previously committed under `trading_gym/data/manifests/` and
 `rust/axiom_kernel/`. Added narrow ignore and source-release exclusion
 rules with an archive regression test, leaving `poetry.lock`,

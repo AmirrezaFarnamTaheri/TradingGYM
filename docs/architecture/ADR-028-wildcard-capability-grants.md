@@ -24,3 +24,20 @@ The four-eyes path is the platform's strength — and its bottleneck for a stand
 - **Negative.** Grant issuance remains a governance event, so operators must learn one new object. Evaluation adds a per-request in-memory check (~µs), plus a JSONL append only on issuance/revocation/breach.
 - **Risks.** Over-broad patterns (mitigated: reserved-first-segment rejection, no leading `*`, property tests, golden deny tests in `tests/authz/`); breach-latch storms (mitigated: latch is idempotent for already-latched grants; journal rate is bounded by issuance discipline).
 - **Composition.** `/api/v1/authz/*` routers and `require_scope` dependencies consume this module; arms declare `required_scopes` and are pre-flighted against it (ADR-029). A future `sandbox-intersection` rule (playground strips live scopes) extends this module without changing it.
+
+## New-issuance protection (2026-10-14)
+
+The grammar remains backward-compatible with already-signed journal entries,
+including historically broad patterns. **New** grants are stricter: wildcard
+patterns in live, production, payment/economic, broker/venue or comparable
+capital-sensitive namespaces are rejected at the ledger's `issue` boundary.
+`trade.paper.**` and read/research wildcards remain available; individual
+concrete live/economic scopes still require ordinary issuer governance.
+
+Historical broad grants are **not silently rewritten or deleted**, since doing
+so would invalidate signed provenance and make revocation impossible.
+`GET /authz/health` now exposes
+`legacy_high_risk_wildcard_grants`; operators must review and explicitly
+revoke each such grant before funded deployment. This additive restriction
+does not provide transactional settlement authority or substitute for
+independent live-order approval.

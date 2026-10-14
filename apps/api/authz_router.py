@@ -189,7 +189,18 @@ def create_authz_router(auth_dependency: Callable[..., Any]) -> APIRouter:
             verification = ledger.verify()
         except GrantLedgerIntegrityError:
             return {"ledger_valid": False, "entries": 0}
-        return {"ledger_valid": True, "entries": verification["entries"]}
+        # Historical signed wildcard grants stay verifiable, but must be
+        # surfaced for explicit operator revocation before funded deployment.
+        legacy_broad = sum(
+            1
+            for grant in ledger.active_grants()
+            if any(not pattern.is_issuable() for pattern in grant.scopes.patterns)
+        )
+        return {
+            "ledger_valid": True,
+            "entries": verification["entries"],
+            "legacy_high_risk_wildcard_grants": legacy_broad,
+        }
 
     @router.post("/grants")
     def issue_grant(

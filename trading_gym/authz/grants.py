@@ -494,6 +494,12 @@ class GrantLedger:
         scopes = ScopeSet.parse(tuple(request.scopes))
         if not scopes.patterns:
             raise ScopeError("grant must carry at least one scope pattern")
+        for pattern in scopes.patterns:
+            if not pattern.is_issuable():
+                raise ScopeError(
+                    "new wildcard grants cannot cover live/economic authority: "
+                    f"{pattern.text!r}"
+                )
         if len(scopes.patterns) > _MAX_SCOPES_PER_GRANT:
             raise ValueError(f"grant exceeds {_MAX_SCOPES_PER_GRANT} scope patterns")
         grant_id = "gw-" + uuid.uuid4().hex[:12]
