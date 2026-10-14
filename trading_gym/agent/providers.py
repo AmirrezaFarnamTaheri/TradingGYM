@@ -272,7 +272,16 @@ def provider_status(
         allow_loopback=config.kind is ProviderKind.LOCAL,
         resolve_dns=True,
     )
-    destination = urljoin(base_url.rstrip("/") + "/", config.health_path.lstrip("/"))
+    # Native /v1/systemone implementations, including the reviewed Go
+    # scorer, may expose POST only rather than an OpenAI GET /models API.
+    # A method-not-allowed response on the exact typed route is evidence of
+    # reachability, not of model readiness or decision quality.
+    health_path = (
+        config.systemone_path
+        if config.wire_protocol == "systemone" and config.health_path == "/models"
+        else config.health_path
+    )
+    destination = urljoin(base_url.rstrip("/") + "/", health_path.lstrip("/"))
     headers: dict[str, str] = {}
     if available_refs:
         # Health is advisory only; the real inference request rotates keys
@@ -286,7 +295,11 @@ def provider_status(
         ) as client:
             response = client.get(destination, headers=headers)
         code = response.status_code
-        if 200 <= code < 300:
+        if 200 <= code < 300 or (
+            config.wire_protocol == "systemone"
+            and health_path == config.systemone_path
+            and code == 405
+        ):
             status = "reachable"
         elif code in (401, 403):
             status = "unauthorized"
