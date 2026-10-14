@@ -38,6 +38,18 @@ def included(path: Path) -> bool:
         return False
     if path.suffix in EXCLUDED_SUFFIXES:
         return False
+    # Runtime-generated locks/exit codes may exist in a local checkout
+    # despite .gitignore; never ship them as source-release content.
+    if (
+        rel.parts[:3] == ("trading_gym", "data", "manifests")
+        and path.suffix == ".lock"
+    ):
+        return False
+    if (
+        rel.parts[:2] == ("rust", "axiom_kernel")
+        and path.suffix == ".exit"
+    ):
+        return False
     if path.resolve() == OUT.resolve():
         return False
     return path.is_file()

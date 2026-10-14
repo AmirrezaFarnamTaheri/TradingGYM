@@ -150,3 +150,8 @@ rust/*/target/
 # project and CI resolve dependencies through poetry.lock.
 uv.lock
 scratchpad/
+
+# Generated process state and local Rust checks, never source evidence.
+# Do not ignore tracked dependency locks (poetry.lock / Cargo.lock).
+/trading_gym/data/manifests/*.lock
+/rust/axiom_kernel/*.exit
