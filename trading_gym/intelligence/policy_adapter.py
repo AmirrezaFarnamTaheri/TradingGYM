@@ -39,8 +39,14 @@ class IntelligencePolicyAdapter:
             not np.isfinite(float(action_low))
             or not np.isfinite(float(action_high))
             or action_high <= action_low
+            or action_low > 0
+            or action_high < 0
         ):
-            raise ValueError("action bounds must be finite and ordered")
+            # HOLD is zero signed leverage. If zero cannot be represented,
+            # clipping HOLD may silently manufacture a long/short order.
+            raise ValueError(
+                "action bounds must be finite, ordered and admit neutral HOLD"
+            )
         self.backend = backend
         self.fallback = fallback_backend
         self._fallback_chain = (
