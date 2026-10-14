@@ -157,7 +157,11 @@ def preview_route(candidates: list[dict], request: dict) -> dict[str, Any]:
             reasons.append("provider_disabled")
         if c["health"] != "available":
             reasons.append("provider_unavailable")
-        if c["remaining_requests"] == 0:
+        if c["remaining_requests"] is None:
+            # A missing observation is not evidence of uncapped capacity.
+            # Operators must enter a verified positive remaining count.
+            reasons.append("request_budget_unknown")
+        elif c["remaining_requests"] == 0:
             reasons.append("request_budget_exhausted")
         if c["is_remote"] and not task["allow_remote_context"]:
             reasons.append("remote_disclosure_denied")
