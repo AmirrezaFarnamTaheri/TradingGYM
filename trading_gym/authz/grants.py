@@ -361,9 +361,20 @@ class GrantLedger:
         return cls(Path(path), verify=verify)
 
     def _load(self, *, verify: bool) -> None:
+        if self._path.is_symlink():
+            raise GrantLedgerIntegrityError("grants journal must not be a symlink")
         if not self._path.exists():
+            if verify and (
+                self._anchor_path.exists() or self._anchor_path.is_symlink()
+            ):
+                raise GrantLedgerIntegrityError(
+                    "grants journal missing but anchor exists (possible truncation)"
+                )
             return
-        raw_lines = self._path.read_text(encoding="utf-8").splitlines()
+        try:
+            raw_lines = self._path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeError) as exc:
+            raise GrantLedgerIntegrityError("grants journal unreadable") from exc
         for number, line in enumerate(raw_lines, start=1):
             if not line.strip():
                 raise GrantLedgerIntegrityError("blank line in grants journal")
@@ -377,6 +388,10 @@ class GrantLedger:
                 raise GrantLedgerIntegrityError(
                     f"grants journal has invalid JSON at line {number}"
                 ) from exc
+            if not isinstance(record, Mapping):
+                raise GrantLedgerIntegrityError(
+                    f"journal record at line {number} is not a JSON object"
+                )
             self._events.append(self._decode_event(record))
         if verify:
             self._verify_chain()
@@ -466,7 +481,17 @@ class GrantLedger:
             previous = event.entry_hash
 
     def _verify_anchor(self) -> None:
+        if self._anchor_path.is_symlink():
+            raise GrantLedgerIntegrityError(
+                "grants journal anchor must not be a symlink"
+            )
         if not self._events:
+            # Do not accept a wholly truncated journal that still has its
+            # external anchor. The previous early return silently trusted it.
+            if self._anchor_path.exists():
+                raise GrantLedgerIntegrityError(
+                    "empty grants journal retains an anchor (possible truncation)"
+                )
             return
         expected_seq = self._events[-1].seq
         expected_head = self._events[-1].entry_hash
@@ -474,10 +499,23 @@ class GrantLedger:
             raise GrantLedgerIntegrityError(
                 "grants journal anchor missing for non-empty journal"
             )
-        anchor = json.loads(self._anchor_path.read_text(encoding="utf-8"))
+        try:
+            if self._anchor_path.stat().st_size > 4096:
+                raise GrantLedgerIntegrityError(
+                    "grants journal anchor exceeds size bound"
+                )
+            anchor = json.loads(self._anchor_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, ValueError) as exc:
+            raise GrantLedgerIntegrityError(
+                "grants journal anchor unreadable or invalid"
+            ) from exc
         if (
-            anchor.get(_ANCHOR_SEQ) != expected_seq
-            or anchor.get(_ANCHOR_HEAD) != expected_head
+            not isinstance(anchor, dict)
+            or set(anchor) != {_ANCHOR_SEQ, _ANCHOR_HEAD}
+            or type(anchor[_ANCHOR_SEQ]) is not int
+            or type(anchor[_ANCHOR_HEAD]) is not str
+            or anchor[_ANCHOR_SEQ] != expected_seq
+            or anchor[_ANCHOR_HEAD] != expected_head
         ):
             raise GrantLedgerIntegrityError(
                 "grants journal anchor mismatch (truncation or divergence)"

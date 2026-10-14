@@ -59,3 +59,16 @@ runtime governance at the execution boundary.
 For historical records containing invalid numeric ceilings, direct evaluation
 raises `ConstraintViolation` and ledger-level checks return an explicit
 `invalid_constraints` denial. Signed journal bytes remain unchanged.
+
+## Journal anchor integrity under complete truncation (2026-10-14)
+
+On verified open, a journal with zero entries **must not** have a residual
+anchor, and a missing journal with an anchor is treated as a truncation.
+Malformed, oversized, nonobject or symlinked anchors, unreadable journals
+and nonobject event records raise the typed `GrantLedgerIntegrityError`
+instead of unhandled `JSONDecodeError` or `AttributeError`.
+The anchor contains exactly `seq` (integer, not boolean) and `head`
+(string), verified against the complete journal tail. This defends against
+truncation while the anchor survives; a privileged actor who removes both
+the journal and anchor still needs an **external trusted checkpoint** to
+be detected. Those stronger, externally anchored guarantees are not claimed.

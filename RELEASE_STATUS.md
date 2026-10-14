@@ -1,5 +1,18 @@
 # Hardening branch status — 2026-10-11
 
+## Authz journal truncation/corruption integrity (2026-10-14)
+
+Fixed hash-ledger replay accepting an entirely emptied journal when its
+anchor remained, and the related missing-journal case. Malformed or
+oversized anchors and non-object journal entries now surface typed
+`GrantLedgerIntegrityError` rather than unexpected JSON/attribute
+exceptions. Read-time symlink defenses and strict anchor shape checks
+were added. Regression tests cover full truncation, missing journal,
+malformed anchor records and unchanged valid replay. A full in-repository
+pytest matrix is still not certified while hosted runners execute no steps.
+
+
+
 ## Ledger denial-composition, numeric and temporal safety (2026-10-14)
 
 New regressions ensure overlapping grants cannot bypass bounded notional or
