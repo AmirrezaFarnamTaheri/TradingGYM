@@ -35,6 +35,9 @@ from trading_gym.intelligence.systemone_native_backend import (
     httpx_systemone_transport,
 )
 from trading_gym.intelligence.system1_context import build_system1_packet
+from trading_gym.intelligence.model_route_preview import (
+    preview_route as preview_model_route,
+)
 from trading_gym.intelligence.systemone_evaluation import (
     evaluate_records as evaluate_systemone_holdout,
 )
@@ -63,6 +66,7 @@ __all__ = [
     "NativeSystemOneDecisionBackend",
     "httpx_systemone_transport",
     "evaluate_systemone_holdout",
+    "preview_model_route",
     "build_system1_packet",
     "LLMTransport",
     "httpx_transport",
