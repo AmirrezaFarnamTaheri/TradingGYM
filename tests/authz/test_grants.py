@@ -420,3 +420,78 @@ class TestOverlappingGrantRiskControls:
         )
         assert not decision.allowed
         assert decision.reason == "grant_revoked"
+
+
+
+class TestGrantAnchorCorruptionRegression:
+    def test_full_journal_truncation_with_surviving_anchor_is_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "grants.jsonl"
+        ledger = GrantLedger.open(path)
+        ledger.issue(make_request())
+        assert path.with_suffix(".jsonl.anchor").exists()
+        path.write_text("", encoding="utf-8")
+        with pytest.raises(GrantLedgerIntegrityError, match="truncation"):
+            GrantLedger.open(path)
+
+    def test_deleted_journal_with_surviving_anchor_is_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "grants.jsonl"
+        ledger = GrantLedger.open(path)
+        ledger.issue(make_request())
+        path.unlink()
+        with pytest.raises(GrantLedgerIntegrityError, match="truncation"):
+            GrantLedger.open(path)
+
+    @pytest.mark.parametrize("bad_anchor", ["{broken", "[]", "null", "true"])
+    def test_malformed_anchor_yields_typed_integrity_failure(
+        self, tmp_path: Path, bad_anchor: str
+    ) -> None:
+        path = tmp_path / "grants.jsonl"
+        GrantLedger.open(path).issue(make_request())
+        path.with_suffix(".jsonl.anchor").write_text(
+            bad_anchor, encoding="utf-8"
+        )
+        with pytest.raises(GrantLedgerIntegrityError):
+            GrantLedger.open(path)
+
+    def test_boolean_anchor_sequence_is_not_accepted_as_integer(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "grants.jsonl"
+        GrantLedger.open(path).issue(make_request())
+        anchor_path = path.with_suffix(".jsonl.anchor")
+        anchor = json.loads(anchor_path.read_text(encoding="utf-8"))
+        anchor["seq"] = True  # True == 1 in Python; must fail strict shape.
+        anchor_path.write_text(json.dumps(anchor), encoding="utf-8")
+        with pytest.raises(GrantLedgerIntegrityError):
+            GrantLedger.open(path)
+
+    def test_non_object_journal_record_is_integrity_error(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "grants.jsonl"
+        path.write_text("null\\n", encoding="utf-8")
+        with pytest.raises(GrantLedgerIntegrityError):
+            GrantLedger.open(path)
+
+    def test_bounded_anchor_size_prevents_unbounded_json_read(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "grants.jsonl"
+        GrantLedger.open(path).issue(make_request())
+        path.with_suffix(".jsonl.anchor").write_text(
+            " " * 8192, encoding="utf-8"
+        )
+        with pytest.raises(GrantLedgerIntegrityError, match="size bound"):
+            GrantLedger.open(path)
+
+    def test_existing_valid_anchor_survives_roundtrip(self, tmp_path: Path) -> None:
+        path = tmp_path / "grants.jsonl"
+        first = GrantLedger.open(path)
+        grant = first.issue(make_request())
+        reopened = GrantLedger.open(path)
+        assert reopened.verify()["entries"] == 1
+        assert reopened.get(grant.grant_id).state == GrantState.ACTIVE
