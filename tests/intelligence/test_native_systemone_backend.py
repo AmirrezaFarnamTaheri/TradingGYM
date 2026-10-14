@@ -208,3 +208,36 @@ def test_system1_factory_selects_native_backend_and_chat_mode_refuses_it():
             action_high=5,
             provider_repository=Repository(),
         )
+
+
+def test_post_only_native_endpoint_reports_reachability_on_http_405(monkeypatch):
+    import trading_gym.agent.providers as providers
+
+    urls = []
+
+    class Client:
+        def __init__(self, **kwargs):
+            assert kwargs["follow_redirects"] is False
+            assert kwargs["trust_env"] is False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, url, headers):
+            urls.append(url)
+            return httpx.Response(
+                405, request=httpx.Request("GET", url)
+            )
+
+    monkeypatch.setattr(providers.httpx, "Client", Client)
+    monkeypatch.setattr(
+        providers, "validate_base_url", lambda value, **kwargs: value
+    )
+    config = _provider(health_path="/models")
+    report = providers.provider_status(config)
+    assert report["status"] == "reachable"
+    assert report["http_status"] == 405
+    assert urls == ["http://127.0.0.1:8080/v1/systemone"]
