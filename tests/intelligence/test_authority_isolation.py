@@ -142,3 +142,25 @@ def test_contradictory_long_direction_cannot_become_a_short_order():
     assert float(action[0]) == pytest.approx(1.0)
     assert engine.last_signal.backend.endswith("(degraded)")
     assert any("ValueError" in reason for reason in engine.last_failure_types)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"risk_limits": {"max_leverage": float("nan")}},
+        {"risk_limits": {"max_leverage": True}},
+        {"market_features": {"volatility": float("inf")}},
+        {"market_features": {"momentum": True}},
+        {"is_live": "false"},
+        {"drawdown_from_peak": 1.01},
+    ],
+)
+def test_invalid_risk_or_feature_context_cannot_trigger_unguarded_fallback(overrides):
+    primary, fallback = DecisionBackend(), DecisionBackend()
+
+    def bad_context(obs):
+        return context_builder(obs) | overrides
+
+    with pytest.raises(ValueError, match="market/account context"):
+        adapter(primary, fallback, builder=bad_context).predict(np.zeros(6))
+    assert primary.calls == fallback.calls == 0
