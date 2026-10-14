@@ -272,3 +272,151 @@ def test_existing_legacy_grant_record_can_still_be_parsed() -> None:
     loaded = Grant.from_record(legacy)
     assert loaded.scopes.patterns[0].text == "trade.live.**"
     assert not loaded.scopes.patterns[0].is_issuable()
+
+
+
+class TestOverlappingGrantRiskControls:
+    """Constraints bind matching authority, not an arbitrary first grant."""
+
+    def test_omitted_observation_denied_even_on_direct_evaluate(
+        self, tmp_path: Path
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        grant = ledger.issue(
+            make_request(constraints=(("max_notional_quote", 500),))
+        )
+        decision = grant.evaluate(
+            "trade.paper.order.submit", now=TEST_DECISION_TIME
+        )
+        assert not decision.allowed
+        assert decision.reason == "constraint_missing_max_notional_quote"
+        assert not ledger.check(
+            "agent-axiom1", "trade.paper.order.submit", now=TEST_DECISION_TIME
+        ).allowed
+
+    def test_deny_overrides_allow_even_when_unconstrained_grant_came_first(
+        self, tmp_path: Path
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        ledger.issue(make_request())
+        ledger.issue(
+            make_request(constraints=(("max_notional_quote", 500),))
+        )
+        decision = ledger.check(
+            "agent-axiom1", "trade.paper.order.submit",
+            now=TEST_DECISION_TIME,
+            constraints={"max_notional_quote": 501},
+        )
+        assert not decision.allowed
+        assert decision.reason == "constraint_max_notional_quote"
+        with pytest.raises(ScopeDenied):
+            ledger.require(
+                "agent-axiom1", "trade.paper.order.submit",
+                now=TEST_DECISION_TIME,
+                constraints={"max_notional_quote": 501},
+            )
+
+    def test_matching_restricted_and_unrestricted_grants_allow_safe_values(
+        self, tmp_path: Path
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        ledger.issue(make_request())
+        ledger.issue(
+            make_request(constraints=(("max_notional_quote", 500),))
+        )
+        verdict = ledger.check(
+            "agent-axiom1", "trade.paper.order.submit",
+            now=TEST_DECISION_TIME,
+            constraints={"max_notional_quote": 499},
+        )
+        assert verdict.allowed
+        assert ledger.require(
+            "agent-axiom1", "trade.paper.order.submit",
+            now=TEST_DECISION_TIME,
+            constraints={"max_notional_quote": 499},
+        ).grant_id == verdict.grant_id
+
+    def test_unrelated_scope_cannot_veto_authorized_action(
+        self, tmp_path: Path
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        ledger.issue(
+            make_request(
+                scopes=("research.**",),
+                constraints=(("max_drawdown_pct", 1),),
+            )
+        )
+        ledger.issue(make_request())
+        assert ledger.check(
+            "agent-axiom1", "trade.paper.order.submit", now=TEST_DECISION_TIME
+        ).allowed
+
+    @pytest.mark.parametrize("observed", [
+        float("nan"), float("inf"), float("-inf"), True,
+    ])
+    def test_invalid_observation_fails_closed_without_500(
+        self, tmp_path: Path, observed: object
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        grant = ledger.issue(
+            make_request(constraints=(("max_notional_quote", 500),))
+        )
+        with pytest.raises(ConstraintViolation):
+            grant.evaluate(
+                "trade.paper.order.submit", now=TEST_DECISION_TIME,
+                constraints={"max_notional_quote": observed},
+            )
+        denial = ledger.check(
+            "agent-axiom1", "trade.paper.order.submit",
+            now=TEST_DECISION_TIME,
+            constraints={"max_notional_quote": observed},
+        )
+        assert not denial.allowed
+        assert denial.reason == "invalid_constraints"
+
+    @pytest.mark.parametrize("ceiling", [float("nan"), float("inf")])
+    def test_bad_ceiling_does_not_get_ignored_at_ledger_level(
+        self, tmp_path: Path, ceiling: float
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        ledger.issue(make_request(constraints=(("max_notional_quote", ceiling),)))
+        denial = ledger.check(
+            "agent-axiom1", "trade.paper.order.submit",
+            now=TEST_DECISION_TIME, constraints={"max_notional_quote": 1},
+        )
+        assert not denial.allowed
+        assert denial.reason == "invalid_constraints"
+
+    def test_future_dated_grant_cannot_be_used_before_issuance(
+        self, tmp_path: Path
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        grant = ledger.issue(
+            make_request(issued_at="2026-09-05T00:00:00Z", ttl_hours=24)
+        )
+        assert not grant.is_active(now=TEST_DECISION_TIME)
+        early = grant.evaluate(
+            "trade.paper.order.submit", now=TEST_DECISION_TIME
+        )
+        assert not early.allowed
+        assert early.reason == "grant_not_yet_valid"
+        start = grant.evaluate(
+            "trade.paper.order.submit", now="2026-09-05T00:00:00Z"
+        )
+        assert start.allowed
+
+    def test_old_grant_handle_stops_authorizing_after_revocation(
+        self, tmp_path: Path
+    ) -> None:
+        ledger = GrantLedger.open(tmp_path / "grants.jsonl")
+        old_handle = ledger.issue(make_request())
+        assert old_handle.evaluate(
+            "trade.paper.order.submit", now=TEST_DECISION_TIME
+        ).allowed
+        ledger.revoke(old_handle.grant_id, actor="operator-1")
+        assert not old_handle.is_active(now=TEST_DECISION_TIME)
+        decision = old_handle.evaluate(
+            "trade.paper.order.submit", now=TEST_DECISION_TIME
+        )
+        assert not decision.allowed
+        assert decision.reason == "grant_revoked"
