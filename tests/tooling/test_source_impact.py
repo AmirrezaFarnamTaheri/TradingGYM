@@ -34,11 +34,19 @@ def test_typescript_relative_imports_and_stable_digest(tmp_path):
     put(tmp_path, "frontend/src/App.jsx", 'import { read } from "./api";\n')
     idx = build_source_index(tmp_path)
     first = evaluate_source_changes(idx, ["frontend/src/api.js"])
-    second = evaluate_source_changes(build_source_index(tmp_path), ["frontend/src/api.js"])
+    second = evaluate_source_changes(
+        build_source_index(tmp_path), ["frontend/src/api.js"]
+    )
     assert "frontend/src/App.jsx" in first["impacted"]
     assert first["report_sha256"] == second["report_sha256"]
-    put(tmp_path, "frontend/src/App.jsx", 'import { read } from "./api";\n// comment\n')
-    assert evaluate_source_changes(build_source_index(tmp_path), ["frontend/src/api.js"])["report_sha256"] != first["report_sha256"]
+    put(
+        tmp_path, "frontend/src/App.jsx",
+        'import { read } from "./api";\n// comment\n',
+    )
+    after = evaluate_source_changes(
+        build_source_index(tmp_path), ["frontend/src/api.js"]
+    )
+    assert after["report_sha256"] != first["report_sha256"]
 
 
 def test_reject_unknown_and_outside_paths(tmp_path):
