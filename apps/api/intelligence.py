@@ -63,6 +63,7 @@ def create_intelligence_router(
         llm_provider_id = None
         system1_provider_ids: list[str] = []
         system1_memory_enabled = False
+        system1_working_memory_enabled = False
         if effective_config_path is not None and Path(effective_config_path).exists():
             try:
                 import yaml
@@ -96,6 +97,9 @@ def create_intelligence_router(
                         system1_provider_ids = list(fleet)
                     system1_memory_enabled = (
                         icfg.get("system1_use_experience_memory") is True
+                    )
+                    system1_working_memory_enabled = (
+                        icfg.get("system1_use_working_memory") is True
                     )
             except Exception as exc:  # noqa: BLE001 - report, don't fail surface
                 return {
@@ -247,6 +251,7 @@ def create_intelligence_router(
             "llm_provider_id": llm_provider_id,
             "system1_provider_ids": system1_provider_ids,
             "system1_memory_enabled": system1_memory_enabled,
+            "system1_working_memory_enabled": system1_working_memory_enabled,
             "backends": backends,
             "compute": torch_info,
             "provider_inventory_error": provider_error,
