@@ -585,3 +585,86 @@ class TestGrantIssuanceConstraintValidation:
             now=TEST_DECISION_TIME,
             constraints={"max_notional_quote": 450, "max_orders_per_hour": 9},
         ).allowed
+
+
+class TestConcurrentGrantJournalTransitions:
+    def test_stale_second_revoke_is_rejected_before_append(
+        self, tmp_path: Path
+    ) -> None:
+        journal = tmp_path / "grants.jsonl"
+        first = GrantLedger.open(journal)
+        grant = first.issue(make_request())
+        second = GrantLedger.open(journal)
+
+        first.revoke(grant.grant_id, actor="operator-1")
+        with pytest.raises(ValueError, match="cannot revoke"):
+            second.revoke(grant.grant_id, actor="operator-2")
+
+        current = GrantLedger.open(journal)
+        assert current.verify()["entries"] == 2
+        assert current.get(grant.grant_id).state == GrantState.REVOKED
+
+    def test_stale_breach_after_revoke_preserves_actual_state(
+        self, tmp_path: Path
+    ) -> None:
+        journal = tmp_path / "grants.jsonl"
+        first = GrantLedger.open(journal)
+        grant = first.issue(make_request())
+        second = GrantLedger.open(journal)
+
+        first.revoke(grant.grant_id, actor="operator-1")
+        second._latch_breach(grant.grant_id)
+
+        current = GrantLedger.open(journal)
+        assert current.verify()["entries"] == 2
+        assert current.get(grant.grant_id).state == GrantState.REVOKED
+        assert second.get(grant.grant_id).state == GrantState.REVOKED
+
+    def test_two_stale_breach_latches_are_idempotent(
+        self, tmp_path: Path
+    ) -> None:
+        journal = tmp_path / "grants.jsonl"
+        first = GrantLedger.open(journal)
+        grant = first.issue(make_request())
+        second = GrantLedger.open(journal)
+
+        first._latch_breach(grant.grant_id)
+        second._latch_breach(grant.grant_id)
+
+        current = GrantLedger.open(journal)
+        assert current.verify()["entries"] == 2
+        assert current.get(grant.grant_id).state == GrantState.REVOKED_BREACH
+
+    def test_colliding_issuer_handles_are_checked_under_lock(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from types import SimpleNamespace
+
+        journal = tmp_path / "grants.jsonl"
+        first = GrantLedger.open(journal)
+        second = GrantLedger.open(journal)
+        monkeypatch.setattr(
+            "trading_gym.authz.grants.uuid.uuid4",
+            lambda: SimpleNamespace(hex="f" * 32),
+        )
+
+        grant = first.issue(make_request())
+        with pytest.raises(ValueError, match="duplicate grant ID"):
+            second.issue(make_request())
+
+        current = GrantLedger.open(journal)
+        assert current.verify()["entries"] == 1
+        assert current.get(grant.grant_id).state == GrantState.ACTIVE
+
+    def test_unrelated_concurrent_issuance_remains_valid(
+        self, tmp_path: Path
+    ) -> None:
+        journal = tmp_path / "grants.jsonl"
+        first = GrantLedger.open(journal)
+        second = GrantLedger.open(journal)
+        first.issue(make_request())
+        second.issue(make_request(principal="agent-other"))
+
+        current = GrantLedger.open(journal)
+        assert current.verify()["entries"] == 2
+        assert len(current.active_grants(now=TEST_DECISION_TIME)) == 2
