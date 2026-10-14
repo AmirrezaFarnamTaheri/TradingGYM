@@ -39,9 +39,17 @@ Implemented on this draft branch:
 - The 1 MiB committed OpenAPI artifact has had the `ProviderConfig` schema
   updated with native protocol and fleet fields; full exact-app generation
   remains **UNVERIFIED** due the unavailable checkout/runner environment.
+- An offline deterministic model capability/cost routing preview rejects
+  unknown prices, exhausted caps, protocol/context mismatch and unconsented
+  remote context. The operator workspace now lists six non-mutating,
+  disabled-by-default local/native/hosted provider templates. Neither
+  feature grants provider activation or trading authority.
+- Explicit low-confidence HOLD remains zero leverage in both native typed
+  and legacy fast-chat System-1 paths, rather than triggering a risk-on
+  fallback. The chat-backend exact-head regression remains unexecuted.
 
 An isolated Python implementation suite (controlled external dependencies)
-passed **46/46 tests**, including the model-identity, risk-cap, and explicit
+passed **64/64 tests**, including the model-identity, risk-cap, and explicit
 HOLD regression cases. The `jev-model-router` donor's self-contained Python
 suite passed **60 tests with one skip**. These are not a green
 repository-level certification. The exact PR-head Python 3.11/3.12, frontend,
