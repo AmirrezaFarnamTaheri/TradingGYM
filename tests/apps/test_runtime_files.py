@@ -15,9 +15,16 @@ def _signal(path: Path, content: str = "PANIC_TRIGGERED_AT_1\n") -> None:
 
 
 class _ReadOnlyAck:
-    def __init__(self, path: Path, *, replace_with: str | None = None) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        replace_with: str | None = None,
+        authoritative: bool = True,
+    ) -> None:
         self.path = path
         self.replace_with = replace_with
+        self.can_acknowledge_panic = authoritative
         self.calls = 0
 
     async def flatten(self) -> bool:
@@ -93,4 +100,31 @@ async def test_empty_panic_file_cannot_be_acknowledged(
     path.write_bytes(b"")
     with pytest.raises(ValueError, match="panic signal is invalid"):
         await handle_panic_request(_ReadOnlyAck(path), path=path)
+    assert path.exists()
+
+
+@pytest.mark.asyncio
+async def test_non_authoritative_dry_run_cannot_consume_global_panic(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "panic.signal"
+    _signal(path)
+    adapter = _ReadOnlyAck(path, authoritative=False)
+    assert await handle_panic_request(adapter, path=path) is False
+    assert adapter.calls == 0
+    assert path.exists()
+
+
+@pytest.mark.asyncio
+async def test_missing_authority_attestation_never_clears_panic(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "panic.signal"
+    _signal(path)
+
+    class _Unqualified:
+        async def flatten(self) -> bool:
+            return True
+
+    assert await handle_panic_request(_Unqualified(), path=path) is False
     assert path.exists()
