@@ -191,6 +191,42 @@ uncalibrated probabilities. The isolated, controlled Python suite now covers
 verification and representative real-model holdouts remain outstanding.
 
 
+## Follow-up invariants: authority, attribution and privacy
+
+Independent review uncovered three source-level authority hazards, now
+addressed on the draft PR:
+
+- **Model attribution:** a typed inference response must name the exact
+  configured model ID. A missing or mismatched identifier is a terminal
+  `PermissionError`, not a provider outage that may invoke another trading
+  policy. This is identity checking, not proof of artifact integrity.
+- **Abstention and risk limits:** an explicit low-confidence HOLD remains
+  zero exposure instead of escalating to a potentially risk-on rule. Negative
+  or inverted maximum/minimum leverage boundaries are invalid **before**
+  provider fallback; the policy action space must contain zero so HOLD cannot
+  be clipped into a long or short action.
+- **Provider admission:** Go System-One protects one shared scorer with a
+  global busy lock and HTTP 429. Enabling per-key 429 rotation for native
+  providers is rejected, because credential cycling cannot increase global
+  inference capacity.
+- **Independent memory consent:** `system1_use_working_memory=false` is now
+  the default. Disclosing settled short-term working-memory P&L to any
+  System-1 provider requires a separate opt-in, independent of
+  `system1_use_experience_memory`. The authenticated operator status and
+  existing model-fleet panel expose both booleans without journal contents.
+- **Schema evidence:** the committed OpenAPI `ProviderConfig` schema has
+  been reconciled to the changed Pydantic model (multi-key roster, request
+  cap, wire protocol and native route). This is an **incremental, schema-level
+  update**; the exact FastAPI generated file must still pass
+  `python scripts/export_openapi.py --check` on a full repository checkout.
+
+The isolated source mirror now passes **43/43** bounded protocol, native
+backend, model-identity, hold, evaluation and CLI checks. Additional
+repository tests for authority prevalidation, consent, health, navigation,
+and API behavior were authored but **have not been executed on PR-head
+CI**. The independent jev-model-router tests reported **60 passes and one
+skip**; no other donor is qualified by that result.
+
 ## Verification boundary and remaining gates
 
 The exact pure protocol contract ran **20/20 tests in an isolated Python
@@ -204,8 +240,9 @@ real external native service, model-quality calibration, leak-free
 historical evaluation, full suite, frontend/Rust/security and broker
 qualification remain outstanding.
 
-The manually maintained OpenAPI snapshot must be regenerated from the
-application with `python scripts/export_openapi.py` if provider schemas
-appear there. Source-accountability SHA-256 entries are tracked in the
+The ProviderConfig portion of the OpenAPI snapshot was reconciled
+to the current validated model schema without rewriting other definitions;
+the full application-derived `python scripts/export_openapi.py --check`
+remains an outstanding exact-head acceptance gate. Source-accountability SHA-256 entries are tracked in the
 generated manifest; the generator's `--check` gate must run on the
 final PR head. The branch remains draft and funded live **NO-GO**.
