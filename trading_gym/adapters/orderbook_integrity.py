@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-from trading_gym.market.orderbook import OrderBookSnapshot
+from itertools import islice
+
+from trading_gym.market.orderbook import MAX_BOOK_LEVELS, OrderBookSnapshot
+
+
+def _bounded_levels(levels):
+    materialized = tuple(islice(levels, MAX_BOOK_LEVELS + 1))
+    if len(materialized) > MAX_BOOK_LEVELS:
+        raise ValueError("too many book levels")
+    return materialized
 
 
 class OrderBookIntegrityGate:
@@ -16,7 +25,9 @@ class OrderBookIntegrityGate:
 
     def apply_snapshot(self, sequence, bids, asks):
         try:
-            snapshot = OrderBookSnapshot(sequence, tuple(bids), tuple(asks)).validate()
+            snapshot = OrderBookSnapshot(
+                sequence, _bounded_levels(bids), _bounded_levels(asks)
+            ).validate()
         except (ValueError, TypeError):
             self._invalidate()
             raise
@@ -37,7 +48,9 @@ class OrderBookIntegrityGate:
             self._invalidate()
             raise ValueError("sequence_gap_requires_snapshot")
         try:
-            snapshot = OrderBookSnapshot(sequence, tuple(bids), tuple(asks)).validate()
+            snapshot = OrderBookSnapshot(
+                sequence, _bounded_levels(bids), _bounded_levels(asks)
+            ).validate()
         except (ValueError, TypeError):
             self._invalidate()
             raise
