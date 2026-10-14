@@ -119,7 +119,9 @@ def build_intelligence_policy(
                     confidence_floor=config.system1_confidence_floor,
                     max_leverage=config.system1_max_leverage,
                     timeout_seconds=config.system1_timeout_seconds,
-                    working_memory=working_memory,
+                    working_memory=(
+                        working_memory if config.system1_use_working_memory else None
+                    ),
                     experience_memory=evidence,
                 )
             )
