@@ -106,3 +106,18 @@ def test_direct_snapshot_has_same_book_level_limit():
     book = OrderBookSnapshot(1, ((99, 1),) * 100_001, ((101, 1),))
     with pytest.raises(ValueError, match="too many book levels"):
         book.validate()
+
+
+def test_upstream_generator_failure_requires_new_snapshot():
+    gate = OrderBookIntegrityGate()
+    gate.apply_snapshot(3, [(99, 1)], [(101, 1)])
+
+    def broken():
+        yield (99, 1)
+        raise RuntimeError('source stream died')
+
+    with pytest.raises(RuntimeError, match='source stream died'):
+        gate.apply_delta(4, broken(), [(101, 1)])
+    assert gate.requires_snapshot and gate.last_sequence is None
+    with pytest.raises(ValueError, match='sequence_gap_requires_snapshot'):
+        gate.apply_delta(5, [(99, 1)], [(101, 1)])
