@@ -167,6 +167,11 @@
     },
     {
       "owner": "trading_gym",
+      "path": "trading_gym/agent/provider_presets.py",
+      "sha256": "de36eb06a0d68b7ae7bc9d5594917274ed2c060618c90a3339335d2141bdec4e"
+    },
+    {
+      "owner": "trading_gym",
       "path": "trading_gym/agent/providers.py",
       "sha256": "b640c1e895860770a2d349a0befb4d66ed49e8a627d68f64f897f66317c50e7b"
     },
