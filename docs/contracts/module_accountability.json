@@ -888,7 +888,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/llm_backend.py",
-      "sha256": "0ddf2f3e360b7e48607aa8da66ea09998a19ede1d8e66d12e6a511096fb4ec8f"
+      "sha256": "b2b93dd86d6c1024f7646d11c345c83daed94b464937dc361232ef37fcd301c3"
     },
     {
       "owner": "trading_gym",
