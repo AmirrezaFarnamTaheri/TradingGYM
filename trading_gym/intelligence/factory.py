@@ -70,7 +70,7 @@ def build_intelligence_policy(
             raise ValueError(
                 f"provider {config.llm_provider_id!r} not found/enabled in hub"
             )
-        if matches[0].wire_protocol != "openai_chat":
+        if getattr(matches[0], "wire_protocol", "openai_chat") != "openai_chat":
             raise ValueError("native System-One providers cannot serve chat LLM mode")
         return LLMDecisionBackend(matches[0])
 
