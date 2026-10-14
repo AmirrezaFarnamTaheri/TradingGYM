@@ -1,5 +1,22 @@
 # Hardening branch status — 2026-10-11
 
+## Principal-bound emergency halt state — 2026-10-14
+
+Resolved an identity spoofing gap in `POST /api/v1/production/emergency`.
+The previously required `X-Actor` / `X-Approver` header strings and the
+shared `APPROVAL_API_KEY` did not bind either human to an authenticated
+principal. The gateway now requires distinct registered actor-bound
+credentials (`X-Actor-Key` and `X-Approver-Key`) with operator and approver
+roles, the independent approval factor, and the existing gateway key.
+A single dual-role principal cannot self-approve. Request body and
+domain mutations also reject boolean/revision coercions and unbounded
+durable fields. The CORS header allowlist and exact OpenAPI contract
+were updated together. Added principal-bound integration and domain
+regressions; 16 isolated reproduction cases passed after the change,
+but full exact-repository CI and broker qualification remain unverified.
+
+
+
 ## Source ZIP confidentiality and inventory — 2026-10-14
 
 The source ZIP builder now reads the Git-tracked inventory instead of
