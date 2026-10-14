@@ -306,7 +306,11 @@ async def test_dry_run_adapter_never_submits_or_cancels_orders(
     result = await dry_run.reconcile(1.0, 50000.0)
     assert result["status"] == "simulated"
     assert result["current_position"] == 0.25
-    assert await dry_run.flatten() is True
+    # This test fixture still has 5 BTC in the broker account and no
+    # independently verified open-order snapshot. A dry run cannot flatten
+    # funds, and must not report that a panic has been safely resolved.
+    assert await dry_run.flatten() is False
+    assert dry_run._last_flatten_error
 
     mock_client.place_market_order.assert_not_called()
     mock_client.create_short_sell.assert_not_called()
@@ -812,3 +816,78 @@ async def test_broker_flat_rejects_missing_pagination_count(adapter, mock_client
     mock_client.get_orders.return_value = {"data": []}
     with pytest.raises(RuntimeError, match="invalid_broker_order_count"):
         await adapter._verify_broker_flat()
+
+
+@pytest.mark.asyncio
+async def test_dry_run_flatten_succeeds_only_after_readonly_gross_flat_snapshot(
+    mock_config, mock_client
+):
+    with patch(
+        "trading_gym.execution.live_execution_adapter.EnhancedAbanClient",
+        return_value=mock_client,
+    ):
+        dry_run = DryRunLiveExecutionAdapter(mock_config, "fake_token")
+
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_orders.return_value = {"data": [], "total": 0}
+
+    assert await dry_run.flatten() is True
+    assert dry_run._last_flatten_error == ""
+    mock_client.get_orders.assert_called_once()
+    mock_client.place_market_order.assert_not_called()
+    mock_client.cancel_order.assert_not_called()
+    mock_client.create_short_sell.assert_not_called()
+    mock_client.close_short_position.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_dry_run_never_acknowledges_offsetting_gross_exposure(
+    mock_config, mock_client
+):
+    with patch(
+        "trading_gym.execution.live_execution_adapter.EnhancedAbanClient",
+        return_value=mock_client,
+    ):
+        dry_run = DryRunLiveExecutionAdapter(mock_config, "fake_token")
+
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("1"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = [
+        {"id": "short-1", "symbol": "BTCUSDT", "amount": "1"}
+    ]
+    mock_client.get_orders.return_value = {"data": [], "total": 0}
+    assert await dry_run.flatten() is False
+    assert "gross_exposure_not_cleared" in dry_run._last_flatten_error
+
+    mock_client.place_market_order.assert_not_called()
+    mock_client.cancel_order.assert_not_called()
+    mock_client.create_short_sell.assert_not_called()
+    mock_client.close_short_position.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_dry_run_refuses_unverified_open_orders(
+    mock_config, mock_client
+):
+    with patch(
+        "trading_gym.execution.live_execution_adapter.EnhancedAbanClient",
+        return_value=mock_client,
+    ):
+        dry_run = DryRunLiveExecutionAdapter(mock_config, "fake_token")
+
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_orders.return_value = {"data": [], "total": 1}
+    assert await dry_run.flatten() is False
+    assert "open_orders_not_cleared" in dry_run._last_flatten_error
+    mock_client.place_market_order.assert_not_called()
+    mock_client.cancel_order.assert_not_called()
