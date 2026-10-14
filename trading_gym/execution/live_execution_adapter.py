@@ -119,6 +119,17 @@ class LiveExecutionAdapter:
             f"LiveAdapter Initialized: {self.symbol} (Base: {self.base_asset}, Quote: {self.quote_asset})"
         )
 
+    @property
+    def can_acknowledge_panic(self) -> bool:
+        """Only an admitted live worker may retire a shared panic request.
+
+        A trading session's live consent and proposal identifier distinguish
+        the real execution worker from observers or local paper processes.
+        Panic clearance still requires an independently verified gross-flat
+        broker snapshot; this is an ownership check, not settlement evidence.
+        """
+        return self._live_consent is not None and bool(self._proposal_id)
+
     def _ensure_reservation_ledger(self) -> ReservationLedger:
         if self._reservations is None:
             opening: dict[str, Decimal] = {}
@@ -862,6 +873,11 @@ class LiveExecutionAdapter:
 
 class DryRunLiveExecutionAdapter(LiveExecutionAdapter):
     """Read live state but never submit, cancel, close, or create orders."""
+
+    @property
+    def can_acknowledge_panic(self) -> bool:
+        """A non-mutating observer must never clear a shared live panic."""
+        return False
 
     async def reconcile(
         self, target_position: float, current_price: float
