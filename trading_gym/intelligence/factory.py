@@ -10,7 +10,13 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from trading_gym.agent.providers import ProviderRepository
+from trading_gym.agent.providers import ProviderKind, ProviderRepository
+from trading_gym.agent.persistent_experience import (
+    MemoryJournalIntegrityError,
+    PersistentExperienceMemory,
+)
+from trading_gym.common.persistence import resolve_data_home
+from trading_gym.intelligence.system1_backend import System1DecisionBackend
 from trading_gym.intelligence.base import IntelligenceBackend
 from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
 from trading_gym.intelligence.fusion_backend import FusionBackend
@@ -29,6 +35,7 @@ def build_intelligence_policy(
     action_high: float,
     provider_repository: ProviderRepository | None = None,
     context_builder: Callable[[Any], dict[str, Any]] | None = None,
+    working_memory: Any | None = None,
 ):
     """Assemble the configured backend stack.
 
@@ -64,13 +71,69 @@ def build_intelligence_policy(
             )
         return LLMDecisionBackend(matches[0])
 
+    def resolve_system1() -> tuple[System1DecisionBackend, ...]:
+        if not config.system1_provider_ids:
+            return ()
+        if len(config.system1_provider_ids) != len(set(config.system1_provider_ids)):
+            raise ValueError("system1 provider roster contains duplicates")
+        repository = provider_repository or ProviderRepository()
+        catalogue = {pc.provider_id: pc for pc in repository.list() if pc.enabled}
+
+        class VerifiedMemoryReader:
+            """Read-only digest fetched only when context is live and fresh."""
+
+            def advice(self, tags, *, k: int):
+                try:
+                    memory = PersistentExperienceMemory.open(
+                        resolve_data_home() / "agent" / "memory" / "experiences.jsonl"
+                    )
+                    return memory.advice(tags, k=k)
+                except MemoryJournalIntegrityError as exc:
+                    # A poisoned audit trail is not an ordinary model outage.
+                    raise PermissionError("system1_memory_integrity") from exc
+
+        evidence = (
+            VerifiedMemoryReader()
+            if config.system1_use_experience_memory
+            else None
+        )
+        result = []
+        for provider_id in config.system1_provider_ids:
+            provider = catalogue.get(provider_id)
+            if provider is None or provider.kind is ProviderKind.CLI:
+                raise ValueError(
+                    f"System-1 provider {provider_id!r} is missing, disabled or not HTTP"
+                )
+            result.append(
+                System1DecisionBackend(
+                    provider,
+                    confidence_floor=config.system1_confidence_floor,
+                    max_leverage=config.system1_max_leverage,
+                    timeout_seconds=config.system1_timeout_seconds,
+                    working_memory=working_memory,
+                    experience_memory=evidence,
+                )
+            )
+        return tuple(result)
+
     if config.mode is IntelligenceMode.RL:
         if rl is None:
             raise ValueError("intelligence mode 'rl' requires a trained model")
         return None
 
-    if config.mode is IntelligenceMode.LLM:
-        backend: IntelligenceBackend = resolve_llm()
+    if config.mode is IntelligenceMode.SYSTEM1:
+        fast = resolve_system1()
+        if not fast:
+            raise ValueError("system1 mode requires system1_provider_ids")
+        backend: IntelligenceBackend = fast[0]
+        extra: tuple[IntelligenceBackend, ...] = tuple(fast[1:])
+        if config.llm_provider_id:
+            extra += (resolve_llm(),)
+        if config.allow_fallback_to_rules:
+            extra += (rules,)
+        remaining = extra
+    elif config.mode is IntelligenceMode.LLM:
+        backend = resolve_llm()
     elif config.mode is IntelligenceMode.FUSION:
         if rl is None:
             raise ValueError("fusion mode requires a trained RL model")
@@ -88,6 +151,16 @@ def build_intelligence_policy(
         entries: list[tuple[IntelligenceBackend, int]] = [(rules, 900)]
         if config.allow_fallback_to_rules is False:
             entries = []
+        if config.system1_provider_ids:
+            try:
+                entries.extend(
+                    (fast, 80 + index * 5)
+                    for index, fast in enumerate(resolve_system1())
+                )
+            except (ValueError, OSError):
+                # AUTO retains the RL/LLM/rules path when an optional
+                # fast-model preset is absent or locally misconfigured.
+                pass
         try:
             llm = resolve_llm()
         except Exception:
@@ -129,6 +202,10 @@ def build_intelligence_policy(
         action_low=action_low,
         action_high=action_high,
         fallback_backend=fallback,
-        fallback_backends=(remaining if config.mode is IntelligenceMode.AUTO else None),
+        fallback_backends=(
+            remaining
+            if config.mode in {IntelligenceMode.AUTO, IntelligenceMode.SYSTEM1}
+            else None
+        ),
         context_builder=context_builder,
     )
