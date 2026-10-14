@@ -189,7 +189,12 @@ def create_intelligence_router(
             provider_availability[pc.provider_id] = available
             backends.append(
                 {
-                    "name": f"llm:{pc.provider_id}",
+                    "name": (
+                        f"native:{pc.provider_id}"
+                        if pc.wire_protocol == "systemone"
+                        else f"llm:{pc.provider_id}"
+                    ),
+                    "wire_protocol": pc.wire_protocol,
                     "available": available,
                     "device": None,
                     "detail": json.dumps(st),
@@ -234,7 +239,7 @@ def create_intelligence_router(
 
         degraded_providers = sorted(
             entry["name"] for entry in backends
-            if entry["name"].startswith("llm:") and entry["available"] is False
+            if entry["name"].startswith(("llm:", "native:")) and entry["available"] is False
         )
         return {
             "mode": mode,
