@@ -6,7 +6,7 @@ import os
 import shutil
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import urljoin
 
 import httpx
@@ -41,6 +41,12 @@ class ProviderConfig(BaseModel):
     kind: ProviderKind
     display_name: Annotated[str, Field(min_length=1, max_length=120)]
     model: Annotated[str, Field(min_length=1, max_length=200)]
+    # Native finite-choice System-One and chat-completions are distinct
+    # protocols. Preserve the existing chat behavior by default.
+    wire_protocol: Literal["openai_chat", "systemone"] = "openai_chat"
+    systemone_path: Annotated[
+        str, Field(pattern=r"^/[A-Za-z0-9_./-]{0,199}$")
+    ] = "/v1/systemone"
     base_url: str | None = None
     health_path: Annotated[str, Field(pattern=r"^/[A-Za-z0-9_./-]{0,199}$")] = "/models"
     api_key_env: Annotated[str | None, Field(pattern=r"^[A-Z][A-Z0-9_]{1,79}$")] = None
@@ -60,6 +66,13 @@ class ProviderConfig(BaseModel):
     def validate_health_path(cls, value: str) -> str:
         if ".." in value.split("/") or "//" in value or "?" in value or "#" in value:
             raise ValueError("health_path must be a simple absolute path")
+        return value
+
+    @field_validator("systemone_path")
+    @classmethod
+    def validate_systemone_path(cls, value: str) -> str:
+        if ".." in value.split("/") or "//" in value:
+            raise ValueError("systemone_path must be a simple absolute path")
         return value
 
     @property
@@ -92,6 +105,8 @@ class ProviderConfig(BaseModel):
             raise ValueError("CLI providers require command")
         if self.kind is ProviderKind.CLI and refs:
             raise ValueError("CLI providers must not define API credentials")
+        if self.kind is ProviderKind.CLI and self.wire_protocol != "openai_chat":
+            raise ValueError("CLI providers cannot use System-One HTTP protocol")
         if self.kind is ProviderKind.OPENAI_COMPATIBLE and not refs:
             raise ValueError(
                 "OpenAI-compatible providers require an API-key environment reference"
