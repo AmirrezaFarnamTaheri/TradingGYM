@@ -151,3 +151,10 @@ def test_public_preview_export_is_the_same_pure_routing_function():
     from trading_gym.intelligence import preview_model_route
 
     assert preview_model_route is preview_route
+
+def test_unknown_remaining_request_budget_is_not_assumed_unlimited():
+    preview = preview_route(
+        [_candidate("unmeasured", remaining_requests=None)], _request()
+    )
+    assert preview["selected_hint"] is None
+    assert preview["excluded"]["unmeasured"] == ["request_budget_unknown"]
