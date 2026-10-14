@@ -56,6 +56,8 @@ def create_intelligence_router(
 
         mode = "legacy"
         llm_provider_id = None
+        system1_provider_ids: list[str] = []
+        system1_memory_enabled = False
         if effective_config_path is not None and Path(effective_config_path).exists():
             try:
                 import yaml
@@ -77,6 +79,19 @@ def create_intelligence_router(
                 if isinstance(icfg, dict):
                     mode = str(icfg.get("mode", "legacy"))
                     llm_provider_id = icfg.get("llm_provider_id")
+                    fleet = icfg.get("system1_provider_ids", [])
+                    if (
+                        isinstance(fleet, list)
+                        and len(fleet) <= 4
+                        and all(
+                            isinstance(item, str) and 1 < len(item) <= 80
+                            for item in fleet
+                        )
+                    ):
+                        system1_provider_ids = list(fleet)
+                    system1_memory_enabled = (
+                        icfg.get("system1_use_experience_memory") is True
+                    )
             except Exception as exc:  # noqa: BLE001 - report, don't fail surface
                 return {
                     "mode": "unknown",
@@ -115,10 +130,18 @@ def create_intelligence_router(
             # operator from seeing the deterministic rules and worker state.
             providers = []
             provider_error = type(exc).__name__
-        # Probe the configured governor first; bound synchronous status work.
+        # Prioritize configured System-1 and governor providers under the
+        # bounded health probe budget; these probes are advisory, not gates
+        # for actual chat completions.
         providers.sort(
-            key=lambda pc: (pc.provider_id != llm_provider_id, pc.provider_id)
+            key=lambda pc: (
+                system1_provider_ids.index(pc.provider_id)
+                if pc.provider_id in system1_provider_ids
+                else (5 if pc.provider_id == llm_provider_id else 6),
+                pc.provider_id,
+            )
         )
+        provider_availability: dict[str, bool | None] = {}
         for index, pc in enumerate(providers):
             if index < probe_limit:
                 try:
@@ -133,6 +156,7 @@ def create_intelligence_router(
             else:
                 st = {"provider_id": pc.provider_id, "status": "not_probed"}
                 available = None
+            provider_availability[pc.provider_id] = available
             backends.append(
                 {
                     "name": f"llm:{pc.provider_id}",
@@ -142,7 +166,27 @@ def create_intelligence_router(
                 }
             )
 
+        for provider_id in system1_provider_ids:
+            status_hint = provider_availability.get(provider_id)
+            backends.append(
+                {
+                    "name": f"system1:{provider_id}",
+                    "available": status_hint,
+                    "device": None,
+                    "detail": "fast advisory classification; model health is provisional",
+                }
+            )
+
         selected = mode
+        if mode == "system1":
+            selected = next(
+                (
+                    f"system1:{name}"
+                    for name in system1_provider_ids
+                    if provider_availability.get(name) is True
+                ),
+                "unavailable",
+            )
         if mode == "auto":
             # Rules are always reachable, but must not preempt a healthy
             # configured model just because they were listed first.
@@ -150,7 +194,12 @@ def create_intelligence_router(
                 entry["name"] for entry in backends
                 if entry["name"].startswith("llm:") and entry["available"] is True
             ]
-            selected = llms[0] if llms else "rules"
+            fast = [
+                f"system1:{name}"
+                for name in system1_provider_ids
+                if provider_availability.get(name) is True
+            ]
+            selected = fast[0] if fast else llms[0] if llms else "rules"
 
         degraded_providers = sorted(
             entry["name"] for entry in backends
@@ -160,6 +209,8 @@ def create_intelligence_router(
             "mode": mode,
             "selected_hint": selected,
             "llm_provider_id": llm_provider_id,
+            "system1_provider_ids": system1_provider_ids,
+            "system1_memory_enabled": system1_memory_enabled,
             "backends": backends,
             "provider_inventory_error": provider_error,
             "providers_total": len(providers),
