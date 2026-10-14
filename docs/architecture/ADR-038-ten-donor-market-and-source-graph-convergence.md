@@ -59,7 +59,8 @@ third-party directory must still be validated before any future direct copy.
 non-finite or nonpositive levels, duplicate prices within a side, incomplete
 and crossed books. The stateful `OrderBookIntegrityGate` invalidates its
 sequence and requires a new full snapshot whenever a sequential payload is
-malformed. Its historically named `apply_delta` **expects a complete new
+malformed or its source generator fails. Per-side levels are bounded at
+100,000 to avoid consuming endless book generators. Its historically named `apply_delta` **expects a complete new
 book at the next sequence**, not a sparse level mutation; sparse vendor deltas
 must be merged and verified in a future adapter before calling it.
 
@@ -140,8 +141,9 @@ new request budget.
 ## Verification and current disposition
 
 Observed local source-mirror RED failures: malformed book values were
-accepted and source-graph behaviors were unimplemented. After repair, focused
-tests passed: **12 market-book + 6 source-graph scenarios**.
+accepted, unbounded iterators could stall a feed, an upstream generator
+exception retained stale book state, and source-graph behaviors were absent.
+After repair, focused tests passed: **15 market-book + 6 source-graph scenarios**.
 The source-graph tool indexed extracted supported sources across all ten
 donor archives without a syntax or directory traversal failure.
 
