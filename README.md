@@ -233,6 +233,15 @@ Use the authenticated API/operator UI. Paper mode uses live market/account state
 
 The panic endpoint remains available even if audit delivery is degraded: it commits the canonical panic signal first and reports audit degradation separately. Emergency kill requires `X-Emergency-Key` and retains the panic signal unless flattening is confirmed.
 
+Panic signals are global to the runtime data home, so only a governed live
+execution adapter (not a dry-run or paper observer) may acknowledge them.
+An acknowledgement is tied to the exact on-disk signal generation read
+before flattening; if another panic is written while the broker is being
+checked, the newer request remains pending. Dry-run flatten operations
+never send orders and can only report broker flatness after a read-only
+gross-exposure and open-order check; they cannot clear the global panic.
+An unverified or malformed signal remains a stop condition.
+
 ## Data and feature integrity
 
 - All requested historical shards must load; corrupt or missing shards fail the admission.
