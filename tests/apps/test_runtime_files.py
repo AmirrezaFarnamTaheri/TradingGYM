@@ -85,6 +85,8 @@ async def test_failed_flatten_retains_original_panic(tmp_path: Path) -> None:
     _signal(path)
 
     class _Unverified:
+        can_acknowledge_panic = True
+
         async def flatten(self) -> bool:
             return False
 
