@@ -145,3 +145,9 @@ def test_unhashable_external_protocol_and_health_fail_as_validation_errors():
             preview_route([row], _request())
     with pytest.raises(ValueError):
         preview_route([_candidate("local")], _request(required_protocol={}))
+
+
+def test_public_preview_export_is_the_same_pure_routing_function():
+    from trading_gym.intelligence import preview_model_route
+
+    assert preview_model_route is preview_route
