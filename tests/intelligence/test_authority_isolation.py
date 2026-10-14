@@ -185,3 +185,13 @@ def test_semantically_invalid_risk_limits_cannot_trigger_rules_fallback(
     with pytest.raises(ValueError, match="market/account context"):
         adapter(primary, fallback, builder=impossible_context).predict(np.zeros(6))
     assert primary.calls == fallback.calls == 0
+
+
+@pytest.mark.parametrize("bounds", [(0.1, 5.0), (-5.0, -0.1)])
+def test_hold_requires_zero_to_be_representable_in_action_space(bounds):
+    with pytest.raises(ValueError, match="action bounds"):
+        IntelligencePolicyAdapter(
+            DecisionBackend(),
+            action_low=bounds[0],
+            action_high=bounds[1],
+        )
