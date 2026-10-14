@@ -16,6 +16,8 @@ Contract:
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from trading_gym.agent.arms import ArmTier, CostModel
@@ -312,3 +314,60 @@ def test_fusion_weight_snapshots_support_dataclass_projection_and_deepcopy() -> 
     assert cloned.weights == restored.weights == config.weights
     with pytest.raises(TypeError):
         cloned.weights.entries[("rules", "trend")] = 0.0  # type: ignore[index]
+
+def test_contradictory_signed_direction_never_produces_an_order() -> None:
+    engine = FusionEngine(FusionConfig())
+    fused = engine.fuse(
+        [arm_proposal("contradictory", signal("contradictory", ActionKind.LONG, -1.0))],
+        make_context(),
+        regime="trend",
+    )
+    assert fused.escalated and fused.action_kind is ActionKind.HOLD
+    assert fused.target_leverage == 0.0
+    assert "direction_leverage_mismatch" in fused.rationale
+
+
+def test_zero_weight_disabled_arm_cannot_veto_a_valid_vote() -> None:
+    weights = FusionWeights.from_pairs((("disabled", "trend"), 0.0))
+    fused = FusionEngine(FusionConfig(weights=weights)).fuse(
+        [
+            arm_proposal("rules", signal("rules", ActionKind.LONG, 1.0)),
+            arm_proposal("disabled", signal("disabled", ActionKind.LONG, -1.0)),
+        ],
+        make_context(),
+        regime="trend",
+    )
+    assert not fused.escalated
+    assert fused.action_kind is ActionKind.LONG
+    assert fused.target_leverage == 1.0
+
+
+def test_vote_mass_overflow_escalates_without_nonfinite_decision() -> None:
+    weights = FusionWeights.from_pairs(
+        (("rules", "trend"), 1e308),
+        (("alpha", "trend"), 1e308),
+    )
+    fused = FusionEngine(FusionConfig(weights=weights)).fuse(
+        [
+            arm_proposal("rules", signal("rules", ActionKind.LONG, 1.0, 1.0)),
+            arm_proposal("alpha", signal("alpha", ActionKind.LONG, 1.0, 1.0)),
+        ],
+        make_context(),
+        regime="trend",
+    )
+    assert fused.escalated and fused.action_kind is ActionKind.HOLD
+    assert math.isfinite(fused.confidence)
+    assert math.isfinite(fused.target_leverage)
+
+
+def test_weighted_exposure_overflow_escalates_instead_of_clamping() -> None:
+    fused = FusionEngine(FusionConfig()).fuse(
+        [
+            arm_proposal("rules", signal("rules", ActionKind.LONG, 1e308, 1.0)),
+            arm_proposal("alpha", signal("alpha", ActionKind.LONG, 1e308, 1.0)),
+        ],
+        make_context(),
+        regime="trend",
+    )
+    assert fused.escalated and fused.action_kind is ActionKind.HOLD
+    assert math.isfinite(fused.target_leverage)
