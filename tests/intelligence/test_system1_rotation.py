@@ -409,3 +409,29 @@ def test_explicit_weak_system1_hold_does_not_cascade_to_risk_on_fallback():
     assert signal.action_kind is ActionKind.HOLD
     assert signal.target_leverage == 0
     assert signal.confidence == pytest.approx(0.25)
+
+@pytest.mark.parametrize("current_time", [1297, 1298, 1299, 1299.999])
+def test_future_bar_close_cannot_claim_verified_live_market(current_time):
+    context = _context(
+        is_live=True,
+        market_evidence={
+            "bar_open_unix": 1000,
+            "bar_seconds": 300,
+            "source_sha256": "a" * 64,
+        },
+    )
+    with pytest.raises(PermissionError, match="stale_live_market"):
+        build_system1_packet(context, now=lambda: current_time)
+
+
+def test_closed_bar_at_or_after_end_time_is_considered_fresh():
+    context = _context(
+        is_live=True,
+        market_evidence={
+            "bar_open_unix": 1000,
+            "bar_seconds": 300,
+            "source_sha256": "a" * 64,
+        },
+    )
+    packet = json.loads(build_system1_packet(context, now=lambda: 1300))
+    assert packet["freshness"]["age_seconds"] == 0
