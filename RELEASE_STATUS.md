@@ -27,9 +27,18 @@ Implemented on this draft branch:
   offline holdout assessment plane: replay hashes, label-time checks, Brier,
   ECE, coverage, accepted accuracy and latency p95; no raw context, prompts,
   user keys or inferred trading qualification in reports.
+- Native advice now enforces response-model identity, explicit weak HOLD,
+  risk-limit and neutral-action invariants before fallback. Native global
+  scorer 429s cannot be evaded through per-key rotation.
+- Working-memory P&L disclosure is separately opt-in, independent of
+  long-term experience lessons; both consent flags are visible to operators.
+- The 1 MiB committed OpenAPI artifact has had the `ProviderConfig` schema
+  updated with native protocol and fleet fields; full exact-app generation
+  remains **UNVERIFIED** due the unavailable checkout/runner environment.
 
 An isolated Python implementation suite (controlled external dependencies)
-passed **40/40 tests**, and `jev-model-router` donor's self-contained Python
+passed **43/43 tests**, including the model-identity, risk-cap, and explicit
+HOLD regression cases. The `jev-model-router` donor's self-contained Python
 suite passed **60 tests with one skip**. These are not a green
 repository-level certification. The exact PR-head Python 3.11/3.12, frontend,
 Rust, OpenAPI generation, source-manifest verification, broker integration,
