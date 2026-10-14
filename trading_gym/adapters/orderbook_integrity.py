@@ -28,7 +28,7 @@ class OrderBookIntegrityGate:
             snapshot = OrderBookSnapshot(
                 sequence, _bounded_levels(bids), _bounded_levels(asks)
             ).validate()
-        except (ValueError, TypeError):
+        except Exception:  # untrusted feed generators may raise arbitrary errors
             self._invalidate()
             raise
         self.last_sequence = snapshot.sequence
@@ -51,7 +51,7 @@ class OrderBookIntegrityGate:
             snapshot = OrderBookSnapshot(
                 sequence, _bounded_levels(bids), _bounded_levels(asks)
             ).validate()
-        except (ValueError, TypeError):
+        except Exception:  # untrusted feed generators may raise arbitrary errors
             self._invalidate()
             raise
         self.last_sequence = snapshot.sequence
