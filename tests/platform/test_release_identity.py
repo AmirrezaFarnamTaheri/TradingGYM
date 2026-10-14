@@ -18,6 +18,11 @@ def test_release_identity_is_coherent_across_authoritative_surfaces() -> None:
     assert backend == axiomforge.__version__
     assert manifest["reconstruction"] is True
     assert manifest["baseline"]["declared_version"] == "11.0.0"
+    openapi = json.loads((root / "docs/contracts/openapi.json").read_text())
+    assert openapi["info"]["version"] == backend
+    assert (root / "README.md").read_text().splitlines()[0] == (
+        f"# Trading Gym / AxiomForge {backend}"
+    )
 
 
 def test_release_identity_keeps_missing_wave18_surface_evidence_explicit() -> None:
