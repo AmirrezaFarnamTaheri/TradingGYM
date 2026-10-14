@@ -318,3 +318,66 @@ def test_system1_rejects_unadvertised_decision_fields():
     )
     with pytest.raises(BackendUnavailable, match="system1_invalid_structured"):
         backend.decide(_context())
+
+
+def test_system1_working_memory_requires_separate_explicit_consent():
+    from trading_gym.common.intelligence_config import IntelligenceConfig
+    from trading_gym.intelligence.factory import build_intelligence_policy
+    from trading_gym.intelligence.llm_backend import LLMTransportResponse
+
+    provider = ProviderConfig(
+        provider_id="fast-one",
+        display_name="local",
+        kind=ProviderKind.LOCAL,
+        model="fast",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    class Repository:
+        def list(self):
+            return [provider]
+
+    class SensitiveMemory:
+        def recent(self, k):
+            return [
+                SimpleNamespace(outcome="loss", pnl_quote=-4.0),
+            ]
+
+        def loss_streak(self):
+            return 1
+
+        def recent_pnl(self, k):
+            return -4.0
+
+    def captured_packet(allow_memory):
+        policy = build_intelligence_policy(
+            config=IntelligenceConfig(
+                mode="system1",
+                system1_provider_ids=("fast-one",),
+                system1_use_working_memory=allow_memory,
+            ),
+            model=None,
+            action_low=-5,
+            action_high=5,
+            provider_repository=Repository(),
+            working_memory=SensitiveMemory(),
+        )
+        packets = []
+
+        def capture(_url, messages):
+            packets.append(json.loads(messages[1]["content"]))
+            return LLMTransportResponse(content=json.dumps({
+                "action": "hold",
+                "target_leverage": 0.0,
+                "confidence": 0.9,
+                "rationale": "insufficient evidence",
+            }))
+
+        policy.backend._transport = capture
+        policy.backend.decide(_context())
+        return packets[0]
+
+    private = captured_packet(False)
+    opted_in = captured_packet(True)
+    assert "working_memory" not in private
+    assert opted_in["working_memory"]["recent_realized_pnl"] == -4.0
