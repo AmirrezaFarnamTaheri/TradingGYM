@@ -108,6 +108,9 @@ def build_market_context(
             getattr(underlying, "latest_feature_provenance", {}) or {}
         ),
         "risk_limits": dict(risk_limits or {}),
+        "market_features": dict(
+            getattr(underlying, "latest_feature_summary", {}) or {}
+        ),
     }
 
 
