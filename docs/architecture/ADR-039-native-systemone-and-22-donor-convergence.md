@@ -220,12 +220,24 @@ addressed on the draft PR:
   update**; the exact FastAPI generated file must still pass
   `python scripts/export_openapi.py --check` on a full repository checkout.
 
-The isolated source mirror now passes **43/43** bounded protocol, native
-backend, model-identity, hold, evaluation and CLI checks. Additional
+The isolated source mirror now passes **46/46** bounded protocol, native
+backend, model-identity, hold, evaluation, CLI and promotion-integrity checks. Additional
 repository tests for authority prevalidation, consent, health, navigation,
 and API behavior were authored but **have not been executed on PR-head
 CI**. The independent jev-model-router tests reported **60 passes and one
 skip**; no other donor is qualified by that result.
+
+### Promotion evidence and human identity safeguards
+
+The existing `trading_gym/models/promotion.py` previously accepted any
+64-character string as an evidence digest and only compared the literal
+actor and approver strings. It now requires lowercase hexadecimal SHA-256
+syntax, nonblank normalized distinct principals, and a strict nonnegative
+integer optimistic-lock revision. This hardens a legacy helper but **does
+not authenticate users or verify the underlying evidence bytes**. The
+governed principal registry, approval factors and independent deployment
+gates remain authoritative; its resulting record cannot itself qualify
+funded-live trading.
 
 ## Verification boundary and remaining gates
 
