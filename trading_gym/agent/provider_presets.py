@@ -17,12 +17,54 @@ _ENV_REFERENCE = re.compile(r"^[A-Z][A-Z0-9_]{1,79}$")
 # The catalogue is fixed. Request-time URL override is intentionally absent:
 # accepting arbitrary endpoints here would evade ProviderConfig URL validation.
 _PRESETS = (
-    ("go-systemone", "Go System-One", "local", "systemone", "http://127.0.0.1:8080", "/v1/systemone"),
-    ("openjev-decider", "OpenJev decider", "local", "systemone", "http://127.0.0.1:8000", "/v1/systemone"),
-    ("ollama", "Ollama OpenAI-compatible", "local", "openai_chat", "http://127.0.0.1:11434/v1", None),
-    ("lm-studio", "LM Studio OpenAI-compatible", "local", "openai_chat", "http://127.0.0.1:1234/v1", None),
-    ("vllm", "vLLM OpenAI-compatible", "local", "openai_chat", "http://127.0.0.1:8000/v1", None),
-    ("openrouter", "OpenRouter hosted", "openai_compatible", "openai_chat", "https://openrouter.ai/api/v1", None),
+    (
+        "go-systemone",
+        "Go System-One",
+        "local",
+        "systemone",
+        "http://127.0.0.1:8080",
+        "/v1/systemone",
+    ),
+    (
+        "openjev-decider",
+        "OpenJev decider",
+        "local",
+        "systemone",
+        "http://127.0.0.1:8000",
+        "/v1/systemone",
+    ),
+    (
+        "ollama",
+        "Ollama OpenAI-compatible",
+        "local",
+        "openai_chat",
+        "http://127.0.0.1:11434/v1",
+        None,
+    ),
+    (
+        "lm-studio",
+        "LM Studio OpenAI-compatible",
+        "local",
+        "openai_chat",
+        "http://127.0.0.1:1234/v1",
+        None,
+    ),
+    (
+        "vllm",
+        "vLLM OpenAI-compatible",
+        "local",
+        "openai_chat",
+        "http://127.0.0.1:8000/v1",
+        None,
+    ),
+    (
+        "openrouter",
+        "OpenRouter hosted",
+        "openai_compatible",
+        "openai_chat",
+        "https://openrouter.ai/api/v1",
+        None,
+    ),
 )
 
 
