@@ -25,7 +25,6 @@ from trading_gym.common.audit_outbox import (
     verify_outbox_digest,
 )
 from trading_gym.common.security import validate_base_url
-from trading_gym.intelligence.llm_key_pool import credential_references
 from trading_gym.governance.ledger import AuditLedger
 
 
@@ -64,6 +63,10 @@ class ProviderConfig(BaseModel):
     @property
     def credential_refs(self) -> tuple[str, ...]:
         """Ordered env references, supporting both legacy and fleet config."""
+        # Lazy import avoids importing the intelligence package while the
+        # core provider repository itself is still initializing.
+        from trading_gym.intelligence.llm_key_pool import credential_references
+
         return credential_references(
             *((self.api_key_env,) if self.api_key_env else ()),
             *self.api_key_envs,
