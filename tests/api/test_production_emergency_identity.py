@@ -164,7 +164,8 @@ def test_missing_actor_credential_registry_fails_closed(
 def test_transition_request_does_not_coerce_security_critical_types(
     api_env: Path, payload: dict[str, object]
 ) -> None:
-    assert client().post(ENDPOINT, json=payload, headers=VALID_HEADERS).status_code == 422
+    response = client().post(ENDPOINT, json=payload, headers=VALID_HEADERS)
+    assert response.status_code == 422
 
 
 def test_gateway_authentication_remains_mandatory(api_env: Path) -> None:
