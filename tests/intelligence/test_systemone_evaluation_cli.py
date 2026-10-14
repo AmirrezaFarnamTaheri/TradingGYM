@@ -5,7 +5,20 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tests.intelligence.test_systemone_evaluation import _row
+def _row():
+    return {
+        "model_id": "gemma-fast",
+        "context_sha256": "a" * 64,
+        "source_sha256": "f" * 64,
+        "observed_at_unix": 100,
+        "label_available_at_unix": 200,
+        "split": "holdout",
+        "probabilities": {"hold": 0.05, "long": 0.9, "short": 0.05},
+        "risk_off": 0.1,
+        "truth": "long",
+        "latency_ms": 87.0,
+    }
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "evaluate_systemone.py"
