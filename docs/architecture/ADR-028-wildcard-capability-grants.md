@@ -82,3 +82,15 @@ Boolean TTLs no longer pass the Python integer check. This prevents
 invalid or ambiguous new signed records, while preserving the ability
 to parse existing, historically malformed records for independent
 forensic review and explicit revocation.
+
+## Atomic lifecycle validation across ledger handles (2026-10-14)
+
+The per-journal chain lock already serialized hash-chain writes. It now
+also checks the post-reload lifecycle transition before appending:
+`issued` IDs must be new, while `revoked` and `breach` require
+an active current grant. A stale second revocation raises without
+changing disk state; a stale breach is a no-op. Semantic replay rejects
+duplicate issued IDs and repeated state transitions even if a historical
+journal's hash sequence was rewritten consistently. This closes a
+same-filesystem cross-handle race but does not qualify an unrelated
+machine or external authoritative grant store.

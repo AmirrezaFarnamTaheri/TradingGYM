@@ -1,5 +1,19 @@
 # Hardening branch status — 2026-10-11
 
+## Atomic authorization grant transitions (2026-10-14)
+
+The ledger's existing chain lock now guards lifecycle preconditions *after*
+the authoritative disk reload. Concurrent handles cannot append a stale
+second revocation or breach transition, and grant ID collisions fail under
+that lock. Semantic replay rejects duplicate IDs and impossible repeated
+revoke/breach events, even with well-formed hash links. Tests cover stale
+revoke, stale breach, replay-safe idempotence, collision and valid parallel
+issue paths. Isolated reproductions were red on three cross-handle defects
+and green on 25 cumulative reference tests. The full Python matrix
+remains unverified pending CI runner allocation.
+
+
+
 ## New-grant constraint issuance validation (2026-10-14)
 
 New grants reject invalid, duplicated or non-finite/negative constraint

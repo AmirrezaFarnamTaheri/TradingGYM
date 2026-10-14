@@ -423,21 +423,29 @@ class GrantLedger:
                     raise GrantLedgerIntegrityError(
                         f"malformed grant record at seq {event.seq}: {exc}"
                     ) from exc
+                if grant.state != GrantState.ACTIVE:
+                    raise GrantLedgerIntegrityError(
+                        f"issued event is not active at seq {event.seq}"
+                    )
+                if grant.grant_id in self._grants:
+                    raise GrantLedgerIntegrityError(
+                        f"duplicate grant id at seq {event.seq}"
+                    )
                 self._grants[grant.grant_id] = replace(grant, _ledger=self)
             elif event.type == "revoked":
                 grant_id = str(event.payload.get("grant_id", ""))
                 current: Grant | None = self._grants.get(grant_id)
-                if current is None:
+                if current is None or current.state != GrantState.ACTIVE:
                     raise GrantLedgerIntegrityError(
-                        f"revoked event references unknown grant at seq {event.seq}"
+                        f"invalid revoke transition at seq {event.seq}"
                     )
                 self._grants[grant_id] = replace(current, state=GrantState.REVOKED)
             elif event.type == "breach":
                 grant_id = str(event.payload.get("grant_id", ""))
                 latched: Grant | None = self._grants.get(grant_id)
-                if latched is None:
+                if latched is None or latched.state != GrantState.ACTIVE:
                     raise GrantLedgerIntegrityError(
-                        f"breach event references unknown grant at seq {event.seq}"
+                        f"invalid breach transition at seq {event.seq}"
                     )
                 self._grants[grant_id] = replace(
                     latched, state=GrantState.REVOKED_BREACH
@@ -523,7 +531,7 @@ class GrantLedger:
                 "grants journal anchor mismatch (truncation or divergence)"
             )
 
-    def _append(self, event_type: str, ts: str, payload: dict[str, Any]) -> None:
+    def _append(self, event_type: str, ts: str, payload: dict[str, Any]) -> bool:
         # Hold the chain lock across re-read + verify + append so seq/prev_hash
         # come from the real file tail, not state verified at construction.
         # Releasing between the two is what let concurrent appends fork the
@@ -535,6 +543,32 @@ class GrantLedger:
             self._events = []
             self._grants = {}
             self._load(verify=True)
+
+            # Mutation preconditions must be rechecked against the verified
+            # disk state *while* holding the chain lock. Earlier checks can
+            # race a competing handle, resulting in duplicate revocations or
+            # grant-id collisions despite correct sequence/hash linking.
+            if event_type == "issued":
+                record = payload.get("grant")
+                if not isinstance(record, Mapping):
+                    raise GrantLedgerIntegrityError("issued payload missing grant")
+                grant_id = str(record.get("grant_id", ""))
+                if grant_id in self._grants:
+                    raise ValueError(f"duplicate grant ID: {grant_id}")
+            elif event_type in {"revoked", "breach"}:
+                grant_id = str(payload.get("grant_id", ""))
+                current = self._grants.get(grant_id)
+                if current is None:
+                    if event_type == "breach":
+                        return False
+                    raise KeyError(f"unknown grant {grant_id!r}")
+                if current.state != GrantState.ACTIVE:
+                    if event_type == "breach":
+                        return False
+                    raise ValueError(
+                        f"grant {grant_id} is {current.state}, cannot revoke"
+                    )
+
             seq = (self._events[-1].seq if self._events else 0) + 1
             prev_hash = self._events[-1].entry_hash if self._events else _GENESIS_HASH
             body = {
@@ -556,6 +590,7 @@ class GrantLedger:
             append_jsonl(self._path, event.to_json())
             self._events.append(event)
             self._write_anchor()
+            return True
 
     def _write_anchor(self) -> None:
         atomic_write_json(
@@ -669,11 +704,14 @@ class GrantLedger:
         if grant is None or grant.state != GrantState.ACTIVE:
             return
         latched = replace(grant, state=GrantState.REVOKED_BREACH)
-        self._append(
+        if not self._append(
             "breach",
             _format_iso(_now_utc()),
             {"grant_id": grant_id},
-        )
+        ):
+            # Another handle has already revoked or latched the grant;
+            # _append reloaded the journal, so preserve its actual state.
+            return
         self._grants[grant_id] = latched
 
     # -- queries ------------------------------------------------------------

@@ -228,7 +228,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/authz/grants.py",
-      "sha256": "16f193fbd9264c3964e75298d187aa8a7b6fdbe6eca01638ac25e1309df22c31"
+      "sha256": "ae5bb015abf0f1747325fdc80e9d73890669af41f257cfdcce86d40befd39e64"
     },
     {
       "owner": "trading_gym",
