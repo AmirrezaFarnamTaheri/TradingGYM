@@ -17,6 +17,7 @@ describe('Intelligence model fleet status', () => {
         mode: 'system1',
         system1_provider_ids: ['fast'],
         system1_memory_enabled: false,
+        system1_working_memory_enabled: false,
         llm_provider_id: null,
         selected_hint: 'unavailable',
         note: 'advisory only',
@@ -42,6 +43,7 @@ describe('Intelligence model fleet status', () => {
     expect(container.textContent).toContain('Exhausted');
     expect(container.textContent).toContain('2 / 2');
     expect(container.textContent).toContain('Experience memory');
+    expect(container.textContent).toContain('Working-memory P&L disclosure');
     cleanup();
   });
 
