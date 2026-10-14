@@ -1,4 +1,9 @@
-# Trading Gym / AxiomForge 31.7.1
+# Trading Gym / AxiomForge 31.7.0+reconstructed.1
+
+> **Packaged source identity:** `31.7.0+reconstructed.1` is the current reconstructed
+> source-release identifier. Historical 31.7.1 remediation checkpoints in
+> the documentation are validation history, not an independent published
+> package version. Funded-live production qualification remains NO-GO.
 
 Trading Gym is a governed reinforcement-learning trading platform that combines:
 

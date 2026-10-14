@@ -93,6 +93,7 @@ from trading_gym.governance.runtime_authorization import (
     issue_runtime_authorization,
 )
 from trading_gym.models.versioning import ModelMetadata, ModelRegistry
+from axiomforge import __version__ as PROJECT_VERSION
 
 # Configure logging EARLY (before using logger)
 logging.basicConfig(
@@ -304,7 +305,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Trading Gym API",
-    version="11.0.0",
+    version=PROJECT_VERSION,
     description="Governed RL trading API with evidence-first research and declarative strategy tooling",
     lifespan=lifespan,
 )

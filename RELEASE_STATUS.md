@@ -1,5 +1,19 @@
 # Hardening branch status — 2026-10-11
 
+## Canonical runtime and published API identity — 2026-10-14
+
+The FastAPI application's `version` now reads the canonical
+`axiomforge.__version__`, aligning it with the published OpenAPI
+`info.version`, Poetry package, frontend package, and release manifest.
+The README heading now identifies this reconstructed release; references
+to 31.7.1 remain historical remediation checkpoints. A release-identity
+regression checks the published contract and README. The generated
+OpenAPI body is otherwise unchanged. This is a metadata correction,
+not an API route or protocol migration. Exact-head generated-contract
+and CI verification still require runnable hosted checks.
+
+
+
 ## New delegated-scope guard — 2026-10-14
 
 Issuing a new wildcard grant across live trading, production or
