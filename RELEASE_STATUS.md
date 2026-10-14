@@ -32,12 +32,16 @@ Implemented on this draft branch:
   scorer 429s cannot be evaded through per-key rotation.
 - Working-memory P&L disclosure is separately opt-in, independent of
   long-term experience lessons; both consent flags are visible to operators.
+- The legacy model-promotion helper now checks strict hexadecimal SHA-256
+  evidence syntax, distinct normalized principal identifiers, and strict
+  integer revision compare-and-set, without replacing authenticated
+  governance approval or live-execution qualification.
 - The 1 MiB committed OpenAPI artifact has had the `ProviderConfig` schema
   updated with native protocol and fleet fields; full exact-app generation
   remains **UNVERIFIED** due the unavailable checkout/runner environment.
 
 An isolated Python implementation suite (controlled external dependencies)
-passed **43/43 tests**, including the model-identity, risk-cap, and explicit
+passed **46/46 tests**, including the model-identity, risk-cap, and explicit
 HOLD regression cases. The `jev-model-router` donor's self-contained Python
 suite passed **60 tests with one skip**. These are not a green
 repository-level certification. The exact PR-head Python 3.11/3.12, frontend,
