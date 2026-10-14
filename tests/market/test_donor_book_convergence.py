@@ -85,3 +85,24 @@ def test_book_features_fail_on_aggregate_overflow():
     )
     with pytest.raises(ValueError, match="aggregate"):
         normalized_orderbook_features(book)
+
+
+def test_unbounded_book_feed_is_stopped_before_materialization():
+    reads = [0]
+
+    def endless_bids():
+        while True:
+            reads[0] += 1
+            yield (99, 1)
+
+    gate = OrderBookIntegrityGate()
+    with pytest.raises(ValueError, match="too many book levels"):
+        gate.apply_snapshot(1, endless_bids(), [(101, 1)])
+    assert reads[0] == 100_001
+    assert gate.requires_snapshot and gate.last_sequence is None
+
+
+def test_direct_snapshot_has_same_book_level_limit():
+    book = OrderBookSnapshot(1, ((99, 1),) * 100_001, ((101, 1),))
+    with pytest.raises(ValueError, match="too many book levels"):
+        book.validate()
