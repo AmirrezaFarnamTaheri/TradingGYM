@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import uuid
 from dataclasses import dataclass, field, replace
@@ -148,7 +149,11 @@ class Grant:
         # issued_at < expires_at is tautologically true for any validly-issued
         # grant, which would make expiry unenforceable on the default path.
         moment = _parse_iso(now) if now is not None else _now_utc()
-        return moment < _parse_iso(self.expires_at)
+        if self._ledger is not None:
+            current = self._ledger._grants.get(self.grant_id)
+            if current is None or current.state != GrantState.ACTIVE:
+                return False
+        return _parse_iso(self.issued_at) <= moment < _parse_iso(self.expires_at)
 
     def evaluate(
         self,
@@ -166,12 +171,32 @@ class Grant:
         than silently skipping the record.
         """
 
+        if self._ledger is not None:
+            current = self._ledger._grants.get(self.grant_id)
+            if current is None or current.state != GrantState.ACTIVE:
+                return GrantDecision(
+                    allowed=False,
+                    reason=(
+                        "grant_revoked_breach"
+                        if current is not None
+                        and current.state == GrantState.REVOKED_BREACH
+                        else "grant_revoked"
+                    ),
+                    grant_id=self.grant_id,
+                )
+
         if not self.is_active(now=now):
             state = self.state
             if state == GrantState.ACTIVE:
+                moment = _parse_iso(now) if now is not None else _now_utc()
+                reason = (
+                    "grant_not_yet_valid"
+                    if moment < _parse_iso(self.issued_at)
+                    else "grant_expired"
+                )
                 return GrantDecision(
                     allowed=False,
-                    reason="grant_expired",
+                    reason=reason,
                     grant_id=self.grant_id,
                 )
             reason = (
@@ -192,27 +217,47 @@ class Grant:
                 allowed=False, reason="no_matching_scope", grant_id=self.grant_id
             )
 
-        if constraints:
-            for name, observed in constraints.items():
-                ceiling = self.constraints.get(name)
-                if ceiling is None:
-                    continue
-                if not isinstance(ceiling, (int, float)) or isinstance(ceiling, bool):
-                    raise ConstraintViolation(
-                        f"constraint ceiling {name!r} is not numeric"
-                    )
-                if not isinstance(observed, (int, float)) or isinstance(observed, bool):
-                    raise ConstraintViolation(
-                        f"observed value for {name!r} must be numeric"
-                    )
-                if observed > ceiling:
-                    if breach:
-                        self._latch_breach()
-                    return GrantDecision(
-                        allowed=False,
-                        reason=f"constraint_{name}",
-                        grant_id=self.grant_id,
-                    )
+        # Check all observations before granting, even when the corresponding
+        # ceiling is not present on this grant. NaN comparisons otherwise
+        # return False for `observed > ceiling` and silently authorize.
+        observations = constraints if constraints is not None else {}
+        if not isinstance(observations, Mapping):
+            raise ConstraintViolation("observed constraints must be a mapping")
+        for name, observed in observations.items():
+            if (
+                not isinstance(observed, (int, float))
+                or isinstance(observed, bool)
+                or (isinstance(observed, float) and not math.isfinite(observed))
+            ):
+                raise ConstraintViolation(
+                    f"observed value for {name!r} must be finite and numeric"
+                )
+
+        # A grant's own ceiling MUST have an observation. Iterating only
+        # user-supplied observations permitted omitting the risky measurement.
+        for name, ceiling in self.constraints.items():
+            if (
+                not isinstance(ceiling, (int, float))
+                or isinstance(ceiling, bool)
+                or (isinstance(ceiling, float) and not math.isfinite(ceiling))
+            ):
+                raise ConstraintViolation(
+                    f"constraint ceiling {name!r} must be finite and numeric"
+                )
+            if name not in observations:
+                return GrantDecision(
+                    allowed=False,
+                    reason=f"constraint_missing_{name}",
+                    grant_id=self.grant_id,
+                )
+            if observations[name] > ceiling:
+                if breach:
+                    self._latch_breach()
+                return GrantDecision(
+                    allowed=False,
+                    reason=f"constraint_{name}",
+                    grant_id=self.grant_id,
+                )
 
         if breach:
             self._latch_breach()
@@ -587,16 +632,32 @@ class GrantLedger:
         now: str | None = None,
         constraints: Mapping[str, float] | None = None,
     ) -> GrantDecision:
-        """Deny-by-default evaluation across every active grant."""
+        """Deny overrides allow across all active *matching* grants.
 
+        A broad, unconstrained grant must not bypass a stricter matching
+        constraint just because it was issued first. Unrelated scopes have
+        no veto. Malformed values fail closed rather than causing a 500.
+        """
+
+        allowed: GrantDecision | None = None
         for grant in self.active_grants(principal, now=now):
             try:
                 decision = grant.evaluate(scope, now=now, constraints=constraints)
             except ScopeError:
                 return GrantDecision(allowed=False, reason="invalid_scope", grant_id="")
-            if decision.allowed:
+            except ConstraintViolation:
+                return GrantDecision(
+                    allowed=False, reason="invalid_constraints", grant_id=grant.grant_id
+                )
+            if decision.reason == "no_matching_scope":
+                continue
+            if not decision.allowed:
                 return decision
-        return GrantDecision(allowed=False, reason="no_matching_scope", grant_id="")
+            if allowed is None:
+                allowed = decision
+        return allowed or GrantDecision(
+            allowed=False, reason="no_matching_scope", grant_id=""
+        )
 
     def require(
         self,
@@ -606,11 +667,12 @@ class GrantLedger:
         now: str | None = None,
         constraints: Mapping[str, float] | None = None,
     ) -> Grant:
-        """Like ``check`` but returns the authorising grant or raises."""
+        """Use the same deny-overrides-allow verdict as ``check``."""
 
-        for grant in self.active_grants(principal, now=now):
-            decision = grant.evaluate(scope, now=now, constraints=constraints)
-            if decision.allowed:
+        decision = self.check(principal, scope, now=now, constraints=constraints)
+        if decision.allowed:
+            grant = self._grants.get(decision.grant_id)
+            if grant is not None and grant.is_active(now=now):
                 return grant
         raise ScopeDenied(f"principal {principal!r} lacks scope {scope!r}")
 

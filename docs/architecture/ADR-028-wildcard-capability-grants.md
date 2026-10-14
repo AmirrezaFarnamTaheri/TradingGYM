@@ -41,3 +41,21 @@ so would invalidate signed provenance and make revocation impossible.
 revoke each such grant before funded deployment. This additive restriction
 does not provide transactional settlement authority or substitute for
 independent live-order approval.
+
+## Deny-overrides-allow and complete observations (2026-10-14)
+
+Every active grant matching a concrete scope participates in a decision.
+One matching grant's failed ceiling overrides an otherwise-permissive
+overlapping grant, irrespective of issuance order; unrelated scopes do not
+veto. All constraints defined on a grant require current observations on
+every evaluation, and non-finite/malformed numeric values fail closed.
+`GrantLedger.require` uses the exact `check` verdict instead of having a
+different, first-allowing traversal. A grant is never active before its
+`issued_at`, and a previously returned grant handle cannot authorize
+an action after the owning ledger has revoked it. This protects in-process
+handles; separate workers must still reload the durable journal and require
+runtime governance at the execution boundary.
+
+For historical records containing invalid numeric ceilings, direct evaluation
+raises `ConstraintViolation` and ledger-level checks return an explicit
+`invalid_constraints` denial. Signed journal bytes remain unchanged.

@@ -1,5 +1,18 @@
 # Hardening branch status — 2026-10-11
 
+## Ledger denial-composition, numeric and temporal safety (2026-10-14)
+
+New regressions ensure overlapping grants cannot bypass bounded notional or
+other explicitly defined ceilings, omitted observations cannot silently allow,
+and non-finite/malformed observed values deny at the ledger boundary. Both
+`check` and `require` use deny-overrides-allow; unrelated grants remain
+nonvetoing. Future-dated grants cannot be used before issuance and stale
+in-process Grant handles no longer retain authority after revocation.
+Isolated reference tests reproduced four defects and passed eight cases after
+repair. Full repo CI awaits actual runner allocation and execution.
+
+
+
 ## Feature fixture integrity (not synthetic lake manifests) — 2026-10-14
 
 A new verifier and regression suite check all tracked
