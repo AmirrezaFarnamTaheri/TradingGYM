@@ -1,5 +1,24 @@
 # Hardening branch status — 2026-10-11
 
+## Advisory-decision authority and finite-value guards — 2026-10-14
+
+This addition to PR #2 tightens the agent decision boundary without
+claiming funded-live readiness. An arm-level `PermissionError` is
+now propagated instead of being interpreted as a recoverable provider
+failure that could select another arm. Fusion configuration rejects
+non-finite limits, and validated vote-weight inputs are snapshotted
+against later mutation. Working-memory settlements reject non-finite P&L
+before updating a cycle; caution state/policy parameters reject non-finite
+or invalid severity settings, including high-severity policies that
+would loosen lower-severity safeguards.
+
+Regression tests are included under
+`tests/agent/test_decision_authority_invariants.py` and
+`tests/agent/test_planner.py`. This source change does **not** qualify
+the exact-head Python, frontend, Rust, or broker integration matrix;
+the original CI and live capital authority gates remain mandatory.
+
+
 ## Resilience and capacity pass — 2026-10-11
 
 The latest audit branch adds **generation-fenced provider and venue recovery** (stale completions cannot reverse a newer circuit decision), **bounded market-data fanout and cached-frame memory**, per-call fast/balanced/quality routing, immediate re-selection after new provider registration, and **intelligence fallback that preserves policy denial and input-integrity boundaries**. The core changes are exercised by a **61-pass targeted local Python 3.13 suite over reconstructed changed-module mirrors**, including deterministic RED-before/GREEN-after races. These results are **not** an exact-head supported-runtime full matrix. See [Resilience operating contract](docs/architecture/RESILIENCE-OPERATING-CONTRACT.md).

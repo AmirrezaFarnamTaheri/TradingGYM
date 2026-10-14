@@ -143,7 +143,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/fusion.py",
-      "sha256": "bea2fb3e8ae7fcfa55111b2edb88d4f14afe5039ef4cd4d829c51e01c4d33daa"
+      "sha256": "15ddc59e788abcd87373487246ab19759db0c085282637800d1f4dd28578cee6"
     },
     {
       "owner": "trading_gym",
@@ -163,7 +163,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/planner.py",
-      "sha256": "30c0bc1c56e32e9d6a30c8e0e088932bb49de4bb218ca43b70d265b0b92db703"
+      "sha256": "f8f675d4793be5dcbe82d5d3717dcb57c28bdf6cc46e92883ee0f5c9f3759d9d"
     },
     {
       "owner": "trading_gym",
@@ -198,7 +198,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/working_memory.py",
-      "sha256": "0d8b49dee1e8b5c263b6ab4ff9712b23c092f06b203d2ca839df08e8fa311556"
+      "sha256": "fd9161cc9be0734ab09e5fea89cf9816ca445cf21467235fd69713eb3411eac0"
     },
     {
       "owner": "trading_gym",

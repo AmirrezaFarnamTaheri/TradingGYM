@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from trading_gym.agent.arms.base import ArmProposal
@@ -53,13 +54,21 @@ class FusionWeights:
     entries: Mapping[tuple[str, str], float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        for key, weight in self.entries.items():
+        # Snapshot validated weights: a caller must not mutate an input dict
+        # after validation and introduce NaN/negative votes mid-session.
+        entries = dict(self.entries)
+        for key, weight in entries.items():
             if not isinstance(weight, (int, float)) or isinstance(weight, bool):
                 raise ValueError(f"weight for {key!r} must be numeric")
-            if not math.isfinite(float(weight)):
+            try:
+                finite = math.isfinite(weight)
+            except (OverflowError, TypeError, ValueError):
+                finite = False
+            if not finite:
                 raise ValueError(f"weight for {key!r} must be finite")
             if weight < 0:
                 raise ValueError(f"weight for {key!r} must be non-negative")
+        object.__setattr__(self, "entries", MappingProxyType(entries))
 
     @classmethod
     def from_pairs(cls, *pairs: tuple[tuple[str, str], float]) -> "FusionWeights":
@@ -91,6 +100,16 @@ class FusionConfig:
     max_leverage: float = 20.0
 
     def __post_init__(self) -> None:
+        for name in ("disagreement_margin", "quorum_confidence", "max_leverage"):
+            value = getattr(self, name)
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise ValueError(f"{name} must be a finite number")
+            try:
+                finite = math.isfinite(value)
+            except (OverflowError, TypeError, ValueError):
+                finite = False
+            if not finite:
+                raise ValueError(f"{name} must be a finite number")
         if not 0.0 <= self.disagreement_margin <= 1.0:
             raise ValueError("disagreement_margin must be within [0, 1]")
         if not 0.0 < self.quorum_confidence <= 1.0:

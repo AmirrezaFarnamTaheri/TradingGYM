@@ -160,6 +160,10 @@ class TierCascadePlanner:
                     benched.append((arm.name, _BENCH_ERROR))
                     del exc
                     continue
+                except PermissionError:
+                    # A revoked authority is not mere provider unavailability.
+                    # Never hide denial behind a lower-tier fallback proposal.
+                    raise
                 except Exception:  # noqa: BLE001 - one arm must not abort the cycle
                     benched.append((arm.name, _BENCH_ERROR))
                     continue
