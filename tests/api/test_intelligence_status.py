@@ -399,3 +399,24 @@ def test_status_does_not_expose_corrupt_request_budget_details(tmp_path, monkeyp
     assert entry["available"] is False
     assert entry["request_budget"] == {"state": "unavailable"}
     assert "private-budget" not in response.text
+
+
+def test_status_separates_working_memory_disclosure_from_experience_consent(
+    tmp_path,
+):
+    cfg = tmp_path / "app.yaml"
+    cfg.write_text(
+        "intelligence:\n"
+        "  mode: system1\n"
+        "  system1_provider_ids: [local-ollama]\n"
+        "  system1_use_experience_memory: false\n"
+        "  system1_use_working_memory: true\n",
+        encoding="utf-8",
+    )
+    response = _client(_app(cfg)).get(
+        "/intelligence/status?probe_limit=0", headers=AUTH,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["system1_memory_enabled"] is False
+    assert payload["system1_working_memory_enabled"] is True
