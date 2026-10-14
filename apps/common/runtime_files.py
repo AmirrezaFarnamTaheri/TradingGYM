@@ -104,6 +104,11 @@ async def handle_panic_request(adapter: object | None, path: Path = PANIC_FILE) 
     # must not erase the global emergency signal.
     if adapter is None:
         return False
+    # Only the governed live worker may acknowledge a global panic. A
+    # dry-run or observer might see an already-flat broker account yet must
+    # not erase the signal before the real execution worker stops.
+    if getattr(adapter, "can_acknowledge_panic", False) is not True:
+        return False
 
     with FileLock(str(path) + ".lock", timeout=5):
         expected_identity = _panic_identity_unlocked(path)
