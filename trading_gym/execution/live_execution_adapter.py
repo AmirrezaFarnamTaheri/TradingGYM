@@ -631,13 +631,31 @@ class LiveExecutionAdapter:
             raise RuntimeError("invalid_broker_order_count")
         if total:
             raise RuntimeError("open_orders_not_cleared")
+        # A missing base-asset row is not evidence of zero holdings; the
+        # broker may have returned an incomplete or corrupted balance page.
+        # Match _get_net_position's duplicate and component validation.
+        seen_base = False
         for balance in balances:
             if balance.symbol == self.base_asset:
-                gross = Decimal(str(balance.balance)) + Decimal(str(balance.blocked))
-                if not gross.is_finite() or gross < 0:
+                if seen_base:
+                    raise ValueError("duplicate_broker_base_balance")
+                seen_base = True
+                available = Decimal(str(balance.balance))
+                blocked = Decimal(str(balance.blocked))
+                if (
+                    not available.is_finite()
+                    or not blocked.is_finite()
+                    or available < 0
+                    or blocked < 0
+                ):
+                    raise ValueError("invalid_broker_spot_balance")
+                gross = available + blocked
+                if not gross.is_finite():
                     raise ValueError("invalid_broker_spot_balance")
                 if gross >= self.min_qty:
                     raise RuntimeError("gross_exposure_not_cleared")
+        if not seen_base:
+            raise ValueError("missing_broker_base_balance")
         for short in shorts:
             if short.get("symbol") == self.symbol:
                 amount = Decimal(str(short["amount"]))
