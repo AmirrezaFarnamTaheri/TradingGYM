@@ -66,9 +66,7 @@ def normalized_orderbook_features(
     mid = bid_price / 2.0 + ask_price / 2.0
     total = bid_total + ask_total
     best_total = bid_size + ask_size
-    if (
-        not all(math.isfinite(v) and v > 0 for v in (mid, total, best_total))
-    ):
+    if not all(math.isfinite(v) and v > 0 for v in (mid, total, best_total)):
         raise ValueError("invalid book aggregate")
     # Weighted offsets avoid computing (price * size) when both operands are
     # large; the difference from mid is bounded by half the bid-ask spread.
