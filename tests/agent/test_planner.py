@@ -15,9 +15,10 @@ Contract:
 
 from __future__ import annotations
 
-
 from datetime import datetime, timezone
-from trading_gym.agent.fusion import FusionConfig
+
+import pytest
+
 from trading_gym.agent.arms import (
     ArmRegistry,
     ArmTier,
@@ -25,6 +26,7 @@ from trading_gym.agent.arms import (
     Blackboard,
     CostModel,
 )
+from trading_gym.agent.fusion import FusionConfig
 from trading_gym.agent.planner import TierCascadePlanner
 from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
 from trading_gym.intelligence.types import (
@@ -416,6 +418,7 @@ class TestPlannerGuards:
         )
         assert result.fused.escalated
         assert result.invoked_tiers == ()
+
 
 def test_availability_probe_crash_is_benched_without_aborting_cycle(
     tmp_path,

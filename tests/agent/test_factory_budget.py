@@ -300,12 +300,11 @@ def _cost_arm(credits: float):  # type: ignore[no-untyped-def]
         required_scopes=frozenset(),
     )
 
+
 @pytest.mark.parametrize("invalid", [float("nan"), float("inf"), True])
 def test_risk_guard_rejects_nonfinite_position_caps(invalid: float) -> None:
     with pytest.raises(ValueError, match="positive and finite"):
-        RiskGuardBackend(
-            DeterministicRuleBackend(), max_position_units=invalid
-        )
+        RiskGuardBackend(DeterministicRuleBackend(), max_position_units=invalid)
 
 
 @pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])

@@ -16,7 +16,9 @@ from trading_gym.agent.working_memory import (
 )
 
 
-@pytest.mark.parametrize("field", ["disagreement_margin", "quorum_confidence", "max_leverage"])
+@pytest.mark.parametrize(
+    "field", ["disagreement_margin", "quorum_confidence", "max_leverage"]
+)
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"), True])
 def test_fusion_config_rejects_nonfinite_and_boolean_numbers(
     field: str, bad: float
@@ -34,7 +36,9 @@ def test_vote_weight_inputs_cannot_change_after_validation() -> None:
         weights.entries[("rules", "trend")] = 0.0  # type: ignore[index]
 
 
-@pytest.mark.parametrize("field", ["quorum_confidence_delta", "disagreement_margin_delta"])
+@pytest.mark.parametrize(
+    "field", ["quorum_confidence_delta", "disagreement_margin_delta"]
+)
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"), True])
 def test_caution_state_rejects_nonfinite_deltas(field: str, bad: float) -> None:
     with pytest.raises(ValueError):
@@ -43,7 +47,12 @@ def test_caution_state_rejects_nonfinite_deltas(field: str, bad: float) -> None:
 
 @pytest.mark.parametrize(
     "field",
-    ["elevated_quorum_delta", "high_quorum_delta", "elevated_margin_delta", "high_margin_delta"],
+    [
+        "elevated_quorum_delta",
+        "high_quorum_delta",
+        "elevated_margin_delta",
+        "high_margin_delta",
+    ],
 )
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"), True])
 def test_caution_policy_rejects_nonfinite_deltas(field: str, bad: float) -> None:
@@ -64,7 +73,9 @@ def test_high_caution_cannot_weaken_elevated_policy(params: dict) -> None:
         CautionPolicy(**params)
 
 
-@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"), True, "invalid"])
+@pytest.mark.parametrize(
+    "bad", [float("nan"), float("inf"), float("-inf"), True, "invalid"]
+)
 def test_settlement_rejects_nonfinite_pnl_without_modifying_memory(bad: object) -> None:
     memory = WorkingMemory()
     memory.record_cycle(
@@ -75,7 +86,9 @@ def test_settlement_rejects_nonfinite_pnl_without_modifying_memory(bad: object) 
         benched=(),
     )
     with pytest.raises(ValueError, match="pnl_quote"):
-        memory.settle(cycle_id="first", outcome="loss", pnl_quote=bad)  # type: ignore[arg-type]
+        memory.settle(
+            cycle_id="first", outcome="loss", pnl_quote=bad
+        )  # type: ignore[arg-type]
     record = memory.by_id("first")
     assert record is not None
     assert record.outcome is None
