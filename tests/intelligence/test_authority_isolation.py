@@ -134,14 +134,43 @@ def test_nonfinite_action_limits_never_create_a_policy(bounds):
         )
 
 
-def test_contradictory_long_direction_cannot_become_a_short_order():
+def test_contradictory_direction_denies_instead_of_falling_back_to_a_trade():
     bad = DecisionBackend(action=ActionKind.LONG, leverage=-2.0)
-    safe = DecisionBackend(action=ActionKind.LONG, leverage=1.0)
-    engine = adapter(bad, safe)
-    action, _ = engine.predict(np.zeros(6))
-    assert float(action[0]) == pytest.approx(1.0)
-    assert engine.last_signal.backend.endswith("(degraded)")
-    assert any("ValueError" in reason for reason in engine.last_failure_types)
+    secondary = DecisionBackend(action=ActionKind.LONG, leverage=1.0)
+    engine = adapter(bad, secondary)
+    with pytest.raises(PermissionError, match="invalid_intelligence_decision"):
+        engine.predict(np.zeros(6))
+    assert secondary.calls == 0
+    assert engine.last_signal is None
+
+
+def test_unexpected_backend_value_error_is_not_a_recoverable_model_outage():
+    primary = DecisionBackend(failure=ValueError("invalid model signal"))
+    secondary = DecisionBackend(action=ActionKind.LONG, leverage=1.0)
+    engine = adapter(primary, secondary)
+    with pytest.raises(PermissionError, match="intelligence_backend_invalid_failure"):
+        engine.predict(np.zeros(6))
+    assert secondary.calls == 0
+    assert engine.last_signal is None
+
+
+def test_boolean_confidence_cannot_be_considered_a_valid_model_probability():
+    class BooleanConfidenceBackend(DecisionBackend):
+        def decide(self, context):
+            return DecisionSignal(
+                backend=self.name,
+                action_kind=ActionKind.LONG,
+                target_leverage=1.0,
+                confidence=True,
+                rationale="unvalidated confidence",
+            )
+
+    primary = BooleanConfidenceBackend()
+    secondary = DecisionBackend()
+    engine = adapter(primary, secondary)
+    with pytest.raises(PermissionError, match="invalid_intelligence_decision"):
+        engine.predict(np.zeros(6))
+    assert secondary.calls == 0
 
 
 @pytest.mark.parametrize(
