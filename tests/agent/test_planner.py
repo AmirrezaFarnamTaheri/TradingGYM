@@ -416,3 +416,47 @@ class TestPlannerGuards:
         )
         assert result.fused.escalated
         assert result.invoked_tiers == ()
+
+def test_availability_probe_crash_is_benched_without_aborting_cycle(
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    class _BrokenAvailability(DeterministicRuleBackend):
+        name = "broken-probe"
+
+        def is_available(self) -> bool:
+            raise RuntimeError("provider health probe failed")
+
+    registry = build_registry(
+        rules_arm("broken-probe", backend=_BrokenAvailability()),
+        rules_arm("healthy", backend=_StubbornLong("healthy")),
+    )
+    result = TierCascadePlanner(registry, FusionConfig()).run(
+        make_context(),
+        regime="trend",
+        principal="agent-axiom1",
+        ledger=make_grants(tmp_path),
+    )
+    assert ("broken-probe", "error") in result.benched
+    assert result.fused.action_kind is ActionKind.LONG
+
+
+def test_availability_probe_authority_denial_is_not_benched(
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    class _DeniedAvailability(DeterministicRuleBackend):
+        name = "denied-probe"
+
+        def is_available(self) -> bool:
+            raise PermissionError("authorization_revoked")
+
+    registry = build_registry(
+        rules_arm("denied-probe", backend=_DeniedAvailability()),
+        rules_arm("healthy", backend=_StubbornLong("healthy")),
+    )
+    with pytest.raises(PermissionError, match="authorization_revoked"):
+        TierCascadePlanner(registry, FusionConfig()).run(
+            make_context(),
+            regime="trend",
+            principal="agent-axiom1",
+            ledger=make_grants(tmp_path),
+        )
