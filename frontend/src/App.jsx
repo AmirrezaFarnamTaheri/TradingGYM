@@ -149,6 +149,39 @@ const tabs = [
 ];
 
 // =============================================================================
+// Four operator workspaces, preserving all existing tab/panel identities.
+// =============================================================================
+
+const workspaces = [
+  {
+    key: 'execution',
+    label: 'Execution & Risk',
+    tabKeys: ['production', 'trading'],
+  },
+  {
+    key: 'research',
+    label: 'Research & Playground',
+    tabKeys: ['institutional', 'convergence', 'playground', 'data'],
+  },
+  {
+    key: 'models',
+    label: 'Agent & Model Forge',
+    tabKeys: ['forge', 'training', 'models'],
+  },
+  {
+    key: 'governance',
+    label: 'Governance & System',
+    tabKeys: ['authz', 'system', 'config'],
+  },
+];
+
+const workspaceTabs = workspaces.map((group) => ({
+  ...group,
+  tabs: group.tabKeys.map((key) => tabs.find((tab) => tab.key === key)),
+}));
+const navigationTabs = workspaceTabs.flatMap((group) => group.tabs);
+
+// =============================================================================
 // Main App Component
 // =============================================================================
 
@@ -160,8 +193,8 @@ function AppContent() {
   const ActiveComponent = currentTab?.component || SystemPanel;
 
   function handleTabKeyDown(event, currentKey) {
-    const currentIndex = tabs.findIndex(tab => tab.key === currentKey);
-    const last = tabs.length - 1;
+    const currentIndex = navigationTabs.findIndex(tab => tab.key === currentKey);
+    const last = navigationTabs.length - 1;
     let nextIndex;
     if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
       nextIndex = (currentIndex + 1) % tabs.length;
@@ -175,9 +208,10 @@ function AppContent() {
       return;
     }
     event.preventDefault();
-    const nextKey = tabs[nextIndex].key;
+    const nextKey = navigationTabs[nextIndex].key;
     setActiveTab(nextKey);
-    event.currentTarget.parentElement?.querySelector(`#tab-${nextKey}`)?.focus();
+    event.currentTarget.closest('[role="tablist"]')
+      ?.querySelector(`#tab-${nextKey}`)?.focus();
   }
 
   return (
@@ -191,21 +225,33 @@ function AppContent() {
           </div>
 
           <nav className="sidebar-nav" role="tablist" aria-label="Panel navigation">
-            {tabs.map(({ key, label, description }) => (
-              <button
-                key={key}
-                id={`tab-${key}`}
-                role="tab"
-                aria-selected={activeTab === key}
-                aria-controls={activeTab === key ? `panel-${key}` : undefined}
-                tabIndex={activeTab === key ? 0 : -1}
-                onClick={() => setActiveTab(key)}
-                onKeyDown={(event) => handleTabKeyDown(event, key)}
-                className={`nav-button ${activeTab === key ? 'active' : ''}`}
-                title={description}
+            {workspaceTabs.map((workspace) => (
+              <div
+                key={workspace.key}
+                className="sidebar-workspace"
+                data-workspace={workspace.key}
+                role="presentation"
               >
-                {label}
-              </button>
+                <div className="sidebar-workspace-label" role="presentation">
+                  {workspace.label}
+                </div>
+                {workspace.tabs.map(({ key, label, description }) => (
+                  <button
+                    key={key}
+                    id={`tab-${key}`}
+                    role="tab"
+                    aria-selected={activeTab === key}
+                    aria-controls={activeTab === key ? `panel-${key}` : undefined}
+                    tabIndex={activeTab === key ? 0 : -1}
+                    onClick={() => setActiveTab(key)}
+                    onKeyDown={(event) => handleTabKeyDown(event, key)}
+                    className={`nav-button ${activeTab === key ? 'active' : ''}`}
+                    title={description}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             ))}
           </nav>
 

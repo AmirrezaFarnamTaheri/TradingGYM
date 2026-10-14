@@ -1,5 +1,20 @@
 # Hardening branch status — 2026-10-11
 
+## Operator navigation workspace and scroll containment — 2026-10-14
+
+The operator sidebar now groups all twelve existing panels into four
+labeled workspaces (execution/risk, research/playground, model/agent forge,
+and governance/system). The desktop sidebar has its own bounded vertical
+scrolling region, while content scroll remains independent and the footer
+stays visible. Mobile navigation keeps a horizontal scroller without
+expanding the entire app. Tab IDs and panels remain unchanged; keyboard
+roving focus now traverses grouped tab buttons. A Vitest regression covers
+workspace membership, all destinations, and cross-workspace keyboard
+navigation. Emergency authorization flows are unchanged; no unauthenticated
+one-click funded mutation was introduced.
+
+
+
 ## Canonical backend training default — 2026-10-14
 
 The backend Pydantic `TrainingStartRequest.config_name` default now selects
