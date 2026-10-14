@@ -381,3 +381,31 @@ def test_system1_working_memory_requires_separate_explicit_consent():
     opted_in = captured_packet(True)
     assert "working_memory" not in private
     assert opted_in["working_memory"]["recent_realized_pnl"] == -4.0
+
+
+def test_explicit_weak_system1_hold_does_not_cascade_to_risk_on_fallback():
+    from trading_gym.intelligence.llm_backend import LLMTransportResponse
+    from trading_gym.intelligence.system1_backend import System1DecisionBackend
+    from trading_gym.intelligence.types import ActionKind
+
+    config = ProviderConfig(
+        provider_id="fast-hold",
+        display_name="local",
+        kind=ProviderKind.LOCAL,
+        model="fast",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    backend = System1DecisionBackend(
+        config,
+        transport=lambda url, messages: LLMTransportResponse(content=json.dumps({
+            "action": "hold",
+            "target_leverage": 0.0,
+            "confidence": 0.25,
+            "rationale": "inconclusive closed-bar indicators",
+        })),
+        confidence_floor=0.65,
+    )
+    signal = backend.decide(_context())
+    assert signal.action_kind is ActionKind.HOLD
+    assert signal.target_leverage == 0
+    assert signal.confidence == pytest.approx(0.25)
