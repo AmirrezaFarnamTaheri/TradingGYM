@@ -27,6 +27,7 @@ const TradingPanel = lazy(() => import('./components/TradingPanel'));
 const DataPanel = lazy(() => import('./components/DataPanel'));
 const SystemPanel = lazy(() => import('./components/SystemPanel'));
 const ConvergencePanel = lazy(() => import('./components/ConvergencePanel'));
+const IntelligencePanel = lazy(() => import('./components/IntelligencePanel'));
 const InstitutionalOSPanel = lazy(() => import('./components/InstitutionalOSPanel'));
 const ProductionPanel = lazy(() => import('./components/ProductionPanel'));
 const AuthzPanel = lazy(() => import('./components/AuthzPanel'));
@@ -79,6 +80,13 @@ const tabs = [
     component: ConvergencePanel,
     helpTopic: 'general',
     description: 'Safe strategy research, provider tools, and human-governed automation',
+  },
+  {
+    key: 'intelligence',
+    label: '🧠 Model Fleet',
+    component: IntelligencePanel,
+    helpTopic: 'models',
+    description: 'Read-only System-1 roster, provider availability and request admission',
   },
   {
     key: 'forge',
@@ -161,7 +169,7 @@ const workspaces = [
   {
     key: 'research',
     label: 'Research & Playground',
-    tabKeys: ['institutional', 'convergence', 'playground', 'data'],
+    tabKeys: ['institutional', 'convergence', 'intelligence', 'playground', 'data'],
   },
   {
     key: 'models',
