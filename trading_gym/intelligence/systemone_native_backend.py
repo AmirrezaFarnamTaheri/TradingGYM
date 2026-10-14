@@ -197,12 +197,26 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
             working_memory=self._working_memory,
             experience_memory=self._experience_memory,
         )
-        self.last_context_sha256 = hashlib.sha256(packet.encode("utf-8")).hexdigest()
-        request = build_request(packet, self.config.model)
-        result = self._transport(request)
         risk_cap = (
             context.risk_limits.get("max_leverage") if context.risk_limits else None
         )
+        if risk_cap is not None:
+            from trading_gym.intelligence.systemone_protocol import _limit
+
+            try:
+                _limit(risk_cap, allow_zero=True)
+            except ValueError as exc:
+                # Invalid operator risk bounds are authority failures, not
+                # recoverable model outages that may trigger rule fallback.
+                raise PermissionError("systemone_invalid_risk_limit") from exc
+
+        self.last_context_sha256 = hashlib.sha256(packet.encode("utf-8")).hexdigest()
+        request = build_request(packet, self.config.model)
+        result = self._transport(request)
+        if not isinstance(result, dict) or result.get("model") != self.config.model:
+            # A silently substituted model must not become a trade signal
+            # or automatically drop into an unqualified fallback backend.
+            raise PermissionError("systemone_model_identity_mismatch")
         try:
             action, leverage, confidence, explanation = parse_decision(
                 result,
