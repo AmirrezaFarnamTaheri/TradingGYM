@@ -62,6 +62,9 @@ export default function AuthzPanel() {
   const grants = grantsQuery.data?.grants ?? [];
   // An absent or failed health response is not proof that the grant ledger
   // is valid. Only an affirmative response may be displayed as healthy.
+  const legacyWildcardCount = healthQuery.data?.legacy_high_risk_wildcard_grants;
+  const legacyStatusKnown =
+    Number.isSafeInteger(legacyWildcardCount) && legacyWildcardCount >= 0;
   const ledgerState = healthQuery.isPending
     ? 'checking'
     : healthQuery.isError
@@ -83,6 +86,19 @@ export default function AuthzPanel() {
         </strong>{' '}
         ({healthQuery.data?.entries ?? 0} entries). Revocation is terminal.
       </p>
+
+      {ledgerState === 'valid' && !legacyStatusKnown && (
+        <div className="error" role="alert" data-testid="legacy-grants-unknown">
+          Legacy economic wildcard-grant review is unavailable. Verify the
+          current authorization service before funded execution.
+        </div>
+      )}
+      {ledgerState === 'valid' && legacyStatusKnown && legacyWildcardCount > 0 && (
+        <div className="error" role="alert" data-testid="legacy-grants-warning">
+          {legacyWildcardCount} legacy high-risk wildcard grant(s) require
+          operator review and explicit revocation before funded execution.
+        </div>
+      )}
 
       <form
         className="credential-row"

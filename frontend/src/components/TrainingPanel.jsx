@@ -35,7 +35,22 @@ export default function TrainingPanel() {
     };
 
     ws.onmessage = (event) => {
-      const log = JSON.parse(event.data);
+      let log;
+      try {
+        log = JSON.parse(event.data);
+      } catch {
+        // A malformed telemetry frame must not crash the operator console.
+        return;
+      }
+      if (
+        !log ||
+        typeof log !== 'object' ||
+        typeof log.level !== 'string' ||
+        typeof log.message !== 'string' ||
+        typeof log.source !== 'string'
+      ) {
+        return;
+      }
       addLog(log);
     };
 
@@ -54,7 +69,7 @@ export default function TrainingPanel() {
 
   // Auto-scroll to bottom
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    logsEndRef.current?.scrollIntoView?.({ behavior: 'smooth' });
   }, [logs]);
 
   // Start/Stop mutations

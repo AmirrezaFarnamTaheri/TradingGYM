@@ -1,5 +1,18 @@
 # Hardening branch status — 2026-10-11
 
+## Authz operator warning and resilient training telemetry — 2026-10-14
+
+The authorization panel now shows an actionable warning when the
+backend reports outstanding legacy high-risk wildcard grants, and an
+explicit unknown state if a valid ledger response omits that count.
+Training Lab WebSocket log ingestion rejects malformed frames and
+unknown record shapes before adding them to the log store, while
+scroll-to-bottom remains safe where DOM scrolling is unavailable.
+Dedicated frontend regressions were added; full Vitest verification
+awaits restored GitHub Actions runner allocation.
+
+
+
 ## Canonical runtime and published API identity — 2026-10-14
 
 The FastAPI application's `version` now reads the canonical
