@@ -231,6 +231,22 @@ class FusionEngine:
         for proposal in directional:
             weight = config.weights.effective(proposal.arm_name, regime)
             magnitude = proposal.signal.confidence * weight
+            # Disabled/zero-conviction arms do not carry authority. Active
+            # directional proposals must have matching signed exposure.
+            if magnitude > 0.0 and (
+                (
+                    proposal.signal.action_kind is ActionKind.LONG
+                    and proposal.signal.target_leverage <= 0.0
+                )
+                or (
+                    proposal.signal.action_kind is ActionKind.SHORT
+                    and proposal.signal.target_leverage >= 0.0
+                )
+            ):
+                return _escalation(
+                    "direction_leverage_mismatch",
+                    f"{proposal.arm_name} proposed conflicting exposure",
+                )
             contributions.append((proposal, magnitude))
             total += magnitude
             if proposal.signal.action_kind is ActionKind.LONG:
@@ -238,13 +254,17 @@ class FusionEngine:
             else:
                 net -= magnitude
 
+        if not math.isfinite(total) or not math.isfinite(net):
+            # Every individual input may be finite while cumulative vote
+            # mass overflows. Never turn inf / inf into an active decision.
+            return _escalation("conviction_overflow", "non-finite aggregate vote")
         if total <= 0.0:
             return _escalation(
                 "no_effective_weight",
                 "every directional arm is zero-weighted this regime",
             )
 
-        share = abs(net) / total
+        share = min(1.0, abs(net) / total)
         if share <= config.disagreement_margin:
             return _escalation(
                 "disagreement",
@@ -272,7 +292,16 @@ class FusionEngine:
             )
             / weight_sum
         )
+        if not math.isfinite(raw_leverage):
+            return _escalation("leverage_overflow", "non-finite weighted exposure")
         leverage = max(-config.max_leverage, min(config.max_leverage, raw_leverage))
+        if (
+            (winning is ActionKind.LONG and leverage <= 0.0)
+            or (winning is ActionKind.SHORT and leverage >= 0.0)
+        ):
+            return _escalation(
+                "zero_directional_exposure", "weighted leverage underflowed to zero"
+            )
 
         names = ", ".join(sorted(p.arm_name for p, _ in agreeing))
         return FusedDecision(

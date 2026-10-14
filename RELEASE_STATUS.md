@@ -1,5 +1,16 @@
 # Hardening branch status — 2026-10-11
 
+## Vote-mass overflow and direction/exposure invariants — 2026-10-14
+
+Additional advisory-plane safety cases revealed that individually finite
+vote weights can overflow the aggregate, converting `inf / inf` into a
+NaN-confidence directional vote. The fusion engine now escalates non-finite
+vote and leverage aggregates to flat; active proposals with contradictory
+action direction and signed leverage also escalate. Disabled (zero-mass)
+arms cannot veto healthy candidates. Deterministic regression tests cover
+these cases. This does not replace downstream execution risk controls or
+qualify the blocked hosted CI matrix.
+
 ## Caution sizing and immutable-weight interoperability — 2026-10-14
 
 An additional agent hardening correction preserves copying and dataclass
