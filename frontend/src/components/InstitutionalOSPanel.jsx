@@ -7,7 +7,7 @@ const DOMAINS = [
   ['market-intelligence/regime', 'Market regimes', 'Trend, volatility, liquidity, and strategy-suitability evidence.'],
   ['alpha-factory/evaluate', 'Alpha factory', 'Falsifiable hypotheses, replication, challenge evidence, and peer-review gates.'],
   ['signal-graph/analyze', 'Signal graph', 'Indicator, factor, strategy, regime, experiment, and risk relationships.'],
-  ['portfolio/construct', 'Portfolio construction', 'Equal weight, inverse volatility, minimum variance, risk parity, and diversification.'],
+  ['portfolio/construct', 'Portfolio construction', 'Portfolio risk, diversification, and bounded turnover-aware research with optional group caps.'],
   ['portfolio/digital-twin', 'Portfolio digital twin', 'FX-aware scenario equity, liquidation value, and exposure projections.'],
   ['execution/microstructure', 'Market microstructure', 'Bounded order-book consumption, queue position, impact, and partial fills.'],
   ['execution/routing', 'Smart routing review', 'Cost, reliability, capacity, fill probability, and counterparty-aware route proposals.'],
@@ -50,6 +50,26 @@ const SAMPLE = {
     correlation_matrix: [[1, 0.6], [0.6, 1]],
     method: 'risk-parity',
   },
+};
+
+const TURNOVER_SAMPLE = {
+  assets: [
+    {
+      asset_id: 'BTC', expected_return: 0.1, volatility: 0.5,
+      minimum_weight: 0, maximum_weight: 0.8,
+    },
+    {
+      asset_id: 'ETH', expected_return: 0.08, volatility: 0.4,
+      minimum_weight: 0, maximum_weight: 0.8,
+    },
+  ],
+  correlation_matrix: [[1, 0.6], [0.6, 1]],
+  method: 'turnover-aware',
+  previous_weights: { BTC: 0.7, ETH: 0.3 },
+  turnover_penalty: 0.03,
+  risk_aversion: 1,
+  asset_groups: { BTC: 'major-crypto', ETH: 'alternative-crypto' },
+  group_caps: { 'alternative-crypto': 0.45 },
 };
 
 function canonicalize(value) {
@@ -232,6 +252,20 @@ export default function InstitutionalOSPanel() {
       <div className="section" style={{ marginTop: 18 }}>
         <h3>{selectedDomain?.[1] || 'Institutional evaluator'}</h3>
         <p>{selectedDomain?.[2]}</p>
+        {selected === 'portfolio/construct' && (
+          <button
+            type="button"
+            className="btn"
+            disabled={running}
+            onClick={() => {
+              setPayload(JSON.stringify(TURNOVER_SAMPLE, null, 2));
+              setResult(null);
+              setError('');
+            }}
+          >
+            Load turnover-aware example
+          </button>
+        )}
         <label>
           <span className="status-label">Request JSON</span>
           <textarea
