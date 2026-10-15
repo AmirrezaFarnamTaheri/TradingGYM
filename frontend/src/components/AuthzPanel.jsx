@@ -18,6 +18,7 @@ export default function AuthzPanel() {
   const [checkScope, setCheckScope] = useState('trade.paper.order.submit');
   const [checkPrincipal, setCheckPrincipal] = useState('');
   const [checkResult, setCheckResult] = useState(null);
+  const [checkRevision, setCheckRevision] = useState(0);
   const [pendingRevoke, setPendingRevoke] = useState(null);
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -143,19 +144,29 @@ export default function AuthzPanel() {
         onSubmit={(event) => {
           event.preventDefault();
           setCheckResult(null);
-          checkMutation.mutate({ scope: checkScope, principal: checkPrincipal });
+          checkMutation.mutate({
+            scope: checkScope, principal: checkPrincipal, revision: checkRevision,
+          });
         }}
         aria-label="Scope check"
       >
         <input
           value={checkPrincipal}
-          onChange={(event) => setCheckPrincipal(event.target.value)}
+          onChange={(event) => {
+            setCheckPrincipal(event.target.value);
+            setCheckRevision((revision) => revision + 1);
+            setCheckResult(null);
+          }}
           placeholder="principal (optional; defaults to caller)"
           aria-label="Check principal"
         />
         <input
           value={checkScope}
-          onChange={(event) => setCheckScope(event.target.value)}
+          onChange={(event) => {
+            setCheckScope(event.target.value);
+            setCheckRevision((revision) => revision + 1);
+            setCheckResult(null);
+          }}
           placeholder="scope.to.check"
           aria-label="Check scope"
         />
@@ -164,7 +175,8 @@ export default function AuthzPanel() {
         </button>
         {checkResult
           && checkResult.scope === checkScope
-          && checkResult.principal === checkPrincipal && (
+          && checkResult.principal === checkPrincipal
+          && checkResult.revision === checkRevision && (
           <span
             className={`check-result ${checkResult.allowed ? 'allowed' : 'denied'}`}
             data-testid="check-result"
