@@ -1,5 +1,38 @@
 # Hardening branch status — 2026-10-11
 
+## System-1 context cadence, qualified review and non-mutating evidence (2026-10-15)
+
+The existing multi-key API-credential pool, global provider request-admission
+ledger and native typed System-One path remain advisory and opt-in.
+
+This follow-up repairs three integration risks:
+- Weak directional fast-model predictions are now `UncertainDecision`,
+  not provider outages. Only another qualified fast model or a strict,
+  confidence-thresholded deep reviewer may escalate them. Otherwise the
+  decision is neutral HOLD, never automatic risk-on deterministic rules.
+  Malformed strict-model responses are non-degradable evidence failures.
+- Validated completed OHLCV bar closes now travel from live feature assembly
+  into the market context. Current live marks are labeled as quotes; return
+  sampling distinguishes completed bars from legacy mark-price updates.
+  Historical simulations retain their own explicit provenance.
+- Optional long-term experience lookup is genuinely read-only and verifies
+  anchors even for missing/emptied journals. Opted-in short-term settled
+  memory requires an explicitly connected source: standard paper/live
+  entrypoints do not yet supply one, and startup fails rather than claiming
+  history it does not have.
+
+Focused tests were added for uncertain System-1/native directions versus
+risk-on fallbacks, strict deep-model reviewers, malformed JSON, provenance
+sampling, bounded memory consent, and anchored journal integrity. New Python
+module accountability SHA-256 values were regenerated and checked from the
+committed sources. **The exact repository test matrix is NOT certified**:
+GitHub Actions runner execution is still blocked, and this environment
+cannot clone the entire GitHub checkout. These changes do not measure
+model calibration, live alpha, benchmark latency, or external provider
+contract reliability. PR #2 stays draft; funded live remains **NO-GO**.
+
+
+
 ## 2026-10-15 venue-local settlement and anti-hindsight evidence
 
 ADR-046 records two more tested financial-data correctness repairs in
