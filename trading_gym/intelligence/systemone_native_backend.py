@@ -35,6 +35,7 @@ from trading_gym.intelligence.types import (
     ActionKind,
     BackendHealth,
     BackendUnavailable,
+    UncertainDecision,
     DecisionSignal,
     MarketContext,
 )
@@ -137,6 +138,8 @@ def httpx_systemone_transport(
 class NativeSystemOneDecisionBackend(IntelligenceBackend):
     """Strict typed probability advice, bounded by the existing policy adapter."""
 
+    can_review_uncertain_system1 = True
+
     def __init__(
         self,
         provider_config: ProviderConfig,
@@ -231,7 +234,7 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
             )
         except ValueError as exc:
             if str(exc) == "systemone_low_confidence_escalate":
-                raise BackendUnavailable(str(exc)) from exc
+                raise UncertainDecision(str(exc)) from exc
             # A malformed distribution or incompatible typed answer is
             # non-degradable evidence corruption, not a temporary outage.
             raise PermissionError("systemone_invalid_model_output") from exc
