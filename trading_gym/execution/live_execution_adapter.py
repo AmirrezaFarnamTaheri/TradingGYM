@@ -614,10 +614,12 @@ class LiveExecutionAdapter:
         """
         balances = await self._call_api(self.api.get_balance)
         shorts = await self._call_api(self.api.get_short_positions)
+        # This verifies a GLOBAL panic signal, not merely this worker's pair.
+        # Do not filter venue orders to BTC/USDT (or the configured symbol):
+        # another pair's open order would otherwise remain executable after
+        # the shared emergency signal was acknowledged.
         orders = await self._call_api(
             self.api.get_orders,
-            base_symbol=self.base_asset,
-            quote_symbol=self.quote_asset,
             status=[OrderStatus.NEW, OrderStatus.OPEN, OrderStatus.PROCESSING],
         )
         if not isinstance(balances, list) or not isinstance(shorts, list):
@@ -631,38 +633,57 @@ class LiveExecutionAdapter:
             raise RuntimeError("invalid_broker_order_count")
         if total:
             raise RuntimeError("open_orders_not_cleared")
-        # A missing base-asset row is not evidence of zero holdings; the
-        # broker may have returned an incomplete or corrupted balance page.
-        # Match _get_net_position's duplicate and component validation.
+        # A missing base-asset row is not evidence of zero holdings.
+        # Every non-quote asset and short is also part of this account-wide
+        # panic proof: a different symbol must not be silently ignored.
         seen_base = False
+        seen_currencies: set[str] = set()
         for balance in balances:
-            if balance.symbol == self.base_asset:
-                if seen_base:
+            symbol = getattr(balance, "symbol", None)
+            if not isinstance(symbol, str) or not symbol:
+                raise ValueError("invalid_broker_spot_balance")
+            if symbol in seen_currencies:
+                if symbol == self.base_asset:
                     raise ValueError("duplicate_broker_base_balance")
+                raise ValueError("duplicate_broker_asset_balance")
+            seen_currencies.add(symbol)
+            available = Decimal(str(balance.balance))
+            blocked = Decimal(str(balance.blocked))
+            if (
+                not available.is_finite()
+                or not blocked.is_finite()
+                or available < 0
+                or blocked < 0
+            ):
+                raise ValueError("invalid_broker_spot_balance")
+            gross = available + blocked
+            if not gross.is_finite():
+                raise ValueError("invalid_broker_spot_balance")
+            if symbol == self.base_asset:
                 seen_base = True
-                available = Decimal(str(balance.balance))
-                blocked = Decimal(str(balance.blocked))
-                if (
-                    not available.is_finite()
-                    or not blocked.is_finite()
-                    or available < 0
-                    or blocked < 0
-                ):
-                    raise ValueError("invalid_broker_spot_balance")
-                gross = available + blocked
-                if not gross.is_finite():
-                    raise ValueError("invalid_broker_spot_balance")
                 if gross >= self.min_qty:
                     raise RuntimeError("gross_exposure_not_cleared")
+            elif symbol != self.quote_asset and gross > 0:
+                # Unknown asset precision cannot justify assuming that a
+                # nonzero holding is below its independently verified dust.
+                raise RuntimeError("gross_exposure_not_cleared")
         if not seen_base:
             raise ValueError("missing_broker_base_balance")
+        if not seen_currencies:
+            raise ValueError("broker_position_snapshot_unavailable")
         for short in shorts:
-            if short.get("symbol") == self.symbol:
-                amount = Decimal(str(short["amount"]))
-                if not amount.is_finite() or amount < 0:
-                    raise ValueError("invalid_broker_short_balance")
-                if amount >= self.min_qty:
-                    raise RuntimeError("gross_exposure_not_cleared")
+            if not isinstance(short, dict):
+                raise ValueError("invalid_broker_short_balance")
+            symbol = short.get("symbol")
+            if not isinstance(symbol, str) or not symbol:
+                raise ValueError("invalid_broker_short_balance")
+            amount = Decimal(str(short["amount"]))
+            if not amount.is_finite() or amount < 0:
+                raise ValueError("invalid_broker_short_balance")
+            if (symbol == self.symbol and amount >= self.min_qty) or (
+                symbol != self.symbol and amount > 0
+            ):
+                raise RuntimeError("gross_exposure_not_cleared")
         if orders["data"]:
             raise RuntimeError("open_orders_not_cleared")
 
