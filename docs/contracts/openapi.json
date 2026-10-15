@@ -11924,7 +11924,9 @@
               "obv",
               "stochastic",
               "donchian",
-              "adx"
+              "adx",
+              "mfi",
+              "realized_volatility"
             ],
             "title": "Name",
             "type": "string"
