@@ -576,5 +576,119 @@ def template_catalogue() -> dict[str, StrategySpec]:
                 max_holding_bars=150,
             ),
             tags=["research", "breakout", "directional-movement", "template"],
+        ),        "mfi_trend_confirmation": StrategySpec(
+            name="Money-flow trend confirmation",
+            description=(
+                "Research-only bullish momentum after positive money flow "
+                "crosses its neutral level while price holds above an EMA. "
+                "Signals are evaluated after candle close, not for immediate execution."
+            ),
+            timeframe="1h",
+            indicators=[
+                IndicatorSpec(name="mfi", alias="mfi14", params={"period": 14}),
+                IndicatorSpec(name="ema", alias="ema30", params={"period": 30}),
+            ],
+            entry=ConditionGroup(
+                mode=LogicMode.ALL,
+                conditions=[
+                    condition(
+                        indicator("mfi14"),
+                        Operator.CROSSES_ABOVE,
+                        constant(50.0),
+                    ),
+                    condition(field("close"), Operator.GT, indicator("ema30")),
+                ],
+            ),
+            exit=ConditionGroup(
+                mode=LogicMode.ANY,
+                conditions=[
+                    condition(
+                        indicator("mfi14"),
+                        Operator.CROSSES_BELOW,
+                        constant(45.0),
+                    ),
+                    condition(
+                        field("close"),
+                        Operator.CROSSES_BELOW,
+                        indicator("ema30"),
+                    ),
+                ],
+            ),
+            risk=RiskSpec(
+                max_position_fraction=0.04,
+                stop_loss_fraction=0.025,
+                max_holding_bars=120,
+            ),
+            tags=["research", "trend", "volume-flow", "template"],
         ),
+        "volatility_expansion_breakout": StrategySpec(
+            name="Volatility-expansion channel breakout",
+            description=(
+                "Research-only breakout after per-bar realized volatility "
+                "rises through its own past-only percentile threshold, "
+                "with MFI confirmation and prior-window Donchian boundaries. "
+                "This is a hypothesis, not proven trading alpha."
+            ),
+            timeframe="1h",
+            indicators=[
+                IndicatorSpec(
+                    name="realized_volatility",
+                    alias="hv_rank",
+                    params={
+                        "period": 20,
+                        "lookback": 100,
+                        "component": "percentile",
+                    },
+                ),
+                IndicatorSpec(
+                    name="donchian",
+                    alias="prior_high20",
+                    params={"period": 20, "component": "upper"},
+                ),
+                IndicatorSpec(
+                    name="donchian",
+                    alias="prior_low10",
+                    params={"period": 10, "component": "lower"},
+                ),
+                IndicatorSpec(name="mfi", alias="mfi14", params={"period": 14}),
+            ],
+            entry=ConditionGroup(
+                mode=LogicMode.ALL,
+                conditions=[
+                    condition(
+                        indicator("hv_rank"),
+                        Operator.CROSSES_ABOVE,
+                        constant(60.0),
+                    ),
+                    condition(
+                        field("close"), Operator.GT, indicator("prior_high20")
+                    ),
+                    condition(indicator("mfi14"), Operator.GT, constant(55.0)),
+                ],
+            ),
+            exit=ConditionGroup(
+                mode=LogicMode.ANY,
+                conditions=[
+                    condition(
+                        field("close"),
+                        Operator.CROSSES_BELOW,
+                        indicator("prior_low10"),
+                    ),
+                    condition(
+                        indicator("hv_rank"),
+                        Operator.CROSSES_BELOW,
+                        constant(35.0),
+                    ),
+                ],
+            ),
+            risk=RiskSpec(
+                sizing_method="risk_per_trade",
+                max_position_fraction=0.035,
+                risk_per_trade_fraction=0.006,
+                stop_loss_fraction=0.025,
+                max_holding_bars=160,
+            ),
+            tags=["research", "breakout", "volatility", "volume-flow", "template"],
+        ),
+
     }
