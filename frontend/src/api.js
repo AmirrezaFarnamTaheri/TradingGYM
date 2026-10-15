@@ -297,6 +297,20 @@ export const modelsAPI = {
 };
 
 // =============================================================================
+// Production Authority (read-only)
+// =============================================================================
+
+/**
+ * Show independently persisted authority and emergency-stop evidence.
+ * This client intentionally exposes no production authorization mutation.
+ * Changes to funded authority remain four-eyes and server-governed.
+ */
+export const productionAPI = {
+  getAuthority: () => api.get('/production/authority'),
+  getEmergencyState: () => api.get('/production/emergency'),
+};
+
+// =============================================================================
 // Trading APIs
 // =============================================================================
 
