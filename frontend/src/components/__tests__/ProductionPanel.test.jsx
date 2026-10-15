@@ -13,14 +13,19 @@ describe('ProductionPanel authority contract', () => {
   });
 });
 
-const { authoritySpy, emergencySpy, tradingSpy } = vi.hoisted(() => ({
+const { authoritySpy, emergencySpy, tradingSpy, reconciliationSpy } = vi.hoisted(() => ({
   authoritySpy: vi.fn(),
   emergencySpy: vi.fn(),
   tradingSpy: vi.fn(),
+  reconciliationSpy: vi.fn(),
 }));
 
 vi.mock('../../api', () => ({
-  productionAPI: { getAuthority: authoritySpy, getEmergencyState: emergencySpy },
+  productionAPI: {
+    getAuthority: authoritySpy,
+    getEmergencyState: emergencySpy,
+    getReconciliation: reconciliationSpy,
+  },
   tradingAPI: { getStatus: tradingSpy },
 }));
 
@@ -29,6 +34,12 @@ describe('Production operator live status', () => {
     authoritySpy.mockReset();
     emergencySpy.mockReset();
     tradingSpy.mockReset();
+    reconciliationSpy.mockReset();
+    reconciliationSpy.mockResolvedValue({ data: {
+      state: 'journal_clear', unresolved_total: 0,
+      pending: 0, ambiguous: 0, authority_granted: false,
+      can_trade: false,
+    } });
     authoritySpy.mockResolvedValue({ data: {
       single_live_authority: 'trading_gym.production.runtime.LiveExecutionCoordinator',
       wallet_custody: false,
