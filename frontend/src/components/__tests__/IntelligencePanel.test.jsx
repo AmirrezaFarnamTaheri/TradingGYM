@@ -137,3 +137,40 @@ describe('Intelligence model fleet status', () => {
   });
 
 });
+
+describe('Intelligence status freshness and recovery', () => {
+  it('refreshes a stale provider snapshot without reloading the application', async () => {
+    statusSpy.mockResolvedValueOnce({
+      data: { mode: 'system1', note: 'read-only', backends: [
+        { name: 'system1:fast', available: false, device: null },
+      ] },
+    }).mockResolvedValueOnce({
+      data: { mode: 'system1', note: 'read-only', backends: [
+        { name: 'system1:fast', available: true, device: null },
+      ] },
+    });
+    const { container, cleanup } = renderWithClient(<IntelligencePanel />);
+    await waitForRendered(container, '.intelligence-table');
+    expect(container.textContent).toContain('Unavailable');
+    const refresh = await waitForRendered(
+      container, 'button',
+      (button) => button.textContent.includes('Refresh')
+    );
+    refresh.click();
+    await waitForRendered(
+      container, '.intelligence-table',
+      (table) => table.textContent.includes('Available')
+    );
+    expect(statusSpy).toHaveBeenCalledTimes(2);
+    cleanup();
+  });
+
+  it('shows malformed backend data as a recoverable error, never a panel crash', async () => {
+    statusSpy.mockResolvedValueOnce({ data: { mode: 'auto', backends: null } });
+    const { container, cleanup } = renderWithClient(<IntelligencePanel />);
+    const alert = await waitForRendered(container, '[role="alert"]');
+    expect(alert.textContent).toContain('Invalid intelligence status');
+    expect(container.querySelector('.intelligence-table')).toBeNull();
+    cleanup();
+  });
+});
