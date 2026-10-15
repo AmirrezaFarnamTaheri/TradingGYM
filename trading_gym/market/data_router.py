@@ -259,6 +259,15 @@ class DataProviderRouter:
         if not output.index.is_monotonic_increasing:
             output = output.sort_index()
             warnings.append("sorted non-monotonic timestamps")
+        # Counting irregular intrabar ticks as independently completed bars
+        # can fabricate 100% history coverage while omitting real candles.
+        # Legitimate missing candles have integer multiples of the requested
+        # interval between timestamps; they remain missing and lower coverage.
+        if len(output) > 1:
+            cadence = pd.Timedelta(seconds=_TIMEFRAME_SECONDS[request.timeframe])
+            differences = output.index.to_series().diff().iloc[1:]
+            if any(delta % cadence != pd.Timedelta(0) for delta in differences):
+                raise ValueError("market-data bar cadence inconsistent")
         validate_market_frame(output)
         return output, tuple(warnings)
 
