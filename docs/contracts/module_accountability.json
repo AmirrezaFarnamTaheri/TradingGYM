@@ -377,6 +377,11 @@
     },
     {
       "owner": "trading_gym",
+      "path": "trading_gym/convergence/peer_execution_parity.py",
+      "sha256": "bd81bb3bfad69cac5330e030bbc1c90b724899d0b0ee4f07a2c0894f190cf9b3"
+    },
+    {
+      "owner": "trading_gym",
       "path": "trading_gym/convergence/workflows.py",
       "sha256": "58d5b2387d7533d17bc13820da019f653a1d8d2e0b6157112f2cbd0039fe65dc"
     },
