@@ -31,6 +31,7 @@ from trading_gym.intelligence.llm_key_pool import (
     CredentialPool,
     CredentialStateIntegrityError,
     CredentialsUnavailable,
+    ProviderHardQuotaError,
     default_rotation_path,
     request_with_rotation,
 )
@@ -180,6 +181,10 @@ def httpx_transport(
             # Invalid shared key rotation state must block the decision,
             # never cascade to a permissive rules/agent backend.
             raise PermissionError("credential_rotation_integrity_denied") from exc
+        except ProviderHardQuotaError as exc:
+            # A hard project/organization spending cap is an operator
+            # authority boundary, not a model/provider transient outage.
+            raise PermissionError("provider_billing_quota_denied") from exc
         except CredentialsUnavailable as exc:
             raise BackendUnavailable(str(exc)) from exc
         except BackendUnavailable:
