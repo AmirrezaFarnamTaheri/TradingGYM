@@ -211,3 +211,39 @@ Tests:
 `tests/intelligence/test_system1_closed_bar_context.py`.
 Isolated red/green reproductions and static source checks do not replace
 the full hosted Python/Rust/frontend matrix or real provider certification.
+
+
+## Follow-up: destination policy, metadata, and unambiguous JSON (2026-10-15)
+
+Provider URL validation is performed again just before each HTTP attempt.
+If DNS rebinding or a forbidden IP/address causes that validator (or the
+native System-One endpoint join) to reject a destination, the caller now
+raises a **terminal `PermissionError("provider_destination_denied")`**.
+It must not be converted into `BackendUnavailable`, which otherwise
+permits a risk-on fallback. Chat and native transports have independent
+regression tests for that boundary.
+
+`ProviderConfig.metadata` is still available for small descriptive labels,
+but it cannot contain nested credential-like fields, nonfinite/unserializable
+values, or more than 8 KiB of JSON. The provider repository independently
+revalidates the object on save, including callers that bypass Pydantic
+validators through `model_copy(update=...)`. Credential values remain
+in operator environment variables and never in model provider documents.
+
+Strict System-1 JSON is interpreted with duplicate-key rejection at every
+object nesting level and with nonstandard `NaN` and `Infinity` constants
+disabled. A model reply with contradictory `action` or `confidence`
+fields is therefore not accepted just because Python's standard JSON
+loader otherwise chooses the final duplicate value. Malformed strict
+evidence still denies a risk-on fallback under the existing
+`system1_unparseable_model_output` guard.
+
+Targeted repository regressions:
+`tests/intelligence/test_provider_destination_authority.py`,
+`tests/convergence/test_provider_hardening.py`, and
+`tests/intelligence/test_llm_json_ambiguity.py`.
+
+**Verification limitation:** only isolated parser and provider-validator
+harnesses could execute locally in this environment; they are not a
+substitute for running the full repository Python, frontend, Rust and
+integration matrix, or validating real provider response schemas.
