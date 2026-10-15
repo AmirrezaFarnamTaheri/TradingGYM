@@ -22,8 +22,10 @@ vi.mock('../Toast', () => ({
 
 describe('ModelsPanel active-model sync', () => {
   beforeEach(() => {
-    modelsSpy.mockClear();
-    activeSpy.mockClear();
+    modelsSpy.mockReset();
+    activeSpy.mockReset();
+    modelsSpy.mockResolvedValue({ data: { models: [] } });
+    activeSpy.mockResolvedValue({ data: { active_model: 'model-7' } });
     useStore.setState({ activeModel: null });
   });
 
@@ -39,6 +41,49 @@ describe('ModelsPanel active-model sync', () => {
     expect(activeSpy).toHaveBeenCalled();
     expect(useStore.getState().activeModel).toBe('model-7');
 
+    cleanup();
+  });
+
+  it('clears stale active state when the server explicitly has no active model', async () => {
+    useStore.setState({ activeModel: 'previously-active' });
+    activeSpy.mockResolvedValueOnce({ data: { active_model: null } });
+
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    await flushPromises();
+    const label = await waitForRendered(
+      container, '[data-testid="active-model-status"]', el => el.textContent.trim() === 'None'
+    );
+    expect(label).not.toBeNull();
+    expect(useStore.getState().activeModel).toBeNull();
+    cleanup();
+  });
+
+  it('distinguishes an unknown active model from an explicit empty selection', async () => {
+    useStore.setState({ activeModel: 'stale-active' });
+    activeSpy.mockRejectedValueOnce(new Error('registry offline'));
+
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    await flushPromises();
+
+    const unknown = await waitForRendered(
+      container, '[data-testid="active-model-status"]',
+      el => el.textContent.includes('Unable to verify')
+    );
+    expect(unknown.getAttribute('role')).toBe('alert');
+    expect(useStore.getState().activeModel).toBeNull();
+
+    const retry = await waitForRendered(
+      container, 'button',
+      el => el.textContent.includes('Retry active model status')
+    );
+    retry.click();
+    await flushPromises();
+
+    await waitForRendered(
+      container, '[data-testid="active-model-status"]',
+      el => el.textContent.trim() === 'model-7'
+    );
+    expect(useStore.getState().activeModel).toBe('model-7');
     cleanup();
   });
 
