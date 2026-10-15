@@ -80,3 +80,21 @@ def test_numpy_real_annual_benchmark_remains_compatible():
     assert result == pytest.approx(
         _per_period_reference(RETURNS, benchmark_annual=1.2)
     )
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])
+def test_psr_does_not_drop_missing_or_nonfinite_returns(invalid):
+    polluted = np.append(RETURNS, invalid)
+    with pytest.raises(ValueError, match="missing or infinite returns"):
+        probabilistic_sharpe_ratio(polluted)
+
+
+def test_psr_rejects_multistrategy_2d_data_instead_of_pooling_results():
+    combined = np.stack([RETURNS, RETURNS * 0.4])
+    with pytest.raises(ValueError, match="one-dimensional"):
+        probabilistic_sharpe_ratio(combined)
+
+
+def test_psr_rejects_boolean_market_returns():
+    with pytest.raises(ValueError, match="one-dimensional"):
+        probabilistic_sharpe_ratio([True, False, True, False, True])
