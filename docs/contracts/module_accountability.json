@@ -477,6 +477,11 @@
     },
     {
       "owner": "trading_gym",
+      "path": "trading_gym/experiments/peer_strategy_comparison.py",
+      "sha256": "ff52769f7fc87eb5fcd38861ecb39b5af9cf16ccddabea1c61f36274ac4ee7dd"
+    },
+    {
+      "owner": "trading_gym",
       "path": "trading_gym/experiments/repository.py",
       "sha256": "3b4d5d379997d926bcaf13d531930b50f8edba0c30a4029dfeac01506b899119"
     },
