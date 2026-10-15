@@ -176,6 +176,17 @@ async def trade_loop(
                 action, _ = model.predict(obs, deterministic=True)
                 logger.debug(f"Predicted action: {action}")
 
+                # Hosted System-1 or System-2 inference can take seconds.
+                # A panic may have arrived AFTER the top-of-loop check.
+                # Recheck before constructing or sending a live target.
+                if live_adapter and panic_requested():
+                    if not await handle_panic_request(live_adapter):
+                        raise PanicFlattenUnverified(
+                            "panic during inference; flatten unverified"
+                        )
+                    logger.critical("SYSTEM HALTED BY USER")
+                    break
+
             if live_adapter and is_new_closed_candle:
                 # In live mode, execute the trade via adapter instead of stepping
                 action_value = float(action.item())
