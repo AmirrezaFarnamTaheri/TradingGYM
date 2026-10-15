@@ -1,5 +1,9 @@
 """Evidence-first research, quality, and durable workspace utilities."""
 
+from trading_gym.research.correlation_regimes import (
+    classify_density_timeline,
+    correlation_regimes,
+)
 from trading_gym.research.dossier import build_dossier
 from trading_gym.research.quality import ResearchQualityAssessment, assess_dossier
 from trading_gym.research.reflection import audit_claims
@@ -11,6 +15,8 @@ from trading_gym.research.workspace import (
 )
 
 __all__ = [
+    "classify_density_timeline",
+    "correlation_regimes",
     "ResearchNote",
     "ResearchQualityAssessment",
     "ResearchWorkspace",
