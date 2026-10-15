@@ -453,7 +453,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/execution/live_execution_adapter.py",
-      "sha256": "9adb282a861ad8329489849693e77adbadfd8409adbb223a80f44a74fb26793a"
+      "sha256": "8f79c8d849ae4994444688ab87f80dc85337658d7de81dc364939ec994ce1704"
     },
     {
       "owner": "trading_gym",
@@ -1313,7 +1313,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/mutation_retry.py",
-      "sha256": "65a906546e52912248901c80e91b50eabcff8e8558a21f2a89241ca2bae409a1"
+      "sha256": "65a187b39efc9d855c8efc160d89452d88a15f3b8b68abe241d3e7b01656dd8b"
     },
     {
       "owner": "trading_gym",
