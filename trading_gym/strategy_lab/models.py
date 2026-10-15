@@ -182,7 +182,8 @@ class RiskSpec(BaseModel):
         if self.sizing_method == "risk_per_trade":
             if self.risk_per_trade_fraction is None or self.stop_loss_fraction is None:
                 raise ValueError(
-                    "risk_per_trade sizing requires risk_per_trade_fraction and stop_loss_fraction"
+                    "risk_per_trade sizing requires risk_per_trade_fraction "
+                    "and stop_loss_fraction"
                 )
         if self.sizing_method == "volatility_target" and self.target_volatility is None:
             raise ValueError("volatility_target sizing requires target_volatility")
