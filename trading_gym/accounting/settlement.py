@@ -67,6 +67,8 @@ class SettlementObligation(BaseModel):
                 or self.observed_settlement_at.utcoffset() is None
             ):
                 raise ValueError("observed_settlement_at must be timezone-aware")
+            if self.observed_settlement_at < self.trade_at:
+                raise ValueError("settlement_before_trade")
         if (
             self.state is SettlementState.SETTLED
             and self.observed_settlement_at is None
@@ -182,6 +184,10 @@ def evaluate_settlement(
     failed: list[str] = []
     blockers: list[str] = []
     for item in sorted(obligations, key=lambda value: value.obligation_id):
+        if item.trade_at > as_of:
+            raise ValueError("future_trade_outside_as_of")
+        if item.observed_settlement_at is not None and item.observed_settlement_at > as_of:
+            raise ValueError("future_settlement_outside_as_of")
         due = contractual_settlement_date(item)
         # Contractual dates belong to the settlement venue, not UTC.
         as_of_date = as_of.astimezone(
