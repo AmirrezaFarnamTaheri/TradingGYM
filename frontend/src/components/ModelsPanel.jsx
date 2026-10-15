@@ -38,21 +38,32 @@ export default function ModelsPanel() {
     refetchInterval: 5000,
   });
 
+  const activeValueValid = Boolean(
+    activeData &&
+    Object.prototype.hasOwnProperty.call(activeData, 'active_model') &&
+    (
+      activeData.active_model === null ||
+      (
+        typeof activeData.active_model === 'string' &&
+        activeData.active_model.length > 0 &&
+        activeData.active_model.length <= 200 &&
+        activeData.active_model.trim() === activeData.active_model
+      )
+    )
+  );
+
   useEffect(() => {
     if (activeStatusError) {
       // A failed authority read cannot justify a cached active-model label.
       setActiveModel(null);
     } else if (activeData && Object.prototype.hasOwnProperty.call(activeData, 'active_model')) {
-      // Null means explicitly inactive; it must clear prior state.
-      setActiveModel(activeData.active_model ?? null);
+      // Null means inactive; malformed model IDs cannot become verified.
+      setActiveModel(activeValueValid ? activeData.active_model : null);
     }
-  }, [activeData?.active_model, activeStatusError, setActiveModel]);
+  }, [activeData?.active_model, activeValueValid, activeStatusError, setActiveModel]);
 
   const activeStatusVerified = Boolean(
-    !activeStatusError &&
-    !activeStatusLoading &&
-    activeData &&
-    Object.prototype.hasOwnProperty.call(activeData, 'active_model')
+    !activeStatusError && !activeStatusLoading && activeValueValid
   );
 
   const models = modelsData?.models || [];
@@ -132,16 +143,18 @@ export default function ModelsPanel() {
             data-testid="active-model-status"
             role={activeStatusError ? 'alert' : undefined}
             aria-label={
-              activeStatusError
+              activeStatusError || (!activeStatusLoading && !activeStatusVerified)
                 ? 'Unable to verify active model status'
-                : `Current active model is ${activeData?.active_model || 'none selected'}`
+                : activeStatusLoading
+                  ? 'Checking active model status'
+                  : `Current active model is ${activeData?.active_model || 'none selected'}`
             }
           >
             {activeStatusError
               ? 'Unable to verify'
               : activeStatusLoading
                 ? 'Checking…'
-                : activeData && Object.prototype.hasOwnProperty.call(activeData, 'active_model')
+                : activeStatusVerified
                   ? activeData.active_model || 'None'
                   : 'Unable to verify'}
           </span>
