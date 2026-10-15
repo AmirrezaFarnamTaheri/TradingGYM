@@ -62,7 +62,9 @@ def probabilistic_sharpe_ratio(
 ) -> float:
     """Probability that per-period Sharpe exceeds an annualized benchmark.
 
-    The moment-adjusted sampling formula must use per-observation Sharpe,
+    Requires one complete, finite, one-dimensional return series; dropping
+    non-finite observations would silently inflate statistical confidence.
+    The sampling formula must use per-observation Sharpe,
     not the annualized display value. `benchmark_sharpe` is annualized
     for compatibility with `annualised_sharpe`; convert it before comparing.
     """
@@ -76,8 +78,12 @@ def probabilistic_sharpe_ratio(
         or not math.isfinite(float(benchmark_sharpe))
     ):
         raise ValueError("benchmark_sharpe must be finite and non-boolean")
-    values = np.asarray(returns, dtype=float)
-    values = values[np.isfinite(values)]
+    raw = np.asarray(returns)
+    if raw.ndim != 1 or raw.dtype.kind not in "iuf":
+        raise ValueError("PSR requires one-dimensional numerical returns")
+    values = raw.astype(float)
+    if not np.isfinite(values).all():
+        raise ValueError("PSR cannot silently discard missing or infinite returns")
     if values.size < 3:
         return 0.0
     std = float(np.std(values, ddof=1))
