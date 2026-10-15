@@ -1,5 +1,44 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 — 17-archive research and strategy convergence follow-up
+
+The new donor inventory indexes **4,226 files across 617 folder paths**
+with 3,113 source-like files and 34,209 extracted symbol declarations.
+This is structural/source evidence; no claim is made that all donor
+behaviors have been semantically qualified. ADR-043 and ADR-044 record
+the first- and second-order adoption decisions.
+
+Implemented on draft PR #2:
+- A strict, causal Wilder ADX/DMI indicator, grammar registration,
+  two risk-bounded research presets, and a complete 2-period warmup.
+- Chronological market-time validation and indicator alias protection,
+  preventing price and signal column shadowing.
+- Opt-in **next-open, read-only strategy replay** with fees, slippage,
+  bounded execution assumptions, deterministic source/input/report
+  SHA-256 and transparent unfilled final signals.
+- Explicit rejection of contradictory strategy position intents.
+- Before-coercion rejection of boolean strategy constants and risk
+  limits, plus nonfinite strategy constants and indicator periods.
+- Source-accountability entries refreshed for the changed modules.
+  No research result, signal or simulated trade grants capital authority.
+
+Fresh *local mirrored-source* verification (Python 3.13.5):
+`pytest -q test_causal_replay.py test_grammar_mirror.py
+test_indicator_edge_mirror.py` -> **36 passed**.
+Vibe-Trading's separately extracted offline optimizer causality test
+reported **2 passed**. The broader five-file donor optimizer test
+attempt exceeded the local execution time limit; it is **not passed**.
+
+**Unverified on exact PR head:** full Python 3.11/3.12,
+Black/Ruff/MyPy, React, Rust, full FastAPI OpenAPI generator, all source
+hashes, real exchange/broker execution, funding/fee reconciliation,
+independent statistical qualification, and emergency gross-flat readback.
+The prior PR's GitHub Actions jobs did not yield a passing suite,
+and the current head has no confirmed successful workflow run.
+
+PR remains **DRAFT / UNMERGED**, funded-live **NO-GO**.
+
+
 ## System-1 quota and rotation integrity follow-up — 2026-10-15
 
 The multi-key, cross-worker advisory inference pool now distinguishes
