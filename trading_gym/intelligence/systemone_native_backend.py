@@ -31,6 +31,7 @@ from trading_gym.intelligence.llm_key_pool import (
     ProviderHardQuotaError,
     default_rotation_path,
     request_with_rotation,
+    reject_terminal_provider_status,
 )
 from trading_gym.intelligence.llm_request_budget import (
     ProviderRequestBudget,
@@ -127,8 +128,7 @@ def httpx_systemone_transport(
         try:
             if pool is None:
                 response = post("", timeout_seconds)
-                if response.status_code == 403:
-                    raise PermissionError("provider_access_denied")
+                reject_terminal_provider_status(response)
                 response.raise_for_status()
             else:
                 response = request_with_rotation(
