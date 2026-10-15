@@ -27,6 +27,7 @@ from trading_gym.intelligence.llm_key_pool import (
     CredentialPool,
     CredentialStateIntegrityError,
     CredentialsUnavailable,
+    ProviderAuthenticationError,
     ProviderHardQuotaError,
     default_rotation_path,
     request_with_rotation,
@@ -159,6 +160,10 @@ def httpx_systemone_transport(
             # A hard project/organization spending cap is an operator
             # authority boundary, not a model/provider transient outage.
             raise PermissionError("provider_billing_quota_denied") from exc
+        except ProviderAuthenticationError as exc:
+            # An exhausted revoked/invalid key fleet is a principal
+            # authorization denial, not a model health fallback.
+            raise PermissionError("provider_authentication_denied") from exc
         except CredentialsUnavailable as exc:
             raise BackendUnavailable("System-One credentials unavailable") from exc
         except BackendUnavailable:
