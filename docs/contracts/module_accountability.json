@@ -1363,12 +1363,17 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/__init__.py",
-      "sha256": "6186c742fe5121b3c62a458088545dafd1ac1dc2c02236a28ba1ac983a3f1201"
+      "sha256": "639c6dffc63dfbbbd3c7dada17ff3d38932910a8fb9d9acd71c4edd589e61a09"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/research/bootstrap_ci.py",
       "sha256": "5a85664f4c5548fd7789141971a9f1f47694163703d9395fad1b54810444b0fb"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/research/correlation_regimes.py",
+      "sha256": "8ac5d5f8596ea556c16b438486fb805de25e034a5b6f7053fdb756befbaa0634"
     },
     {
       "owner": "trading_gym",
