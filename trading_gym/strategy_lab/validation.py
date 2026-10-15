@@ -28,6 +28,8 @@ def _indicator_warmup(name: str, params: dict[str, object]) -> int:
         return int(params.get("slow", 26)) + int(params.get("signal", 9))
     if name == "stochastic":
         return int(params.get("period", 14)) + int(params.get("smooth", 3))
+    if name == "adx":
+        return 2 * int(params.get("period", 14))
     return int(params.get("period", 1))
 
 
