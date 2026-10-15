@@ -8,7 +8,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/accounting/__init__.py",
-      "sha256": "559e33c9c46060a89362dbebfc5f0215c558a3b520be2f00da9082785b6a2a62"
+      "sha256": "3647124e893c79b50766a14eb7341c45501284e26e003cea49e6251bfd0f6ac3"
     },
     {
       "owner": "trading_gym",
@@ -19,6 +19,11 @@
       "owner": "trading_gym",
       "path": "trading_gym/accounting/corporate_actions.py",
       "sha256": "96e363c473edde20f3fbb74ea4b6cfd412f5ab4c8aa51d78efe5ce269fee5421"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/accounting/funding_reconciliation.py",
+      "sha256": "0b38f6e3482f5d33bd153cfa91ff6cd9f7466fb912a6d93584bf0a5f665c51b9"
     },
     {
       "owner": "trading_gym",
