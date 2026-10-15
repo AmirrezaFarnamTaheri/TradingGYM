@@ -11,6 +11,7 @@ import json
 import math
 import os
 import re
+import stat
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -108,10 +109,16 @@ class CredentialPool:
             raise CredentialStateIntegrityError(
                 "credential rotation state is invalid"
             )
-        if not path.exists():
-            return {"schema_version": 1, "cursor": 0, "cooldowns": {}}
         try:
-            if path.stat().st_size > _MAX_STATE_BYTES:
+            metadata = path.stat()
+        except FileNotFoundError:
+            return {"schema_version": 1, "cursor": 0, "cooldowns": {}}
+        except OSError as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation state is invalid"
+            ) from exc
+        try:
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > _MAX_STATE_BYTES:
                 raise ValueError("oversized")
             state = json.loads(path.read_text(encoding="utf-8"))
             if (
