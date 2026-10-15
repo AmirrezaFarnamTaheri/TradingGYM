@@ -94,7 +94,8 @@ def build_intelligence_policy(
             def advice(self, tags, *, k: int):
                 try:
                     memory = PersistentExperienceMemory.open(
-                        resolve_data_home() / "agent" / "memory" / "experiences.jsonl"
+                        resolve_data_home() / "agent" / "memory" / "experiences.jsonl",
+                        read_only=True,
                     )
                     return memory.advice(tags, k=k)
                 except MemoryJournalIntegrityError as exc:
