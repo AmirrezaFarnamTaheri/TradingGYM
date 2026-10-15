@@ -810,3 +810,116 @@ def test_provider_hard_spend_limit_is_a_non_degradable_authority_denial(
         else:
             httpx_systemone_transport(config)({"model": config.model})
     assert len(calls) == 1
+
+
+def test_auto_escalates_uncertain_system1_to_qualified_deep_review():
+    """AUTO should consult its deep reviewer before allowing a risk-on floor."""
+    import numpy as np
+
+    from trading_gym.common.intelligence_config import IntelligenceConfig
+    from trading_gym.intelligence.factory import build_intelligence_policy
+    from trading_gym.intelligence.llm_backend import LLMTransportResponse
+
+    fast = ProviderConfig(
+        provider_id="fast-auto",
+        display_name="Fast classifier",
+        kind=ProviderKind.LOCAL,
+        model="fast-mini",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+    deep = ProviderConfig(
+        provider_id="deep-auto",
+        display_name="Deep reviewer",
+        kind=ProviderKind.LOCAL,
+        model="deep-review",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    class Repository:
+        def list(self):
+            return [fast, deep]
+
+    policy = build_intelligence_policy(
+        config=IntelligenceConfig(
+            mode="auto",
+            system1_provider_ids=("fast-auto",),
+            llm_provider_id="deep-auto",
+            allow_fallback_to_rules=True,
+        ),
+        model=None,
+        action_low=-2,
+        action_high=2,
+        provider_repository=Repository(),
+    )
+    assert policy.backend.name == "system1:fast-auto"
+    qualified = [
+        backend
+        for backend in policy._fallback_chain
+        if backend.name == "llm"
+        and backend.can_review_uncertain_system1
+        and backend._strict_json_only
+    ]
+    assert len(qualified) == 1
+    policy.backend._transport = lambda _url, _messages: LLMTransportResponse(
+        content=json.dumps({
+            "action": "long",
+            "target_leverage": 0.4,
+            "confidence": 0.2,
+            "rationale": "low confidence",
+        })
+    )
+    qualified[0]._transport = lambda _url, _messages: LLMTransportResponse(
+        content=json.dumps({
+            "action": "long",
+            "target_leverage": 0.35,
+            "confidence": 0.92,
+            "rationale": "independent review",
+        })
+    )
+    action, _ = policy.predict(np.zeros(3))
+    assert float(action[0]) == pytest.approx(0.35)
+    assert policy.last_signal.backend == "llm(degraded)"
+
+
+def test_auto_no_deep_reviewer_abstains_after_uncertain_system1():
+    """Rules must never turn unreviewed model uncertainty into a new order."""
+    import numpy as np
+
+    from trading_gym.common.intelligence_config import IntelligenceConfig
+    from trading_gym.intelligence.factory import build_intelligence_policy
+    from trading_gym.intelligence.llm_backend import LLMTransportResponse
+
+    fast = ProviderConfig(
+        provider_id="fast-auto",
+        display_name="Fast classifier",
+        kind=ProviderKind.LOCAL,
+        model="fast-mini",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    class Repository:
+        def list(self):
+            return [fast]
+
+    policy = build_intelligence_policy(
+        config=IntelligenceConfig(
+            mode="auto",
+            system1_provider_ids=("fast-auto",),
+            allow_fallback_to_rules=True,
+        ),
+        model=None,
+        action_low=-2,
+        action_high=2,
+        provider_repository=Repository(),
+    )
+    policy.backend._transport = lambda _url, _messages: LLMTransportResponse(
+        content=json.dumps({
+            "action": "short",
+            "target_leverage": -0.4,
+            "confidence": 0.15,
+            "rationale": "low confidence",
+        })
+    )
+    action, _ = policy.predict(np.zeros(3))
+    assert float(action[0]) == pytest.approx(0.0)
+    assert policy.last_signal.backend == "system1:abstained"
