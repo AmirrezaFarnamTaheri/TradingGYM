@@ -47,6 +47,7 @@ from trading_gym.intelligence.types import (
     ActionKind,
     BackendHealth,
     BackendUnavailable,
+    UncertainDecision,
     DecisionSignal,
     MarketContext,
 )
@@ -256,6 +257,7 @@ class LLMDecisionBackend(IntelligenceBackend):
         backend_name: str | None = None,
         system_prompt: str | None = None,
         strict_json_only: bool = False,
+        review_confidence_floor: float | None = None,
     ):
         if provider_config.wire_protocol != "openai_chat":
             raise ValueError("native System-One providers require their typed adapter")
@@ -264,6 +266,19 @@ class LLMDecisionBackend(IntelligenceBackend):
         self._context_formatter = context_formatter or build_system1_packet
         self._system_prompt = system_prompt or _SYSTEM_PROMPT
         self._strict_json_only = bool(strict_json_only)
+        if review_confidence_floor is not None:
+            if (
+                type(review_confidence_floor) not in (int, float)
+                or not math.isfinite(review_confidence_floor)
+                or not 0 <= review_confidence_floor <= 1
+                or not self._strict_json_only
+            ):
+                raise ValueError("deep review requires a strict confidence floor")
+        self._review_confidence_floor = review_confidence_floor
+        self.can_review_uncertain_system1 = bool(
+            getattr(self, "can_review_uncertain_system1", False)
+            or review_confidence_floor is not None
+        )
         self.last_context_sha256: str | None = None
         self._explicit_transport = transport is not None
         self._transport: Transport = transport or httpx_transport(
@@ -362,7 +377,7 @@ class LLMDecisionBackend(IntelligenceBackend):
                 or type(raw.get("confidence")) not in (float, int)
                 or not isinstance(raw.get("rationale"), str)
             ):
-                raise BackendUnavailable("system1_invalid_structured_response")
+                raise PermissionError("system1_invalid_structured_response")
             leverage_raw = float(raw["target_leverage"])
             confidence_raw = float(raw["confidence"])
             if (
@@ -374,8 +389,14 @@ class LLMDecisionBackend(IntelligenceBackend):
                 or (raw["action"] == "long" and leverage_raw <= 0)
                 or (raw["action"] == "short" and leverage_raw >= 0)
             ):
-                raise BackendUnavailable("system1_invalid_structured_response")
+                raise PermissionError("system1_invalid_structured_response")
         kind, leverage, confidence, rationale = _normalise_decision(outcome.value)
+        if (
+            self._review_confidence_floor is not None
+            and kind is not ActionKind.HOLD
+            and confidence < self._review_confidence_floor
+        ):
+            raise UncertainDecision("deep_review_low_confidence")
         return DecisionSignal(
             backend=self.name,
             action_kind=kind,
