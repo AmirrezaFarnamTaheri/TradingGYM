@@ -86,3 +86,47 @@ def test_historical_context_packet_labels_source_as_historical():
     packet = json.loads(build_system1_packet(context))
     assert packet["market"]["recent_returns_basis"] == "historical_bars"
     assert packet["market"]["price_basis"] == "historical_close"
+
+
+
+@pytest.mark.parametrize("basis", ["unspecified", "mark_updates", "historical_bars"])
+def test_verified_live_bar_cannot_relabel_non_bar_returns(basis: str):
+    context = MarketContext(
+        symbol="BTCUSDT",
+        position_units=0,
+        equity=1000,
+        margin_level=None,
+        last_close=102,
+        prev_close=101,
+        recent_returns=(0.02, 0.01),
+        return_basis=basis,
+        is_live=True,
+        market_evidence={
+            "bar_open_unix": 1000,
+            "bar_seconds": 300,
+            "source_sha256": "a" * 64,
+        },
+    )
+    with pytest.raises(PermissionError, match="live_completed_bar"):
+        build_system1_packet(context, now=lambda: 1350)
+
+
+def test_completed_bar_history_requires_a_prior_closed_candle():
+    context = MarketContext(
+        symbol="BTCUSDT",
+        position_units=0,
+        equity=1000,
+        margin_level=None,
+        last_close=102,
+        prev_close=None,
+        recent_returns=(),
+        return_basis="completed_bars",
+        is_live=True,
+        market_evidence={
+            "bar_open_unix": 1000,
+            "bar_seconds": 300,
+            "source_sha256": "a" * 64,
+        },
+    )
+    with pytest.raises(PermissionError, match="live_completed_bar"):
+        build_system1_packet(context, now=lambda: 1350)
