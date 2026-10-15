@@ -1,5 +1,25 @@
 # Hardening branch status — 2026-10-11
 
+## System-1 fleet follow-up — 2026-10-15
+
+Multi-key rotation now retains a provider-level 429 cooldown across key-list
+changes and model variants instead of resetting when a new key is added.
+Quota terminal signals in `error.type` and provider-declared shared
+rate-limit scopes also halt rotation. Tests cover the same-data-home
+cross-configuration state, per-key continuity and hard-quota boundaries.
+
+Both chat and native System-1 apply the operator's signed leverage window
+before/after model inference. Invalid risk bounds deny prior to network I/O;
+prohibited long/short recommendations become HOLD, and asymmetric short-only
+windows remain expressible. The live System-1 packet now rejects irregular
+mark-update returns and empty completed-bar histories even with a syntactically
+valid candle fingerprint. These changes add targeted regression coverage;
+isolated reproductions and the new pure signed-risk helper's 10 passing
+reference checks do not certify exact-head repository-wide integration,
+hosted-provider security or funded trading. The PR must stay draft/NO-GO.
+
+
+
 ## System-1 context cadence, qualified review and non-mutating evidence (2026-10-15)
 
 The existing multi-key API-credential pool, global provider request-admission
