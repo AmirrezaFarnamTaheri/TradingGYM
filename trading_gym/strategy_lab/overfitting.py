@@ -241,11 +241,13 @@ def summarise_walk_forward(
     out_sample = np.asarray(out_of_sample_returns, dtype=float)
     if in_sample.shape != out_sample.shape or in_sample.ndim != 1:
         raise ValueError("walk-forward arrays must be one-dimensional with equal shape")
-    finite = np.isfinite(in_sample) & np.isfinite(out_sample)
-    in_sample = in_sample[finite]
-    out_sample = out_sample[finite]
-    if in_sample.size == 0:
-        raise ValueError("walk-forward arrays contain no finite windows")
+    # Dropping incomplete windows changes the experiment sample and can
+    # overstate holdout robustness. A sealed walk-forward must account
+    # for every scheduled train/test pair, not only successful windows.
+    if in_sample.size == 0 or not (
+        np.isfinite(in_sample).all() and np.isfinite(out_sample).all()
+    ):
+        raise ValueError("walk-forward arrays require complete finite windows")
     mean_is = float(np.mean(in_sample))
     mean_oos = float(np.mean(out_sample))
     efficiency = (
