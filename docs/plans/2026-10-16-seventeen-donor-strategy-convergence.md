@@ -90,3 +90,27 @@
 - Cross-sectional/fundamental factor inputs require observed-time, release-time, currency, revision and security master contracts before integrating Vibe factor zoo.
 - Any use of hierarchical model selection for strategies must specify whether the output is a research hint or an operator-approved strategy; this plan uses research-only behavior.
 - Actual provider API credentials, upstream commercial API keys and model-weight permissions are not supplied; none are introduced here.
+
+## Execution Evidence and Unverified Gates
+
+**Implemented on draft PR #2:** Tasks 1–3 have committed repository changes
+and local, isolated RED/GREEN evidence. The source ZIP inventory covers
+4,226 entries, 3,223 source-classified files and 4,180 distinct content
+hashes; the actual Vibe factor source manifest covers 478 standalone modules.
+An added Task 4 deliverable consists of a read-only hierarchical factor
+catalogue, its exported Strategy Lab functions, a bounded offline CLI, and
+regression tests. None of these changes grants execution or model authority.
+
+**Fresh local command:**
+`python -m pytest -q test_volatility_flow_local.py test_candidate_tree_local.py test_factor_cli_local.py`
+
+**Observed result:** `28 passed` (source mirrors and controlled fixtures).
+The entire application imports, the exact PR-head Python 3.11/3.12 runs,
+OpenAPI regeneration, module hash generator, frontend/Rust build and
+venue readback remain unverified. The most recent inspected Actions run
+reported zero executed test steps on nine failed job groups; it cannot
+qualify the source. The release remains draft and funded-live NO-GO.
+
+**Remaining work is not marked complete:** full semantic per-method donor
+parity, build checks, as-of corporate/funding data contracts, instrument-
+specific calibration, broker reconciliation and production approvals.
