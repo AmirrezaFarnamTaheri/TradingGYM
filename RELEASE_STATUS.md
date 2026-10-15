@@ -27,10 +27,14 @@ boundaries, and second-order integration roadmap.
   191 GTJA, 154 Qlib, 101 Alpha, 20 fundamental and 12 academic.
   The CLI never executes source code, invokes a model or mutates
   financial/strategy state.
+- Closed the Strategy Forge variant-search gap: historical volatility
+  `lookback` now mutates independently across 2–10,000, without shrinking
+  a 100-bar historical context to the existing 2–50 short-period range;
+  seed reproducibility and schema bounds remain intact.
 
 **Observed verification:** local source-mirror RED-to-GREEN cycles
 for the proposed indicator and factor-tree code; last combined run
-**28/28 passed** (12 indicator + 12 hierarchy + 4 CLI cases).
+**30/30 passed** (12 indicator + 12 hierarchy + 4 CLI cases).
 These are NOT the complete pinned Python 3.11/3.12 repository suite,
 browser build, Rust checks, model calibration or broker integration.
 A recent hosted Actions run (#38813622837) failed nine required job
