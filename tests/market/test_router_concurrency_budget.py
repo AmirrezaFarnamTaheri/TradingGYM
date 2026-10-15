@@ -264,3 +264,25 @@ def test_old_inflight_topology_cannot_poison_new_provider_cache():
         assert old_request.result(timeout=4).completeness == 0.5
     assert router.fetch(request()).from_cache
     assert full.calls == 1
+
+
+def test_market_coverage_cannot_be_fabricated_from_subinterval_ticks():
+    """Four 1m observations must not impersonate four complete 5m bars."""
+    req = request()
+    bad = frame(req)
+    bad.index = pd.date_range(req.start, periods=4, freq="1min", tz="UTC")
+    with pytest.raises(ValueError, match="bar cadence"):
+        DataProviderRouter._normalise(bad, req)
+
+
+def test_market_coverage_accepts_valid_missing_bar_gaps_without_filling():
+    """True gaps lower completeness but must never fabricate replacement bars."""
+    req = request()
+    sparse = frame(req, rows=3)
+    sparse.index = pd.DatetimeIndex(
+        [req.start, req.start + timedelta(minutes=5),
+         req.start + timedelta(minutes=15)]
+    )
+    accepted, warnings = DataProviderRouter._normalise(sparse, req)
+    assert len(accepted) == 3
+    assert len(warnings) == 0
