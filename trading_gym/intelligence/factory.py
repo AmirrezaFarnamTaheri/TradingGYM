@@ -43,6 +43,17 @@ def build_intelligence_policy(
     Returns ``None`` for ``mode=rl`` — callers treat None as "use the model
     directly", preserving byte-identical legacy behaviour.
     """
+    if (
+        config.system1_provider_ids
+        and config.system1_use_working_memory
+        and working_memory is None
+    ):
+        # No source provides a settled cycle history to standard paper/live
+        # runners yet. Do not claim consent-enabled memory context exists when
+        # no independently settled memory was wired into the policy.
+        raise ValueError(
+            "System-1 requested settled working memory but none is connected"
+        )
     # RULES/LLM modes are model-free; only construct the RL wrapper when a
     # real policy object was provided.
     rl = (
