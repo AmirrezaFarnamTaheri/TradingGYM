@@ -60,6 +60,11 @@ export default function ProductionPanel() {
     queryFn: async () => (await tradingAPI.getStatus()).data,
     ...statusQueryOptions,
   });
+  const journalQuery = useQuery({
+    queryKey: ['production', 'reconciliation'],
+    queryFn: async () => (await productionAPI.getReconciliation()).data,
+    ...statusQueryOptions,
+  });
 
   const authority = authorityQuery.data;
   const emergency = emergencyQuery.data;
@@ -78,8 +83,23 @@ export default function ProductionPanel() {
   const processLabel = (
     tradingQuery.isSuccess && typeof tradingQuery.data?.status === 'string'
   ) ? tradingQuery.data.status : 'Unverified';
+  const journal = journalQuery.data;
+  const journalValid = journalQuery.isSuccess
+    && journal
+    && ['journal_clear', 'blocked'].includes(journal.state)
+    && Number.isSafeInteger(journal.unresolved_total)
+    && journal.unresolved_total >= 0
+    && journal.can_trade === false
+    && journal.authority_granted === false;
+  const journalState = journalValid ? journal.state : 'unverified';
+  const journalLabel = journalState === 'blocked'
+    ? 'Broker reconciliation required'
+    : journalState === 'journal_clear'
+      ? 'Local journal clear'
+      : 'Unverified';
   const anyFetching = authorityQuery.isFetching
-    || emergencyQuery.isFetching || tradingQuery.isFetching;
+    || emergencyQuery.isFetching || tradingQuery.isFetching
+    || journalQuery.isFetching;
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['production'] });
@@ -136,6 +156,29 @@ export default function ProductionPanel() {
           </p>
         </section>
 
+        <section className="production-tile" aria-label="Venue reconciliation journal">
+          <h3>Mutation reconciliation</h3>
+          <strong
+            role="status"
+            data-testid="production-reconciliation"
+            className={`production-state production-state--${journalState}`}
+          >
+            {journalLabel}
+          </strong>
+          {journalValid ? (
+            <p>
+              {journal.unresolved_total} unresolved
+              {' · '}{journal.pending} pending
+              {' · '}{journal.ambiguous} ambiguous
+            </p>
+          ) : (
+            <p>Journal evidence unavailable</p>
+          )}
+          <p className="muted">
+            A clear local journal is not broker fill, fee or collateral proof.
+          </p>
+        </section>
+
         <section className="production-tile" aria-label="Managed trading process">
           <h3>Managed process</h3>
           <strong>{processLabel}</strong>
@@ -160,6 +203,18 @@ export default function ProductionPanel() {
         <p className="production-evidence-warning" role="alert">
           Production evidence unavailable or inconsistent ({emergencyEvidence.detail}).
           A missing or stale status never authorizes funded trading.
+        </p>
+      )}
+      {journalState === 'blocked' && (
+        <p className="production-evidence-warning" role="alert">
+          Unresolved broker mutations require operator reconciliation before any
+          funded order. Journal status cannot be cleared by this panel.
+        </p>
+      )}
+      {journalState === 'unverified' && (
+        <p className="production-evidence-warning" role="alert">
+          Journal evidence unavailable or inconsistent. Treat unknown venue
+          outcomes as pending, not as rejected or settled.
         </p>
       )}
       {tradingQuery.isError && (
