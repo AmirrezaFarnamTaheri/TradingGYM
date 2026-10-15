@@ -33,8 +33,17 @@ def _limit(value: object, *, allow_zero: bool = False) -> float:
     return result
 
 
-def build_request(context_json: str, model: str) -> dict[str, Any]:
-    """Keep JSON market evidence structured, not embedded in instructions."""
+def build_request(
+    context_json: str, model: str, *, include_model: bool = True
+) -> dict[str, Any]:
+    """Keep typed evidence separate from question instructions.
+
+    Hosted gateways require a per-request model selector; process-fixed Go
+    System-One engines select model weights at server startup and reject
+    unknown JSON fields. The caller must pin and verify the response model.
+    """
+    if type(include_model) is not bool:
+        raise ValueError("systemone_invalid_model_selector_policy")
     if (
         not isinstance(context_json, str)
         or len(context_json.encode("utf-8")) > _MAX_CONTEXT_BYTES
@@ -53,8 +62,7 @@ def build_request(context_json: str, model: str) -> dict[str, Any]:
         raise ValueError("systemone_invalid_context_schema")
     if state.get("authority") != "advisory_only; never executes orders":
         raise ValueError("systemone_invalid_authority")
-    return {
-        "model": model,
+    request: dict[str, Any] = {
         "state": state,
         "questions": {
             "direction": {
@@ -79,6 +87,9 @@ def build_request(context_json: str, model: str) -> dict[str, Any]:
             },
         },
     }
+    if include_model:
+        request["model"] = model
+    return request
 
 
 def parse_decision(
