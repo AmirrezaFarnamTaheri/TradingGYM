@@ -103,3 +103,12 @@ class BackendHealth:
 
 class BackendUnavailable(RuntimeError):
     """Raised by ``decide`` when a backend cannot act right now."""
+
+
+class UncertainDecision(BackendUnavailable):
+    """A valid advisory model responded but lacked evidence for a trade.
+
+    This is *not* equivalent to network failure. Review can escalate only
+    to another qualified model; no risk-on rules/RL fallback is allowed
+    solely because the model was uncertain.
+    """
