@@ -1328,7 +1328,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/production/pre_trade_gate.py",
-      "sha256": "a2e9f0f0dcec0dd0aa2b8c75d38f53f4ea45c846f9846a1e2cde681ab3109fb1"
+      "sha256": "565feb3ccfd0b6718c51968cf0b80a33184568185e1822ab70574043dd285394"
     },
     {
       "owner": "trading_gym",
