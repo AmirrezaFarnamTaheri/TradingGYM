@@ -52,6 +52,8 @@ class PortfolioConstructionRequest(BaseModel):
     # Meaningful only for TURNOVER_AWARE: prior holdings are a required,
     # complete, long-only allocation, not hints silently ignored by the solver.
     previous_weights: dict[str, float] | None = Field(default=None, max_length=64)
+    asset_groups: dict[str, str] | None = Field(default=None, max_length=64)
+    group_caps: dict[str, float] | None = Field(default=None, max_length=64)
     turnover_penalty: float = Field(default=0.0, ge=0.0, le=1000.0)
     risk_aversion: float = Field(default=1.0, ge=0.0, le=1000.0)
 
@@ -69,6 +71,35 @@ class PortfolioConstructionRequest(BaseModel):
                 or not math.isfinite(value)
             ):
                 raise ValueError("previous weights must be numeric and finite")
+        return raw
+
+    @field_validator("asset_groups", mode="before")
+    @classmethod
+    def validate_asset_groups_type(cls, raw: object) -> object:
+        if raw is None:
+            return None
+        if not isinstance(raw, dict) or any(
+            not isinstance(key, str)
+            or not isinstance(value, str)
+            or not 1 <= len(value) <= 80
+            for key, value in raw.items()
+        ):
+            raise ValueError("asset groups require bounded names for every asset")
+        return raw
+
+    @field_validator("group_caps", mode="before")
+    @classmethod
+    def validate_group_caps_type(cls, raw: object) -> object:
+        if raw is None:
+            return None
+        if not isinstance(raw, dict) or any(
+            not isinstance(key, str)
+            or type(value) not in (int, float)
+            or not math.isfinite(value)
+            or not 0.0 <= value <= 1.0
+            for key, value in raw.items()
+        ):
+            raise ValueError("group caps must be finite fractional limits")
         return raw
 
     @field_validator("risk_aversion", "turnover_penalty", mode="before")
@@ -124,8 +155,21 @@ class PortfolioConstructionRequest(BaseModel):
                 or not math.isclose(sum(prior.values()), 1.0, abs_tol=1e-8)
             ):
                 raise ValueError("previous holdings must be fully invested and long only")
+            if (self.asset_groups is None) != (self.group_caps is None):
+                raise ValueError("group labels and caps must be supplied together")
+            if self.asset_groups is not None:
+                caps = self.group_caps
+                assert caps is not None
+                if (
+                    set(self.asset_groups) != set(prior)
+                    or not caps
+                    or set(caps) - set(self.asset_groups.values())
+                ):
+                    raise ValueError("group exposure policy must name assigned assets")
         elif (
             self.previous_weights is not None
+            or self.asset_groups is not None
+            or self.group_caps is not None
             or self.turnover_penalty != 0.0
             or self.risk_aversion != 1.0
         ):
@@ -150,6 +194,8 @@ class PortfolioConstructionReport(BaseModel):
     turnover_regularization: float | None = None
     objective_value: float | None = None
     previous_weights_sha256: str | None = None
+    group_exposure: dict[str, float] | None = None
+    group_caps_sha256: str | None = None
     report_sha256: str
     execution_authority_granted: bool = False
     mutation_performed: bool = False
@@ -221,6 +267,11 @@ def construct_portfolio(
             turnover_penalty=request.turnover_penalty,
             max_iterations=request.maximum_iterations,
             tolerance=request.tolerance,
+            groups=(
+                [request.asset_groups[item.asset_id] for item in request.assets]
+                if request.asset_groups is not None else None
+            ),
+            group_caps=request.group_caps,
         )
         weights = solution.weights
         turnover_details = {
@@ -236,6 +287,18 @@ def construct_portfolio(
                 }
             }),
         }
+        if request.asset_groups is not None:
+            group_exposure: dict[str, float] = {}
+            for index, item in enumerate(request.assets):
+                group = request.asset_groups[item.asset_id]
+                group_exposure[group] = (
+                    group_exposure.get(group, 0.0) + float(weights[index])
+                )
+            turnover_details["group_exposure"] = dict(sorted(group_exposure.items()))
+            turnover_details["group_caps_sha256"] = sha256_payload({
+                "asset_groups": dict(sorted(request.asset_groups.items())),
+                "group_caps": dict(sorted((request.group_caps or {}).items())),
+            })
     else:
         weights = _project((1.0 / vol) / (1.0 / vol).sum(), lower, upper)
         step = 0.05
