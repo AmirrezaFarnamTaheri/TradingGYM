@@ -187,6 +187,12 @@ REGISTRY: dict[str, IndicatorFunction] = {
 
 
 def compute_indicators(frame: pd.DataFrame, specs: list[IndicatorSpec]) -> pd.DataFrame:
+    aliases = [spec.alias for spec in specs]
+    reserved = {"entry_signal", "exit_signal", "position_intent"}
+    if len(set(aliases)) != len(aliases) or set(aliases) & (
+        set(frame.columns) | reserved
+    ):
+        raise ValueError("indicator aliases must be unique and not overwrite fields")
     output = frame.copy()
     for spec in specs:
         output[spec.alias] = REGISTRY[spec.name](output, dict(spec.params))
