@@ -44,6 +44,22 @@ because its later records would create hindsight/leakage. A genuine
 point-in-time backtest must supply a historically sealed as-of memory
 snapshot separately before use in model calibration.
 
+**Sampling matters:** the latest tradable live mark is not a completed candle.
+System-1 receives the last validated base-timeframe closed-bar price sequence
+for its returns, while the mark price is separately labeled as a live quote.
+When an older embedded environment lacks that series, update-to-update
+returns are explicitly labeled `mark_updates` rather than passing as
+completed bars. The normalized feature vector remains named separately;
+features and monetary position/account quantities are never conflated.
+
+**Memory is evidence, not stateful chat:** verified experience retrieval opens
+the hash/anchor journal without rewriting it or pruning expired entries on
+disk. Truncation with a surviving anchor fails verification. Optional
+settled working-memory disclosure is independent opt-in and only available
+if a real as-of `WorkingMemory` is wired; standard paper/live runners do not
+yet pass one. Enabling it without a source now fails at policy construction
+instead of silently supplying an empty or fabricated history.
+
 The maximum context is 4,000 characters by default. When optional material
 does not fit, the builder deterministically removes experience, working
 memory, optional indicators and extra returns in that order. Essential
@@ -57,12 +73,18 @@ required in System-1 mode; text keyword guessing remains legacy LLM-only.
 `system1_provider_ids`. Each provider receives the same structured market
 packet but may have its own model, base URL and credential pool.
 `System1DecisionBackend` rejects malformed, non-finite or incoherent
-direction/leverage responses. A low-confidence response raises an
-unavailable-advice outcome, allowing the explicit fallback chain to try
-the next configured fast model, then a deep `llm_provider_id` if provided,
-and finally deterministic rules when allowed. High-confidence fast advice is
-clipped to `system1_max_leverage` (default 1.0) and then remains subject to
-all pre-existing policy/gates and operational limits.
+direction/leverage responses. A low-confidence **directional** response
+raises a distinct `UncertainDecision`, not an ordinary transport outage.
+Only another qualified fast model or an explicitly configured, strictly
+structured and confidence-thresholded deep `llm_provider_id` can review
+that uncertainty. Unreviewed uncertainty becomes a zero-exposure abstention;
+it must **never** cascade into a risk-on rules/RL fallback. A model's explicit
+HOLD is itself a valid conservative abstention, even at low confidence.
+Malformed strict JSON or invalid fields fail closed as evidence violations.
+Separate, genuine provider transport failures still use the configured
+availability fallback. High-confidence advice is clipped to
+`system1_max_leverage` (default 1.0) and remains under the
+independent pre-trade/execution safety gates.
 
 A `PermissionError` (unverified live context, missing live evidence, revoked
 authority, provider 403 or tampered memory) is *not* an ordinary provider
@@ -125,6 +147,7 @@ intelligence:
   system1_max_leverage: 1.0
   system1_timeout_seconds: 5.0
   system1_use_experience_memory: false
+  system1_use_working_memory: false
   llm_provider_id: deep-analysis
   allow_fallback_to_rules: true
 ```
