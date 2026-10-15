@@ -457,6 +457,11 @@
     },
     {
       "owner": "trading_gym",
+      "path": "trading_gym/experiments/cost_sensitivity.py",
+      "sha256": "0d471da31ed8f4e0bfe4764afa7c367291df3aeae88c0c0e9a98fc1ccd8b313a"
+    },
+    {
+      "owner": "trading_gym",
       "path": "trading_gym/experiments/leakage.py",
       "sha256": "6f26ca20a3ecdfd7973ede417bb718fc95ab2274e014465fd50359e62f31a2ac"
     },
