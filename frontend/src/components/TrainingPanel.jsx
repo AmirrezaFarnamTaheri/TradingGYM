@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { trainingAPI, createWebSocket } from '../api';
 import useStore from '../store';
+import { parseTrainingLogEvent } from '../logTelemetry';
 
 // Must match TrainingStartRequest.model_version in the FastAPI schema.
 const MODEL_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
@@ -35,23 +36,10 @@ export default function TrainingPanel() {
     };
 
     ws.onmessage = (event) => {
-      let log;
-      try {
-        log = JSON.parse(event.data);
-      } catch {
-        // A malformed telemetry frame must not crash the operator console.
-        return;
-      }
-      if (
-        !log ||
-        typeof log !== 'object' ||
-        typeof log.level !== 'string' ||
-        typeof log.message !== 'string' ||
-        typeof log.source !== 'string'
-      ) {
-        return;
-      }
-      addLog(log);
+      // Keep bounded/redacted display fields; never persist raw WebSocket
+      // credentials, opaque metadata or arbitrary CSS severity names.
+      const log = parseTrainingLogEvent(event.data);
+      if (log) addLog(log);
     };
 
     ws.onerror = (err) => {
