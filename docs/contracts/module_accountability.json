@@ -32,6 +32,11 @@
     },
     {
       "owner": "trading_gym",
+      "path": "trading_gym/accounting/order_fill_parity.py",
+      "sha256": "d593c656858e78c32cf86e8f98ce79dd982a34a00acf6a0f60ede10337d1dc93"
+    },
+    {
+      "owner": "trading_gym",
       "path": "trading_gym/accounting/pnl_decomposition.py",
       "sha256": "525dc34313ed2ff0455d8ab4a67f3ddceb522bb91884e40fb8ffca4b61bb6ea8"
     },
@@ -1443,7 +1448,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/derivatives.py",
-      "sha256": "c5164e9e65c03bb5f6af4f50e67428f455f5948fb72fc282b36e05bbf97fc54b"
+      "sha256": "7b444411e168c49270292bdfca60144c8b922c64988edb791723647e7e1a5f02"
     },
     {
       "owner": "trading_gym",
