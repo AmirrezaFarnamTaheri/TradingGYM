@@ -18,6 +18,7 @@ missing piece — *safe* automatic mutation retry:
 from __future__ import annotations
 
 import json
+import math
 import random
 import time
 import uuid
@@ -64,17 +65,29 @@ class MutationRetryPolicy:
     retryable_exceptions: tuple[type[BaseException], ...] = ()
 
     def __post_init__(self) -> None:
-        if (
-            isinstance(self.max_attempts, bool)
-            or not 1 <= self.max_attempts <= MAX_ATTEMPTS
+        if type(self.max_attempts) is not int or not 1 <= self.max_attempts <= MAX_ATTEMPTS:
+            raise ValueError("max_attempts must be an integer between 1 and 5")
+        for name, value in (
+            ("base_delay_s", self.base_delay_s),
+            ("max_delay_s", self.max_delay_s),
+            ("jitter_fraction", self.jitter_fraction),
         ):
-            raise ValueError("max_attempts must be between 1 and 5")
+            if (
+                type(value) not in (int, float)
+                or not math.isfinite(value)
+            ):
+                raise ValueError(f"{name} must be finite and numeric")
         if not 0 < self.base_delay_s <= 60:
             raise ValueError("base_delay_s must be in (0, 60]")
-        if not self.max_delay_s >= self.base_delay_s:
-            raise ValueError("max_delay_s must be >= base_delay_s")
+        if not self.base_delay_s <= self.max_delay_s <= 60:
+            raise ValueError("max_delay_s must be finite, bounded and >= base_delay_s")
         if not 0 <= self.jitter_fraction <= 1:
             raise ValueError("jitter_fraction must be within [0, 1]")
+        if not isinstance(self.retryable_exceptions, tuple) or any(
+            not isinstance(exc, type) or not issubclass(exc, BaseException)
+            for exc in self.retryable_exceptions
+        ):
+            raise ValueError("retryable_exceptions must be exception types")
 
     def is_retryable(self, exc: BaseException) -> bool:
         return isinstance(exc, self.retryable_exceptions)
