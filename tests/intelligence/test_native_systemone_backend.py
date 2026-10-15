@@ -329,3 +329,39 @@ def test_method_not_allowed_only_proves_native_route_when_post_advertised(
     report = providers.provider_status(_provider(health_path="/models"))
     assert report["status"] == expected
     assert report["http_status"] == 405
+
+
+@pytest.mark.parametrize(
+    "raw_response,denial",
+    [
+        (b"{not-json", "systemone_malformed_http_response"),
+        (b"[]", "systemone_invalid_response_envelope"),
+    ],
+)
+def test_invalid_native_http_payload_is_not_a_recoverable_model_outage(
+    monkeypatch, raw_response, denial,
+):
+    import trading_gym.intelligence.systemone_native_backend as module
+
+    class Client:
+        def __init__(self, **kwargs):
+            assert kwargs["trust_env"] is False
+            assert kwargs["follow_redirects"] is False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, *, headers, json):
+            return httpx.Response(
+                200, content=raw_response,
+                request=httpx.Request("POST", url),
+            )
+
+    monkeypatch.setattr(module, "validate_base_url", lambda url, **kw: url)
+    monkeypatch.setattr(httpx, "Client", Client)
+    transport = httpx_systemone_transport(_provider())
+    with pytest.raises(PermissionError, match=denial):
+        transport({"model": "gemma-fast", "state": {}, "questions": {}})
