@@ -7,7 +7,7 @@ import shutil
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, Literal
-from urllib.parse import urljoin
+from urllib.parse import urlsplit
 
 import httpx
 from filelock import FileLock
@@ -43,7 +43,9 @@ class ProviderConfig(BaseModel):
     model: Annotated[str, Field(min_length=1, max_length=200)]
     # Native finite-choice System-One and chat-completions are distinct
     # protocols. Preserve the existing chat behavior by default.
-    wire_protocol: Literal["openai_chat", "systemone"] = "openai_chat"
+    wire_protocol: Literal[
+        "openai_chat", "systemone", "systemone_fixed"
+    ] = "openai_chat"
     systemone_path: Annotated[
         str, Field(pattern=r"^/[A-Za-z0-9_./-]{0,199}$")
     ] = "/v1/systemone"
@@ -107,7 +109,7 @@ class ProviderConfig(BaseModel):
             raise ValueError("CLI providers must not define API credentials")
         if self.kind is ProviderKind.CLI and self.wire_protocol != "openai_chat":
             raise ValueError("CLI providers cannot use System-One HTTP protocol")
-        if self.wire_protocol == "systemone" and self.rotate_on_rate_limit:
+        if self.wire_protocol in {"systemone", "systemone_fixed"} and self.rotate_on_rate_limit:
             # Native Go System-One returns HTTP 429 when its *global*
             # scorer is busy; rotating credentials cannot create capacity.
             raise ValueError("native System-One does not support rate-limit key rotation")
@@ -300,6 +302,33 @@ def selected_provider_credential_refs(
     return frozenset(references)
 
 
+def join_provider_endpoint(base_url: str, resource_path: str) -> str:
+    """Resolve one API endpoint without silently duplicating version prefixes.
+
+    A native System-One base may be the bare origin or include /v1 already.
+    Preserve unrelated proxy prefixes; remove only shared trailing path
+    components before joining a validated relative resource suffix.
+    """
+    base = urlsplit(base_url)
+    if not base.scheme or not base.netloc or base.query or base.fragment:
+        raise ValueError("invalid provider base URL")
+    if (
+        not isinstance(resource_path, str)
+        or not resource_path.startswith("/")
+        or "//" in resource_path
+        or any(x in {".", ".."} for x in resource_path.split("/"))
+    ):
+        raise ValueError("invalid provider endpoint path")
+    prefix_parts = [part for part in base.path.split("/") if part]
+    suffix_parts = [part for part in resource_path.split("/") if part]
+    for count in range(min(len(prefix_parts), len(suffix_parts)), 0, -1):
+        if prefix_parts[-count:] == suffix_parts[:count]:
+            suffix_parts = suffix_parts[count:]
+            break
+    suffix = "/".join(suffix_parts)
+    return base_url.rstrip("/") + ("/" + suffix if suffix else "")
+
+
 def provider_status(
     config: ProviderConfig,
     *,
@@ -339,10 +368,10 @@ def provider_status(
     # reachability, not of model readiness or decision quality.
     health_path = (
         config.systemone_path
-        if config.wire_protocol == "systemone" and config.health_path == "/models"
+        if config.wire_protocol in {"systemone", "systemone_fixed"} and config.health_path == "/models"
         else config.health_path
     )
-    destination = urljoin(base_url.rstrip("/") + "/", health_path.lstrip("/"))
+    destination = join_provider_endpoint(base_url, health_path)
     headers: dict[str, str] = {}
     if available_refs:
         # Health is advisory only; the real inference request rotates keys
@@ -357,7 +386,7 @@ def provider_status(
             response = client.get(destination, headers=headers)
         code = response.status_code
         if 200 <= code < 300 or (
-            config.wire_protocol == "systemone"
+            config.wire_protocol in {"systemone", "systemone_fixed"}
             and health_path == config.systemone_path
             and code == 405
             and "POST" in {
