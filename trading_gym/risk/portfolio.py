@@ -4,15 +4,41 @@ from __future__ import annotations
 
 import math
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from numbers import Real
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+_MAX_ACCOUNT_VALUE = 1e30
+_MIN_ACCOUNT_VALUE = 1e-12
+
+
+def _bounded_numeric(value: object, *, minimum: float, maximum: float) -> float:
+    if (
+        not isinstance(value, Real)
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+        or not minimum <= value <= maximum
+    ):
+        raise ValueError(
+            "portfolio numeric value must be finite, nonboolean and bounded"
+        )
+    return float(value)
 
 
 class PositionExposure(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     instrument_id: str = Field(min_length=1, max_length=120)
-    notional: float
+    notional: float = Field(ge=-_MAX_ACCOUNT_VALUE, le=_MAX_ACCOUNT_VALUE)
     sector: str = Field(default="unknown", min_length=1, max_length=80)
+
+    @field_validator("notional", mode="before")
+    @classmethod
+    def bounded_notional(cls, value: object) -> float:
+        return _bounded_numeric(
+            value, minimum=-_MAX_ACCOUNT_VALUE, maximum=_MAX_ACCOUNT_VALUE
+        )
 
     @model_validator(mode="after")
     def finite(self) -> "PositionExposure":
@@ -28,10 +54,17 @@ class PositionExposure(BaseModel):
 class PortfolioSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    equity: float = Field(gt=0.0)
-    peak_equity: float = Field(gt=0.0)
-    day_start_equity: float = Field(gt=0.0)
+    equity: float = Field(ge=_MIN_ACCOUNT_VALUE, le=_MAX_ACCOUNT_VALUE)
+    peak_equity: float = Field(ge=_MIN_ACCOUNT_VALUE, le=_MAX_ACCOUNT_VALUE)
+    day_start_equity: float = Field(ge=_MIN_ACCOUNT_VALUE, le=_MAX_ACCOUNT_VALUE)
     positions: list[PositionExposure] = Field(default_factory=list, max_length=10_000)
+
+    @field_validator("equity", "peak_equity", "day_start_equity", mode="before")
+    @classmethod
+    def bounded_account_value(cls, value: object) -> float:
+        return _bounded_numeric(
+            value, minimum=_MIN_ACCOUNT_VALUE, maximum=_MAX_ACCOUNT_VALUE
+        )
 
 
 class PortfolioRiskLimits(BaseModel):
@@ -43,6 +76,15 @@ class PortfolioRiskLimits(BaseModel):
     max_sector_fraction: float = Field(default=0.5, gt=0.0, le=1.0)
     max_drawdown_fraction: float = Field(default=0.2, gt=0.0, lt=1.0)
     max_daily_loss_fraction: float = Field(default=0.05, gt=0.0, lt=1.0)
+
+    @field_validator(
+        "max_gross_leverage", "max_net_leverage", "max_instrument_fraction",
+        "max_sector_fraction", "max_drawdown_fraction", "max_daily_loss_fraction",
+        mode="before",
+    )
+    @classmethod
+    def reject_ambiguous_limits(cls, value: object) -> float:
+        return _bounded_numeric(value, minimum=0.0, maximum=1000.0)
 
 
 class PortfolioRiskDecision(BaseModel):
