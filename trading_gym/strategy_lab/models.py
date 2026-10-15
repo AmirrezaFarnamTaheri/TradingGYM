@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class LogicMode(str, Enum):
@@ -68,7 +69,11 @@ class IndicatorSpec(BaseModel):
             value = self.params[key]
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ValueError(f"{key} must be numeric")
-            if int(value) != value or not 2 <= int(value) <= 10_000:
+            if (
+                not math.isfinite(float(value))
+                or int(value) != value
+                or not 2 <= int(value) <= 10_000
+            ):
                 raise ValueError(f"{key} must be an integer between 2 and 10000")
         components = {
             "macd": {"line", "signal", "histogram"},
@@ -97,6 +102,19 @@ class Operand(BaseModel):
 
     kind: Literal["field", "indicator", "constant"]
     value: str | float
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def reject_invalid_raw_constant(cls, value: object, info: object) -> object:
+        if getattr(info, "data", {}).get("kind") == "constant" and (
+            isinstance(value, bool)
+            or (
+                isinstance(value, (int, float))
+                and not math.isfinite(float(value))
+            )
+        ):
+            raise ValueError("constant requires finite non-boolean value")
+        return value
 
     @model_validator(mode="after")
     def validate_value(self) -> "Operand":
@@ -139,6 +157,25 @@ class RiskSpec(BaseModel):
     max_portfolio_drawdown_fraction: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.2
     max_daily_loss_fraction: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.05
     max_sector_fraction: Annotated[float, Field(gt=0.0, le=1.0)] = 0.5
+
+    @field_validator(
+        "max_position_fraction",
+        "max_leverage",
+        "risk_per_trade_fraction",
+        "target_volatility",
+        "stop_loss_fraction",
+        "take_profit_fraction",
+        "max_portfolio_drawdown_fraction",
+        "max_daily_loss_fraction",
+        "max_sector_fraction",
+        "max_holding_bars",
+        mode="before",
+    )
+    @classmethod
+    def reject_boolean_risk_limit(cls, value: object) -> object:
+        if isinstance(value, bool):
+            raise ValueError("numeric risk limits cannot be boolean")
+        return value
 
     @model_validator(mode="after")
     def validate_sizing(self) -> "RiskSpec":
