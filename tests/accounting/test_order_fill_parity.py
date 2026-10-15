@@ -240,3 +240,12 @@ def test_mixed_custody_accounts_cannot_share_cash_and_position_readbacks():
             position_deltas={},
             cash_deltas={},
         )
+
+
+def test_accounting_public_api_exposes_read_only_parity_without_live_executor():
+    from trading_gym import accounting
+
+    assert accounting.OrderIntent is OrderIntent
+    assert accounting.FillEvidence is FillEvidence
+    assert accounting.BrokerReadback is BrokerReadback
+    assert accounting.reconcile_order_fills is reconcile_order_fills
