@@ -108,13 +108,19 @@ folder counts, exact duplicates, candidate source paths and quality labels.
 - Existing: `trading_gym/portfolio/rebalance.py`
 - Existing: `trading_gym/institutional_os/portfolio_construction.py`
 - Existing: `trading_gym/risk/derivatives.py`
-- Proposed test: `tests/convergence/test_peer_execution_parity.py`
+- Implemented: `tests/convergence/test_portfolio_post_fee_equity.py`
+- Still proposed: `tests/convergence/test_peer_execution_parity.py`
 
 **Interfaces:** existing
 `plan_rebalance(...)`, `construct_portfolio(...)`,
 `analyze_derivative_risk(...)`; external donor inputs are fixture files
 with pinned source hashes and explicit decimal currency/fee/tick units.
 
+- [x] Reproduce and repair stale pre-fee denominator in
+  `plan_rebalance`: projected cash, residual and concentrated positions
+  now use the same net-of-estimated-fees equity. Reject depleted equity.
+  TDD RED 2 failures; GREEN 4/4 focused cases and a source-verified
+  regression suite. See ADR-045.
 - [ ] Add independent fixture tests for rounding, maker/taker fees,
   post-only rejection, IOC partial fills, cancellation/replace idempotence,
   negative funding, liquidation buffers and venue gross-flat readback.
