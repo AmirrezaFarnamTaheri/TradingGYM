@@ -17,9 +17,12 @@ Added `tests/intelligence/test_llm_fail_closed_rotation.py`,
 updated both chat and native System-One exception boundaries, and
 regenerated `docs/contracts/module_accountability.json` for all
 three governed modules. A Git-blob-identical local copy of
-`trading_gym/intelligence/llm_key_pool.py` passed **21 focused tests**
+`trading_gym/intelligence/llm_key_pool.py` passed **34 focused tests**
 covering auth rotation, hard caps, expiry, invalid 4XX statuses,
-cross-process persistence, and secret-free storage. The entire
+non-pooled local/native HTTP response classification, cross-process
+persistence, and secret-free storage. Both transports also apply these
+terminal response rules when operating without a credential pool.
+The entire
 exact-head repository suite, provider network integration, and
 funded-live qualification remain **unverified / NO-GO**.
 
