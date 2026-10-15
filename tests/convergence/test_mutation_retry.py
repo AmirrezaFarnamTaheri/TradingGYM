@@ -473,15 +473,15 @@ def test_outbox_rejects_colliding_mutation_payloads(tmp_path):
         operation="spot.market",
         payload_sha256="hash-a",
     )
-    outbox.record_outcome(
-        idempotency_key="duplicate",
-        proposal_id="p2",
-        operation="spot.market",
-        payload_sha256="hash-b",
-        outcome="committed",
-    )
-    with pytest.raises(MutationOutboxIntegrityError, match="collision"):
-        outbox.latest_by_key()
+    with pytest.raises(MutationOutboxIntegrityError, match="identity"):
+        outbox.record_outcome(
+            idempotency_key="duplicate",
+            proposal_id="p2",
+            operation="spot.market",
+            payload_sha256="hash-b",
+            outcome="committed",
+        )
+    assert outbox.latest_by_key()["duplicate"]["status"] == "pending"
 
 
 def test_independent_outbox_writers_share_process_lock(tmp_path):
@@ -549,15 +549,15 @@ def test_committed_venue_operation_with_failed_local_commit_is_ambiguous():
 
 def test_outbox_rejects_terminal_record_without_durable_intent(tmp_path):
     outbox = MutationOutbox(path=tmp_path / "outbox.jsonl")
-    outbox.record_outcome(
-        idempotency_key="missing-intent",
-        proposal_id="p1",
-        operation="spot.market",
-        payload_sha256="hash",
-        outcome="committed",
-    )
-    with pytest.raises(MutationOutboxIntegrityError, match="preceding pending"):
-        scan_outbox(outbox)
+    with pytest.raises(MutationOutboxIntegrityError, match="pending"):
+        outbox.record_outcome(
+            idempotency_key="missing-intent",
+            proposal_id="p1",
+            operation="spot.market",
+            payload_sha256="hash",
+            outcome="committed",
+        )
+    assert scan_outbox(outbox) == []
 
 
 def test_outbox_rejects_resurrection_of_resolved_intent(tmp_path):
