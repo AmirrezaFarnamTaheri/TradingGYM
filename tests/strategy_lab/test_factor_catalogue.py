@@ -122,3 +122,20 @@ def test_public_strategy_lab_exports_safe_factor_discovery_only():
     assert public.build_factor_catalogue is build_factor_catalogue
     assert public.factor_options_at is options_at
     assert public.resolve_factor_leaf is resolve_leaf
+
+
+def test_catalogue_options_distinguish_categories_from_leaves():
+    catalogue = build_factor_catalogue(_candidates(4), max_fanout=16)
+    root = options_at(catalogue, ())
+    assert root[0]["kind"] == "branch"
+    categories = options_at(catalogue, ("family:factor_zoo",))
+    assert all(item["kind"] == "branch" for item in categories)
+    factors = options_at(
+        catalogue, ("family:factor_zoo", "family:volatility")
+    )
+    assert factors
+    assert all(item["kind"] == "factor" for item in factors)
+    assert all(
+        item["can_execute"] is False and item["can_trade"] is False
+        for item in factors
+    )
