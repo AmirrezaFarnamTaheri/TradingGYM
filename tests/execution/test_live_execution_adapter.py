@@ -989,3 +989,94 @@ def test_net_position_accepts_explicit_zero_base_balance(adapter, mock_client):
     ]
     mock_client.get_short_positions.return_value = []
     assert adapter._get_net_position() == Decimal("0")
+
+
+@pytest.mark.asyncio
+async def test_panic_global_flat_proof_rejects_other_asset_holdings(adapter, mock_client):
+    """A global panic cannot be cleared while an unrelated funded asset remains."""
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+        Balance(symbol="ETH", balance=Decimal("1"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_orders.return_value = {"data": [], "total": 0}
+    with pytest.raises(RuntimeError, match="gross_exposure_not_cleared"):
+        await adapter._verify_broker_flat()
+
+
+@pytest.mark.asyncio
+async def test_panic_global_flat_proof_rejects_unrelated_short(adapter, mock_client):
+    """Net-zero BTC alone never proves a globally flat account."""
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = [
+        {"id": "eth-short", "symbol": "ETHUSDT", "amount": "0.5"}
+    ]
+    mock_client.get_orders.return_value = {"data": [], "total": 0}
+    with pytest.raises(RuntimeError, match="gross_exposure_not_cleared"):
+        await adapter._verify_broker_flat()
+
+
+@pytest.mark.asyncio
+async def test_global_panic_proof_requests_all_open_orders(adapter, mock_client):
+    """Pair-filtered order pages cannot prove another pair has no open order."""
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=Decimal("0"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = []
+    mock_client.get_orders.return_value = {"data": [], "total": 0}
+    await adapter._verify_broker_flat()
+    kwargs = mock_client.get_orders.call_args.kwargs
+    assert "base_symbol" not in kwargs and "quote_symbol" not in kwargs
+    assert set(kwargs["status"]) == {
+        OrderStatus.NEW, OrderStatus.OPEN, OrderStatus.PROCESSING,
+    }
+
+
+@pytest.mark.parametrize(
+    "available,blocked",
+    [
+        (Decimal("-1"), Decimal("0")),
+        (Decimal("1"), Decimal("-1")),
+        (Decimal("NaN"), Decimal("0")),
+    ],
+)
+def test_live_equity_rejects_invalid_balance_components(
+    adapter, mock_client, available, blocked
+):
+    """Malformed broker rows must not be silently omitted as zero exposure."""
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
+        Balance(symbol="BTC", balance=available, blocked=blocked),
+    ]
+    mock_client.get_ticker.return_value = {}
+    with pytest.raises(RuntimeError, match="unable to determine live equity"):
+        adapter.get_live_equity()
+
+
+@pytest.mark.parametrize("amount,entry_price", [("-1", "100"), ("0.2", "-5")])
+def test_live_equity_rejects_invalid_short_inventory(
+    adapter, mock_client, amount, entry_price
+):
+    mock_client.get_balance.return_value = [
+        Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
+    ]
+    mock_client.get_short_positions.return_value = [
+        {"symbol": "BTCUSDT", "amount": amount, "entry_price": entry_price}
+    ]
+    mock_client.get_ticker.return_value = {
+        "BTCUSDT": TickerData(
+            symbol="BTCUSDT",
+            buy_price=Decimal("99"),
+            sell_price=Decimal("101"),
+            buy_max=Decimal("0"),
+            sell_max=Decimal("0"),
+            active=True,
+        )
+    }
+    with pytest.raises(RuntimeError, match="unable to determine live equity"):
+        adapter.get_live_equity()
