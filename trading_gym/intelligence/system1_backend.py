@@ -8,7 +8,6 @@ slower configured backend or the deterministic rules floor.
 from __future__ import annotations
 
 import math
-from dataclasses import replace
 from typing import Any, Callable
 
 from trading_gym.agent.providers import ProviderConfig
@@ -17,6 +16,10 @@ from trading_gym.intelligence.llm_backend import (
     Transport,
 )
 from trading_gym.intelligence.system1_context import build_system1_packet
+from trading_gym.intelligence.system1_risk import (
+    constrain_system1_signal,
+    system1_risk_window,
+)
 from trading_gym.intelligence.types import (
     BackendUnavailable,
     UncertainDecision,
@@ -90,6 +93,9 @@ class System1DecisionBackend(LLMDecisionBackend):
         )
 
     def decide(self, context: MarketContext) -> DecisionSignal:
+        # Validate the caller's signed limits before sending account data
+        # to an external model or consuming a provider request-budget slot.
+        system1_risk_window(context, self.max_leverage)
         signal = super().decide(context)
         # An explicit low-confidence HOLD is a conservative abstention.
         # Escalating it as a provider failure could make the configured
@@ -99,6 +105,4 @@ class System1DecisionBackend(LLMDecisionBackend):
             and signal.action_kind.value != "hold"
         ):
             raise UncertainDecision("system1_low_confidence_escalate")
-        magnitude = min(abs(signal.target_leverage), self.max_leverage)
-        bounded = math.copysign(magnitude, signal.target_leverage)
-        return replace(signal, target_leverage=bounded)
+        return constrain_system1_signal(signal, context, self.max_leverage)
