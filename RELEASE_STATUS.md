@@ -1,5 +1,27 @@
 # Hardening branch status — 2026-10-11
 
+## System-1 endpoint/credential/JSON trust boundaries — 2026-10-15
+
+Continuing the draft PR's multi-key and System-1 work, the chat and native
+typed transports now propagate URL/DNS/security-policy rejection as
+non-degradable `provider_destination_denied` rather than treating it as
+an ordinary provider outage that could trigger risk-on rules. Added
+independent test cases for both protocols and a policy-adapter fallback
+regression.
+
+Provider configuration rejects credential-bearing nested metadata and
+unbounded/nonfinite JSON. The provider repository revalidates on save,
+including Pydantic `model_copy(update=...)` bypasses. System-1 strict
+JSON parsing rejects duplicate keys (including nested keys) and
+nonstandard numeric constants instead of silently selecting the final
+JSON value. The related governed source-module hashes are updated.
+
+**Verification:** isolated provider metadata checks passed 8/8; extracted
+strict JSON parser checks passed 7/7. The new repository tests are
+committed but have not been executed against a complete checkout.
+Full GitHub Actions and funded-live qualification are still blocked.
+
+
 ## 2026-10-15 skill review and capability-routing convergence
 
 The new [ADR-050](docs/architecture/ADR-050-skill-capability-review-convergence.md)
