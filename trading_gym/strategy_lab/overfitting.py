@@ -280,11 +280,16 @@ def randomized_baseline_p_value(
 ) -> float:
     """Finite-sample permutation p-value with the Phipson-Smyth correction."""
 
-    scores = np.asarray(randomized_scores, dtype=float)
-    scores = scores[np.isfinite(scores)]
+    observed = _finite_sharpe_input(observed_score, "observed_score")
+    raw = np.asarray(randomized_scores)
+    if raw.ndim != 1 or raw.dtype.kind not in "iuf":
+        raise ValueError("randomized_scores must be one-dimensional real values")
+    scores = raw.astype(float)
+    if not np.isfinite(scores).all():
+        raise ValueError("randomized_scores must be finite and complete")
     if scores.size < 20:
         raise ValueError("at least 20 randomized scores are required")
-    exceedances = int(np.sum(scores >= observed_score))
+    exceedances = int(np.sum(scores >= observed))
     return float((exceedances + 1) / (scores.size + 1))
 
 
