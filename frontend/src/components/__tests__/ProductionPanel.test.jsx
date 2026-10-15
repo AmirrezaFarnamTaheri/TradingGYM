@@ -114,3 +114,52 @@ describe('Production operator live status', () => {
     cleanup();
   });
 });
+
+describe('Production reconciliation visibility', () => {
+  beforeEach(() => {
+    authoritySpy.mockReset();
+    emergencySpy.mockReset();
+    tradingSpy.mockReset();
+    reconciliationSpy.mockReset();
+    authoritySpy.mockResolvedValue({ data: {
+      single_live_authority: 'LiveExecutionCoordinator',
+      wallet_custody: false,
+      operation_specific_authorization: true,
+      emergency_halted: false,
+      emergency_revision: 1,
+    } });
+    emergencySpy.mockResolvedValue({ data: {
+      halted: false, revision: 1,
+    } });
+    tradingSpy.mockResolvedValue({ data: { status: 'stopped' } });
+  });
+
+  it('makes unresolved journal mutations visible without exposing identifiers', async () => {
+    reconciliationSpy.mockResolvedValue({ data: {
+      state: 'blocked', unresolved_total: 3, pending: 2, ambiguous: 1,
+      authority_granted: false, can_trade: false,
+    } });
+    const { container, cleanup } = renderWithClient(<ProductionPanel />);
+    const tile = await waitForRendered(
+      container, '[data-testid="production-reconciliation"]',
+      (node) => node.textContent.includes('Broker reconciliation required')
+    );
+    expect(tile.textContent).toContain('Broker reconciliation required');
+    expect(container.textContent).toContain('3 unresolved');
+    expect(container.textContent).toContain('2 pending');
+    expect(container.textContent).toContain('1 ambiguous');
+    expect(container.textContent).not.toContain('Safe to trade');
+    cleanup();
+  });
+
+  it('never renders a clear broker state if journal inspection fails', async () => {
+    reconciliationSpy.mockRejectedValue(new Error('unavailable'));
+    const { container, cleanup } = renderWithClient(<ProductionPanel />);
+    await waitForRendered(
+      container, '[data-testid="production-reconciliation"]',
+      (node) => node.textContent.includes('Unverified')
+    );
+    expect(container.textContent).toContain('Journal evidence unavailable');
+    cleanup();
+  });
+});
