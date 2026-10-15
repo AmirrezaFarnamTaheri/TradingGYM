@@ -278,6 +278,15 @@ fallback chain can run.
 
 `tests/intelligence/test_llm_fail_closed_rotation.py` includes shared-state,
 HTTP status, fleet-exhaustion, quota-code and transport-level regressions.
+The same terminal HTTP policy also applies when a local/proxy endpoint
+has *no* credential pool: both chat and native System-One transports call
+`reject_terminal_provider_status` before ordinary HTTP error handling.
+That prevents `401`, `402`, hard-quota `429`, and invalid request/model
+`4xx` statuses from being mislabeled as recoverable inference outages,
+without changing temporary `429` availability semantics.
+
 For a verified byte-identical copy of the committed `llm_key_pool.py` module
-(Git blob `53bd9a52c47a560a3a4a25847cd6023e0c83093d`), 21 isolated
-local tests passed. That is **not** full PR CI or live provider validation.
+(Git blob `bb154556569c84d7137e76e43106d300e973718a`), **34 isolated
+local tests passed**, including unpooled HTTP status classification.
+Transport-level regression tests are also committed, but full exact-head
+PR CI and real external provider tests remain **unverified**.
