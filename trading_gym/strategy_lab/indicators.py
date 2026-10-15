@@ -204,7 +204,9 @@ def realized_volatility(
     lookback = _period(params, "lookback", 120)
     component = params.get("component", "volatility")
     if component not in ("volatility", "percentile"):
-        raise ValueError("realized volatility component must be volatility or percentile")
+        raise ValueError(
+            "realized volatility component must be volatility or percentile"
+        )
     _validated_ohlcv(frame, ("close",))
     returns = np.log(frame["close"].astype(float)).diff()
     volatility = returns.rolling(period, min_periods=period).std(ddof=0)
