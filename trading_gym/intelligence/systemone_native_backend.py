@@ -110,10 +110,15 @@ def httpx_systemone_transport(
                     rotate_on_rate_limit=config.rotate_on_rate_limit,
                 )
             if len(response.content) > _MAX_RESPONSE_BYTES:
-                raise BackendUnavailable("System-One response byte budget exceeded")
-            result = response.json()
+                raise PermissionError("systemone_response_byte_budget_exceeded")
+            try:
+                result = response.json()
+            except (ValueError, TypeError) as exc:
+                # Malformed successful model responses are corrupted
+                # evidence, not a recoverable provider outage.
+                raise PermissionError("systemone_malformed_http_response") from exc
             if not isinstance(result, dict):
-                raise BackendUnavailable("System-One response is not an object")
+                raise PermissionError("systemone_invalid_response_envelope")
             return result
         except PermissionError:
             raise
