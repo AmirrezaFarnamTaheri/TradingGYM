@@ -692,3 +692,21 @@ def test_mutation_attempt_budget_must_be_bounded_integer(invalid):
 def test_mutation_retry_max_delay_must_be_finite_and_positive(invalid):
     with pytest.raises(ValueError):
         MutationRetryPolicy(max_delay_s=invalid)
+
+class _MaximumRandom:
+    def random(self):
+        return 1.0
+
+
+def test_retry_delay_never_exceeds_absolute_maximum():
+    policy = MutationRetryPolicy(
+        base_delay_s=8, max_delay_s=8, jitter_fraction=0.25
+    )
+    assert delay_for_attempt(policy, 1, rng=_MaximumRandom()) <= 8
+
+
+@pytest.mark.parametrize("invalid", [True, 1.5, 0, -1])
+def test_retry_attempt_number_must_be_positive_integer(invalid):
+    policy = MutationRetryPolicy()
+    with pytest.raises(ValueError):
+        delay_for_attempt(policy, invalid)
