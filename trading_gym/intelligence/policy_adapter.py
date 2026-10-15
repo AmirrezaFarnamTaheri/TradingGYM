@@ -18,7 +18,8 @@ from trading_gym.intelligence.base import IntelligenceBackend
 from trading_gym.intelligence.fusion_backend import FusionBackend
 from trading_gym.intelligence.rl_backend import RLPolicyBackend
 from trading_gym.intelligence.types import (
-    ActionKind, BackendUnavailable, DecisionSignal, InvalidDecisionSignal, MarketContext
+    ActionKind, BackendUnavailable, DecisionSignal, InvalidDecisionSignal,
+    MarketContext, UncertainDecision
 )
 
 
@@ -237,10 +238,23 @@ class IntelligencePolicyAdapter:
         # Never manufacture fallback trades from a corrupt observation.
         context = self._market_context(self.build_context(observation))
         failures: list[str] = []
+        uncertain_system1 = False
         for index, backend in enumerate((self.backend, *self._fallback_chain)):
+            if uncertain_system1 and not getattr(
+                backend, "can_review_uncertain_system1", False
+            ):
+                # Model uncertainty is not a network failure. In particular,
+                # a rules/RL floor cannot manufacture exposure after a fast
+                # model explicitly reported insufficient directional evidence.
+                failures.append(f"{backend.name}:skipped_after_uncertainty")
+                continue
             try:
                 signal = self._run_backend(backend, context, observation)
                 action = self._signal_to_action(signal)
+            except UncertainDecision:
+                uncertain_system1 = True
+                failures.append(f"{backend.name}:UncertainDecision")
+                continue
             except PermissionError:
                 # An authorization or risk policy denial is not a provider
                 # outage. Switching to a lower-fidelity backend would bypass
@@ -280,6 +294,18 @@ class IntelligencePolicyAdapter:
             self.last_signal = signal
             self.last_failure_types = tuple(failures)
             return action, None
-        self.last_signal = None
         self.last_failure_types = tuple(failures)
+        if uncertain_system1:
+            # The review roster was exhausted. A conservative abstention
+            # prevents the runtime from taking an unrelated risk-on path.
+            signal = DecisionSignal(
+                backend="system1:abstained",
+                action_kind=ActionKind.HOLD,
+                target_leverage=0.0,
+                confidence=0.0,
+                rationale="uncertain direction; no qualified review approved exposure",
+            )
+            self.last_signal = signal
+            return self._signal_to_action(signal), None
+        self.last_signal = None
         raise BackendUnavailable("no configured intelligence backend produced a decision")
