@@ -18,7 +18,7 @@ from trading_gym.intelligence.base import IntelligenceBackend
 from trading_gym.intelligence.fusion_backend import FusionBackend
 from trading_gym.intelligence.rl_backend import RLPolicyBackend
 from trading_gym.intelligence.types import (
-    ActionKind, BackendUnavailable, DecisionSignal, MarketContext
+    ActionKind, BackendUnavailable, DecisionSignal, InvalidDecisionSignal, MarketContext
 )
 
 
@@ -248,6 +248,15 @@ class IntelligencePolicyAdapter:
                 self.last_signal = None
                 self.last_failure_types = tuple((*failures, f"{backend.name}:PermissionError"))
                 raise
+            except InvalidDecisionSignal as exc:
+                # Invalid domain values can be rejected by the backend's
+                # DecisionSignal constructor before _signal_to_action runs.
+                # Both paths must forbid a risk-on fallback.
+                self.last_signal = None
+                self.last_failure_types = tuple(
+                    (*failures, f"{backend.name}:InvalidDecisionSignal")
+                )
+                raise PermissionError("invalid_intelligence_decision") from exc
             except (RuntimeError, OSError) as exc:
                 # Recoverable provider/model outages may use the explicitly
                 # configured fallback chain. PermissionError was already
