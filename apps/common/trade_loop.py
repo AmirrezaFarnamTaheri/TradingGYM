@@ -119,6 +119,9 @@ async def trade_loop(
                     "bar_seconds": int(cfg.features.timeframes[0].bar_minutes) * 60,
                     "source_sha256": feature_snapshot.source_sha256,
                 }
+                unwrapped_env.latest_closed_bar_closes = tuple(
+                    getattr(feature_snapshot, "base_closed_closes", ())
+                )
                 # The feature row is validated and computed from CLOSED bars.
                 # Preserve a small named subset, without pretending normalized
                 # indicators are absolute prices or executable broker balances.
