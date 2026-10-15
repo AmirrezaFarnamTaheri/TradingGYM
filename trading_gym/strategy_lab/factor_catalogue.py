@@ -175,7 +175,13 @@ def options_at(
     if node["kind"] == "factor":
         raise ValueError("leaf cannot be browsed")
     return [
-        {"id": child["id"], "label": child["label"], "can_execute": False}
+        {
+            "id": child["id"],
+            "label": child["label"],
+            "kind": child["kind"],
+            "can_execute": False,
+            "can_trade": False,
+        }
         for child in node["children"]
     ]
 
