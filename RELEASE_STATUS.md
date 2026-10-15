@@ -1,5 +1,32 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 typed-signal and provider contract follow-up
+
+ADR-042 records additional source-level fixes on this draft PR:
+
+- `DecisionSignal` rejects boolean, nonfinite, string-valued or
+  non-enum advisory fields before fusion or policy use. The policy
+  adapter prevents this typed domain refusal from invoking fallback.
+- Native System-One's POST-only health check requires a method-specific
+  `Allow: POST` on HTTP 405; an arbitrary 405 is not model readiness.
+- Malformed JSON, non-object envelopes and oversized successful typed
+  responses are terminal evidence failures rather than recoverable
+  provider outages that could open a fallback trade.
+- Restored Pydantic `default: null` for four nullable ProviderConfig
+  fields in the committed OpenAPI snapshot; added schema-regression coverage.
+- Refreshed SHA-256 accountability for all Python modules changed in
+  this follow-up.
+
+**Observed verification:** the isolated Python 3.13.5 mirror passed
+**16/16** focused behavioral cases and compiled without syntax errors.
+This is **not** the complete or pinned exact-PR-head test matrix. The
+module manifest covers 346/346 paths with no duplicates, but the
+all-hash generator and full FastAPI OpenAPI generator still require CI.
+
+The PR remains draft and unmerged. Model calibration and funded-live
+trading approval remain **NO-GO**.
+
+
 ## 2026-10-15 advisory authority and closed-bar follow-up
 
 A new ADR-041 and targeted regression coverage were added to PR #2:
