@@ -59,6 +59,7 @@ export default function IntelligencePanel() {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshRevision, setRefreshRevision] = useState(0);
   const [refreshCount, setRefreshCount] = useState(0);
 
   useEffect(() => {
@@ -68,6 +69,11 @@ export default function IntelligencePanel() {
       setError('');
       try {
         const res = await api.get('/intelligence/status');
+        if (!Array.isArray(res.data?.backends) || !res.data.backends.every(
+          (backend) => backend && typeof backend.name === 'string'
+        )) {
+          throw new Error('Invalid intelligence status response');
+        }
         if (!cancelled) {
           setStatus(res.data);
           setError('');
@@ -86,7 +92,14 @@ export default function IntelligencePanel() {
 
   return (
     <div className="panel intelligence-panel">
-      <h2>🧠 Intelligence</h2>
+      <div className="button-group" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+        <h2>🧠 Intelligence</h2>
+        <button type="button" className="btn btn-secondary btn-small"
+          onClick={() => setRefreshRevision((revision) => revision + 1)}
+          disabled={loading} aria-label="Refresh intelligence status">
+          {loading ? 'Refreshing…' : 'Refresh status'}
+        </button>
+      </div>
       <button
         type="button"
         className="btn btn-secondary"
