@@ -7,7 +7,9 @@ import pytest
 from trading_gym.strategy_lab.models import IndicatorSpec, Operand, RiskSpec
 
 
-@pytest.mark.parametrize("raw", [True, False, float("nan"), float("inf"), -float("inf")])
+@pytest.mark.parametrize(
+    "raw", [True, False, float("nan"), float("inf"), -float("inf")]
+)
 def test_numeric_constant_rejects_nonfinite_or_boolean_values(raw):
     with pytest.raises(ValueError):
         Operand(kind="constant", value=raw)
