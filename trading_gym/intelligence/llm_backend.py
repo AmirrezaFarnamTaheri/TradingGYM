@@ -365,6 +365,11 @@ class LLMDecisionBackend(IntelligenceBackend):
         records: tuple[AttemptRecord, ...] = outcome.records
 
         if not outcome.success or outcome.value is None:
+            if self._strict_json_only:
+                # Invalid structured evidence is not an infrastructure
+                # outage. Rules or RL must never infer permission to trade
+                # from the model's missing/malformed JSON response.
+                raise PermissionError("system1_unparseable_model_output")
             raise BackendUnavailable(
                 f"llm output unparseable after ladder ({len(records)} attempts)"
             )
