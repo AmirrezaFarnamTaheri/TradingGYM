@@ -20,6 +20,7 @@ from trading_gym.common.security import validate_base_url
 from trading_gym.intelligence.base import IntelligenceBackend
 from trading_gym.intelligence.llm_key_pool import (
     CredentialPool,
+    CredentialStateIntegrityError,
     CredentialsUnavailable,
     default_rotation_path,
     request_with_rotation,
@@ -129,6 +130,10 @@ def httpx_systemone_transport(
             raise
         except RequestBudgetUnavailable as exc:
             raise PermissionError("provider_request_budget_denied") from exc
+        except CredentialStateIntegrityError as exc:
+            # Invalid shared key rotation state must block the decision,
+            # never cascade to a permissive rules/agent backend.
+            raise PermissionError("credential_rotation_integrity_denied") from exc
         except CredentialsUnavailable as exc:
             raise BackendUnavailable("System-One credentials unavailable") from exc
         except BackendUnavailable:
