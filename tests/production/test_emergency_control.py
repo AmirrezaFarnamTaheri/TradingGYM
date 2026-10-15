@@ -143,3 +143,24 @@ def test_emergency_transition_preserves_valid_boolean_and_revision() -> None:
     assert next_state.reason == "reviewed"
     assert next_state.actor == "operator-1"
     assert next_state.approver == "approver-2"
+
+def test_emergency_snapshot_rejects_fifo_before_blocking_read(
+    tmp_path, monkeypatch
+) -> None:
+    import os
+    from pathlib import Path
+
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("POSIX FIFO test")
+    state = tmp_path / "emergency.json"
+    os.mkfifo(state)
+    real_open = Path.open
+
+    def block_fifo(self, *args, **kwargs):
+        if self == state:
+            pytest.fail("emergency snapshot must not read a FIFO")
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", block_fifo)
+    with pytest.raises(ValueError, match="invalid_emergency_state"):
+        EmergencyController(state).snapshot()
