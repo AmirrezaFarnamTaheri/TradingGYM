@@ -40,6 +40,8 @@ class IndicatorSpec(BaseModel):
         "stochastic",
         "donchian",
         "adx",
+        "mfi",
+        "realized_volatility",
     ]
     alias: Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_]{0,63}$")]
     params: dict[str, float | int | str | bool] = Field(default_factory=dict)
@@ -59,13 +61,15 @@ class IndicatorSpec(BaseModel):
             "stochastic": {"period", "smooth", "component"},
             "donchian": {"period", "component"},
             "adx": {"period", "component"},
+            "mfi": {"period"},
+            "realized_volatility": {"period", "lookback", "component"},
         }[self.name]
         unknown = set(self.params) - allowed
         if unknown:
             raise ValueError(
                 f"unsupported {self.name} parameters: {', '.join(sorted(unknown))}"
             )
-        for key in {"period", "fast", "slow", "signal", "smooth"} & set(self.params):
+        for key in {"period", "fast", "slow", "signal", "smooth", "lookback"} & set(self.params):
             value = self.params[key]
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ValueError(f"{key} must be numeric")
@@ -81,6 +85,7 @@ class IndicatorSpec(BaseModel):
             "stochastic": {"k", "d"},
             "donchian": {"upper", "middle", "lower"},
             "adx": {"adx", "plus_di", "minus_di", "dx"},
+            "realized_volatility": {"volatility", "percentile"},
         }
         if self.name in components and "component" in self.params:
             if str(self.params["component"]) not in components[self.name]:
