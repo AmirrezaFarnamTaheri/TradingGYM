@@ -198,3 +198,30 @@ describe('ModelsPanel fetch errors', () => {
     cleanup();
   });
 });
+
+describe('ModelsPanel authoritative active-model state', () => {
+  beforeEach(() => {
+    modelsSpy.mockReset();
+    activeSpy.mockReset();
+    modelsSpy.mockResolvedValue({ data: { models: [] } });
+    useStore.setState({ activeModel: 'stale-model' });
+  });
+
+  it('clears the store when the server reports no active model', async () => {
+    activeSpy.mockResolvedValue({ data: { active_model: null } });
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    await waitForRendered(container, '.info-box');
+    await flushPromises();
+    expect(useStore.getState().activeModel).toBeNull();
+    cleanup();
+  });
+
+  it('distinguishes failed active-model lookup from an authoritative None', async () => {
+    activeSpy.mockRejectedValue(new Error('active registry unavailable'));
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    const alert = await waitForRendered(container, '[role="alert"]');
+    expect(alert.textContent).toContain('Active model status unavailable');
+    expect(container.textContent).not.toContain('Active Model: None');
+    cleanup();
+  });
+});
