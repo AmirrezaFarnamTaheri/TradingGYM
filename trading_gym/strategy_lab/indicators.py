@@ -51,7 +51,10 @@ def rsi(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.
     )
     relative = gain / loss.replace(0, np.nan)
     result = 100 - (100 / (1 + relative))
-    return result.where(loss.ne(0), 100.0).where(gain.ne(0), 0.0)
+    # Both smoothed average gain and loss being zero means no price change.
+    # RSI is neutral in that case, not an oversold directional signal.
+    directional = result.where(loss.ne(0), 100.0).where(gain.ne(0), 0.0)
+    return directional.mask(gain.eq(0) & loss.eq(0), 50.0)
 
 
 def atr(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
@@ -135,7 +138,8 @@ def stochastic(
     raw = 100 * (frame["close"] - low) / denominator
     component = str(params.get("component", "k"))
     if component == "d":
-        return raw.rolling(_period(params, "smooth", 3), min_periods=3).mean()
+        smooth = _period(params, "smooth", 3)
+        return raw.rolling(smooth, min_periods=smooth).mean()
     if component != "k":
         raise ValueError("Stochastic component must be k or d")
     return raw
