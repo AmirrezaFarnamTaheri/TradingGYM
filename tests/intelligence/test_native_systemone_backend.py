@@ -413,3 +413,92 @@ def test_native_endpoint_join_does_not_drop_unrelated_base_path():
     assert join_provider_endpoint(
         "https://api.example.test/api", "/v1/systemone"
     ) == "https://api.example.test/api/v1/systemone"
+
+
+def test_hosted_systemone_retries_reuse_one_idempotency_key(
+    monkeypatch, tmp_path
+):
+    """Billed hosted requests must not become two logical decisions on retry."""
+    import trading_gym.intelligence.systemone_native_backend as module
+
+    monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
+    monkeypatch.setenv("HOSTED_ONE_KEY", "first-credential")
+    monkeypatch.setenv("HOSTED_TWO_KEY", "second-credential")
+    monkeypatch.setattr(module, "validate_base_url", lambda url, **kw: url)
+    observed = []
+
+    class Client:
+        def __init__(self, **kwargs):
+            assert not kwargs["trust_env"]
+            assert not kwargs["follow_redirects"]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, *, headers, json):
+            observed.append((url, dict(headers)))
+            code = 401 if len(observed) == 1 else 200
+            return httpx.Response(
+                code, json=_answer(),
+                request=httpx.Request("POST", url)
+            )
+
+    monkeypatch.setattr(httpx, "Client", Client)
+    config = ProviderConfig(
+        provider_id="hosted-system-one",
+        kind=ProviderKind.OPENAI_COMPATIBLE,
+        display_name="Hosted typed scorer",
+        model="gemma-fast",
+        base_url="https://system-one.dev/v1",
+        wire_protocol="systemone",
+        api_key_envs=("HOSTED_ONE_KEY", "HOSTED_TWO_KEY"),
+    )
+    call = httpx_systemone_transport(config)
+    result = call({"model": "gemma-fast", "state": {}, "questions": {}})
+    assert result["model"] == "gemma-fast"
+    assert len(observed) == 2
+    assert all(url == "https://system-one.dev/v1/systemone"
+               for url, _headers in observed)
+    first_key = observed[0][1]["Idempotency-Key"]
+    second_key = observed[1][1]["Idempotency-Key"]
+    assert first_key == second_key
+    assert len(first_key) >= 24
+
+    call({"model": "gemma-fast", "state": {}, "questions": {}})
+    assert len(observed) == 3
+    assert observed[2][1]["Idempotency-Key"] != first_key
+
+
+def test_fixed_engine_uses_no_hosted_idempotency_header(monkeypatch):
+    import trading_gym.intelligence.systemone_native_backend as module
+
+    monkeypatch.setattr(module, "validate_base_url", lambda url, **kw: url)
+    headers_seen = []
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, *, headers, json):
+            headers_seen.append(headers)
+            return httpx.Response(
+                200, json=_answer(),
+                request=httpx.Request("POST", url)
+            )
+
+    monkeypatch.setattr(httpx, "Client", Client)
+    call = httpx_systemone_transport(
+        _provider(wire_protocol="systemone_fixed")
+    )
+    call({"state": {}, "questions": {}})
+    assert len(headers_seen) == 1
+    assert "Idempotency-Key" not in headers_seen[0]
