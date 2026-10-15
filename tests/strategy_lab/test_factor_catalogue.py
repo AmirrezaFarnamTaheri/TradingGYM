@@ -113,3 +113,12 @@ def test_fanout_must_be_bounded_integer_not_bool_or_float():
     for value in (True, 1, 256, 5.0):
         with pytest.raises(ValueError, match="fanout"):
             build_factor_catalogue(_candidates(4), max_fanout=value)
+
+
+def test_public_strategy_lab_exports_safe_factor_discovery_only():
+    import trading_gym.strategy_lab as public
+
+    assert public.FactorCandidate is FactorCandidate
+    assert public.build_factor_catalogue is build_factor_catalogue
+    assert public.factor_options_at is options_at
+    assert public.resolve_factor_leaf is resolve_leaf
