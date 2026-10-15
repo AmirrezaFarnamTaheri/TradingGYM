@@ -1573,7 +1573,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/__init__.py",
-      "sha256": "9cfc0b1acf903cc784e47e71bbcd18014947a0104f206b495caf34a345572860"
+      "sha256": "160f0ee8a6798a818b3dd58610139dc6b059976da0ff4e5a0d1a491639974ead"
     },
     {
       "owner": "trading_gym",
@@ -1589,6 +1589,11 @@
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/evaluator.py",
       "sha256": "1e891b2b30949beec32f5f991ce4108a3b685a72f6afa133c8f0fbfbe00176c6"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/strategy_lab/factor_catalogue.py",
+      "sha256": "79a0af0e47fc6a45067a3052c90e3ffcff74dd0b9fd4b0e39e7157cfb121c741"
     },
     {
       "owner": "trading_gym",
