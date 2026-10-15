@@ -1,5 +1,39 @@
 # Hardening branch status — 2026-10-11
 
+
+## 2026-10-15 turnover-aware portfolio and operator research convergence
+
+The Vibe-Trading portfolio comparison has produced an additional
+**non-authoritative** method on the canonical institutional construction API:
+
+- `ConstructionMethod.TURNOVER_AWARE` uses a bounded, long-only convex
+  mean-variance objective with a full L1 trading-turnover penalty,
+  independently checked per-asset bounds and fully accounted prior weights.
+  The report exposes one-way turnover, regularization/utility, and a
+  SHA-256 prior-holdings receipt, without orders or portfolio mutation.
+- Group concentration caps are hard LP/SLSQP constraints, not post-hoc
+  annotations. Unassigned assets, unknown sectors, impossible limits,
+  non-finite inputs, and incomplete holdings refuse construction.
+  Aggregate group exposures and the group-policy fingerprint are reported.
+- Source-accountability SHA-256 entries and the OpenAPI method, request
+  and result models have been updated. Runtime-schema parity tests were
+  authored for the PR, but the full FastAPI generated-file check remains
+  unverified.
+- The Institutional OS workspace includes an optional "Load turnover-aware
+  example" button. It populates a bounded prior-holdings/group-cap
+  request without submitting a review; the matching browser regression
+  is committed but **not yet executed**.
+
+**Evidence:** focused isolated local optimizer tests: **27/27 passing**
+(18 baseline turnover and 9 grouped exposure/feasibility cases).
+The canonical Pydantic model integration tests, React/Vitest tests, full
+Python matrix, Rust suite, broker fee/funding readback, and exact-source
+contract checks **have not passed in the available environment**.
+Recent GitHub Actions failures contain zero job steps, which is a runner
+allocation/infrastructure symptom, not proof of source compilation failure.
+Draft PR #2 and funded-live **NO-GO** remain unchanged.
+
+
 ## 2026-10-15 unified PR and operator-state hardening
 
 PR #5 (`ci/tradinggym-single-pass-coverage`) was merged **into the draft
