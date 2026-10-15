@@ -1,5 +1,33 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 paired research and strategy-indicator follow-up
+
+ADR-044 implements a higher-level **offline paired strategy comparison
+plane**, based on AI-Trader's experiment scorecards and Vibe-Trading's
+turnover/optimizer causality principles. Its sealed market and strategy
+fingerprints, aligned holdout bars, explicit time boundaries, cost deductions,
+descriptive block-resampled uncertainty, report hashes, nonpromotable
+status, and bounded sanitized CLI are committed to PR #2.
+
+Also repaired two method-level indicator defects: flat prices now produce
+neutral RSI=50 instead of a false oversold 0, and stochastic `%D` warmup
+matches its user-selected smoothing window rather than always using three.
+The strategy-indicator implementation hash and new comparison module
+fingerprint were synchronized in the source-accountability manifest.
+
+**Verification:** a local Python 3.13.5 source mirror recorded RED failures
+for the missing research scorecard, RSI/stochastic defects, malformed CLI
+input, and compound-return overflow. The final combined focused regression
+suite reported **47/47 passing** with Python syntax compilation successful.
+The newly pushed comparator, command, and both new test files were verified
+byte-for-byte equal to the locally executed files using Git blob hashes.
+
+This evidence does **not** cover the full TradingGYM checkout, Python
+3.11/3.12 compatibility, UI/Rust builds, broker settlement, exact-head
+CI, or economic validity of backtest ranks. Source inventory and semantic
+acceptance remain separate. **Draft PR; funded-live NO-GO.**
+
+
 ## 2026-10-15 expanded donor strategies and second-order audit
 
 Seventeen newly supplied ZIP archives were inventoried without executing
