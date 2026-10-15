@@ -7,9 +7,10 @@ from enum import Enum
 from typing import Annotated
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .base import sha256_payload
+from .turnover_aware import solve_turnover_aware
 
 MAX_OPTIMIZATION_WORK_UNITS = 100_000_000
 
@@ -20,6 +21,7 @@ class ConstructionMethod(str, Enum):
     MINIMUM_VARIANCE = "minimum-variance"
     RISK_PARITY = "risk-parity"
     MAXIMUM_DIVERSIFICATION = "maximum-diversification"
+    TURNOVER_AWARE = "turnover-aware"
 
 
 class PortfolioAssetInput(BaseModel):
@@ -47,6 +49,34 @@ class PortfolioConstructionRequest(BaseModel):
     risk_free_rate: float = Field(default=0.0, ge=-1.0, le=1.0)
     maximum_iterations: Annotated[int, Field(ge=10, le=100_000)] = 2_000
     tolerance: float = Field(default=1e-8, gt=0.0, le=0.1)
+    # Meaningful only for TURNOVER_AWARE: prior holdings are a required,
+    # complete, long-only allocation, not hints silently ignored by the solver.
+    previous_weights: dict[str, float] | None = Field(default=None, max_length=64)
+    turnover_penalty: float = Field(default=0.0, ge=0.0, le=1000.0)
+    risk_aversion: float = Field(default=1.0, ge=0.0, le=1000.0)
+
+    @field_validator("previous_weights", mode="before")
+    @classmethod
+    def validate_previous_weights_type(cls, raw: object) -> object:
+        if raw is None:
+            return None
+        if not isinstance(raw, dict):
+            raise ValueError("previous weights must be a keyed allocation")
+        for key, value in raw.items():
+            if (
+                not isinstance(key, str)
+                or type(value) not in (int, float)
+                or not math.isfinite(value)
+            ):
+                raise ValueError("previous weights must be numeric and finite")
+        return raw
+
+    @field_validator("risk_aversion", "turnover_penalty", mode="before")
+    @classmethod
+    def validate_optimizer_cost_inputs(cls, raw: object) -> object:
+        if type(raw) not in (int, float) or not math.isfinite(raw):
+            raise ValueError("portfolio objective coefficients must be finite")
+        return raw
 
     @model_validator(mode="after")
     def validate_matrix(self) -> "PortfolioConstructionRequest":
@@ -75,10 +105,31 @@ class PortfolioConstructionRequest(BaseModel):
         if self.method in {
             ConstructionMethod.RISK_PARITY,
             ConstructionMethod.MAXIMUM_DIVERSIFICATION,
+            ConstructionMethod.TURNOVER_AWARE,
         }:
             work_units = n * n * self.maximum_iterations
             if work_units > MAX_OPTIMIZATION_WORK_UNITS:
                 raise ValueError("portfolio optimization work budget exceeded")
+        if self.method is ConstructionMethod.TURNOVER_AWARE:
+            if n > 64:
+                raise ValueError("turnover-aware construction is limited to 64 assets")
+            prior = self.previous_weights
+            if (
+                prior is None
+                or set(prior) != {asset.asset_id for asset in self.assets}
+            ):
+                raise ValueError("turnover-aware construction requires complete prior holdings")
+            if (
+                any(value < 0.0 or value > 1.0 for value in prior.values())
+                or not math.isclose(sum(prior.values()), 1.0, abs_tol=1e-8)
+            ):
+                raise ValueError("previous holdings must be fully invested and long only")
+        elif (
+            self.previous_weights is not None
+            or self.turnover_penalty != 0.0
+            or self.risk_aversion != 1.0
+        ):
+            raise ValueError("turnover settings cannot be silently ignored by other methods")
         return self
 
 
@@ -95,6 +146,10 @@ class PortfolioConstructionReport(BaseModel):
     blockers: list[str]
     warnings: list[str]
     converged: bool
+    estimated_one_way_turnover: float | None = None
+    turnover_regularization: float | None = None
+    objective_value: float | None = None
+    previous_weights_sha256: str | None = None
     report_sha256: str
     execution_authority_granted: bool = False
     mutation_performed: bool = False
@@ -134,6 +189,7 @@ def construct_portfolio(
     warnings: list[str] = []
     blockers: list[str] = []
     converged = True
+    turnover_details: dict[str, object] = {}
 
     if request.method == ConstructionMethod.EQUAL_WEIGHT:
         weights = _project(np.repeat(1.0 / n, n), lower, upper)
@@ -147,6 +203,39 @@ def construct_portfolio(
             blockers.append("minimum_variance_solution_nonpositive")
             raw = np.repeat(1.0 / n, n)
         weights = _project(raw / raw.sum(), lower, upper)
+    elif request.method == ConstructionMethod.TURNOVER_AWARE:
+        # Request validation ensures the full current asset universe has a
+        # prior holding, including explicit zero holdings for new assets.
+        assert request.previous_weights is not None
+        previous = np.asarray(
+            [request.previous_weights[item.asset_id] for item in request.assets],
+            dtype=float,
+        )
+        solution = solve_turnover_aware(
+            expected_returns=returns,
+            covariance=covariance,
+            previous_weights=previous,
+            minimum_weights=lower,
+            maximum_weights=upper,
+            risk_aversion=request.risk_aversion,
+            turnover_penalty=request.turnover_penalty,
+            max_iterations=request.maximum_iterations,
+            tolerance=request.tolerance,
+        )
+        weights = solution.weights
+        turnover_details = {
+            "estimated_one_way_turnover": solution.turnover,
+            "turnover_regularization": (
+                2.0 * request.turnover_penalty * solution.turnover
+            ),
+            "objective_value": solution.objective_value,
+            "previous_weights_sha256": sha256_payload({
+                "previous_weights": {
+                    key: request.previous_weights[key]
+                    for key in sorted(request.previous_weights)
+                }
+            }),
+        }
     else:
         weights = _project((1.0 / vol) / (1.0 / vol).sum(), lower, upper)
         step = 0.05
@@ -210,4 +299,5 @@ def construct_portfolio(
         "warnings": sorted(set(warnings)),
         "converged": converged,
     }
+    payload.update(turnover_details)
     return PortfolioConstructionReport(**payload, report_sha256=sha256_payload(payload))
