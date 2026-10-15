@@ -169,3 +169,45 @@ These changes do **not** certify fast-model trading alpha, latency targets,
 token economy, causal signal calibration or gross-flat recovery. Funded
 live remains admitted only with the existing hash-pinned RL runtime and
 independent venue, accounting, rollback and emergency safety qualification.
+
+## Follow-up: project cooldown and signed risk windows (2026-10-15)
+
+Provider-wide rate limits and hard quotas are **not attached to a model
+version or particular credential roster**. The shared rotation-state
+filename now depends on provider ID and validated base URL, rather than
+model/credential-list membership. A reserved provider-level cooldown
+survives swapping all keys or changing models. Per-key cooldowns retain
+bounded hashed slots for temporarily removed keys; expired slots are
+pruned. The 429 classifier recognizes hard quota conditions in both
+`error.code` and `error.type`, and provider-declared
+`X-RateLimit-Scope: organization|project|account|global|tenant|workspace`
+prevents per-key retry even when rotation was explicitly opted in.
+No design can evade provider-side organization limits or make API-key
+rotation a substitute for account permission.
+
+Both chat-based and typed native System-1 adapters now independently enforce
+a **signed advisory risk window** derived from the operator's minimum and
+maximum leverage and the model's own cap. Invalid limits deny *before*
+any provider inference call. An inadmissible directional recommendation
+becomes HOLD; allowed long and short values are clipped independently.
+For example, `min_leverage=-0.25, max_leverage=0` permits a small short
+while blocking all new long exposure, rather than imposing a symmetric
+zero limit. Independent pre-trade gates, capital reservations and broker
+checks remain authoritative.
+
+Live System-1 inference additionally requires `return_basis=completed_bars`,
+a prior validated closed-bar close and at least two completed-bar returns.
+A valid source-fingerprint string alone does **not** prove that model return
+features came from those candles. Irregular quote-mark updates can still
+be labeled for diagnostics in the environment, but cannot masquerade as
+completed timeframe returns in the live fast-model packet. A SHA-256
+fingerprint establishes content identity, not the independent authenticity
+of a venue feed. External data provenance, settlement correctness and
+causal predictive performance remain unqualified.
+
+Tests:
+`tests/intelligence/test_system1_rotation.py`,
+`tests/intelligence/test_system1_risk_bounds.py`, and
+`tests/intelligence/test_system1_closed_bar_context.py`.
+Isolated red/green reproductions and static source checks do not replace
+the full hosted Python/Rust/frontend matrix or real provider certification.
