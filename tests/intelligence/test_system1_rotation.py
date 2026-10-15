@@ -923,3 +923,50 @@ def test_auto_no_deep_reviewer_abstains_after_uncertain_system1():
     action, _ = policy.predict(np.zeros(3))
     assert float(action[0]) == pytest.approx(0.0)
     assert policy.last_signal.backend == "system1:abstained"
+
+
+def test_system1_context_has_net_exposure_and_bar_based_momentum():
+    """Precompute small-model numeric signals, explicitly NET not gross."""
+    context = _context(
+        equity=1_000.0,
+        position_units=-0.5,
+        last_close=100.0,
+        recent_returns=(0.02, -0.01),
+        return_basis="historical_bars",
+    )
+    packet = json.loads(build_system1_packet(context))
+    account = packet["account"]
+    stats = packet["market"]["return_stats"]
+
+    assert account["net_notional_quote"] == pytest.approx(-50.0)
+    assert account["signed_net_leverage"] == pytest.approx(-0.05)
+    assert account["gross_exposure_verified"] is False
+    assert stats["observations"] == 2
+    assert stats["cumulative_return"] == pytest.approx(0.0098)
+    assert stats["volatility_per_observation"] == pytest.approx(0.015)
+    assert stats["sampling"] == "historical_bars"
+
+
+@pytest.mark.parametrize(
+    "invalid_returns",
+    [(-1.0,), (-1.00001,), (float("inf"),), (1e308, 1e308)],
+)
+def test_system1_context_rejects_nonphysical_or_nonfinite_return_statistics(
+    invalid_returns,
+):
+    context = _context(recent_returns=invalid_returns)
+    with pytest.raises(ValueError, match="market returns"):
+        build_system1_packet(context)
+
+
+def test_system1_context_still_preserves_risk_bounds_on_budget_reduction():
+    context = _context(
+        market_features={f"rsi_{i}": i * 0.1 for i in range(32)},
+        risk_limits={"max_leverage": 0.75, "min_leverage": -0.3},
+    )
+    packet = json.loads(build_system1_packet(context, max_chars=620))
+    assert len(json.dumps(packet)) >= 200
+    assert packet["risk_constraints"]["max_leverage"] == 0.75
+    assert packet["risk_constraints"]["min_leverage"] == -0.3
+    assert "account" in packet
+    assert "freshness" in packet
