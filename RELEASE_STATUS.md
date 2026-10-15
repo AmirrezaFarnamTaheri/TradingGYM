@@ -1,5 +1,37 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 research Sharpe statistical correctness
+
+ADR-044 records critical research-only statistical fixes:
+
+- Corrected probabilistic Sharpe ratio to use **per-period** SR inside its
+  non-normality sampling formula, with annualized benchmarks converted to
+  the same sample frequency. On the fixed nine-return regression,
+  the old false-confidence value was approximately 1.0000; the correct
+  reference is 0.83922934856077.
+- PSR refuses missing/nonfinite returns, boolean vectors and pooled
+  multi-strategy arrays; it no longer silently removes incomplete
+  financial observations.
+- DSR now rejects nonfinite Sharpe/dispersion/moments, boolean and
+  fractional count inputs, and incoherent sample skew/kurtosis. Its API
+  is documented to require **per-period** Sharpe and trial dispersion.
+- Added independent closed-form, unit-invariance and malformed-evidence
+  regression tests, and refreshed the research source hash in
+  `docs/contracts/module_accountability.json`.
+
+**Verification observed:** an isolated Python 3.13.5 source mirror ran
+**47/47 passing focused tests** with syntax compilation. These are
+**not** complete repository tests. GitHub Actions run
+[#38785467227](https://github.com/AmirrezaFarnamTaheri/TradingGYM/actions/runs/38785467227)
+still reports required jobs failed before allocating a runner (zero
+executed steps). This needs runner/account remediation and all checks on
+one final head before any merge.
+
+The existing turnover-aware optimizer already covers key features in the
+Vibe-Trading donor; no duplicate capital-construction owner was introduced.
+**Draft PR; funded-live NO-GO.**
+
+
 ## 2026-10-15 verified PR ancestry and funding aggregate reconciliation
 
 **PR consolidation:** GitHub commit comparisons confirm PR #5's head
