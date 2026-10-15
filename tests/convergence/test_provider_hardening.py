@@ -103,3 +103,58 @@ def test_provider_status_only_considers_successful_http_health_reachable(
 
     monkeypatch.setattr(module.httpx, "Client", FakeClient)
     assert provider_status(config())["status"] == expected
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    (
+        {"api_key": "plaintext-secret"},
+        {"nested": {"access_token": "plaintext-secret"}},
+        {"auth": [{"client_secret": "plaintext-secret"}]},
+        {"security": {"password": "plaintext-secret"}},
+    ),
+)
+def test_provider_metadata_cannot_store_raw_credentials(metadata) -> None:
+    """Only env *reference names* belong in the persisted provider record."""
+    with pytest.raises(ValueError, match="metadata.*credential"):
+        ProviderConfig(
+            provider_id="provider-safe",
+            kind=ProviderKind.LOCAL,
+            display_name="Local",
+            model="small",
+            base_url="http://127.0.0.1:11434/v1",
+            metadata=metadata,
+        )
+
+
+def test_provider_metadata_permits_small_nonsecret_descriptions() -> None:
+    config = ProviderConfig(
+        provider_id="provider-safe",
+        kind=ProviderKind.LOCAL,
+        display_name="Local",
+        model="small",
+        base_url="http://127.0.0.1:11434/v1",
+        metadata={
+            "description": "Fast advisory model",
+            "tags": ["local", "research"],
+            "cost_tier": 0,
+        },
+    )
+    assert config.metadata["tags"] == ["local", "research"]
+
+
+def test_provider_metadata_rejects_oversized_or_nonfinite_payloads() -> None:
+    for metadata in (
+        {"description": "A" * 20_000},
+        {"quality": float("nan")},
+        {"quality": float("inf")},
+    ):
+        with pytest.raises(ValueError, match="metadata"):
+            ProviderConfig(
+                provider_id="provider-safe",
+                kind=ProviderKind.LOCAL,
+                display_name="Local",
+                model="small",
+                base_url="http://127.0.0.1:11434/v1",
+                metadata=metadata,
+            )
