@@ -172,3 +172,58 @@ def test_deep_reviewer_must_be_strict_and_thresholded():
     assert reviewer.can_review_uncertain_system1 is True
     assert reviewer._strict_json_only is True
     assert reviewer._review_confidence_floor == 0.70
+
+
+def test_unparseable_fast_output_blocks_rules():
+    fast = System1DecisionBackend(
+        _provider(),
+        transport=lambda _url, _messages: LLMTransportResponse(
+            content="BUY immediately! NO JSON"
+        ),
+    )
+    policy = _adapter(fast, DeterministicRuleBackend())
+    with pytest.raises(PermissionError, match="system1_unparseable"):
+        policy.predict(np.zeros(6))
+    assert policy.last_signal is None
+
+
+def test_schema_break_in_fast_output_does_not_fallback_to_rules():
+    fast = System1DecisionBackend(
+        _provider(),
+        transport=lambda _url, _messages: LLMTransportResponse(
+            content=json.dumps({
+                "action": "long",
+                "target_leverage": 0.8,
+                "confidence": 0.8,
+                "rationale": "bad extra",
+                "override_risk": True,
+            })
+        ),
+    )
+    policy = _adapter(fast, DeterministicRuleBackend())
+    with pytest.raises(PermissionError, match="system1_invalid_structured"):
+        policy.predict(np.zeros(6))
+
+
+def test_weak_strict_deep_review_abstains_without_rules_override():
+    from trading_gym.intelligence.llm_backend import LLMDecisionBackend
+
+    deep = LLMDecisionBackend(
+        _provider(),
+        transport=lambda _url, _messages: LLMTransportResponse(
+            content=json.dumps({
+                "action": "long",
+                "target_leverage": 2.0,
+                "confidence": 0.10,
+                "rationale": "low confidence",
+            })
+        ),
+        strict_json_only=True,
+        review_confidence_floor=0.70,
+    )
+    policy = _adapter(
+        _fast(confidence=0.1), deep, DeterministicRuleBackend()
+    )
+    action, _ = policy.predict(np.zeros(6))
+    assert float(action[0]) == 0
+    assert policy.last_signal.backend == "system1:abstained"
