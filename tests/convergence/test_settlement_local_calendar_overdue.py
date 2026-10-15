@@ -3,9 +3,12 @@
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
+import pytest
+
 from trading_gym.accounting.settlement import (
     SettlementConvention,
     SettlementObligation,
+    SettlementState,
     evaluate_settlement,
 )
 from trading_gym.market.calendar import LocalSession, MarketCalendarSpec
@@ -87,3 +90,30 @@ def test_cross_venue_snapshot_uses_each_calendar_independently():
     assert values == {"obligation-newyork": False, "obligation-tokyo": True}
     assert actual.settlement_authority_granted is False
     assert actual.mutation_performed is False
+
+
+def test_future_trade_cannot_enter_prior_cash_projection():
+    item = obligation("future", "America/New_York")
+    with pytest.raises(ValueError, match="future_trade"):
+        report(datetime(2026, 7, 7, 11, tzinfo=timezone.utc), [item])
+
+
+def test_future_settlement_confirmation_cannot_leak_into_prior_snapshot():
+    original = obligation("settled", "America/New_York")
+    item = SettlementObligation(**{
+        **original.model_dump(),
+        "state": SettlementState.SETTLED,
+        "observed_settlement_at": datetime(2026, 7, 9, 12, tzinfo=timezone.utc),
+    })
+    with pytest.raises(ValueError, match="future_settlement"):
+        report(datetime(2026, 7, 8, 12, tzinfo=timezone.utc), [item])
+
+
+def test_confirmation_cannot_precede_the_trade():
+    original = obligation("backdated", "America/New_York")
+    with pytest.raises(ValueError, match="before_trade"):
+        SettlementObligation(**{
+            **original.model_dump(),
+            "state": SettlementState.SETTLED,
+            "observed_settlement_at": datetime(2026, 7, 6, 12, tzinfo=timezone.utc),
+        })
