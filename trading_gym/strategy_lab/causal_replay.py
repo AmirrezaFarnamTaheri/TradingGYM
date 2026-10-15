@@ -106,6 +106,17 @@ def replay_evaluated_signals(
     signals = frame[["entry_signal", "exit_signal"]].to_numpy(dtype=bool)
     if np.any(signals[:, 0] & signals[:, 1]):
         raise ValueError("conflicting entry and exit signals on a bar")
+    if "position_intent" in frame.columns:
+        intents = frame["position_intent"]
+        expected_intents = np.select(
+            [signals[:, 0], signals[:, 1]], [1, -1], default=0
+        )
+        if (
+            not pd.api.types.is_integer_dtype(intents.dtype)
+            or intents.isna().any()
+            or not np.array_equal(intents.to_numpy(), expected_intents)
+        ):
+            raise ValueError("position_intent must match entry and exit signals")
     values = frame.loc[:, _PRICE_COLUMNS].to_numpy(dtype=float)
     if not np.isfinite(values).all():
         raise ValueError("replay requires finite OHLCV market values")
