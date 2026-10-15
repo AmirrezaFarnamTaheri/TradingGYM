@@ -123,7 +123,7 @@ def test_new_strength_gated_template_is_valid_evaluable_and_not_live_authority()
 
 
 def test_adx_research_presets_generate_entries_and_exits_in_shifted_regimes():
-    increments = np.r_[np.full(90, -0.55), np.full(150, 0.8), np.full(160, -1.0)]
+    increments = np.r_[np.full(90, -0.55), np.full(150, 2.0), np.full(160, -2.0)]
     close = 180 + np.cumsum(increments)
     frame = bars(close)
     catalogue = template_catalogue()
