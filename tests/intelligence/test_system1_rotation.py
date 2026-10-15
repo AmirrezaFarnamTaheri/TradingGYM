@@ -316,7 +316,7 @@ def test_system1_rejects_unadvertised_decision_fields():
             })
         ),
     )
-    with pytest.raises(BackendUnavailable, match="system1_invalid_structured"):
+    with pytest.raises(PermissionError, match="system1_invalid_structured"):
         backend.decide(_context())
 
 
