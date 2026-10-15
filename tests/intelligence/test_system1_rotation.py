@@ -143,6 +143,7 @@ def test_provider_config_supports_bounded_unique_key_references():
 def test_context_packet_includes_market_risk_and_provenance():
     ctx = _context(
         is_live=True,
+        return_basis="completed_bars",
         market_evidence={
             "bar_open_unix": 1_000,
             "bar_seconds": 300,
@@ -427,6 +428,7 @@ def test_future_bar_close_cannot_claim_verified_live_market(current_time):
 def test_closed_bar_at_or_after_end_time_is_considered_fresh():
     context = _context(
         is_live=True,
+        return_basis="completed_bars",
         market_evidence={
             "bar_open_unix": 1000,
             "bar_seconds": 300,
