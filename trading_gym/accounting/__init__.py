@@ -23,6 +23,13 @@ from trading_gym.accounting.models import (
     ReconciliationReport,
     ReconciliationTolerance,
 )
+from trading_gym.accounting.order_fill_parity import (
+    BrokerReadback,
+    FillEvidence,
+    OrderFillParityReport,
+    OrderIntent,
+    reconcile_order_fills,
+)
 from trading_gym.accounting.settlement import (
     SettlementConvention,
     SettlementObligation,
@@ -44,6 +51,11 @@ from trading_gym.accounting.corporate_actions import (
 )
 
 __all__ = [
+    "BrokerReadback",
+    "FillEvidence",
+    "OrderFillParityReport",
+    "OrderIntent",
+    "reconcile_order_fills",
     "AccountSnapshot",
     "AccountValuationReport",
     "CashAdjustmentProposal",
