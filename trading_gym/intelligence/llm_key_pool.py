@@ -413,6 +413,26 @@ def _quota_exhausted(response: object) -> bool:
         return False
 
 
+def reject_terminal_provider_status(response: object) -> None:
+    """Apply terminal HTTP authority rules even without a key pool.
+
+    Local/proxy providers can run without credentials. Their HTTP 4xx or
+    billing response must not be reclassified as an ordinary model outage
+    that permits a more risk-seeking fallback.
+    """
+    code = getattr(response, "status_code", None)
+    if type(code) is not int:
+        raise PermissionError("provider_invalid_http_status")
+    if code == 401:
+        raise PermissionError("provider_authentication_denied")
+    if code == 403:
+        raise PermissionError("provider_access_denied")
+    if code == 402 or (code == 429 and _quota_exhausted(response)):
+        raise ProviderHardQuotaError("provider_billing_required")
+    if code in (400, 404, 409, 413, 422):
+        raise PermissionError("provider_request_denied")
+
+
 def _shared_rate_scope(response: object) -> bool:
     """Provider-advertised account/project/organization limits are terminal."""
     headers = getattr(response, "headers", {})
