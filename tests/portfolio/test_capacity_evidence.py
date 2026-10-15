@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from trading_gym.portfolio.capacity import AdvSnapshot, assess_rebalance_capacity
+from trading_gym.portfolio import AdvSnapshot, assess_rebalance_capacity
 from trading_gym.portfolio.rebalance import (
     RebalanceHolding,
     RebalanceTarget,
