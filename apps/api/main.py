@@ -93,6 +93,11 @@ from trading_gym.governance.runtime_authorization import (
     issue_runtime_authorization,
 )
 from trading_gym.models.versioning import ModelMetadata, ModelRegistry
+from trading_gym.agent.providers import (
+    ProviderRepository,
+    selected_provider_credential_refs,
+)
+from trading_gym.common.intelligence_config import IntelligenceMode
 from axiomforge import __version__ as PROJECT_VERSION
 
 # Configure logging EARLY (before using logger)
@@ -660,9 +665,24 @@ async def start_managed_process(
     try:
         if before_spawn is not None:
             before_spawn()
+        # Every managed child (training, utility, paper or live) must strip
+        # ALL installed provider credentials, including arbitrary env names
+        # not matched by the generic suffix rules. Only explicitly delegated
+        # references are restored for the configured trading provider.
+        try:
+            installed_provider_refs = {
+                ref
+                for provider in ProviderRepository().list()
+                for ref in provider.credential_refs
+            }
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503, detail="Provider inventory unavailable"
+            ) from exc
         environment = child_environment(
             allowed_control_secrets=allowed_control_secrets or set(),
             allowed_secret_env=allowed_secret_env or set(),
+            blocked_secret_env=installed_provider_refs,
         )
         for name, value in (extra_environment or {}).items():
             if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,127}", name):
@@ -1645,6 +1665,37 @@ async def start_trading(
             "config/app.yaml",
         ]
 
+        # Model API keys never belong to arbitrary workers. Load the same
+        # validated on-disk config the child will use and delegate only the
+        # explicitly selected fast/deep provider credential references.
+        try:
+            trading_config = AppConfig.model_validate(
+                yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
+            )
+            installed_providers = ProviderRepository().list()
+            intelligence = trading_config.intelligence
+            if (
+                request.mode == "live"
+                and intelligence is not None
+                and intelligence.mode is not IntelligenceMode.RL
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Funded live requires a qualified RL-only intelligence mode",
+                )
+            selected_model_secrets = selected_provider_credential_refs(
+                intelligence, installed_providers
+            )
+        except HTTPException:
+            raise
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422, detail="Invalid model provider configuration"
+            ) from exc
+        except (OSError, RuntimeError) as exc:
+            raise HTTPException(
+                status_code=503, detail="Model provider inventory unavailable"
+            ) from exc
         registry, model_metadata, model_path = _registered_model_artifact(
             request.model_version
         )
@@ -1721,7 +1772,7 @@ async def start_trading(
                 "artifact_sha256": model_metadata.code_hash,
                 "proposal_id": request.proposal_id,
             },
-            allowed_secret_env={"ABAN_API_KEY"},
+            allowed_secret_env={"ABAN_API_KEY"} | set(selected_model_secrets),
             extra_environment=runtime_environment,
             before_spawn=before_spawn,
         )
