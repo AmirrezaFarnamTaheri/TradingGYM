@@ -181,12 +181,21 @@ grants.
 **Interfaces:** immutable model/tool/skill manifest references and a
 non-authoritative, read-only research selection report.
 
-- [ ] Compare skillbox/type-safe routers against current grants; tests
-  reject unknown executable skills, missing consent, untrusted manifests,
-  stale model prices, exhausted quotas and deceptive owner labels.
-- [ ] Only add Jev-tree hierarchical choice partitioning if a verified
-  catalog exceeds the supported 255-option native limit; otherwise keep
-  the current bounded selector.
+- [x] Compare Skillbox and TypeSafe skill manifests against TradingGYM's
+  existing quarantine/static assurance and grants. Harden canonical
+  SHA-256 validation, reviewer identity, bounded intake, duplicate-step
+  detection and iterative workflow DAG checks. Add a digest-pinned,
+  research-only capability preview requiring explicit consent, owner,
+  independent reviewers and unexpired records. Unknown, executable,
+  unsigned/unpinned, or unconsented entries are never suggested; no
+  capability grant or skill execution is possible. See ADR-050.
+- [ ] Independently authenticate catalogue signatures and reviewers,
+  persist revocations, and connect read-only preview status to the
+  existing role-scoped operator UX (not a new grant authority).
+- [x] Keep the new offline selector deterministic and bounded
+  (max 1024 catalogue candidates); no TypeSafe model call is made, so
+  its 255-choice inference limit is not crossed. Hierarchical choice
+  partitioning is deferred pending a measured model-based use case.
 - [ ] Expose only role-scoped research evidence and approved template
   metadata in the operator UI; never present simulated fills as live.
 
