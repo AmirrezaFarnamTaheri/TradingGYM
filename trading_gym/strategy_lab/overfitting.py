@@ -107,14 +107,33 @@ def bootstrap_sharpe_interval(
     seed: int = 0,
     periods_per_year: int = 252,
 ) -> tuple[float, float]:
-    values = np.asarray(returns, dtype=float)
-    values = values[np.isfinite(values)]
+    if (
+        isinstance(samples, (bool, np.bool_))
+        or not isinstance(samples, (int, np.integer))
+        or not 100 <= samples <= 100_000
+    ):
+        raise ValueError("samples must be an integer between 100 and 100000")
+    if (
+        isinstance(confidence, (bool, np.bool_))
+        or not isinstance(confidence, (int, float, np.integer, np.floating))
+        or not math.isfinite(float(confidence))
+        or not 0.5 <= confidence < 1
+    ):
+        raise ValueError("confidence must be finite and in [0.5, 1)")
+    if (
+        isinstance(periods_per_year, (bool, np.bool_))
+        or not isinstance(periods_per_year, (int, np.integer))
+        or periods_per_year <= 0
+    ):
+        raise ValueError("periods_per_year must be a positive integer")
+    raw = np.asarray(returns)
+    if raw.ndim != 1 or raw.dtype.kind not in "iuf":
+        raise ValueError("bootstrap requires one-dimensional real returns")
+    values = raw.astype(float)
+    if not np.isfinite(values).all():
+        raise ValueError("bootstrap requires complete finite returns")
     if values.size < 2:
         return (0.0, 0.0)
-    if not 100 <= samples <= 100_000:
-        raise ValueError("samples must be between 100 and 100000")
-    if not 0.5 <= confidence < 1:
-        raise ValueError("confidence must be in [0.5, 1)")
     rng = np.random.default_rng(seed)
     scores = np.empty(samples, dtype=float)
     for index in range(samples):
