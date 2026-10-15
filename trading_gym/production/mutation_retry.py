@@ -97,12 +97,12 @@ def delay_for_attempt(
     policy: MutationRetryPolicy, attempt: int, *, rng: random.Random | None = None
 ) -> float:
     """Exponential backoff capped at ``max_delay_s`` with multiplicative jitter."""
-    if attempt < 1:
-        raise ValueError("attempt numbering starts at 1")
+    if type(attempt) is not int or attempt < 1:
+        raise ValueError("attempt numbering starts at positive integer 1")
     rng = rng or random.Random()
     raw = min(policy.max_delay_s, policy.base_delay_s * (2 ** (attempt - 1)))
     spread = raw * policy.jitter_fraction
-    return float(max(0.0, raw - spread) + (2 * spread * rng.random()))
+    return float(min(policy.max_delay_s, max(0.0, raw - spread) + (2 * spread * rng.random())))
 
 
 OUTBOX_SCHEMA_VERSION = 1
