@@ -65,6 +65,7 @@ def _aware(value: datetime, name: str) -> None:
 OrderId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{2,127}$")]
 VenueId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{2,79}$")]
 InstrumentId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{2,119}$")]
+AccountId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{2,119}$")]
 Currency = Annotated[str, Field(pattern=r"^[A-Z0-9]{2,20}$")]
 
 
@@ -72,6 +73,7 @@ class OrderIntent(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     order_id: OrderId
+    account_id: AccountId
     instrument_id: InstrumentId
     venue_id: VenueId
     quote_currency: Currency
@@ -105,6 +107,7 @@ class FillEvidence(BaseModel):
 
     fill_id: OrderId
     order_id: OrderId
+    account_id: AccountId
     venue_id: VenueId
     instrument_id: InstrumentId
     occurred_at: datetime
@@ -126,6 +129,7 @@ class BrokerReadback(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     order_id: OrderId
+    account_id: AccountId
     observed_at: datetime
     state: OrderState
     executed_quantity: Decimal
@@ -155,6 +159,7 @@ class OrderFillParityReport(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     as_of: datetime
+    account_id: AccountId
     consistent: bool
     reconciled_execution_count: int
     order_results: list[OrderParityResult]
@@ -213,6 +218,10 @@ def reconcile_order_fills(
     if len(keys) != len(set(keys)):
         raise ValueError("duplicate idempotency key")
 
+    accounts = {order.account_id for order in orders}
+    if len(accounts) != 1:
+        raise ValueError("mixed accounts or missing account in reconciliation")
+    account_id = next(iter(accounts))
     by_id = {item.order_id: item for item in orders}
     by_readback = {item.order_id: item for item in readbacks}
     grouped: dict[str, list[FillEvidence]] = {item.order_id: [] for item in orders}
@@ -226,6 +235,8 @@ def reconcile_order_fills(
         else:
             if fill.occurred_at < order.submitted_at:
                 raise ValueError("fill before submission")
+            if fill.account_id != order.account_id:
+                blockers.append(f"account_mismatch:{fill.fill_id}")
             grouped[order.order_id].append(fill)
 
     for rb in readbacks:
@@ -250,6 +261,10 @@ def reconcile_order_fills(
         if rb is None:
             item_blockers.append(f"readback_missing:{order.order_id}")
         else:
+            if rb.account_id != order.account_id:
+                item_blockers.append(
+                    f"readback_account_mismatch:{order.order_id}"
+                )
             if rb.observed_at < order.submitted_at:
                 raise ValueError("readback before submission")
             if current_fills and rb.observed_at < max(
@@ -354,6 +369,7 @@ def reconcile_order_fills(
     ).hexdigest()
     return OrderFillParityReport(
         as_of=as_of.astimezone(timezone.utc),
+        account_id=account_id,
         consistent=not blockers,
         reconciled_execution_count=accepted_count if not blockers else 0,
         order_results=item_results,
