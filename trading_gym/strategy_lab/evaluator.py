@@ -27,6 +27,15 @@ def validate_market_frame(frame: pd.DataFrame) -> None:
         raise ValueError("market data must not be empty")
     if len(frame) > MAX_BARS:
         raise ValueError(f"market data exceeds {MAX_BARS} row limit")
+    # Rolling windows, crossings and warmup presume arrival-time order.
+    # Reject duplicated, missing and reversed real timestamps rather
+    # than computing lookahead-contaminated research signals.
+    if isinstance(frame.index, pd.DatetimeIndex) and (
+        frame.index.hasnans
+        or not frame.index.is_unique
+        or not frame.index.is_monotonic_increasing
+    ):
+        raise ValueError("market timestamps must be strictly increasing and complete")
     values = frame.loc[:, REQUIRED_COLUMNS].to_numpy(dtype=float)
     if not np.isfinite(values).all():
         raise ValueError("market data contains non-finite values")
