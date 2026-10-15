@@ -217,12 +217,19 @@ async def trade_loop(
                     raise RuntimeError("execution adapter returned an invalid result")
                 status = execution_result.get("status")
                 if status == "failed":
-                    raise RuntimeError(
-                        f"live execution failed ({execution_result.get('error_type', 'unknown')})"
+                    # Even a locally classified failure can follow an order
+                    # submission whose venue outcome is not independently
+                    # settled. No further funded decisions until reconciliation.
+                    raise UnrecognizedExecutionStatus(
+                        "live execution failed; broker reconciliation required"
                     )
                 if status == "skipped":
                     if execution_result.get("reason") not in {"dust", "no_executable_leg"}:
-                        raise RuntimeError("live reconciliation skipped without fill")
+                        # A denial (e.g. short_not_allowed, locked or unknown)
+                        # is not a harmless idle candle or retryable outage.
+                        raise UnrecognizedExecutionStatus(
+                            "live reconciliation denied; operator review required"
+                        )
                 elif status not in {"executed", "simulated"}:
                     # No code should interpret an unknown venue result as
                     # success or continue submitting on a later candle.
