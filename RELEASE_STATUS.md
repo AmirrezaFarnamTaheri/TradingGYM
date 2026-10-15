@@ -1,5 +1,43 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 unified PR and operator-state hardening
+
+PR #5 (`ci/tradinggym-single-pass-coverage`) was merged **into the draft
+PR #2 development branch**, not into `main`. A two-parent merge commit
+`159ad269a8177c3425e741e18a868bc42d7ab2d8` preserves PR #5's
+unique commit ancestry; GitHub comparison verified zero missing commits.
+PR #5 is closed **superseded**; PR #2 remains the sole open workstream.
+
+The mixed Ubuntu/Windows Python 3.11/3.12 CI matrix now runs the
+non-integration suite once per cell. Coverage is collected during the
+Ubuntu/3.12 invocation, without the second full pytest pass and without
+PR #5's default-shell-incompatible Bash `[[...]]` test. A new regression
+test verifies the mutually exclusive step conditions, matrix and
+coverage upload. ADR-048 records the decision and remaining gates.
+
+**Additional operator UI corrections:** the model registry now clears a
+stale active-model store when the authenticated API reports an explicit
+null; a failed model-status read is labeled **Unable to verify**, not
+"No model". While active state cannot be verified, every model row
+shows **Unknown** rather than falsely "Inactive", and both the row
+activation button and approval-consuming activation control are
+disabled. Read-only/backtest functions remain available. React/Vitest
+regression cases were added but **not executed on this exact head**.
+
+**Verification:** local PyYAML isolated matrix partition checks pass
+all four cases; source branch ancestry and regression-file presence
+were verified through GitHub. The 353-entry Python accountability
+manifest includes all source paths, and the fingerprint for
+`trading_gym/agent/tools.py` was corrected after its privacy change.
+A full manifest hash audit and exact-head Python/Windows, React,
+Rust, OpenAPI and broker/settlement suites still require real CI runs.
+
+Recent sampled Actions jobs on both previous PR heads failed with
+**zero executed steps and no runner assignment**. This is not evidence
+of source compilation or integration correctness. Funded-live
+readiness stays **NO-GO**; do not merge or bypass safety gates.
+
+
 ## 2026-10-15 additional trading and agent donor convergence
 
 The fourth-pass 17-ZIP donor inventory contains **4,226 members** and
