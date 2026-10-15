@@ -714,3 +714,47 @@ def test_remote_protocol_disconnect_can_retry_on_another_key(tmp_path: Path):
     result = request_with_rotation(pool, post, timeout_seconds=2)
     assert result.status_code == 200
     assert attempts == ["first", "second"]
+
+
+@pytest.mark.parametrize("bad_clock", [float("nan"), float("inf"), -1.0])
+def test_invalid_rotation_clock_denies_key_lease(
+    tmp_path: Path, bad_clock: float
+) -> None:
+    from trading_gym.intelligence.llm_key_pool import (
+        CredentialStateIntegrityError,
+    )
+
+    pool = CredentialPool(
+        ("MODEL_KEY_ONE",), state_path=tmp_path / "rotation.json",
+        env={"MODEL_KEY_ONE": "test-secret"}, now=lambda: bad_clock,
+    )
+    with pytest.raises(CredentialStateIntegrityError, match="clock"):
+        pool.acquire()
+
+
+def test_rotation_lock_io_error_must_not_be_recoverable_provider_outage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trading_gym.intelligence.llm_key_pool import (
+        CredentialStateIntegrityError,
+    )
+
+    pool = CredentialPool(
+        ("MODEL_KEY_ONE",), state_path=tmp_path / "rotation.json",
+        env={"MODEL_KEY_ONE": "test-secret"},
+    )
+
+    class BrokenLock:
+        def __enter__(self):
+            raise OSError("unavailable private credential storage")
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr(pool, "_lock", lambda: BrokenLock())
+    with pytest.raises(CredentialStateIntegrityError, match="lock"):
+        request_with_rotation(
+            pool,
+            lambda key, timeout: pytest.fail("must not attempt inference"),
+            timeout_seconds=1,
+        )
