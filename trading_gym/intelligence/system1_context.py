@@ -195,6 +195,17 @@ def build_system1_packet(
         }
     if live and freshness["status"] != "verified_closed_bar":
         raise PermissionError("unverified_live_market_freshness")
+    # A valid OHLCV source hash does not prove that `recent_returns` were
+    # computed from those completed bars. Quote-update changes can have
+    # arbitrary sampling frequency and falsely resemble short-term trends.
+    # The live feature assembler supplies an independent completed-bar close
+    # sequence; require its explicit cadence plus at least three closes.
+    if live and (
+        sampling != "completed_bars"
+        or market["prev_close"] is None
+        or len(market["recent_returns"]) < 2
+    ):
+        raise PermissionError("live_completed_bar_returns_required")
     limits = getattr(context, "risk_limits", {}) or {}
     if not isinstance(limits, Mapping) or len(limits) > 20:
         raise ValueError("invalid risk context")
