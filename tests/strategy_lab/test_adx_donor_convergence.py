@@ -120,3 +120,18 @@ def test_new_strength_gated_template_is_valid_evaluable_and_not_live_authority()
     evaluated = evaluate_strategy(frame, spec)
     assert {"entry_signal", "exit_signal", "position_intent"} <= set(evaluated)
     assert set(evaluated.position_intent.unique()) <= {-1, 0, 1}
+
+
+def test_adx_research_presets_generate_entries_and_exits_in_shifted_regimes():
+    increments = np.r_[np.full(90, -0.55), np.full(150, 0.8), np.full(160, -1.0)]
+    close = 180 + np.cumsum(increments)
+    frame = bars(close)
+    catalogue = template_catalogue()
+    for name in ("adx_directional_trend", "adx_donchian_breakout"):
+        strategy = catalogue[name]
+        result = evaluate_strategy(frame, strategy)
+        assert result["entry_signal"].any(), name
+        assert result["exit_signal"].any(), name
+        assert result["entry_signal"].iloc[:28].eq(False).all()
+        assert "research" in strategy.tags
+        assert strategy.risk.max_position_fraction <= 0.05
