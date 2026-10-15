@@ -739,3 +739,83 @@ def test_outbox_rejects_fifo_before_read_or_journal_append(
             operation="spot.market",
             payload_sha256="bb" * 32,
         )
+
+def test_outbox_outcome_requires_matching_pending_before_append(tmp_path):
+    journal = MutationOutbox(tmp_path / "mutations.jsonl")
+    kwargs = dict(
+        idempotency_key="ee" * 16,
+        proposal_id="proposal",
+        operation="spot.market",
+        payload_sha256="ab" * 32,
+    )
+    with pytest.raises(MutationOutboxIntegrityError, match="pending"):
+        journal.record_outcome(**kwargs, outcome="committed")
+    assert journal.latest_by_key() == {}
+    journal.record_pending(**kwargs)
+    with pytest.raises(MutationOutboxIntegrityError, match="identity"):
+        journal.record_outcome(
+            **(kwargs | {"payload_sha256": "cd" * 32}),
+            outcome="committed",
+        )
+    assert journal.latest_by_key()[kwargs["idempotency_key"]]["status"] == "pending"
+
+
+def test_outbox_denies_terminal_from_unknown_venue_outcome(tmp_path):
+    journal = MutationOutbox(tmp_path / "mutations.jsonl")
+    kwargs = dict(
+        idempotency_key="ee" * 16,
+        proposal_id="proposal",
+        operation="spot.market",
+        payload_sha256="ab" * 32,
+    )
+    journal.record_pending(**kwargs)
+    journal.record_outcome(**kwargs, outcome="ambiguous")
+    with pytest.raises(MutationOutboxIntegrityError, match="invalid transition"):
+        journal.record_outcome(**kwargs, outcome="terminal")
+    assert len(scan_outbox(journal)) == 1
+    assert journal.latest_by_key()[kwargs["idempotency_key"]]["status"] == "ambiguous"
+
+
+def test_outbox_duplicate_commit_does_not_append_a_second_record(tmp_path):
+    journal = MutationOutbox(tmp_path / "mutations.jsonl")
+    kwargs = dict(
+        idempotency_key="ee" * 16,
+        proposal_id="proposal",
+        operation="spot.market",
+        payload_sha256="ab" * 32,
+    )
+    journal.record_pending(**kwargs)
+    journal.record_outcome(**kwargs, outcome="committed")
+    before = journal.path.read_bytes()
+    journal.record_outcome(**kwargs, outcome="committed")
+    assert journal.path.read_bytes() == before
+
+
+def test_outbox_conflicting_outcomes_are_serialized(tmp_path):
+    journal = MutationOutbox(tmp_path / "mutations.jsonl")
+    kwargs = dict(
+        idempotency_key="ee" * 16,
+        proposal_id="proposal",
+        operation="spot.market",
+        payload_sha256="ab" * 32,
+    )
+    journal.record_pending(**kwargs)
+    barrier = Barrier(3)
+
+    def settle(value):
+        barrier.wait()
+        try:
+            journal.record_outcome(**kwargs, outcome=value)
+            return "accepted"
+        except MutationOutboxIntegrityError:
+            return "denied"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(settle, "committed"),
+                   pool.submit(settle, "terminal")]
+        barrier.wait()
+        verdicts = [f.result(timeout=4) for f in futures]
+    assert sorted(verdicts) == ["accepted", "denied"]
+    assert journal.latest_by_key()[kwargs["idempotency_key"]]["status"] in {
+        "terminal", "committed"
+    }
