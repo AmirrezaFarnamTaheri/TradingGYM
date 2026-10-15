@@ -233,6 +233,12 @@ describe('Authorization scope evidence cannot outlive its inputs', () => {
     scope.dispatchEvent(new Event('input', { bubbles: true }));
     await flushPromises();
     expect(container.querySelector('[data-testid="check-result"]')).toBeNull();
+    // Returning to the same input must not resurrect old point-in-time
+    // permission evidence without issuing another check.
+    setter.call(scope, 'trade.paper.order.submit');
+    scope.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+    expect(container.querySelector('[data-testid="check-result"]')).toBeNull();
     cleanup();
   });
 
