@@ -580,3 +580,137 @@ def test_credential_rotation_migrates_removed_key_cooldown_without_corruption(
         reintroduced.acquire()
     clock[0] = 5_031.0
     assert reintroduced.acquire().reference == "MODEL_KEY_TWO"
+
+
+@pytest.mark.parametrize(
+    "billing_code",
+    (
+        "credit_balance_exhausted",
+        "organization_spend_limit_exceeded",
+        "project_spend_limit_exceeded",
+        "organization_usage_limit_exceeded",
+    ),
+)
+def test_hard_billing_429_never_rotates_even_with_opt_in(
+    tmp_path: Path, billing_code: str
+) -> None:
+    env = {"MODEL_KEY_ONE": "first", "MODEL_KEY_TWO": "second"}
+    pool = CredentialPool(
+        tuple(env), state_path=tmp_path / "pool.json", env=env
+    )
+    attempts: list[str] = []
+
+    def post(key: str, remaining: float) -> httpx.Response:
+        attempts.append(key)
+        return httpx.Response(
+            429,
+            json={"error": {"code": billing_code}},
+            request=httpx.Request("POST", "https://api.example/v1"),
+        )
+
+    with pytest.raises(CredentialsUnavailable, match="rate_or_quota"):
+        request_with_rotation(
+            pool, post, timeout_seconds=2, rotate_on_rate_limit=True
+        )
+    assert attempts == ["first"]
+    with pytest.raises(CredentialsUnavailable):
+        pool.acquire()
+
+
+def test_broken_rotation_state_cannot_silently_exhaust_fallbacks(
+    tmp_path: Path,
+) -> None:
+    from trading_gym.intelligence.llm_key_pool import (
+        CredentialStateIntegrityError,
+    )
+
+    path = tmp_path / "pool.json"
+    path.write_text("{broken", encoding="utf-8")
+    pool = CredentialPool(
+        ("MODEL_KEY_ONE",), state_path=path,
+        env={"MODEL_KEY_ONE": "secret"},
+    )
+    attempts: list[str] = []
+
+    with pytest.raises(CredentialStateIntegrityError):
+        request_with_rotation(
+            pool, lambda key, deadline: attempts.append(key),
+            timeout_seconds=2,
+        )
+    assert attempts == []
+
+
+def test_chat_transport_rejects_corrupt_credential_journal_as_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trading_gym.intelligence.llm_backend import httpx_transport
+    from trading_gym.intelligence.llm_key_pool import default_rotation_path
+
+    monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
+    monkeypatch.setenv("MODEL_KEY_ONE", "a-nonproduction-test-key")
+    config = ProviderConfig(
+        provider_id="test-chat",
+        display_name="test chat",
+        kind=ProviderKind.OPENAI_COMPATIBLE,
+        model="local-fixture",
+        base_url="https://api.example/v1",
+        api_key_env="MODEL_KEY_ONE",
+    )
+    path = default_rotation_path(
+        config.provider_id, config.base_url, config.model, config.credential_refs
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("corrupted state", encoding="utf-8")
+
+    transport = httpx_transport(config)
+    with pytest.raises(PermissionError, match="credential_rotation_integrity"):
+        transport(config.base_url, [{"role": "user", "content": "hold"}])
+
+
+def test_native_systemone_transport_rejects_corrupt_rotation_journal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trading_gym.intelligence.llm_key_pool import default_rotation_path
+    from trading_gym.intelligence.systemone_native_backend import (
+        httpx_systemone_transport,
+    )
+
+    monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
+    monkeypatch.setenv("MODEL_KEY_ONE", "a-nonproduction-test-key")
+    config = ProviderConfig(
+        provider_id="test-native",
+        display_name="test typed model",
+        kind=ProviderKind.OPENAI_COMPATIBLE,
+        wire_protocol="systemone",
+        model="fast",
+        base_url="https://api.example/v1",
+        api_key_env="MODEL_KEY_ONE",
+    )
+    path = default_rotation_path(
+        config.provider_id, config.base_url, config.model, config.credential_refs
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("corrupted state", encoding="utf-8")
+
+    with pytest.raises(PermissionError, match="credential_rotation_integrity"):
+        httpx_systemone_transport(config)({"model": config.model})
+
+
+def test_remote_protocol_disconnect_can_retry_on_another_key(tmp_path: Path):
+    env = {"MODEL_KEY_ONE": "first", "MODEL_KEY_TWO": "second"}
+    pool = CredentialPool(
+        tuple(env), state_path=tmp_path / "pool.json", env=env
+    )
+    attempts: list[str] = []
+
+    def post(key: str, remaining: float) -> httpx.Response:
+        attempts.append(key)
+        if key == "first":
+            raise httpx.RemoteProtocolError("remote peer disconnected")
+        return httpx.Response(
+            200, request=httpx.Request("POST", "https://api.example/v1")
+        )
+
+    result = request_with_rotation(pool, post, timeout_seconds=2)
+    assert result.status_code == 200
+    assert attempts == ["first", "second"]
