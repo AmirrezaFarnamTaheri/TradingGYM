@@ -123,3 +123,32 @@ def test_native_systemone_also_enforces_negative_short_side_bound() -> None:
     assert signal.action_kind is ActionKind.SHORT
     assert signal.target_leverage == pytest.approx(-0.2)
     assert len(calls) == 1
+
+
+
+def test_native_systemone_short_only_risk_window_does_not_force_hold() -> None:
+    provider = ProviderConfig(
+        provider_id="native-short", kind=ProviderKind.LOCAL,
+        display_name="typed short", model="native-short-v1",
+        wire_protocol="systemone", base_url="http://127.0.0.1:8080",
+    )
+    backend = NativeSystemOneDecisionBackend(
+        provider,
+        transport=lambda request: {
+            "model": "native-short-v1",
+            "answers": {
+                "direction": {
+                    "type": "choice",
+                    "choice": "short",
+                    "probabilities": {"hold": 0.1, "long": 0.05, "short": 0.85},
+                    "confidence": 0.9,
+                },
+                "risk_off": {"type": "noul", "noul": 0.1},
+            },
+        },
+    )
+    # A zero positive cap prohibits LONG but must not prohibit an allowed
+    # -0.25 SHORT simply because the legacy parser used a symmetric cap.
+    result = backend.decide(context(min_leverage=-0.25, max_leverage=0.0))
+    assert result.action_kind is ActionKind.SHORT
+    assert result.target_leverage == pytest.approx(-0.25)
