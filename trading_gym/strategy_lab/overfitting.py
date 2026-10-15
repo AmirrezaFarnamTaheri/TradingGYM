@@ -44,8 +44,19 @@ def purged_walk_forward(
 
 
 def annualised_sharpe(returns: np.ndarray, periods_per_year: int = 252) -> float:
-    values = np.asarray(returns, dtype=float)
-    values = values[np.isfinite(values)]
+    """Report Sharpe only from a complete single-strategy return series."""
+    if (
+        isinstance(periods_per_year, (bool, np.bool_))
+        or not isinstance(periods_per_year, (int, np.integer))
+        or periods_per_year <= 0
+    ):
+        raise ValueError("periods_per_year must be a positive integer")
+    raw = np.asarray(returns)
+    if raw.ndim != 1 or raw.dtype.kind not in "iuf":
+        raise ValueError("annualised Sharpe requires one-dimensional real returns")
+    values = raw.astype(float)
+    if not np.isfinite(values).all():
+        raise ValueError("annualised Sharpe requires complete finite returns")
     if values.size < 2:
         return 0.0
     deviation = float(np.std(values, ddof=1))
