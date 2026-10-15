@@ -18,6 +18,7 @@ T = datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
 def intent(**changes):
     values = dict(
         order_id="order001",
+        account_id="ACC001",
         instrument_id="BTC-USD",
         venue_id="VENUE1",
         quote_currency="USD",
@@ -39,6 +40,7 @@ def fill(fill_id="fill001", **changes):
     values = dict(
         fill_id=fill_id,
         order_id="order001",
+        account_id="ACC001",
         venue_id="VENUE1",
         instrument_id="BTC-USD",
         occurred_at=T + timedelta(seconds=1),
@@ -54,6 +56,7 @@ def fill(fill_id="fill001", **changes):
 def readback(**changes):
     values = dict(
         order_id="order001",
+        account_id="ACC001",
         observed_at=T + timedelta(seconds=2),
         state="canceled",
         executed_quantity=D("0.8"),
@@ -202,6 +205,36 @@ def test_duplicate_idempotency_key_cannot_be_reconciled():
         reconcile_order_fills(
             as_of=T + timedelta(seconds=5),
             orders=[intent(), intent(order_id="order002")],
+            fills=[],
+            readbacks=[],
+            position_deltas={},
+            cash_deltas={},
+        )
+
+
+def test_wrong_account_fill_or_broker_readback_cannot_be_reconciled():
+    result = report(fills=[fill(account_id="ACC002")])
+    assert "account_mismatch:fill001" in result.blockers
+    assert result.consistent is False
+    assert result.account_id == "ACC001"
+
+    result = report(readbacks=[readback(account_id="ACC002")])
+    assert "readback_account_mismatch:order001" in result.blockers
+    assert result.execution_authority_granted is False
+
+
+def test_mixed_custody_accounts_cannot_share_cash_and_position_readbacks():
+    with pytest.raises(ValueError, match="mixed accounts"):
+        reconcile_order_fills(
+            as_of=T + timedelta(seconds=5),
+            orders=[
+                intent(order_id="order001", account_id="ACC001"),
+                intent(
+                    order_id="order002",
+                    account_id="ACC002",
+                    idempotency_key="b" * 32,
+                ),
+            ],
             fills=[],
             readbacks=[],
             position_deltas={},
