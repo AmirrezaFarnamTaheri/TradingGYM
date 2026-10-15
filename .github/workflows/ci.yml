@@ -148,14 +148,11 @@ jobs:
 
       - name: Run unit tests
         run: |
-          poetry run pytest -m "not integration" -v --tb=short
-        env:
-          PYTHONPATH: .
-
-      - name: Run unit tests with coverage
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        run: |
-          poetry run pytest -m "not integration" --cov=trading_gym --cov=apps --cov-report=xml --cov-report=term-missing
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" && "${{ matrix.python-version }}" == "3.12" ]]; then
+            poetry run pytest -m "not integration" -v --tb=short --cov=trading_gym --cov=apps --cov-report=xml --cov-report=term-missing
+          else
+            poetry run pytest -m "not integration" -v --tb=short
+          fi
         env:
           PYTHONPATH: .
 
