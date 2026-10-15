@@ -183,3 +183,33 @@ def test_aggregate_funding_tolerance_remains_inclusive():
     result = check(obligations, settled, tol=Decimal("0.01"))
     assert result["consistent"] is True
     assert result["unexplained_cash_by_currency"] == {"USDT": "-0.01"}
+
+
+def test_net_funding_drift_is_checked_per_currency_not_offset_across_assets():
+    from dataclasses import replace
+
+    ds = [
+        due("fund-001"),
+        due("fund-002", currency="USD"),
+    ]
+    rs = [
+        receipt("fund-001", cash_delta_quote=Decimal("-0.12")),
+        replace(
+            receipt(
+                "fund-002",
+                receipt_id="receipt-002",
+                cash_delta_quote=Decimal("-0.08"),
+            ),
+            currency="USD",
+        ),
+    ]
+    report = check(ds, rs)
+    assert report["unexplained_cash_by_currency"] == {
+        "USD": "0.02",
+        "USDT": "-0.02",
+    }
+    assert report["consistent"] is False
+    assert {
+        "funding_aggregate_mismatch:USD",
+        "funding_aggregate_mismatch:USDT",
+    } <= set(report["blockers"])
