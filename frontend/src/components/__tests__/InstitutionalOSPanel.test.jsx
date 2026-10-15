@@ -127,4 +127,36 @@ describe('InstitutionalOSPanel stale-request guard', () => {
 
     cleanup();
   });
+
+  it('loads turnover-aware group-cap research example without submitting a review', async () => {
+    const { container, cleanup } = renderWithClient(<InstitutionalOSPanel />);
+    await flushPromises();
+
+    const portfolio = await waitForRendered(
+      container,
+      '.status-card',
+      CARD_BY_TITLE('Portfolio construction')
+    );
+    portfolio.click();
+    await flushPromises();
+
+    const preset = await waitForRendered(
+      container,
+      'button',
+      (node) => node.textContent?.includes('Load turnover-aware example')
+    );
+    preset.click();
+    await flushPromises();
+
+    const request = JSON.parse(container.querySelector('textarea').value);
+    expect(request.method).toBe('turnover-aware');
+    expect(request.previous_weights).toEqual({ BTC: 0.7, ETH: 0.3 });
+    expect(request.asset_groups).toEqual({
+      BTC: 'major-crypto', ETH: 'alternative-crypto',
+    });
+    expect(request.group_caps['alternative-crypto']).toBe(0.45);
+    expect(evaluateSpy).not.toHaveBeenCalled();
+    cleanup();
+  });
+
 });
