@@ -1,5 +1,30 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 all-archive reconciliation and second-order convergence
+
+ADR-045 reconciles all uploaded ZIPs into one read-only donor inventory:
+**39 archives, 12,473 file entries, 2,238 nested folder paths,
+11,802 distinct file-content SHA-256 hashes**, 304 cross-archive
+same-content hash groups and three exact duplicate archive pairs.
+
+The local audit retains every member/folder path and SHA-256, without
+extracting or executing donor code. This is complete structural
+enumeration, **not** complete method-by-method semantic qualification.
+
+Actual committed convergence this pass includes the causal ADX family
+and research presets, strict candle timestamp validation, fixed RSI
+and stochastic edge behavior, sealed paired strategy comparisons,
+bounded CLI and cost-scenario sensitivity. The evidence is
+descriptive and permanently non-promotable; existing capital/
+broker/execution governance is unchanged.
+
+**Verification:** 55/55 focused tests passed in a Python 3.13.5
+source mirror. Full exact PR-head Python 3.11/3.12 checks, static
+format/type checks, app-import integration, React/Rust, source-manifest
+generator, OpenAPI generator and broker-fault qualification remain
+unverified. PR #2 remains draft and funded-live **NO-GO**.
+
+
 ## 2026-10-15 second-order execution-cost robustness
 
 The research-only `trading_gym/experiments/cost_sensitivity.py` module
