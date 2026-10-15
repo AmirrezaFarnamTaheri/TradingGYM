@@ -4125,7 +4125,8 @@
           "inverse-volatility",
           "minimum-variance",
           "risk-parity",
-          "maximum-diversification"
+          "maximum-diversification",
+          "turnover-aware"
         ],
         "title": "ConstructionMethod",
         "type": "string"
@@ -16752,6 +16753,18 @@
             "title": "Diversification Ratio",
             "type": "number"
           },
+          "estimated_one_way_turnover": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Estimated One Way Turnover"
+          },
           "execution_authority_granted": {
             "default": false,
             "title": "Execution Authority Granted",
@@ -16776,6 +16789,30 @@
             "title": "Mutation Performed",
             "type": "boolean"
           },
+          "objective_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Objective Value"
+          },
+          "previous_weights_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Previous Weights Sha256"
+          },
           "report_sha256": {
             "title": "Report Sha256",
             "type": "string"
@@ -16783,6 +16820,18 @@
           "sharpe_ratio": {
             "title": "Sharpe Ratio",
             "type": "number"
+          },
+          "turnover_regularization": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Turnover Regularization"
           },
           "volatility": {
             "title": "Volatility",
@@ -16852,6 +16901,29 @@
           "method": {
             "$ref": "#/components/schemas/ConstructionMethod"
           },
+          "previous_weights": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "maxProperties": 64,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Previous Weights"
+          },
+          "risk_aversion": {
+            "default": 1.0,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Risk Aversion",
+            "type": "number"
+          },
           "risk_free_rate": {
             "default": 0.0,
             "maximum": 1.0,
@@ -16864,6 +16936,13 @@
             "exclusiveMinimum": 0.0,
             "maximum": 0.1,
             "title": "Tolerance",
+            "type": "number"
+          },
+          "turnover_penalty": {
+            "default": 0.0,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Turnover Penalty",
             "type": "number"
           }
         },
