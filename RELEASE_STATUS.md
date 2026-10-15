@@ -1,5 +1,36 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 portfolio post-fee concentration correctness
+
+An additional donor-parity review of Vibe-Trading's turnover-aware,
+rebalance-snapshot and execution-evidence methods uncovered a **real
+TradingGYM risk-control defect**: the existing dry-run rebalance planner
+computed asset/cash weight and maximum-concentration checks relative to
+starting equity, even after deducting estimated transaction fees.
+
+On PR #2, `plan_rebalance` now computes a final fee-adjusted projected
+equity denominator for all projected position weights, cash weight and
+target residuals. Non-positive projected equity is explicitly refused.
+The original equity/turnover reporting contract and non-authoritative,
+non-mutating planner semantics remain unchanged.
+
+**Behavioral TDD:** a byte-verified copy of the exact GitHub module
+reproduced two RED failures (a 90%-reported allocation that was
+actually 98.9% after fees, and a falsely feasible zero-equity
+liquidation). The corrected module passed the three focused tests,
+then an additional two-asset balance-sheet reconciliation test.
+Three reproduced existing portfolio tests also passed. The local
+isolated source mirror reported **62/62 passing**, plus clean Python
+syntax compilation; the pushed module's Git blob hash matches the
+tested source. See ADR-045.
+
+**Still unverified:** all pinned Python 3.11/3.12 suites, exact-head
+CI, source-accountability generator, full FastAPI OpenAPI generation,
+real venue execution and fee settlement, frontend/Rust, and
+independent broker recovery. No merge or funded-live authorization
+is implied. PR #2 remains draft and **NO-GO**.
+
+
 ## 2026-10-15 all-archive reconciliation and second-order convergence
 
 ADR-045 reconciles all uploaded ZIPs into one read-only donor inventory:
