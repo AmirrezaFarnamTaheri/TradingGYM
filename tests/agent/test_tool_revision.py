@@ -67,6 +67,26 @@ class TestUsageMetering:
         assert entry["failures"] == 1
         assert entry["last_error"]
 
+    def test_usage_errors_do_not_leak_tool_exception_payload(
+        self, tmp_path: Path
+    ) -> None:
+        registry = build_registry(tmp_path)
+        private_message = "BROKER_API_KEY=do-not-display-this-token"
+
+        def broken_tool(args, actor):
+            raise RuntimeError(private_message)
+
+        registry.register("research.broken", "Offline test", broken_tool)
+        with pytest.raises(RuntimeError, match="BROKER_API_KEY"):
+            registry.invoke(
+                ToolRequest(tool="research.broken", actor="agent", arguments={})
+            )
+        report = registry.usage_report()["research.broken"]
+        assert report["calls"] == 1
+        assert report["failures"] == 1
+        assert report["last_error"] == "RuntimeError"
+        assert private_message not in str(registry.usage_report())
+
     def test_untouched_tools_report_zero(self, tmp_path: Path) -> None:
         registry = build_registry(tmp_path)
         report = registry.usage_report()
