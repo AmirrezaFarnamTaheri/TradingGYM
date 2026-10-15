@@ -264,7 +264,9 @@ class IntelligencePolicyAdapter:
                 # outage. Switching to a lower-fidelity backend would bypass
                 # the same authority that denied the original decision.
                 self.last_signal = None
-                self.last_failure_types = tuple((*failures, f"{backend.name}:PermissionError"))
+                self.last_failure_types = tuple(
+                    (*failures, f"{backend.name}:PermissionError")
+                )
                 raise
             except InvalidDecisionSignal as exc:
                 # Invalid domain values can be rejected by the backend's
@@ -312,4 +314,6 @@ class IntelligencePolicyAdapter:
             self.last_signal = signal
             return self._signal_to_action(signal), None
         self.last_signal = None
-        raise BackendUnavailable("no configured intelligence backend produced a decision")
+        raise BackendUnavailable(
+            "no configured intelligence backend produced a decision"
+        )
