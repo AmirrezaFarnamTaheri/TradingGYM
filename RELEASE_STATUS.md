@@ -1,5 +1,18 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 annualized Sharpe display evidence integrity
+
+The standalone annualized Sharpe report now validates its complete
+one-dimensional finite return series and strictly positive integer
+annualization frequency. It no longer drops nonfinite observations or
+coerces boolean win/loss arrays into performance returns. Eight original
+regression cases failed against the prior helper; the valid calculation
+remains unchanged. This research-only adjustment does not grant trading
+or model-promotion authority.
+
+The combined isolated source-mirror suite passes **112/112 tests**; exact
+PR-head full-repository qualification remains blocked by runner allocation.
+
 ## 2026-10-15 research walk-forward and bootstrap integrity
 
 - Walk-forward results now reject **any missing/invalid paired window**
@@ -11,7 +24,7 @@
 - Added regression tests for missing windows, unsafe robustness thresholds,
   divide-by-zero, and bootstrap samples. All changes are research-only and
   cannot promote strategies or authorize funded trading.
-- **102/102 local isolated-source-mirror tests passed**, including syntax
+- **112/112 local isolated-source-mirror tests passed**, including syntax
   compilation. This is *not* the full checkout test matrix. CI allocation
   and pinned Python 3.11/3.12 qualification remain outstanding.
 
@@ -38,7 +51,7 @@ ADR-044 records critical research-only statistical fixes:
   `docs/contracts/module_accountability.json`.
 
 **Verification observed:** an isolated Python 3.13.5 source mirror ran
-**102/102 passing focused tests** with syntax compilation. These are
+**112/112 passing focused tests** with syntax compilation. These are
 **not** complete repository tests. GitHub Actions run
 [#38785467227](https://github.com/AmirrezaFarnamTaheri/TradingGYM/actions/runs/38785467227)
 still reports required jobs failed before allocating a runner (zero
