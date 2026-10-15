@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from enum import Enum
@@ -24,7 +25,7 @@ from trading_gym.common.audit_outbox import (
     queue_audit_event,
     verify_outbox_digest,
 )
-from trading_gym.common.security import validate_base_url
+from trading_gym.common.security import redact_secrets, validate_base_url
 from trading_gym.governance.ledger import AuditLedger
 
 
@@ -88,6 +89,27 @@ class ProviderConfig(BaseModel):
             *((self.api_key_env,) if self.api_key_env else ()),
             *self.api_key_envs,
         )
+
+    @field_validator("metadata")
+    @classmethod
+    def validate_secret_free_metadata(cls, value: dict[str, Any]) -> dict[str, Any]:
+        """Reject credentials in metadata; only env reference names may persist.
+
+        Provider metadata is written to providers.json and displayed to the
+        operator. Nested passwords and tokens must never become persisted
+        values outside the dedicated api_key_env / api_key_envs references.
+        """
+        if redact_secrets(value) != value:
+            raise ValueError("provider metadata contains credential fields")
+        try:
+            payload = json.dumps(
+                value, sort_keys=True, allow_nan=False, separators=(",", ":")
+            ).encode("utf-8")
+        except (TypeError, ValueError, UnicodeError) as exc:
+            raise ValueError("provider metadata is not finite JSON") from exc
+        if len(payload) > 8192:
+            raise ValueError("provider metadata exceeds byte budget")
+        return value
 
     @model_validator(mode="after")
     def validate_kind(self) -> "ProviderConfig":
@@ -181,6 +203,9 @@ class ProviderRepository:
         expected_revision: int | None = None,
         actor: str = "api-operator",
     ) -> dict[str, Any]:
+        # Unsafe model_copy(update=...) and model_construct(...) bypass
+        # Pydantic validators. The persistence boundary must not trust them.
+        config = ProviderConfig.model_validate(config.model_dump(mode="python"))
         with self.lock:
             document = self._load()
             revision = int(document["revision"])
