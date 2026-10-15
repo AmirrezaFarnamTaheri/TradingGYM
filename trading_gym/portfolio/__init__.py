@@ -1,5 +1,7 @@
 """Portfolio planning surfaces."""
 
+from .capacity import AdvSnapshot, assess_rebalance_capacity
+
 from .rebalance import (
     PlannedRebalanceTrade,
     RebalanceHolding,
@@ -11,6 +13,8 @@ from .rebalance import (
 )
 
 __all__ = [
+    "AdvSnapshot",
+    "assess_rebalance_capacity",
     "PlannedRebalanceTrade",
     "RebalanceHolding",
     "RebalancePlan",
