@@ -183,11 +183,13 @@ def build_intelligence_policy(
         entries: list[tuple[IntelligenceBackend, int]] = [(rules, 900)]
         if config.allow_fallback_to_rules is False:
             entries = []
+        fast_roster: tuple[IntelligenceBackend, ...] = ()
         if config.system1_provider_ids:
             try:
+                fast_roster = resolve_system1()
                 entries.extend(
                     (fast, 80 + index * 5)
-                    for index, fast in enumerate(resolve_system1())
+                    for index, fast in enumerate(fast_roster)
                 )
             except (ValueError, OSError):
                 # AUTO retains the RL/LLM/rules path when an optional
@@ -197,6 +199,13 @@ def build_intelligence_policy(
             llm = resolve_llm()
         except Exception:
             llm = None  # optional provider unavailable; retain RL/rules floor
+        if fast_roster and llm is not None:
+            # A low-confidence System-1 result is *uncertainty*, not a
+            # provider outage. A strict independent deep reviewer must
+            # be attempted after all four fast slots (80..95) and BEFORE
+            # the risk-on fusion/RL/rules fallbacks. The ordinary LLM
+            # instance stays unchanged for non-System-1 AUTO behavior.
+            entries.append((resolve_llm(strict_review=True), 99))
         if rl is not None:
             if llm is not None:
                 entries.insert(0, (
