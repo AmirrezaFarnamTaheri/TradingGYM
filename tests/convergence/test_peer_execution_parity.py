@@ -195,3 +195,37 @@ def test_unknown_or_non_decimal_numeric_data_is_denied():
         evaluate(order=intent(quantity=2.0))
     with pytest.raises(ValueError):
         evaluate(fills=[fill(fee_base=D("NaN"))])
+
+def test_pathological_decimal_scale_denied_with_stable_domain_error():
+    # The default Decimal context cannot divide 1e28 by 1e-28 exactly;
+    # a controlled denial is required, not raw InvalidOperation leakage.
+    with pytest.raises(ValueError, match="increment|precision|lot"):
+        evaluate(order=intent(quantity=D("1e28"), lot_step=D("1e-28")))
+
+
+def test_large_decimal_fill_uses_exact_cash_product_not_context_rounding():
+    from decimal import localcontext
+
+    quantity = D("123456789.123456")
+    price = D("987654321.987654")
+    before = D("200000000000000000")
+    with localcontext() as context:
+        context.prec = 80
+        expected = before - quantity * price - D("0.01")
+    report = evaluate(
+        order=intent(
+            quantity=quantity,
+            lot_step=D("0.000001"),
+            price_tick=D("0.000001"),
+            cash_before_base=before,
+        ),
+        fills=[fill(quantity=quantity, price=price, fee_base=D("0.01"))],
+        broker=readback(
+            status="filled",
+            cumulative_filled=quantity,
+            position_qty=D("1") + quantity,
+            cash_base=expected,
+        ),
+    )
+    assert report["status"] == "matched"
+    assert report["computed_cash_base"] == format(expected.normalize(), "f")
