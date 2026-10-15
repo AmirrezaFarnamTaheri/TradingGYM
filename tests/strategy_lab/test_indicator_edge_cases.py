@@ -33,7 +33,7 @@ def test_stochastic_d_uses_exact_smoothing_warmup_for_two():
 
 
 def test_stochastic_d_does_not_emit_prethreshold_value_for_five():
-    frame = _bars(np.arange(30, dtype=float)+100)
+    frame = _bars(np.arange(30, dtype=float) + 100)
     result = stochastic(frame, {"period": 5, "smooth": 5, "component": "d"})
     assert result.iloc[:8].isna().all()
     assert np.isfinite(result.iloc[8])
