@@ -303,6 +303,10 @@ def provider_status(
             config.wire_protocol == "systemone"
             and health_path == config.systemone_path
             and code == 405
+            and "POST" in {
+                method.strip().upper()
+                for method in response.headers.get("allow", "").split(",")
+            }
         ):
             status = "reachable"
         elif code in (401, 403):
