@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import math
+import stat
 import random
 import time
 import uuid
@@ -236,6 +237,14 @@ class MutationOutbox:
                 raise MutationOutboxIntegrityError("mutation outbox is a symlink")
             if not path.exists():
                 return latest
+            try:
+                mode = path.stat().st_mode
+            except OSError as exc:
+                raise MutationOutboxIntegrityError(
+                    "mutation outbox metadata unavailable"
+                ) from exc
+            if not stat.S_ISREG(mode):
+                raise MutationOutboxIntegrityError("mutation outbox nonregular state")
             with path.open("rb") as handle:
                 number = 0
                 while line := handle.readline(MAX_JSONL_RECORD_BYTES + 1):
