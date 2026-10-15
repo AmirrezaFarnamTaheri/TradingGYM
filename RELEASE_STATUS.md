@@ -1,5 +1,35 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 venue-local settlement and anti-hindsight evidence
+
+ADR-046 records two more tested financial-data correctness repairs in
+`trading_gym/accounting/settlement.py`:
+
+- **Due date is venue-local:** pending obligations use their individual
+  settlement calendar timezone to determine overdue dates, not the UTC
+  date of the report. New York and Tokyo correctly disagree on opposite
+  sides of their own midnight.
+- **As-of evidence is causal:** future trades and future confirmed
+  settlements are refused in a historical snapshot; confirmed
+  settlement cannot precede trade. Historical `FAILED`/`CANCELLED`
+  transitions still need timestamped event-ledger evidence before
+  retrospective reconstruction can be certified.
+
+A local, byte-verified copy of the production settlement source
+reproduced **three RED** timezone failures and **three RED** future-event
+failures. The final local settlement tests passed **7/7**, and four
+existing-contract scenarios passed. Across the entire available
+source mirror, **73/73 tests passed** with clean syntax compilation.
+The final pushed settlement Git blob matches the local tested file
+exactly; source-accountability SHA-256 has been refreshed.
+
+No original broker or custodian records were connected. This does not
+verify complete source-history independence, all Python 3.11/3.12
+repository tests, CI runners, multi-currency FX, actual settlement,
+frontend, Rust or gross-flat recovery. PR stays draft; funded-live
+remains **NO-GO**.
+
+
 ## 2026-10-15 portfolio post-fee concentration correctness
 
 An additional donor-parity review of Vibe-Trading's turnover-aware,
