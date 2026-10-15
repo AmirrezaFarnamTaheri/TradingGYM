@@ -109,8 +109,20 @@ def build_system1_packet(
     symbol = str(context.symbol)
     if not symbol or len(symbol) > 48 or any(c.isspace() for c in symbol):
         raise ValueError("invalid market symbol")
+    live = getattr(context, "is_live", False)
+    if type(live) is not bool:
+        raise ValueError("invalid live context flag")
+    sampling = getattr(context, "return_basis", "unspecified")
+    if sampling not in {
+        "unspecified", "historical_bars", "completed_bars", "mark_updates"
+    }:
+        raise ValueError("invalid return cadence")
     market = {
         "symbol": symbol,
+        "price_basis": "live_mark_quote" if live else "historical_close",
+        "recent_returns_basis": (
+            "mark_updates" if live and sampling == "unspecified" else sampling
+        ),
         "last_close": _finite(context.last_close, positive=True),
         "prev_close": (
             _finite(context.prev_close, positive=True)
@@ -153,9 +165,6 @@ def build_system1_packet(
     evidence = getattr(context, "market_evidence", {}) or {}
     if not isinstance(evidence, Mapping):
         raise ValueError("invalid market provenance")
-    live = getattr(context, "is_live", False)
-    if type(live) is not bool:
-        raise ValueError("invalid live context flag")
     freshness: dict[str, Any] = {
         "status": "historical" if not live else "unverified"
     }
