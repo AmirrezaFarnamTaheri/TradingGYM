@@ -1547,18 +1547,23 @@
     },
     {
       "owner": "trading_gym",
+      "path": "trading_gym/skills/capability_selection.py",
+      "sha256": "9a3474d197ad6743b27635969d1c6fcdcf6b8164884008506bb969dc2e3a5911"
+    },
+    {
+      "owner": "trading_gym",
       "path": "trading_gym/skills/intake.py",
-      "sha256": "73b5b8e3f143aa3605d42326cb2f9c5bee3b3c94bf496096e717b6384094e6a5"
+      "sha256": "3aab67830424599d801a0f0ee4b43492c71e3b63cd2d7e303ab534d9c37fa5c6"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/skills/quarantine.py",
-      "sha256": "6c335b5f5ff60ae7521db5c13dcd99043eca081e545d0e7c5d5aac117645d0da"
+      "sha256": "144589a8e20f1f87e26ae436a39d600f77f8ab59d02f3f65fe340ce9553fa655"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/skills/static_assurance.py",
-      "sha256": "8633c569dfc3926f40cb6bcca4896a1336b87f130a7b24c77aa0fc081fd722bc"
+      "sha256": "1f2cbbbc1326d58f8ba883b884b5ae7d4ba5189def126f984d706c082c8d8c60"
     },
     {
       "owner": "trading_gym",
