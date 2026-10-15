@@ -11922,7 +11922,8 @@
               "vwap",
               "obv",
               "stochastic",
-              "donchian"
+              "donchian",
+              "adx"
             ],
             "title": "Name",
             "type": "string"
