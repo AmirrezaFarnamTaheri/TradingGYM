@@ -247,3 +247,37 @@ Targeted repository regressions:
 harnesses could execute locally in this environment; they are not a
 substitute for running the full repository Python, frontend, Rust and
 integration matrix, or validating real provider response schemas.
+
+## Terminal credential and spending status across workers (2026-10-15)
+
+A transport may rotate after HTTP 401 to another distinct configured key
+within the attempt/deadline budget. Once the attempted credentials fail
+authentication without a successful request, it returns a non-degradable
+`ProviderAuthenticationError`. If *all* configured references were attempted
+and denied, a separate typed authentication marker persists for one hour
+across workers. A partially examined fleet is not globally disabled merely
+because the configured three-attempt bound ended; that request still denies
+instead of allowing a risk-on rules fallback.
+
+HTTP 402 and provider-declared credit, organization, project, spend, or
+usage-cap codes received via HTTP 429 are terminal `ProviderHardQuotaError`
+conditions, persisted as a separate hard-limit slot in the provider-shared
+credential state for up to 24 hours. Unlike an ordinary temporary 429,
+a subsequent worker receives the **same terminal error class**, not a
+generic missing-key status. Invalid 400/404/409/413/422 request/model or
+schema responses similarly deny instead of silently falling through into
+trading. Ordinary transient 429 cooldowns still respect provider scope and
+opt-in per-key rotation; no key rotation circumvents project spending
+limits or creates additional API capacity.
+
+The state persists **only hashed credential reference identifiers and
+cooldown timestamps**; neither raw key values nor response payloads are
+stored. Chat and native System-One transport adapters map durable
+authentication/quota errors to `PermissionError` before the intelligence
+fallback chain can run.
+
+`tests/intelligence/test_llm_fail_closed_rotation.py` includes shared-state,
+HTTP status, fleet-exhaustion, quota-code and transport-level regressions.
+For a verified byte-identical copy of the committed `llm_key_pool.py` module
+(Git blob `53bd9a52c47a560a3a4a25847cd6023e0c83093d`), 21 isolated
+local tests passed. That is **not** full PR CI or live provider validation.
