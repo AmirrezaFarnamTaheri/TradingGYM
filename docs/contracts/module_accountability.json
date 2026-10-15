@@ -173,7 +173,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/providers.py",
-      "sha256": "94003237aa9b329ad8cc28ad4caf809ea4ec40bf8f5ade8bfb3f2a0c514a1f77"
+      "sha256": "7a27bdcebe790fa18acba37bfb50d77fb24f0b56e24bd96fae7e37241078af8e"
     },
     {
       "owner": "trading_gym",
@@ -893,7 +893,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/factory.py",
-      "sha256": "1c1cdba8829358e3a8ceeff7a1896830f6fef7c21ae9d7697931ffdbd4e08758"
+      "sha256": "ad035791c57eabc6e3ccb5ce52b427835a978295d32546b8cb5ce91fbc53a29c"
     },
     {
       "owner": "trading_gym",
@@ -908,7 +908,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/llm_key_pool.py",
-      "sha256": "ed26d66da652da36d48d8fdc74037cfda3859f51a6aa41b7078573c3c8365474"
+      "sha256": "f7509f4f36738f339451feb0eb882fb5242cbbf9c7ac622daf1f473d74be0a57"
     },
     {
       "owner": "trading_gym",
@@ -943,12 +943,17 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/system1_backend.py",
-      "sha256": "508314fbd24e729d27bd12a69f3d8a9985ada76e90c0056a9386340bea7125f2"
+      "sha256": "ca6ffab004bf23b227cf434d29810436a95665f81bb1c6d4a6bb7536f7458ba0"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/system1_context.py",
-      "sha256": "2b174cb903fe1a40fd1e34a754544ae02733dc32952665fede96e725bc18d6eb"
+      "sha256": "be688ee023ac0215d98682c5c98f260f123286f06f593cf04d8eed82d2db4e5d"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/intelligence/system1_risk.py",
+      "sha256": "5cf7788042b3fb026cf6067f428d3df06a1b28a3a4b780ac06757cee961cdf15"
     },
     {
       "owner": "trading_gym",
@@ -958,7 +963,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/intelligence/systemone_native_backend.py",
-      "sha256": "743bdd7dbe4fc9c60222700c14e39574ed4e561be4d4a2dcf82ffccb9e81907a"
+      "sha256": "7a05a68261c568f2a04741121391380d5def7e507b76aff5ae240c012f06304e"
     },
     {
       "owner": "trading_gym",
