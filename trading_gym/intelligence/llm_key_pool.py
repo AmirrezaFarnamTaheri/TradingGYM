@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import tempfile
@@ -83,6 +84,19 @@ class CredentialPool:
             name: hashlib.sha256(name.encode("utf-8")).hexdigest()[:24]
             for name in self.references
         }
+
+    def _clock(self) -> float:
+        """Reject an invalid wall clock before consulting stored cooldowns."""
+        timestamp = self._now()
+        if (
+            type(timestamp) not in (int, float)
+            or not math.isfinite(timestamp)
+            or not 0 <= timestamp <= 9_999_999_999
+        ):
+            raise CredentialStateIntegrityError(
+                "credential rotation clock is invalid"
+            )
+        return float(timestamp)
 
     def _state(self) -> dict:
         path = self.state_path
@@ -174,7 +188,7 @@ class CredentialPool:
         try:
             with self._lock():
                 state = self._state()
-                ts = self._now()
+                ts = self._clock()
                 if state["cooldowns"].get(_GLOBAL_SLOT, 0) > ts:
                     raise CredentialsUnavailable("provider-wide rate limit active")
                 # Old expired slots may be dropped. Active cooldowns for
@@ -206,6 +220,10 @@ class CredentialPool:
             raise CredentialStateIntegrityError(
                 "credential rotation lock unavailable"
             ) from exc
+        except OSError as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
         raise CredentialsUnavailable("no eligible provider credential")
 
     def cool_down_all(self, seconds: float) -> None:
@@ -219,7 +237,7 @@ class CredentialPool:
         try:
             with self._lock():
                 state = self._state()
-                ts = self._now()
+                ts = self._clock()
                 until = ts + seconds
                 state["cooldowns"] = {
                     key: expires
@@ -233,6 +251,10 @@ class CredentialPool:
                 )
                 self._write(state)
         except Timeout as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
+        except OSError as exc:
             raise CredentialStateIntegrityError(
                 "credential rotation lock unavailable"
             ) from exc
@@ -250,7 +272,7 @@ class CredentialPool:
             with self._lock():
                 state = self._state()
                 slot = self._ids[reference]
-                ts = self._now()
+                ts = self._clock()
                 state["cooldowns"] = {
                     key: expires
                     for key, expires in state["cooldowns"].items()
@@ -261,6 +283,10 @@ class CredentialPool:
                 )
                 self._write(state)
         except Timeout as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
+        except OSError as exc:
             raise CredentialStateIntegrityError(
                 "credential rotation lock unavailable"
             ) from exc
@@ -392,7 +418,7 @@ def request_with_rotation(
         if code == 429:
             headers = getattr(response, "headers", {})
             retry_after = _retry_after_seconds(
-                headers.get("retry-after"), now=pool._now()
+                headers.get("retry-after"), now=pool._clock()
             )
             if (
                 _quota_exhausted(response)
