@@ -48,6 +48,26 @@ return vectors and multi-strategy arrays instead of hiding data loss.
 The legacy `annualised_sharpe` display helper is unchanged; its historical
 NaN-handling behavior must not be mistaken for verified PSR evidence.
 
+## Permutation/randomized baseline statistical admission
+
+A companion audit found that `randomized_baseline_p_value` compared
+unvalidated scores with null simulations. With an observed score of
+NaN, every `score >= observed` comparison was false, creating an
+artificially **minimum possible p-value** that could pass a
+multiple-testing filter. Corrupted null simulations were also silently
+dropped; unrelated 2D scenario arrays were pooled.
+
+The permutation helper now requires a finite observed statistic and one
+complete, finite, one-dimensional numeric vector of at least 20 null
+draws. Boolean input, missing values and pooled matrices are denied.
+The original Phipson-Smyth `(exceedances + 1)/(N + 1)` correction,
+inclusive handling of ties, and deterministic finite-sample behavior
+are preserved.
+
+This protects statistical *input validity*. It does **not** establish
+exchangeability, temporal independence, correct null generation,
+strategy causality, or actual trading advantage.
+
 ## Second-order deflated Sharpe hardening
 
 The deflated Sharpe path previously accepted NaN, infinity, boolean counts,
@@ -75,12 +95,15 @@ read/write).
 - DSR domains: **17 failing** original cases / 29 passing after repair.
 - PSR returns integrity: **5 failing** original cases / 6 passing after
   explicit input admission.
-- Final combined focused mirror: **47/47 passing** with Python 3.13.5,
+- Permutation evidence: **9 failing** original cases / 10 passing
+  after strict finite sample and observed-statistic admission.
+- Final combined focused mirror: **57/57 passing** with Python 3.13.5,
   pytest 9 and NumPy 2.3.5; `compileall` succeeded.
 
 The corresponding regression tests were committed to
-`tests/convergence/test_probabilistic_sharpe_units.py` and
-`tests/convergence/test_sharpe_evidence_integrity.py`.
+`tests/convergence/test_probabilistic_sharpe_units.py`,
+`tests/convergence/test_sharpe_evidence_integrity.py`, and
+`tests/convergence/test_permutation_evidence_integrity.py`.
 These are **not** full exact-branch test results. Real-world tape
 independence, autocorrelation adjustments, fees, serial dependence,
 multiple-trial recording and venue reconciliation still require their
