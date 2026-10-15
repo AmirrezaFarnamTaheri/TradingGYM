@@ -239,7 +239,7 @@ def test_post_only_native_endpoint_reports_reachability_on_http_405(monkeypatch)
         def get(self, url, headers):
             urls.append(url)
             return httpx.Response(
-                405, request=httpx.Request("GET", url)
+                405, headers={"Allow": "POST"}, request=httpx.Request("GET", url)
             )
 
     monkeypatch.setattr(providers.httpx, "Client", Client)
@@ -289,3 +289,43 @@ def test_invalid_max_leverage_rejected_before_native_model_request():
 def test_native_global_busy_rate_limits_cannot_be_bypassed_by_key_rotation():
     with pytest.raises(ValueError, match="rate"):
         _provider(rotate_on_rate_limit=True)
+
+
+
+@pytest.mark.parametrize(
+    "allowed,expected",
+    [
+        ({}, "unavailable"),
+        ({"Allow": "GET"}, "unavailable"),
+        ({"Allow": "POST"}, "reachable"),
+        ({"Allow": "post, options"}, "reachable"),
+    ],
+)
+def test_method_not_allowed_only_proves_native_route_when_post_advertised(
+    monkeypatch, allowed, expected,
+):
+    import trading_gym.agent.providers as providers
+
+    class Client:
+        def __init__(self, **kwargs):
+            assert kwargs["follow_redirects"] is False
+            assert kwargs["trust_env"] is False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, url, headers):
+            return httpx.Response(
+                405, headers=allowed, request=httpx.Request("GET", url)
+            )
+
+    monkeypatch.setattr(providers.httpx, "Client", Client)
+    monkeypatch.setattr(
+        providers, "validate_base_url", lambda value, **kwargs: value,
+    )
+    report = providers.provider_status(_provider(health_path="/models"))
+    assert report["status"] == expected
+    assert report["http_status"] == 405
