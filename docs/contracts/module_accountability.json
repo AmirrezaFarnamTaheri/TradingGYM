@@ -203,7 +203,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/agent/strategy_variants.py",
-      "sha256": "183655553ad8ab421fb2b290d30d0c31b475211f82126ddb447f738f55f0ee9c"
+      "sha256": "e97fb5e001c27d559a87e0a4608b8ed45e774ada2add0a07d65ba00c13384b00"
     },
     {
       "owner": "trading_gym",
