@@ -87,7 +87,10 @@ def _units(qty: Decimal, increment: Decimal, label: str) -> None:
 
 def _canonical(values: object) -> bytes:
     return json.dumps(
-        values, sort_keys=True, separators=(",", ":"), allow_nan=False,
+        values,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
         default=lambda v: str(v) if isinstance(v, Decimal) else TypeError("unknown"),
     ).encode("utf-8")
 
