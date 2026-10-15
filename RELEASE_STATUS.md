@@ -1,5 +1,42 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 additional trading and agent donor convergence
+
+The fourth-pass 17-ZIP donor inventory contains **4,226 members** and
+**4,180 distinct SHA-256 payload hashes**. Structural and symbol coverage,
+deduplication, per-archive capability decisions and a second-order
+convergence backlog are recorded in
+`docs/architecture/ADR-043-expanded-strategy-and-donor-convergence.md`
+and `docs/plans/2026-10-15-expanded-donor-convergence.md`.
+The inventory is not a proof that all donor functions were semantically
+validated or legally relicensed.
+
+**Implemented and committed on this PR:**
+- Strictly causal, independently bounded Wilder
+  ADX/+DI/-DI/DX from OHLC, seeded from observed first-period movement,
+  with explicit second-period warmup and no future-candle access.
+- `adx` joins the bounded `IndicatorSpec` grammar and registered
+  indicator evaluator; the strategy validator accounts for its warmup.
+- Two **research-only** example families:
+  `adx_directional_trend` and `adx_donchian_breakout`, with position
+  fraction <=0.04 and explicit stops. Neither is a model promotion,
+  automatic strategy recommendation or funded-trading authorization.
+- The evaluator rejects reversed, missing and duplicate timestamped
+  bars before calculating rolling signals.
+- The published OpenAPI IndicatorSpec enum now includes `adx`, with
+  a runtime-schema contract test; module SHA-256 accountability was
+  refreshed for all changed `trading_gym/strategy_lab` sources.
+
+**Verification status:** isolated source-mirror checks covered 19/19
+indicator, reference-math and chronological integrity cases. The actual
+PR-head pinned Python 3.11/3.12 integration checks, React/Rust build,
+full OpenAPI generation, SHA manifest generator, broker recovery and venue
+settlement tests are **UNVERIFIED**. The full 17-archive per-function
+behavioral comparison also remains **UNVERIFIED**.
+
+**Release decision:** PR remains draft and funded-live **NO-GO**.
+
+
 ## 2026-10-15 — 17-archive research and strategy convergence follow-up
 
 The new donor inventory indexes **4,226 files across 617 folder paths**
