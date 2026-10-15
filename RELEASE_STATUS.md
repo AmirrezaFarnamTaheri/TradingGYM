@@ -1,5 +1,38 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 verified PR ancestry and funding aggregate reconciliation
+
+**PR consolidation:** GitHub commit comparisons confirm PR #5's head
+(`badbe51d6c8a6ccd56de3935a5f0a76f128f3e29`) is an ancestor of
+draft PR #2. PR #5 remains formally closed/unmerged, but there are
+**zero missing commits** in PR #2. PRs #3/#4 remain formally closed
+without merges; their RL-history and broker-pagination guards and tests
+are present on PR #2. Another merge is unnecessary. See ADR-049.
+
+**Fixed financial reconciliation defect:** event-level tolerances could
+accumulate a larger unexplained settled funding cash balance while
+`reconcile_funding` returned `consistent=true`. The module now
+emits `funding_aggregate_mismatch:<CURRENCY>` when any
+currency-specific net discrepancy exceeds the configured absolute
+tolerance. It never nets separate currencies or performs ledger
+mutations; it cannot approve funded-live trading.
+
+**Verification:** the focused RED-to-GREEN local production-code mirror
+observed a failing cumulative-drift regression, then 3/3 passing.
+A fourth separate-currency regression also passed locally (4/4).
+Tests and the new source hash were pushed to PR #2. A fresh SHA-256
+and CRC audit of **39 donor ZIPs** covered **12,473 file entries**,
+**11,802 unique content hashes**, **2,230 inferred nested folder paths**,
+three identical-archive pairs and five symlink entries. No donor code was
+executed or imported without separate qualification.
+
+**CI qualification remains blocked:** recent GitHub Actions runs on the
+PR head fail all nine required jobs before any recorded step or runner
+allocation. They do not establish source test outcomes. The exact
+Python/React/Rust, accounting/broker, generated contract and security
+suites remain **unverified**. PR #2 stays draft; funded-live **NO-GO**.
+
+
 
 ## 2026-10-15 turnover-aware portfolio and operator research convergence
 
