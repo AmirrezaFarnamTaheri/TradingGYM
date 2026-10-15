@@ -15,12 +15,15 @@ ADR-044 records critical research-only statistical fixes:
 - DSR now rejects nonfinite Sharpe/dispersion/moments, boolean and
   fractional count inputs, and incoherent sample skew/kurtosis. Its API
   is documented to require **per-period** Sharpe and trial dispersion.
+- Permutation p-values now reject nonfinite observed scores, incomplete
+  null samples and pooled scenarios; NaN comparisons can no longer
+  manufacture apparently significant results.
 - Added independent closed-form, unit-invariance and malformed-evidence
   regression tests, and refreshed the research source hash in
   `docs/contracts/module_accountability.json`.
 
 **Verification observed:** an isolated Python 3.13.5 source mirror ran
-**47/47 passing focused tests** with syntax compilation. These are
+**57/57 passing focused tests** with syntax compilation. These are
 **not** complete repository tests. GitHub Actions run
 [#38785467227](https://github.com/AmirrezaFarnamTaheri/TradingGYM/actions/runs/38785467227)
 still reports required jobs failed before allocating a runner (zero
