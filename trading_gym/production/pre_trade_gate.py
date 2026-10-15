@@ -97,9 +97,12 @@ def evaluate_pre_trade_gate(
     reference_required = (
         isinstance(operation, str) and operation in {"short.close", "order.cancel"}
     )
-    ref_ok = (
-        isinstance(reference_id, str) and bool(_REF_RE.fullmatch(reference_id))
-    ) if reference_required else True
+    if reference_required:
+        ref_ok = isinstance(reference_id, str) and bool(
+            _REF_RE.fullmatch(reference_id)
+        )
+    else:
+        ref_ok = True
     reference_detail = (
         reference_id if isinstance(reference_id, str) else "invalid-reference"
     )
