@@ -213,3 +213,109 @@ def test_authentication_denial_is_non_degradable_at_transport_boundary(
         transport = systemone_native_backend.httpx_systemone_transport(config)
         with pytest.raises(PermissionError, match="authentication_denied"):
             transport({"state": {}, "questions": {}})
+
+
+@pytest.mark.parametrize("protocol", ["openai_chat", "systemone_fixed"])
+@pytest.mark.parametrize(
+    "code,payload,expected_reason",
+    [
+        (401, {}, "authentication_denied"),
+        (402, {}, "billing_quota_denied"),
+        (400, {}, "request_denied"),
+        (404, {}, "request_denied"),
+        (422, {}, "request_denied"),
+        (
+            429,
+            {"error": {"code": "credit_balance_exhausted"}},
+            "billing_quota_denied",
+        ),
+    ],
+)
+def test_unpooled_direct_http_status_cannot_authorize_rules_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    protocol: str,
+    code: int,
+    payload: dict,
+    expected_reason: str,
+) -> None:
+    """Local/proxy HTTP paths need the same non-degradable 4xx semantics."""
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+    from trading_gym.intelligence.llm_backend import httpx_transport
+    from trading_gym.intelligence.systemone_native_backend import (
+        httpx_systemone_transport,
+    )
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            assert kwargs["trust_env"] is False
+            assert kwargs["follow_redirects"] is False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url: str, *, headers, json):
+            return _response(code, json=payload)
+
+    monkeypatch.setattr(httpx, "Client", FakeClient)
+    config = ProviderConfig(
+        provider_id="unauthenticated-local",
+        display_name="local test",
+        kind=ProviderKind.LOCAL,
+        model="fast",
+        base_url="http://127.0.0.1:11434/v1",
+        wire_protocol=protocol,
+    )
+    if protocol == "openai_chat":
+        call = httpx_transport(config)
+        run = lambda: call(config.base_url, [{"role": "user", "content": "{}"}])
+    else:
+        call = httpx_systemone_transport(config)
+        run = lambda: call({"state": {}, "questions": {}})
+
+    with pytest.raises(PermissionError, match=expected_reason):
+        run()
+
+
+@pytest.mark.parametrize("protocol", ["openai_chat", "systemone_fixed"])
+def test_unpooled_transient_rate_limit_is_still_provider_unavailable(
+    monkeypatch: pytest.MonkeyPatch, protocol: str
+) -> None:
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+    from trading_gym.intelligence.llm_backend import httpx_transport
+    from trading_gym.intelligence.systemone_native_backend import (
+        httpx_systemone_transport,
+    )
+    from trading_gym.intelligence.types import BackendUnavailable
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, *, headers, json):
+            return _response(429, json={"error": {"code": "rate_limit_exceeded"}})
+
+    monkeypatch.setattr(httpx, "Client", FakeClient)
+    config = ProviderConfig(
+        provider_id="local-fast",
+        display_name="local test",
+        kind=ProviderKind.LOCAL,
+        model="fast",
+        base_url="http://127.0.0.1:11434/v1",
+        wire_protocol=protocol,
+    )
+    with pytest.raises(BackendUnavailable):
+        if protocol == "openai_chat":
+            httpx_transport(config)(
+                config.base_url, [{"role": "user", "content": "{}"}]
+            )
+        else:
+            httpx_systemone_transport(config)({"state": {}, "questions": {}})
