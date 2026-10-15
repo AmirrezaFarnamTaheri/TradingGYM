@@ -11,6 +11,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import stat
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -52,8 +53,20 @@ def _fsync_directory(path: Path) -> None:
 
 
 def _reject_symlink(path: Path) -> None:
+    """Reject links, pipes, sockets and devices before any state I/O.
+
+    This check must be performed under the store's existing file lock. A
+    named pipe can otherwise stall the entire supervisor on a blocking
+    read or append, while a device is never appropriate durable storage.
+    """
     if path.is_symlink():
         raise ValueError(f"Refusing to use symlink-backed state file: {path}")
+    try:
+        state = path.lstat()
+    except FileNotFoundError:
+        return
+    if not stat.S_ISREG(state.st_mode):
+        raise ValueError(f"Refusing to use non-regular state file: {path}")
 
 
 def resolve_data_home() -> Path:
