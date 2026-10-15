@@ -970,3 +970,41 @@ def test_system1_context_still_preserves_risk_bounds_on_budget_reduction():
     assert packet["risk_constraints"]["min_leverage"] == -0.3
     assert "account" in packet
     assert "freshness" in packet
+
+def test_compacted_context_statistics_match_transmitted_returns():
+    """Shrinking context must not misrepresent the statistical sample size."""
+    sample = tuple(0.0123456789 * (i + 1) * (-1 if i % 3 == 0 else 1) for i in range(12))
+    ctx = _context(recent_returns=sample)
+    original = build_system1_packet(ctx)
+    # One byte below full context forces return-sample shedding without
+    # removing required provenance, position, account, or risk constraints.
+    packet = json.loads(build_system1_packet(ctx, max_chars=len(original) - 1))
+    reported = packet["market"]["recent_returns"]
+    stats = packet["market"]["return_stats"]
+    assert reported == pytest.approx(sample[:4])
+    assert stats["observations"] == len(reported)
+    assert stats["mean_return"] == pytest.approx(sum(reported) / len(reported), abs=1e-11)
+    cumulative = 1.0
+    for value in reported:
+        cumulative *= 1 + value
+    assert stats["cumulative_return"] == pytest.approx(cumulative - 1, abs=1e-11)
+
+
+def test_rotation_rejects_fifo_without_reading_it(tmp_path: Path, monkeypatch):
+    """An attacker-replaced named pipe must not block the credential lease."""
+    import os
+
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("FIFO state test requires POSIX")
+    from trading_gym.intelligence.llm_key_pool import CredentialStateIntegrityError
+
+    state_path = tmp_path / "rotation.json"
+    os.mkfifo(state_path)
+    pool = CredentialPool(("LLM_KEY_ONE",), state_path=state_path,
+                          env={"LLM_KEY_ONE": "secret"})
+    monkeypatch.setattr(
+        Path, "read_text",
+        lambda self, *args, **kwargs: pytest.fail("FIFO state was read"),
+    )
+    with pytest.raises(CredentialStateIntegrityError, match="invalid"):
+        pool.acquire()
