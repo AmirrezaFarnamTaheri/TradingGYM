@@ -34,7 +34,11 @@ _MAX_TRACKED_SLOTS = 64
 
 
 class CredentialsUnavailable(RuntimeError):
-    """No eligible key or rotation state unavailable/corrupted."""
+    """No eligible key, project quota, or provider unavailability."""
+
+
+class CredentialStateIntegrityError(CredentialsUnavailable):
+    """Rotation state or lock cannot be trusted; forbid model fallback."""
 
 
 @dataclass(frozen=True)
@@ -83,7 +87,9 @@ class CredentialPool:
     def _state(self) -> dict:
         path = self.state_path
         if path.is_symlink():
-            raise CredentialsUnavailable("credential rotation state is invalid")
+            raise CredentialStateIntegrityError(
+                "credential rotation state is invalid"
+            )
         if not path.exists():
             return {"schema_version": 1, "cursor": 0, "cooldowns": {}}
         try:
@@ -110,15 +116,21 @@ class CredentialPool:
                     raise ValueError("cooldown shape")
             return state
         except (OSError, UnicodeError, ValueError, TypeError) as exc:
-            raise CredentialsUnavailable("credential rotation state is invalid") from exc
+            raise CredentialStateIntegrityError(
+                "credential rotation state is invalid"
+            ) from exc
 
     def _write(self, state: dict) -> None:
         path = self.state_path
         if len(state["cooldowns"]) > _MAX_TRACKED_SLOTS:
-            raise CredentialsUnavailable("too many provider cooldown records")
+            raise CredentialStateIntegrityError(
+                "too many provider cooldown records"
+            )
         payload = json.dumps(state, sort_keys=True, separators=(",", ":")).encode()
         if len(payload) > _MAX_STATE_BYTES:
-            raise CredentialsUnavailable("credential rotation state is too large")
+            raise CredentialStateIntegrityError(
+                "credential rotation state is too large"
+            )
         name: str | None = None
         try:
             fd, name = tempfile.mkstemp(prefix=".credential-", dir=path.parent)
@@ -130,7 +142,9 @@ class CredentialPool:
             os.replace(name, path)
             name = None
         except OSError as exc:
-            raise CredentialsUnavailable("credential rotation state is unwritable") from exc
+            raise CredentialStateIntegrityError(
+                "credential rotation state is unwritable"
+            ) from exc
         finally:
             if name is not None:
                 try:
@@ -140,11 +154,20 @@ class CredentialPool:
 
     def _lock(self) -> FileLock:
         path = self.state_path
-        if path.parent.is_symlink():
-            raise CredentialsUnavailable("credential rotation directory is unsafe")
-        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        if path.is_symlink() or Path(str(path) + ".lock").is_symlink():
-            raise CredentialsUnavailable("credential rotation state is unsafe")
+        try:
+            if path.parent.is_symlink():
+                raise CredentialStateIntegrityError(
+                    "credential rotation directory is unsafe"
+                )
+            path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            if path.is_symlink() or Path(str(path) + ".lock").is_symlink():
+                raise CredentialStateIntegrityError(
+                    "credential rotation state is unsafe"
+                )
+        except OSError as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation directory is unavailable"
+            ) from exc
         return FileLock(str(path) + ".lock", timeout=2)
 
     def acquire(self, *, exclude: frozenset[str] = frozenset()) -> CredentialLease:
@@ -180,7 +203,9 @@ class CredentialPool:
                     self._write(state)
                     return CredentialLease(ref, secret)
         except Timeout as exc:
-            raise CredentialsUnavailable("credential rotation lock unavailable") from exc
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
         raise CredentialsUnavailable("no eligible provider credential")
 
     def cool_down_all(self, seconds: float) -> None:
@@ -208,7 +233,9 @@ class CredentialPool:
                 )
                 self._write(state)
         except Timeout as exc:
-            raise CredentialsUnavailable("credential rotation lock unavailable") from exc
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
 
     def cool_down(self, reference: str, seconds: float) -> None:
         if reference not in self._ids:
@@ -234,7 +261,9 @@ class CredentialPool:
                 )
                 self._write(state)
         except Timeout as exc:
-            raise CredentialsUnavailable("credential rotation lock unavailable") from exc
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
 
 
 def default_rotation_path(
@@ -285,6 +314,10 @@ def _quota_exhausted(response: object) -> bool:
             "insufficient_quota",
             "billing_hard_limit_reached",
             "quota_exceeded",
+            "credit_balance_exhausted",
+            "organization_spend_limit_exceeded",
+            "project_spend_limit_exceeded",
+            "organization_usage_limit_exceeded",
         }
         return any(str(body.get(field, "")) in terminal for field in ("code", "type"))
     except (ValueError, AttributeError, TypeError):
@@ -327,6 +360,10 @@ def request_with_rotation(
             break
         try:
             lease = pool.acquire(exclude=frozenset(tried))
+        except CredentialStateIntegrityError:
+            # Corrupt shared state is an authority failure, not a temporary
+            # missing-key outage that may authorize a rules fallback.
+            raise
         except CredentialsUnavailable:
             break
         tried.add(lease.reference)
@@ -336,7 +373,11 @@ def request_with_rotation(
         tried_values.add(fingerprint)
         try:
             response = post(lease.secret, max(0.001, deadline - monotonic()))
-        except (httpx.TimeoutException, httpx.NetworkError):
+        except (
+            httpx.TimeoutException,
+            httpx.NetworkError,
+            httpx.RemoteProtocolError,
+        ):
             pool.cool_down(lease.reference, 5)
             continue
         code = getattr(response, "status_code", None)
