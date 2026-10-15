@@ -42,6 +42,10 @@ class CredentialStateIntegrityError(CredentialsUnavailable):
     """Rotation state or lock cannot be trusted; forbid model fallback."""
 
 
+class ProviderHardQuotaError(CredentialsUnavailable):
+    """Billing, spend, or organization usage hard cap; deny risk-on fallback."""
+
+
 @dataclass(frozen=True)
 class CredentialLease:
     reference: str
@@ -420,11 +424,13 @@ def request_with_rotation(
             retry_after = _retry_after_seconds(
                 headers.get("retry-after"), now=pool._clock()
             )
-            if (
-                _quota_exhausted(response)
-                or _shared_rate_scope(response)
-                or not rotate_on_rate_limit
-            ):
+            if _quota_exhausted(response):
+                # These are hard billing/usage boundaries, not transient
+                # provider health failures. Do not permit a rules/model
+                # fallback to create exposure after the account hit a cap.
+                pool.cool_down_all(retry_after)
+                raise ProviderHardQuotaError("provider_rate_or_quota_limit")
+            if _shared_rate_scope(response) or not rotate_on_rate_limit:
                 pool.cool_down_all(retry_after)
                 raise CredentialsUnavailable("provider_rate_or_quota_limit")
             pool.cool_down(lease.reference, retry_after)
