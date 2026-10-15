@@ -97,13 +97,18 @@ def httpx_systemone_transport(
 
         def post(secret: str, remaining: float) -> httpx.Response:
             # Revalidate immediately before each attempt, not only at setup.
-            base = validate_base_url(
-                config.base_url or "",
-                allow_private=config.allow_private_network,
-                allow_loopback=config.kind is ProviderKind.LOCAL,
-                resolve_dns=True,
-            )
-            endpoint = join_provider_endpoint(base, config.systemone_path)
+            try:
+                base = validate_base_url(
+                    config.base_url or "",
+                    allow_private=config.allow_private_network,
+                    allow_loopback=config.kind is ProviderKind.LOCAL,
+                    resolve_dns=True,
+                )
+                endpoint = join_provider_endpoint(base, config.systemone_path)
+            except ValueError as exc:
+                # Unsafe DNS/endpoint rejection is authority denial, not
+                # provider downtime permitting another model to place risk.
+                raise PermissionError("provider_destination_denied") from exc
             headers = {"Content-Type": "application/json"}
             if logical_key is not None:
                 headers["Idempotency-Key"] = logical_key
