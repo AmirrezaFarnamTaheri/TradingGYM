@@ -59,6 +59,32 @@ No guarantee is made that turnover is the venue's actual executed
 turnover, that fill costs are independently measured, or that the
 strategy-generating model was trained without leakage.
 
+### Second-order execution-cost sensitivity
+
+`trading_gym/experiments/cost_sensitivity.py` adds
+`compare_cost_scenarios(replays, *, baseline_id, train_end_unix,
+as_of_unix, scenarios)`. It reuses the same validated paired holdout
+and compares 2–16 distinct, bounded fee/slippage combinations.
+Results are order-independent, report scenario-specific descriptive
+ranking shifts and per-scenario evidence receipts, and **never**
+grant strategy-selection or funded-execution authority.
+
+A new regression demonstrates that a high-turnover strategy can rank
+first under hypothetical zero costs and below an untraded baseline
+when fees/slippage rise. Invalid, duplicate, boolean, nonfinite or
+out-of-range cost assumptions are rejected rather than normalized.
+The module is intentionally a read-only research adjunct to the
+existing `portfolio/rebalance.py` and institutional portfolio
+construction ownership; TradingGYM already enforces a maximum
+turnover blocker on dry-run rebalancing plans.
+
+The extra tests were observed RED on the initially missing module
+and **8 passed** after implementation. Together with the prior
+comparison, CLI, ADX, chronology, and indicator correctness tests,
+the expanded isolated source mirror reports **55/55 passing**.
+Both new source/test files were verified byte-identical on GitHub
+against the locally executed versions.
+
 ### Method-level indicator defect repairs
 
 `trading_gym/strategy_lab/indicators.py` contained two separate
