@@ -286,9 +286,33 @@ def build_system1_packet(
         packet["market"].pop("normalized_indicators", None)
         result = encode()
     if len(result) > max_chars:
+        # A compact packet must not claim sample statistics from observations
+        # that were omitted from the transmitted context.
         packet["market"]["recent_returns"] = (
             packet["market"]["recent_returns"][:4]
         )
+        retained = packet["market"]["recent_returns"]
+        retained_mean = math.fsum(retained) / len(retained) if retained else 0.0
+        retained_volatility = (
+            math.sqrt(
+                math.fsum((value - retained_mean) ** 2 for value in retained)
+                / len(retained)
+            )
+            if retained else 0.0
+        )
+        retained_cumulative = math.prod(1.0 + value for value in retained) - 1.0
+        if not all(
+            math.isfinite(value)
+            for value in (retained_mean, retained_volatility, retained_cumulative)
+        ):
+            raise ValueError("invalid market returns")
+        packet["market"]["return_stats"] = {
+            "observations": len(retained),
+            "sampling": packet["market"]["recent_returns_basis"],
+            "cumulative_return": round(retained_cumulative, 12),
+            "mean_return": round(retained_mean, 12),
+            "volatility_per_observation": round(retained_volatility, 12),
+        }
         result = encode()
     if len(result) > max_chars:
         raise ValueError("system1 essential context exceeds budget")
