@@ -31,6 +31,8 @@ _MAX_COOLDOWN = 86_400.0
 # or model versions are changed. Unknown hashed references are retained for
 # re-added keys until they expire, never used to select a credential.
 _GLOBAL_SLOT = "__provider__"
+_HARD_QUOTA_SLOT = "__hard_quota__"
+_AUTH_DENIED_SLOT = "__authentication__"
 _SLOT_RE = re.compile(r"^[0-9a-f]{24}$")
 _MAX_TRACKED_SLOTS = 64
 
@@ -45,6 +47,10 @@ class CredentialStateIntegrityError(CredentialsUnavailable):
 
 class ProviderHardQuotaError(CredentialsUnavailable):
     """Billing, spend, or organization usage hard cap; deny risk-on fallback."""
+
+
+class ProviderAuthenticationError(CredentialsUnavailable):
+    """Exhausted invalid credentials; never downgrade into trading fallback."""
 
 
 @dataclass(frozen=True)
@@ -134,7 +140,10 @@ class CredentialPool:
                 raise ValueError("state shape")
             for slot, expiry in state["cooldowns"].items():
                 if (
-                    (slot != _GLOBAL_SLOT and not _SLOT_RE.fullmatch(slot))
+                    (
+                        slot not in {_GLOBAL_SLOT, _HARD_QUOTA_SLOT, _AUTH_DENIED_SLOT}
+                        and not _SLOT_RE.fullmatch(slot)
+                    )
                     or type(expiry) not in (float, int)
                     or not 0 <= float(expiry) < 10_000_000_000
                 ):
@@ -200,6 +209,12 @@ class CredentialPool:
             with self._lock():
                 state = self._state()
                 ts = self._clock()
+                if state["cooldowns"].get(_HARD_QUOTA_SLOT, 0) > ts:
+                    raise ProviderHardQuotaError("provider hard quota still active")
+                if state["cooldowns"].get(_AUTH_DENIED_SLOT, 0) > ts:
+                    raise ProviderAuthenticationError(
+                        "provider authentication temporarily denied"
+                    )
                 if state["cooldowns"].get(_GLOBAL_SLOT, 0) > ts:
                     raise CredentialsUnavailable("provider-wide rate limit active")
                 # Old expired slots may be dropped. Active cooldowns for
@@ -269,6 +284,41 @@ class CredentialPool:
             raise CredentialStateIntegrityError(
                 "credential rotation lock unavailable"
             ) from exc
+
+    def _block_fleet(self, slot: str, seconds: float) -> None:
+        """Persist a terminal denial for every worker sharing this provider."""
+        if (
+            slot not in {_HARD_QUOTA_SLOT, _AUTH_DENIED_SLOT}
+            or type(seconds) not in (int, float)
+            or not math.isfinite(seconds)
+            or not 0 < seconds <= _MAX_COOLDOWN
+        ):
+            raise ValueError("invalid terminal provider cooldown")
+        try:
+            with self._lock():
+                state = self._state()
+                ts = self._clock()
+                state["cooldowns"] = {
+                    key: until
+                    for key, until in state["cooldowns"].items()
+                    if until > ts
+                }
+                state["cooldowns"][slot] = max(
+                    state["cooldowns"].get(slot, 0), ts + seconds
+                )
+                self._write(state)
+        except (Timeout, OSError) as exc:
+            raise CredentialStateIntegrityError(
+                "terminal credential cooldown unavailable"
+            ) from exc
+
+    def block_hard_quota(self, seconds: float = _MAX_COOLDOWN) -> None:
+        """Persist hard spend/usage denial without weakening its type."""
+        self._block_fleet(_HARD_QUOTA_SLOT, seconds)
+
+    def block_authentication(self, seconds: float = 3_600.0) -> None:
+        """Persist a complete-credential-fleet authentication denial."""
+        self._block_fleet(_AUTH_DENIED_SLOT, seconds)
 
     def cool_down(self, reference: str, seconds: float) -> None:
         if reference not in self._ids:
@@ -355,6 +405,8 @@ def _quota_exhausted(response: object) -> bool:
             "organization_spend_limit_exceeded",
             "project_spend_limit_exceeded",
             "organization_usage_limit_exceeded",
+            "usage_limit_exceeded",
+            "billing_error",
         }
         return any(str(body.get(field, "")) in terminal for field in ("code", "type"))
     except (ValueError, AttributeError, TypeError):
@@ -392,14 +444,20 @@ def request_with_rotation(
     deadline = monotonic() + timeout_seconds
     tried: set[str] = set()
     tried_values: set[bytes] = set()
+    authentication_failed = False
+    auth_only_failures = True
     for _ in range(min(max_attempts, len(pool.references))):
         if monotonic() >= deadline:
             break
         try:
             lease = pool.acquire(exclude=frozenset(tried))
-        except CredentialStateIntegrityError:
-            # Corrupt shared state is an authority failure, not a temporary
-            # missing-key outage that may authorize a rules fallback.
+        except (
+            CredentialStateIntegrityError,
+            ProviderHardQuotaError,
+            ProviderAuthenticationError,
+        ):
+            # Persisted hard limits and authentication denials must retain
+            # their type, not become ordinary provider outages.
             raise
         except CredentialsUnavailable:
             break
@@ -415,6 +473,7 @@ def request_with_rotation(
             httpx.NetworkError,
             httpx.RemoteProtocolError,
         ):
+            auth_only_failures = False
             pool.cool_down(lease.reference, 5)
             continue
         code = getattr(response, "status_code", None)
@@ -424,8 +483,14 @@ def request_with_rotation(
             return response
         if code == 403:
             raise PermissionError("provider_access_denied")
-        if code in (400, 402, 404, 422):
-            raise CredentialsUnavailable(f"provider_request_rejected_{code}")
+        if code == 402:
+            # Billing denial must block later workers too; a generic
+            # cooldown would let the next caller risk-on via rules/RL.
+            pool.block_hard_quota()
+            raise ProviderHardQuotaError("provider_billing_required")
+        if code in (400, 404, 409, 413, 422):
+            # Bad request/model/configuration is not a transient health issue.
+            raise PermissionError("provider_request_denied")
         if code == 429:
             headers = getattr(response, "headers", {})
             retry_after = _retry_after_seconds(
@@ -435,7 +500,7 @@ def request_with_rotation(
                 # These are hard billing/usage boundaries, not transient
                 # provider health failures. Do not permit a rules/model
                 # fallback to create exposure after the account hit a cap.
-                pool.cool_down_all(retry_after)
+                pool.block_hard_quota()
                 raise ProviderHardQuotaError("provider_rate_or_quota_limit")
             if _shared_rate_scope(response) or not rotate_on_rate_limit:
                 pool.cool_down_all(retry_after)
@@ -443,10 +508,20 @@ def request_with_rotation(
             pool.cool_down(lease.reference, retry_after)
             continue
         if code == 401:
+            authentication_failed = True
             pool.cool_down(lease.reference, 3_600)
             continue
         if code in (408, 425) or 500 <= code <= 599:
+            auth_only_failures = False
             pool.cool_down(lease.reference, 5)
             continue
-        raise CredentialsUnavailable(f"provider_request_rejected_{code}")
+        raise PermissionError("provider_request_denied")
+    if authentication_failed:
+        # Only lock out the entire fleet when every reference was checked and
+        # all distinct attempted secrets rejected authentication. An eligible
+        # fourth key (beyond the caller's bounded attempt budget) must not be
+        # globally disabled just because the first three expired.
+        if auth_only_failures and len(tried) == len(pool.references):
+            pool.block_authentication()
+        raise ProviderAuthenticationError("provider_authentication_unavailable")
     raise CredentialsUnavailable("no healthy provider credential within deadline")
