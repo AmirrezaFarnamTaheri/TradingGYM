@@ -297,6 +297,27 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.live_adapter.reconcile.assert_not_called()
         mock_writer.return_value.write.assert_not_called()
 
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_failed_live_reconciliation_halts_without_retrying_next_bar(
+        self, mock_sleep, mock_writer
+    ):
+        """A failed broker reconciliation is not a recoverable model outage."""
+        self.live_adapter.reconcile.return_value = {
+            "status": "failed", "error_type": "MutationOutcomeUnknown"
+        }
+        mock_sleep.side_effect = AssertionError("failed live mutation was retried")
+        with self.assertRaisesRegex(RuntimeError, "live execution failed"):
+            await trade_loop(
+                self.env, self.model, self.client, self.cfg,
+                live_adapter=self.live_adapter,
+            )
+        self.live_adapter.reconcile.assert_awaited_once()
+        mock_sleep.assert_not_awaited()
+        self.env.step.assert_not_called()
+        mock_writer.return_value.write.assert_not_called()
+
+
 
 if __name__ == "__main__":
     unittest.main()
