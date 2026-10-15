@@ -65,7 +65,10 @@ class MutationRetryPolicy:
     retryable_exceptions: tuple[type[BaseException], ...] = ()
 
     def __post_init__(self) -> None:
-        if type(self.max_attempts) is not int or not 1 <= self.max_attempts <= MAX_ATTEMPTS:
+        if (
+            type(self.max_attempts) is not int
+            or not 1 <= self.max_attempts <= MAX_ATTEMPTS
+        ):
             raise ValueError("max_attempts must be an integer between 1 and 5")
         for name, value in (
             ("base_delay_s", self.base_delay_s),
@@ -102,7 +105,8 @@ def delay_for_attempt(
     rng = rng or random.Random()
     raw = min(policy.max_delay_s, policy.base_delay_s * (2 ** (attempt - 1)))
     spread = raw * policy.jitter_fraction
-    return float(min(policy.max_delay_s, max(0.0, raw - spread) + (2 * spread * rng.random())))
+    jittered = max(0.0, raw - spread) + (2 * spread * rng.random())
+    return float(min(policy.max_delay_s, jittered))
 
 
 OUTBOX_SCHEMA_VERSION = 1
