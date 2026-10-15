@@ -468,4 +468,111 @@ def template_catalogue() -> dict[str, StrategySpec]:
             ),
             tags=["trend", "pullback", "macd", "template"],
         ),
+        "adx_directional_trend": StrategySpec(
+            name="ADX directional trend confirmation",
+            description=(
+                "Research-only long trend intent when causal directional "
+                "movement, ADX strength, and an established EMA agree."
+            ),
+            timeframe="1h",
+            indicators=[
+                IndicatorSpec(
+                    name="adx",
+                    alias="adx14",
+                    params={"period": 14, "component": "adx"},
+                ),
+                IndicatorSpec(
+                    name="adx",
+                    alias="di_plus",
+                    params={"period": 14, "component": "plus_di"},
+                ),
+                IndicatorSpec(
+                    name="adx",
+                    alias="di_minus",
+                    params={"period": 14, "component": "minus_di"},
+                ),
+                IndicatorSpec(name="ema", alias="ema50", params={"period": 50}),
+            ],
+            entry=ConditionGroup(
+                mode=LogicMode.ALL,
+                conditions=[
+                    condition(indicator("adx14"), Operator.GT, constant(25.0)),
+                    condition(indicator("di_plus"), Operator.GT, indicator("di_minus")),
+                    condition(field("close"), Operator.GT, indicator("ema50")),
+                ],
+            ),
+            exit=ConditionGroup(
+                mode=LogicMode.ANY,
+                conditions=[
+                    condition(indicator("di_minus"), Operator.GT, indicator("di_plus")),
+                    condition(indicator("adx14"), Operator.LT, constant(18.0)),
+                ],
+            ),
+            risk=RiskSpec(
+                max_position_fraction=0.04,
+                stop_loss_fraction=0.025,
+                max_holding_bars=180,
+            ),
+            tags=["research", "trend", "directional-movement", "template"],
+        ),
+        "adx_donchian_breakout": StrategySpec(
+            name="ADX-filtered Donchian breakout",
+            description=(
+                "Research-only prior-window channel breakout with "
+                "directional-movement confirmation; no future-window prices."
+            ),
+            timeframe="1h",
+            indicators=[
+                IndicatorSpec(
+                    name="adx",
+                    alias="adx14",
+                    params={"period": 14, "component": "adx"},
+                ),
+                IndicatorSpec(
+                    name="adx",
+                    alias="di_plus",
+                    params={"period": 14, "component": "plus_di"},
+                ),
+                IndicatorSpec(
+                    name="adx",
+                    alias="di_minus",
+                    params={"period": 14, "component": "minus_di"},
+                ),
+                IndicatorSpec(
+                    name="donchian",
+                    alias="prior_high20",
+                    params={"period": 20, "component": "upper"},
+                ),
+                IndicatorSpec(
+                    name="donchian",
+                    alias="prior_low10",
+                    params={"period": 10, "component": "lower"},
+                ),
+            ],
+            entry=ConditionGroup(
+                mode=LogicMode.ALL,
+                conditions=[
+                    condition(
+                        field("close"), Operator.CROSSES_ABOVE, indicator("prior_high20")
+                    ),
+                    condition(indicator("adx14"), Operator.GT, constant(22.0)),
+                    condition(indicator("di_plus"), Operator.GT, indicator("di_minus")),
+                ],
+            ),
+            exit=ConditionGroup(
+                mode=LogicMode.ANY,
+                conditions=[
+                    condition(
+                        field("close"), Operator.CROSSES_BELOW, indicator("prior_low10")
+                    ),
+                    condition(indicator("adx14"), Operator.LT, constant(15.0)),
+                ],
+            ),
+            risk=RiskSpec(
+                max_position_fraction=0.04,
+                stop_loss_fraction=0.03,
+                max_holding_bars=150,
+            ),
+            tags=["research", "breakout", "directional-movement", "template"],
+        ),
     }
