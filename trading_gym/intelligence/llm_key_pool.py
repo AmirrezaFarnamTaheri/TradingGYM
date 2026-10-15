@@ -25,6 +25,12 @@ _REF_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,79}$")
 _MAX_KEYS = 16
 _MAX_STATE_BYTES = 16 * 1024
 _MAX_COOLDOWN = 86_400.0
+# Global project/provider rate limits must not disappear when key rosters
+# or model versions are changed. Unknown hashed references are retained for
+# re-added keys until they expire, never used to select a credential.
+_GLOBAL_SLOT = "__provider__"
+_SLOT_RE = re.compile(r"^[0-9a-f]{24}$")
+_MAX_TRACKED_SLOTS = 64
 
 
 class CredentialsUnavailable(RuntimeError):
@@ -92,12 +98,12 @@ class CredentialPool:
                 or type(state["cursor"]) is not int
                 or not 0 <= state["cursor"] <= 1_000_000_000
                 or not isinstance(state["cooldowns"], dict)
-                or len(state["cooldowns"]) > _MAX_KEYS
+                or len(state["cooldowns"]) > _MAX_TRACKED_SLOTS
             ):
                 raise ValueError("state shape")
             for slot, expiry in state["cooldowns"].items():
                 if (
-                    slot not in self._ids.values()
+                    (slot != _GLOBAL_SLOT and not _SLOT_RE.fullmatch(slot))
                     or type(expiry) not in (float, int)
                     or not 0 <= float(expiry) < 10_000_000_000
                 ):
@@ -108,6 +114,8 @@ class CredentialPool:
 
     def _write(self, state: dict) -> None:
         path = self.state_path
+        if len(state["cooldowns"]) > _MAX_TRACKED_SLOTS:
+            raise CredentialsUnavailable("too many provider cooldown records")
         payload = json.dumps(state, sort_keys=True, separators=(",", ":")).encode()
         if len(payload) > _MAX_STATE_BYTES:
             raise CredentialsUnavailable("credential rotation state is too large")
@@ -144,6 +152,15 @@ class CredentialPool:
             with self._lock():
                 state = self._state()
                 ts = self._now()
+                if state["cooldowns"].get(_GLOBAL_SLOT, 0) > ts:
+                    raise CredentialsUnavailable("provider-wide rate limit active")
+                # Old expired slots may be dropped. Active cooldowns for
+                # temporarily removed keys survive future roster changes.
+                state["cooldowns"] = {
+                    key: expires
+                    for key, expires in state["cooldowns"].items()
+                    if expires > ts
+                }
                 count = len(self.references)
                 for step in range(count):
                     index = (state["cursor"] + step) % count
@@ -177,11 +194,18 @@ class CredentialPool:
         try:
             with self._lock():
                 state = self._state()
-                until = self._now() + seconds
-                for slot in self._ids.values():
-                    state["cooldowns"][slot] = max(
-                        until, state["cooldowns"].get(slot, 0)
-                    )
+                ts = self._now()
+                until = ts + seconds
+                state["cooldowns"] = {
+                    key: expires
+                    for key, expires in state["cooldowns"].items()
+                    if expires > ts
+                }
+                # A provider/project-wide 429 applies to FUTURE credentials
+                # and all model variants, not just currently configured keys.
+                state["cooldowns"][_GLOBAL_SLOT] = max(
+                    until, state["cooldowns"].get(_GLOBAL_SLOT, 0)
+                )
                 self._write(state)
         except Timeout as exc:
             raise CredentialsUnavailable("credential rotation lock unavailable") from exc
@@ -199,8 +223,14 @@ class CredentialPool:
             with self._lock():
                 state = self._state()
                 slot = self._ids[reference]
+                ts = self._now()
+                state["cooldowns"] = {
+                    key: expires
+                    for key, expires in state["cooldowns"].items()
+                    if expires > ts
+                }
                 state["cooldowns"][slot] = max(
-                    self._now() + seconds, state["cooldowns"].get(slot, 0)
+                    ts + seconds, state["cooldowns"].get(slot, 0)
                 )
                 self._write(state)
         except Timeout as exc:
@@ -210,11 +240,15 @@ class CredentialPool:
 def default_rotation_path(
     provider_id: str, base_url: str, model: str, references: Sequence[str] = ()
 ) -> Path:
-    """Scope shared state to the provider/model/credential reference set."""
+    """Share rate-limit history across models and changing key rosters.
+
+    The model/references parameters are retained for existing callers, but
+    must never partition a provider-wide quota/cooldown state.
+    """
     from trading_gym.common.persistence import resolve_data_home
 
     discriminator = hashlib.sha256(
-        "\0".join((provider_id, base_url, model, *references)).encode("utf-8")
+        "\0".join((provider_id, base_url)).encode("utf-8")
     ).hexdigest()[:24]
     return resolve_data_home() / "intelligence" / f"keys-{discriminator}.json"
 
@@ -245,14 +279,26 @@ def _quota_exhausted(response: object) -> bool:
     try:
         payload = response.json()
         body = payload.get("error", {}) if isinstance(payload, dict) else {}
-        code = str(body.get("code", "")) if isinstance(body, dict) else ""
-        return code in {
+        if not isinstance(body, dict):
+            return False
+        terminal = {
             "insufficient_quota",
             "billing_hard_limit_reached",
             "quota_exceeded",
         }
+        return any(str(body.get(field, "")) in terminal for field in ("code", "type"))
     except (ValueError, AttributeError, TypeError):
         return False
+
+
+def _shared_rate_scope(response: object) -> bool:
+    """Provider-advertised account/project/organization limits are terminal."""
+    headers = getattr(response, "headers", {})
+    scope = str(headers.get("x-ratelimit-scope", "")).strip().lower()
+    return scope in {
+        "organization", "org", "project", "account", "global", "tenant",
+        "workspace",
+    }
 
 
 def request_with_rotation(
@@ -307,7 +353,11 @@ def request_with_rotation(
             retry_after = _retry_after_seconds(
                 headers.get("retry-after"), now=pool._now()
             )
-            if _quota_exhausted(response) or not rotate_on_rate_limit:
+            if (
+                _quota_exhausted(response)
+                or _shared_rate_scope(response)
+                or not rotate_on_rate_limit
+            ):
                 pool.cool_down_all(retry_after)
                 raise CredentialsUnavailable("provider_rate_or_quota_limit")
             pool.cool_down(lease.reference, retry_after)
