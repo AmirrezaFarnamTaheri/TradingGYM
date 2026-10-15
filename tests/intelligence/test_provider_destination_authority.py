@@ -83,13 +83,23 @@ def test_chat_destination_failure_never_degrades_to_risk_on_rule(
     from trading_gym.intelligence.base import IntelligenceBackend
     from trading_gym.intelligence.llm_backend import LLMDecisionBackend
     from trading_gym.intelligence.policy_adapter import IntelligencePolicyAdapter
-    from trading_gym.intelligence.types import ActionKind, DecisionSignal
+    from trading_gym.intelligence.types import (
+        ActionKind,
+        BackendHealth,
+        DecisionSignal,
+    )
 
     class RiskOnFallback(IntelligenceBackend):
         name = "risk-on-fallback"
 
         def __init__(self):
             self.called = False
+
+        def is_available(self) -> bool:
+            return True
+
+        def health(self) -> BackendHealth:
+            return BackendHealth(self.name, True, detail="test fallback")
 
         def decide(self, _context):
             self.called = True
