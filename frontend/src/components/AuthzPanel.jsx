@@ -18,6 +18,7 @@ export default function AuthzPanel() {
   const [checkScope, setCheckScope] = useState('trade.paper.order.submit');
   const [checkPrincipal, setCheckPrincipal] = useState('');
   const [checkResult, setCheckResult] = useState(null);
+  const [pendingRevoke, setPendingRevoke] = useState(null);
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -48,15 +49,29 @@ export default function AuthzPanel() {
     mutationFn: ({ grantId }) => authzAPI.revoke(grantId, actor, actorKey),
     onSuccess: () => {
       toast.success('Grant revoked (terminal)');
+      setPendingRevoke(null);
       refresh();
     },
     onError: (error) => toast.error(error.message || 'Revocation failed'),
   });
 
   const checkMutation = useMutation({
-    mutationFn: () => authzAPI.check(checkScope, checkPrincipal || undefined),
-    onSuccess: (response) => setCheckResult(response.data),
-    onError: (error) => toast.error(error.message || 'Check failed'),
+    mutationFn: async ({ scope, principal }) => {
+      const response = await authzAPI.check(scope, principal || undefined);
+      if (typeof response.data?.allowed !== 'boolean') {
+        throw new Error('Invalid scope-check response');
+      }
+      return response.data;
+    },
+    onSuccess: (result, variables) => {
+      // Bind the verdict to the inputs used when the request was sent,
+      // not whatever scope/principal is now displayed by the operator.
+      setCheckResult({ ...result, ...variables });
+    },
+    onError: (error) => {
+      setCheckResult(null);
+      toast.error(error.message || 'Check failed');
+    },
   });
 
   const grants = grantsQuery.data?.grants ?? [];
@@ -124,7 +139,8 @@ export default function AuthzPanel() {
         className="check-row"
         onSubmit={(event) => {
           event.preventDefault();
-          checkMutation.mutate();
+          setCheckResult(null);
+          checkMutation.mutate({ scope: checkScope, principal: checkPrincipal });
         }}
         aria-label="Scope check"
       >
@@ -143,7 +159,9 @@ export default function AuthzPanel() {
         <button type="submit" disabled={checkMutation.isPending}>
           Check
         </button>
-        {checkResult && (
+        {checkResult
+          && checkResult.scope === checkScope
+          && checkResult.principal === checkPrincipal && (
           <span
             className={`check-result ${checkResult.allowed ? 'allowed' : 'denied'}`}
             data-testid="check-result"
@@ -201,16 +219,37 @@ export default function AuthzPanel() {
                 </td>
                 <td>{grant.expires_at}</td>
                 <td>
-                  <button
-                    type="button"
-                    disabled={!actor || !actorKey || revokeMutation.isPending}
-                    onClick={() =>
-                      revokeMutation.mutate({ grantId: grant.grant_id })
-                    }
-                    aria-label={`Revoke grant ${grant.grant_id}`}
-                  >
-                    Revoke
-                  </button>
+                  {pendingRevoke === grant.grant_id ? (
+                    <div className="button-group" role="group"
+                      aria-label={`Confirm revocation of grant ${grant.grant_id}`}>
+                      <span role="alert">
+                        Terminal revocation of {grant.grant_id}
+                      </span>
+                      <button
+                        type="button" className="btn btn-danger btn-small"
+                        disabled={!actor || !actorKey || revokeMutation.isPending}
+                        onClick={() => revokeMutation.mutate({ grantId: grant.grant_id })}
+                      >
+                        Confirm revoke
+                      </button>
+                      <button
+                        type="button" className="btn btn-secondary btn-small"
+                        disabled={revokeMutation.isPending}
+                        onClick={() => setPendingRevoke(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!actor || !actorKey || revokeMutation.isPending}
+                      onClick={() => setPendingRevoke(grant.grant_id)}
+                      aria-label={`Revoke grant ${grant.grant_id}`}
+                    >
+                      Revoke
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
