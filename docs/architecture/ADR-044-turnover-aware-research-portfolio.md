@@ -60,10 +60,35 @@ subject to  sum(w) == 1
   sizing advice: it does not reconcile fees/funding, account cash,
   short positions, exchange quantities, stop-outs or partial fills.
 
+### Group concentration constraints (second-order absorption)
+
+The Vibe donor also protects per-sector/group allocations. The research
+optimizer now accepts explicit `asset_groups` (every active asset has
+one group label) and `group_caps` (bounded fractional exposure caps)
+on the same canonical request. Input labels or caps cannot be omitted
+independently, refer to an off-book asset or unassigned group, or contain
+booleans, nonfinite values or malformed identifiers. Supplying group
+constraints to any other construction method is rejected.
+
+The numerical solver first checks combined minimum weights against
+group limits. If the previous weights violate the new group policy, a
+bounded linear-programming feasibility solve constructs a valid starting
+portfolio before SLSQP; infeasible policies fail rather than being
+post-hoc clipped. Group rows are included as hard linear inequalities
+in the actual optimization, and every returned candidate is
+independently checked against the caps. The report includes aggregate
+`group_exposure` and a content-bound `group_caps_sha256` receipt,
+but makes no claim about venue-level settlement or account ownership.
+
+The isolated RED-to-GREEN group-cap tests reproduced missing behavior
+and now pass **9/9**. Together with the original 18 solver cases, the
+local numerical suite passes **27/27**. Exact-head Pydantic/API and
+complete-repository integration remain unverified.
+
 ## Test and published contract
 
 A focused isolated test suite (`tests/convergence/test_turnover_aware_solver.py`
-has a local mirror) passed **18/18** cases: high/zero penalty,
+has a local mirror) passed **18/18** core cases, plus **9/9** group-cap cases: high/zero penalty,
 forced-cap turnover, covariance/risk preference, malformed input,
 infeasible bounds, permutation stability and input immutability.
 
