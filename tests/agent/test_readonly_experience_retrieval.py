@@ -6,7 +6,10 @@ import time
 
 import pytest
 
-from trading_gym.agent.persistent_experience import PersistentExperienceMemory
+from trading_gym.agent.persistent_experience import (
+    MemoryJournalIntegrityError,
+    PersistentExperienceMemory,
+)
 
 
 def _old_memory(path):
@@ -49,3 +52,42 @@ def test_ordinary_writable_reopen_still_applies_retention(tmp_path):
     memory = PersistentExperienceMemory.open(path)
     assert memory.observations() == 0
     assert b"historical cost evidence" not in path.read_bytes()
+
+
+def test_empty_journal_with_nonempty_anchor_is_not_trusted(tmp_path):
+    path = tmp_path / "experiences.jsonl"
+    memory = PersistentExperienceMemory.open(path)
+    memory.record(
+        context_tags=["symbol:btcusdt"],
+        outcome="win",
+        lesson="sealed evidence",
+    )
+    path.write_text("", encoding="utf-8")
+    with pytest.raises(MemoryJournalIntegrityError, match="anchor"):
+        PersistentExperienceMemory.open(path, read_only=True)
+
+
+def test_deleted_journal_with_anchor_cannot_look_like_empty_memory(tmp_path):
+    path = tmp_path / "experiences.jsonl"
+    memory = PersistentExperienceMemory.open(path)
+    memory.record(
+        context_tags=["symbol:btcusdt"],
+        outcome="win",
+        lesson="sealed evidence",
+    )
+    path.unlink()
+    with pytest.raises(MemoryJournalIntegrityError, match="anchor"):
+        PersistentExperienceMemory.open(path, read_only=True)
+
+
+def test_corrupt_journal_json_raises_typed_integrity_error(tmp_path):
+    path = tmp_path / "experiences.jsonl"
+    memory = PersistentExperienceMemory.open(path)
+    memory.record(
+        context_tags=["symbol:btcusdt"],
+        outcome="loss",
+        lesson="test record",
+    )
+    path.write_text("{garbled\n", encoding="utf-8")
+    with pytest.raises(MemoryJournalIntegrityError):
+        PersistentExperienceMemory.open(path, read_only=True)
