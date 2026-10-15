@@ -19,6 +19,7 @@ from trading_gym.intelligence.llm_backend import (
 from trading_gym.intelligence.system1_context import build_system1_packet
 from trading_gym.intelligence.types import (
     BackendUnavailable,
+    UncertainDecision,
     DecisionSignal,
     MarketContext,
 )
@@ -40,6 +41,8 @@ _SYSTEM1_PROMPT = (
 
 class System1DecisionBackend(LLMDecisionBackend):
     """Small/fast model with strict structured output and confidence floor."""
+
+    can_review_uncertain_system1 = True
 
     def __init__(
         self,
@@ -95,7 +98,7 @@ class System1DecisionBackend(LLMDecisionBackend):
             signal.confidence < self.confidence_floor
             and signal.action_kind.value != "hold"
         ):
-            raise BackendUnavailable("system1_low_confidence_escalate")
+            raise UncertainDecision("system1_low_confidence_escalate")
         magnitude = min(abs(signal.target_leverage), self.max_leverage)
         bounded = math.copysign(magnitude, signal.target_leverage)
         return replace(signal, target_leverage=bounded)
