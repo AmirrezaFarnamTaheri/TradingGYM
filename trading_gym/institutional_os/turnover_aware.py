@@ -46,7 +46,9 @@ def _vector(value: object, n: int, label: str) -> np.ndarray:
     return vec
 
 
-def _starting_weights(prior: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> np.ndarray:
+def _starting_weights(
+    prior: np.ndarray, lower: np.ndarray, upper: np.ndarray
+) -> np.ndarray:
     weights = np.clip(prior, lower, upper)
     for _ in range(64):
         difference = 1.0 - float(weights.sum())
@@ -98,7 +100,11 @@ def solve_turnover_aware(
         raise ValueError("covariance is not finite and symmetric")
     if np.linalg.eigvalsh(cov).min() < -1e-9:
         raise ValueError("covariance is not positive semidefinite")
-    if np.any(previous < 0) or np.any(previous > 1) or abs(float(previous.sum()) - 1) > 1e-8:
+    if (
+        np.any(previous < 0)
+        or np.any(previous > 1)
+        or abs(float(previous.sum()) - 1) > 1e-8
+    ):
         raise ValueError("previous allocation must be fully invested and long-only")
     if np.any(lower < 0) or np.any(upper > 1) or np.any(lower > upper):
         raise ValueError("invalid per-asset limits")
@@ -131,7 +137,9 @@ def solve_turnover_aware(
         limits = []
         for name in sorted(group_caps):
             rows.append(np.array([1.0 if g == name else 0.0 for g in groups]))
-            limits.append(_scalar(group_caps[name], low=0.0, high=1.0, label="group cap"))
+            limits.append(
+                _scalar(group_caps[name], low=0.0, high=1.0, label="group cap")
+            )
         matrix = np.array(rows)
         caps = np.array(limits)
         if np.any(matrix @ lower > caps + 1e-10):
