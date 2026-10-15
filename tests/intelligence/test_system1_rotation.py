@@ -435,3 +435,33 @@ def test_closed_bar_at_or_after_end_time_is_considered_fresh():
     )
     packet = json.loads(build_system1_packet(context, now=lambda: 1300))
     assert packet["freshness"]["age_seconds"] == 0
+
+
+def test_system1_opted_in_working_memory_must_be_connected_at_startup():
+    from trading_gym.common.intelligence_config import IntelligenceConfig
+    from trading_gym.intelligence.factory import build_intelligence_policy
+
+    provider = ProviderConfig(
+        provider_id="fast-local",
+        kind=ProviderKind.LOCAL,
+        display_name="fast local",
+        model="fast",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
+    class Repository:
+        def list(self):
+            return [provider]
+
+    with pytest.raises(ValueError, match="settled working memory"):
+        build_intelligence_policy(
+            config=IntelligenceConfig(
+                mode="system1",
+                system1_provider_ids=("fast-local",),
+                system1_use_working_memory=True,
+            ),
+            model=None,
+            action_low=-5,
+            action_high=5,
+            provider_repository=Repository(),
+        )
