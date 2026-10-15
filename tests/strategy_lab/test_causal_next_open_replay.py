@@ -141,3 +141,10 @@ def test_replay_strategy_uses_validated_declarative_risk_fraction():
     )
     assert result == expected
     assert result.execution_authority_granted is False
+
+
+def test_position_intent_must_agree_with_entry_exit_boolean_evidence():
+    frame = _frame([100, 100, 102], [100, 100, 102])
+    frame["position_intent"] = [1, 0, 0]
+    with pytest.raises(ValueError, match="position_intent"):
+        _replay(frame)
