@@ -36,6 +36,32 @@ frequency is used, and using the annualized observed Sharpe as its hurdle
 returns 0.5. Invalid periods (nonpositive, fractional or boolean) and
 nonfinite/boolean benchmarks are rejected before statistics execute.
 
+## Walk-forward completeness, threshold and bootstrap admission
+
+Additional controlled RED reproductions identified that the walk-forward
+summary silently discarded missing/inf train or holdout windows, changing
+its sample size and its reported robustness. The implementation now requires
+the complete one-to-one finite paired series. Its robustness policy also
+requires a positive integer `min_windows`, finite nonnegative efficiency
+minimum, finite profitable-window threshold in [0,1], and a finite median
+degradation ceiling. Masked division avoids zero-baseline runtime warnings
+without changing the established zero-denominator fallback semantics.
+
+The `bootstrap_sharpe_interval` research helper also discarded NaN/Inf
+observations and admitted pooled 2D candidate matrices and non-integer
+annualization frequencies. It now requires bounded integer bootstrap
+sample count (100–100000), finite confidence in [0.5,1), positive integer
+annualization, and one complete finite numeric return vector. Valid seeded
+bootstrap results remain reproducible and no donor is allowed to alter
+the funded-live authority.
+
+Isolated-source RED tests: **4 missing walk-forward windows**,
+**8 malformed bootstrap inputs**, and **21 walk-forward policy/warning
+cases** reproduced the original defects. After the separate fixes, the
+combined focused Python 3.13 mirror passed **102/102** cases with
+syntax compilation. These figures are *not exact-head full-repository
+test results*, because the repository checkout could not be obtained.
+
 ## Provenance of inputs
 
 The PSR input now requires one finite, one-dimensional numeric return
@@ -97,13 +123,16 @@ read/write).
   explicit input admission.
 - Permutation evidence: **9 failing** original cases / 10 passing
   after strict finite sample and observed-statistic admission.
-- Final combined focused mirror: **57/57 passing** with Python 3.13.5,
+- Final combined focused mirror: **102/102 passing** with Python 3.13.5,
   pytest 9 and NumPy 2.3.5; `compileall` succeeded.
 
 The corresponding regression tests were committed to
 `tests/convergence/test_probabilistic_sharpe_units.py`,
 `tests/convergence/test_sharpe_evidence_integrity.py`, and
-`tests/convergence/test_permutation_evidence_integrity.py`.
+`tests/convergence/test_permutation_evidence_integrity.py`,
+`tests/convergence/test_walk_forward_evidence_integrity.py`,
+`tests/convergence/test_walk_forward_policy_integrity.py`, and
+`tests/convergence/test_bootstrap_evidence_integrity.py`.
 These are **not** full exact-branch test results. Real-world tape
 independence, autocorrelation adjustments, fees, serial dependence,
 multiple-trial recording and venue reconciliation still require their
