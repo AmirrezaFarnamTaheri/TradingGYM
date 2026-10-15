@@ -758,3 +758,55 @@ def test_rotation_lock_io_error_must_not_be_recoverable_provider_outage(
             lambda key, timeout: pytest.fail("must not attempt inference"),
             timeout_seconds=1,
         )
+
+
+@pytest.mark.parametrize("wire_protocol", ["openai_chat", "systemone"])
+def test_provider_hard_spend_limit_is_a_non_degradable_authority_denial(
+    wire_protocol: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from trading_gym.intelligence.llm_backend import httpx_transport
+    from trading_gym.intelligence.systemone_native_backend import (
+        httpx_systemone_transport,
+    )
+
+    monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
+    monkeypatch.setenv("MODEL_KEY_ONE", "nonproduction-fixture-secret")
+    config = ProviderConfig(
+        provider_id="hard-quota-fixture",
+        display_name="hard quota fixture",
+        kind=ProviderKind.LOCAL,
+        wire_protocol=wire_protocol,
+        model="fixture-model",
+        base_url="http://127.0.0.1:11434/v1",
+        api_key_env="MODEL_KEY_ONE",
+    )
+    calls = []
+
+    class ClientStub:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def post(self, *args, **kwargs):
+            calls.append(args[0])
+            return httpx.Response(
+                429,
+                json={
+                    "error": {"code": "project_spend_limit_exceeded"}
+                },
+                request=httpx.Request("POST", args[0]),
+            )
+
+    monkeypatch.setattr(httpx, "Client", lambda **kwargs: ClientStub())
+    with pytest.raises(PermissionError, match="provider_billing_quota_denied"):
+        if wire_protocol == "openai_chat":
+            httpx_transport(config)(
+                config.base_url, [{"role": "user", "content": "hold"}]
+            )
+        else:
+            httpx_systemone_transport(config)({"model": config.model})
+    assert len(calls) == 1
