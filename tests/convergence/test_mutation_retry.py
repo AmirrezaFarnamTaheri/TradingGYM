@@ -819,3 +819,20 @@ def test_outbox_conflicting_outcomes_are_serialized(tmp_path):
     assert journal.latest_by_key()[kwargs["idempotency_key"]]["status"] in {
         "terminal", "committed"
     }
+
+def test_outbox_rejects_oversized_total_journal_without_reading(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    state = tmp_path / "outbox.jsonl"
+    with state.open("wb") as stream:
+        stream.truncate(65 * 1024 * 1024)  # sparse on supporting filesystems
+    real_open = Path.open
+
+    def block_read(self, *args, **kwargs):
+        if self == state and args and args[0] == "rb":
+            pytest.fail("oversized journal should be rejected before reading")
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", block_read)
+    with pytest.raises(MutationOutboxIntegrityError, match="exceeds"):
+        MutationOutbox(state).latest_by_key()
