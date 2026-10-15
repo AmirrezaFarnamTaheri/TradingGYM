@@ -133,6 +133,35 @@ def build_system1_packet(
             _finite(v) for v in context.recent_returns[:_MAX_RETURNS]
         ],
     }
+    # The fast model should not have to infer volatility or momentum from
+    # unlabelled samples. Derive these from the same bounded, explicitly
+    # sampled close-to-close returns; do not imply tick-level accuracy.
+    returns = market["recent_returns"]
+    if any(value <= -1 for value in returns):
+        raise ValueError("invalid market returns")
+    try:
+        mean = math.fsum(returns) / len(returns) if returns else 0.0
+        volatility = (
+            math.sqrt(
+                math.fsum((value - mean) ** 2 for value in returns)
+                / len(returns)
+            )
+            if returns
+            else 0.0
+        )
+        cumulative = math.prod(1.0 + value for value in returns) - 1.0
+    except (OverflowError, ValueError) as exc:
+        raise ValueError("invalid market returns") from exc
+    if not all(math.isfinite(value) for value in (mean, volatility, cumulative)):
+        raise ValueError("invalid market returns")
+    market["return_stats"] = {
+        "observations": len(returns),
+        "sampling": market["recent_returns_basis"],
+        "cumulative_return": round(cumulative, 12),
+        "mean_return": round(mean, 12),
+        "volatility_per_observation": round(volatility, 12),
+    }
+
     raw_features = getattr(context, "market_features", {}) or {}
     if not isinstance(raw_features, Mapping) or len(raw_features) > 32:
         raise ValueError("invalid named market indicators")
@@ -160,6 +189,16 @@ def build_system1_packet(
             else None
         ),
     }
+    # This is signed NET exposure from the environment/broker, not gross
+    # holdings. Offsetting spot and short positions could net to zero while
+    # retaining meaningful funded risk; never claim independent gross proof.
+    net_notional = account["position_units"] * market["last_close"]
+    net_leverage = net_notional / account["equity"]
+    if not math.isfinite(net_notional) or not math.isfinite(net_leverage):
+        raise ValueError("invalid market/account net exposure")
+    account["net_notional_quote"] = round(net_notional, 8)
+    account["signed_net_leverage"] = round(net_leverage, 8)
+    account["gross_exposure_verified"] = False
     if account["drawdown"] is not None and not 0 <= account["drawdown"] <= 1:
         raise ValueError("invalid account drawdown")
     evidence = getattr(context, "market_evidence", {}) or {}
