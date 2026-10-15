@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import secrets
 from typing import Any, Callable
 
 import httpx
@@ -84,6 +85,16 @@ def httpx_systemone_transport(
     )
 
     def call(body: dict[str, Any]) -> dict[str, Any]:
+        # Hosted System One can bill per logical request and supports an
+        # Idempotency-Key header. Generate it ONCE per decision: credential
+        # retries must not create independent billable inference requests.
+        # Self-hosted fixed-model engines do not need this hosted extension.
+        logical_key = (
+            secrets.token_hex(16)
+            if config.wire_protocol == "systemone"
+            else None
+        )
+
         def post(secret: str, remaining: float) -> httpx.Response:
             # Revalidate immediately before each attempt, not only at setup.
             base = validate_base_url(
@@ -94,6 +105,8 @@ def httpx_systemone_transport(
             )
             endpoint = join_provider_endpoint(base, config.systemone_path)
             headers = {"Content-Type": "application/json"}
+            if logical_key is not None:
+                headers["Idempotency-Key"] = logical_key
             if secret:
                 headers["Authorization"] = f"Bearer {secret}"
             if budget is not None:
