@@ -992,7 +992,9 @@ def test_net_position_accepts_explicit_zero_base_balance(adapter, mock_client):
 
 
 @pytest.mark.asyncio
-async def test_panic_global_flat_proof_rejects_other_asset_holdings(adapter, mock_client):
+async def test_panic_global_flat_proof_rejects_other_asset_holdings(
+    adapter, mock_client
+):
     """A global panic cannot be cleared while an unrelated funded asset remains."""
     mock_client.get_balance.return_value = [
         Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
