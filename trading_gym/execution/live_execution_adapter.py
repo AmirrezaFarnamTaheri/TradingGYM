@@ -705,16 +705,17 @@ class LiveExecutionAdapter:
             ):
                 raise PermissionError("unresolved_mutations_require_reconciliation")
 
-            # 1. Cancel open orders first
+            # 1. Query ALL open orders before any mutation. A global panic
+            # signal is not scoped to this adapter's one configured pair.
+            # The adapter may cancel only its own fully identified orders;
+            # another pair requires independent, account-wide intervention.
             open_orders_resp = await self._call_api(
                 self.api.get_orders,
-                base_symbol=self.base_asset,
-                quote_symbol=self.quote_asset,
                 status=[
                     OrderStatus.NEW,
                     OrderStatus.OPEN,
                     OrderStatus.PROCESSING,
-                ],  # type: ignore
+                ],
             )
             # Refuse incomplete pagination before cancelling or reducing
             # exposure: unseen orders can execute after a new market close.
@@ -728,6 +729,15 @@ class LiveExecutionAdapter:
                 raise RuntimeError("invalid_broker_order_count")
             if total != len(open_orders):
                 raise RuntimeError("broker_open_order_page_incomplete")
+            for order in open_orders:
+                if (
+                    not isinstance(order, dict)
+                    or not isinstance(order.get("id"), str)
+                    or not order["id"].strip()
+                    or order.get("base_symbol") != self.base_asset
+                    or order.get("quote_symbol") != self.quote_asset
+                ):
+                    raise RuntimeError("broker_open_order_outside_owned_pair")
 
             for order in open_orders:
                 await self._mutate(
