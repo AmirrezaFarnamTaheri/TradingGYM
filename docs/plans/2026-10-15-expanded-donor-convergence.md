@@ -121,6 +121,15 @@ with pinned source hashes and explicit decimal currency/fee/tick units.
   now use the same net-of-estimated-fees equity. Reject depleted equity.
   TDD RED 2 failures; GREEN 4/4 focused cases and a source-verified
   regression suite. See ADR-045.
+- [x] Absorb Vibe's turnover penalty and group caps into the **existing**
+  `PortfolioConstructionRequest` instead of a competing optimization
+  runtime. Added complete prior-weights validation, canonical method enum,
+  group concentration inequalities, LP feasibility, a reproducible
+  one-way-turnover/utility receipt and no live execution authority.
+  RED missing feature, GREEN **27/27 local numerical solver tests**.
+  Published request/report OpenAPI fields and operator research example;
+  exact-branch Pydantic, frontend and full pytest gates remain pending.
+  See ADR-044.
 - [ ] Add independent fixture tests for rounding, maker/taker fees,
   post-only rejection, IOC partial fills, cancellation/replace idempotence,
   negative funding, liquidation buffers and venue gross-flat readback.
