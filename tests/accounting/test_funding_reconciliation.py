@@ -150,3 +150,36 @@ def test_invalid_tolerance_and_account_scope_rejected():
         check([due()],[receipt()],tol=Decimal('NaN'))
     with pytest.raises(ValueError):
         reconcile_funding(dues=[due()], receipts=[receipt()], account_id='other', as_of_unix=2000)
+
+
+def test_small_per_event_funding_rounding_errors_cannot_hide_material_net_drift():
+    # A reconciler may tolerate one 0.01-unit rounding difference,
+    # but must not report all-clear when a sequence accumulates 0.02.
+    obligations = [due("fund-001"), due("fund-002")]
+    settled = [
+        receipt("fund-001", cash_delta_quote=Decimal("-0.11")),
+        receipt(
+            "fund-002",
+            receipt_id="receipt-002",
+            cash_delta_quote=Decimal("-0.11"),
+        ),
+    ]
+    report = check(obligations, settled, tol=Decimal("0.01"))
+    assert report["unexplained_cash_by_currency"] == {"USDT": "-0.02"}
+    assert report["consistent"] is False
+    assert "funding_aggregate_mismatch:USDT" in report["blockers"]
+
+
+def test_aggregate_funding_tolerance_remains_inclusive():
+    obligations = [due("fund-001"), due("fund-002")]
+    settled = [
+        receipt("fund-001", cash_delta_quote=Decimal("-0.11")),
+        receipt(
+            "fund-002",
+            receipt_id="receipt-002",
+            cash_delta_quote=Decimal("-0.10"),
+        ),
+    ]
+    result = check(obligations, settled, tol=Decimal("0.01"))
+    assert result["consistent"] is True
+    assert result["unexplained_cash_by_currency"] == {"USDT": "-0.01"}
