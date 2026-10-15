@@ -8,6 +8,7 @@ Handles state reconciliation and EMERGENCY FLATTENING.
 import logging
 import asyncio
 import json
+import math
 from decimal import Decimal, ROUND_DOWN, ROUND_UP
 from pathlib import Path
 from typing import Dict, Any
@@ -793,74 +794,100 @@ class LiveExecutionAdapter:
             return False
 
     def get_live_equity(self) -> float:
-        """Calculate Total Equity (Collateral + PnL)."""
-        try:
-            # Sum of all balances in Quote Currency (approx)
-            balances = self.api.get_balance()
-            total_equity = Decimal("0.0")
+        """Calculate quote-equivalent account equity without omitting liabilities.
 
-            # Get all Tickers for conversion
+        This single-symbol adapter cannot safely price unrelated live shorts.
+        Missing/malformed broker rows are authority failures, never zero.
+        """
+        try:
+            balances = self.api.get_balance()
+            if not isinstance(balances, list):
+                raise ValueError("broker_balance_snapshot_unavailable")
+            total_equity = Decimal("0")
             tickers_data = self.api.get_ticker()
             if not isinstance(tickers_data, dict):
-                # Should theoretically be Dict[str, TickerData] if symbol=None
-                logger.warning(
-                    "get_ticker did not return a dict of tickers. Assuming empty."
-                )
                 tickers_data = {}
 
-            # Helper to find ticker
             def get_mid_price(symbol: str) -> Decimal:
-                # Logic update: Match against constructed pair (e.g. BTC -> BTCUSDT)
                 pair = f"{symbol}{self.quote_asset}"
+                ticker = tickers_data.get(pair)
+                if ticker is None:
+                    for candidate in tickers_data.values():
+                        if getattr(candidate, "symbol", None) == pair:
+                            ticker = candidate
+                            break
+                if ticker is None:
+                    return Decimal("0")
+                return Decimal(str(ticker.mid_price))
 
-                # Access by key directly if possible, or search
-                # EnhancedAbanClient returns dict keyed by market name (usually pair)
-                if pair in tickers_data:
-                    return tickers_data[pair].mid_price
-
-                # Fallback search
-                for ticker in tickers_data.values():
-                    if ticker.symbol == pair:
-                        return ticker.mid_price
-                return Decimal("0.0")
-
-            # 1. Spot Assets Equity
-            for b in balances:
-                symbol = b.symbol
-                amount = b.balance + b.blocked
-
-                if amount <= 0:
+            seen_currencies: set[str] = set()
+            for balance in balances:
+                symbol = getattr(balance, "symbol", None)
+                if not isinstance(symbol, str) or not symbol:
+                    raise ValueError("invalid_broker_asset_balance")
+                if symbol in seen_currencies:
+                    raise ValueError("duplicate_broker_asset_balance")
+                seen_currencies.add(symbol)
+                available = Decimal(str(balance.balance))
+                blocked = Decimal(str(balance.blocked))
+                # Validate each component *before* summing or skipping zero
+                # entries. Negative available + positive blocked can appear
+                # net-zero and must not hide a debt or corrupted snapshot.
+                if (
+                    not available.is_finite()
+                    or not blocked.is_finite()
+                    or available < 0
+                    or blocked < 0
+                ):
+                    raise ValueError("invalid_broker_asset_balance")
+                amount = available + blocked
+                if not amount.is_finite():
+                    raise ValueError("invalid_broker_asset_balance")
+                if amount == 0:
                     continue
-
                 if symbol == self.quote_asset:
                     total_equity += amount
                 else:
-                    # Convert to Quote
                     mid = get_mid_price(symbol)
                     if not mid.is_finite() or mid <= 0:
                         raise ValueError("missing_or_invalid_asset_valuation")
                     total_equity += amount * mid
 
-            # 2. Short Positions PnL
             shorts = self.api.get_short_positions()
-            for s in shorts:
-                if s.get("symbol") == self.symbol:
-                    # Ensure we handle potential string/float types from raw API dict
-                    amt = Decimal(str(s.get("amount", 0)))
-                    entry = Decimal(str(s.get("entry_price", 0)))
-
-                    # Get current price for this symbol
-                    current_mid = get_mid_price(self.base_asset)
-
-                    if not current_mid.is_finite() or current_mid <= 0:
-                        raise ValueError("missing_or_invalid_short_valuation")
-                    # PnL = Amount * (Entry Price - Current Price)
-                    pnl = amt * (entry - current_mid)
-                    total_equity += pnl
+            if not isinstance(shorts, list):
+                raise ValueError("broker_short_snapshot_unavailable")
+            for short in shorts:
+                if not isinstance(short, dict):
+                    raise ValueError("invalid_broker_short_balance")
+                symbol = short.get("symbol")
+                if not isinstance(symbol, str) or not symbol:
+                    raise ValueError("invalid_broker_short_balance")
+                amount = Decimal(str(short["amount"]))
+                entry = Decimal(str(short["entry_price"]))
+                if (
+                    not amount.is_finite()
+                    or not entry.is_finite()
+                    or amount < 0
+                    or (amount > 0 and entry <= 0)
+                ):
+                    raise ValueError("invalid_broker_short_balance")
+                if amount == 0:
+                    continue
+                if symbol != self.symbol:
+                    # Equity that excludes a different instrument's short
+                    # P&L is not an authoritative capital budget.
+                    raise ValueError("unpriced_cross_instrument_short")
+                current_mid = get_mid_price(self.base_asset)
+                if not current_mid.is_finite() or current_mid <= 0:
+                    raise ValueError("missing_or_invalid_short_valuation")
+                total_equity += amount * (entry - current_mid)
 
             if not total_equity.is_finite() or total_equity <= 0:
                 raise RuntimeError("live equity is unavailable or non-positive")
-            return float(total_equity)
+            result = float(total_equity)
+            if not math.isfinite(result):
+                raise RuntimeError("live equity cannot be represented")
+            return result
         except Exception as exc:
             logger.error(
                 "Error calculating live equity error_type=%s", type(exc).__name__
