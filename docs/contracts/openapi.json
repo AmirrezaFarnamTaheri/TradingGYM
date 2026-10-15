@@ -17875,6 +17875,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Api Key Env"
           },
           "api_key_envs": {
@@ -17895,6 +17896,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Base Url"
           },
           "command": {
@@ -17907,6 +17909,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Command"
           },
           "display_name": {
