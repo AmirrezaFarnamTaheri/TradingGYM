@@ -171,7 +171,10 @@ async def test_reconcile_sell_short(adapter, mock_client):
 @pytest.mark.asyncio
 async def test_flatten(adapter, mock_client):
     adapter._get_net_position = MagicMock(return_value=Decimal("1.5"))
-    mock_client.get_orders.return_value = {"total": 1, "data": [{"id": "open1"}]}
+    mock_client.get_orders.return_value = {
+        "total": 1,
+        "data": [{"id": "open1", "base_symbol": "BTC", "quote_symbol": "USDT"}],
+    }
     mock_client.cancel_order.return_value = OrderResponse(
         id="open1",
         code="200",
@@ -1082,3 +1085,31 @@ def test_live_equity_rejects_invalid_short_inventory(
     }
     with pytest.raises(RuntimeError, match="unable to determine live equity"):
         adapter.get_live_equity()
+
+
+@pytest.mark.parametrize(
+    "orders",
+    [
+        [{"id": "unknown", "base_symbol": "ETH", "quote_symbol": "USDT"}],
+        [{"id": "incomplete"}],
+        [{"id": "", "base_symbol": "BTC", "quote_symbol": "USDT"}],
+        ["not-an-order"],
+    ],
+)
+@pytest.mark.asyncio
+async def test_global_panic_preflight_blocks_unowned_orders_before_mutation(
+    adapter, mock_client, orders
+):
+    """A global emergency cannot start a market close with unseen pair orders."""
+    adapter._get_net_position = MagicMock(return_value=Decimal("1"))
+    mock_client.get_orders.return_value = {"total": len(orders), "data": orders}
+    assert await adapter.flatten() is False
+    assert "broker_open_order" in adapter._last_flatten_error
+    mock_client.cancel_order.assert_not_called()
+    mock_client.place_market_order.assert_not_called()
+    mock_client.close_short_position.assert_not_called()
+    mock_client.create_short_sell.assert_not_called()
+    adapter._get_net_position.assert_not_called()
+    kwargs = mock_client.get_orders.call_args.kwargs
+    assert "base_symbol" not in kwargs
+    assert "quote_symbol" not in kwargs
