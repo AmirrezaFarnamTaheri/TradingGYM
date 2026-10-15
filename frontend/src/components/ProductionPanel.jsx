@@ -88,7 +88,15 @@ export default function ProductionPanel() {
     && journal
     && ['journal_clear', 'blocked'].includes(journal.state)
     && Number.isSafeInteger(journal.unresolved_total)
-    && journal.unresolved_total >= 0
+    && Number.isSafeInteger(journal.pending)
+    && Number.isSafeInteger(journal.ambiguous)
+    && journal.pending >= 0
+    && journal.ambiguous >= 0
+    && journal.unresolved_total === journal.pending + journal.ambiguous
+    && (
+      (journal.state === 'journal_clear' && journal.unresolved_total === 0)
+      || (journal.state === 'blocked' && journal.unresolved_total > 0)
+    )
     && journal.can_trade === false
     && journal.authority_granted === false;
   const journalState = journalValid ? journal.state : 'unverified';
