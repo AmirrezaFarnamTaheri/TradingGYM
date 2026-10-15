@@ -17,6 +17,7 @@ from trading_gym.governance.identity import (
     require_actor_identity,
 )
 from trading_gym.production.emergency import EmergencyController
+from trading_gym.production.mutation_retry import MutationOutbox
 
 
 class EmergencyTransitionRequest(BaseModel):
@@ -49,6 +50,41 @@ def create_production_router(verify_api_key: Callable[..., Any]) -> APIRouter:
     @router.get("/emergency")
     def emergency_state() -> dict[str, object]:
         return emergency.snapshot().__dict__
+
+    @router.get("/reconciliation")
+    def reconciliation_state() -> dict[str, object]:
+        """Read-only, deliberately non-authoritative venue mutation hold.
+
+        Never return broker IDs, proposal identifiers, payload hashes or
+        free-form journal details to the browser. A clear local journal is
+        NOT proof of cleared exchange orders, settled fees or collateral.
+        """
+        try:
+            latest = MutationOutbox().latest_by_key()
+            pending = sum(row["status"] == "pending" for row in latest.values())
+            ambiguous = sum(row["status"] == "ambiguous" for row in latest.values())
+            unresolved = pending + ambiguous
+        except Exception:  # fail-closed on corrupted, missing-access or raced I/O
+            return {
+                "state": "unverified",
+                "unresolved_total": None,
+                "pending": None,
+                "ambiguous": None,
+                "requires_reconciliation": True,
+                "can_trade": False,
+                "authority_granted": False,
+                "note": "journal integrity unavailable; broker reconciliation required",
+            }
+        return {
+            "state": "blocked" if unresolved else "journal_clear",
+            "unresolved_total": unresolved,
+            "pending": pending,
+            "ambiguous": ambiguous,
+            "requires_reconciliation": bool(unresolved),
+            "can_trade": False,
+            "authority_granted": False,
+            "note": "local journal clear is not proof of broker reconciliation",
+        }
 
     @router.post("/emergency")
     def set_emergency_state(
