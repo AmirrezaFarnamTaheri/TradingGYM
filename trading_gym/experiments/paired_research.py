@@ -16,8 +16,8 @@ import statistics
 from dataclasses import asdict, dataclass
 from typing import Sequence
 
-_SHA = re.compile(r'^[0-9a-f]{64}$')
-_NAME = re.compile(r'^[a-z][a-z0-9._-]{1,79}$')
+_SHA = re.compile(r"^[0-9a-f]{64}$")
+_NAME = re.compile(r"^[a-z][a-z0-9._-]{1,79}$")
 _MAX_MODELS = 32
 _MAX_PAIRS = 256
 
@@ -34,7 +34,7 @@ class ResearchRun:
     label_available_at_unix: int
     gross_return: float
     cost_fraction: float
-    split: str = 'holdout'
+    split: str = "holdout"
 
 
 def _bounded_int(v: object) -> bool:
@@ -47,28 +47,28 @@ def _finite(v: object, lo: float, hi: float) -> bool:
 
 def _validated(run: ResearchRun, *, as_of_unix: int) -> None:
     if not isinstance(run, ResearchRun):
-        raise ValueError('unknown challenge run structure')
+        raise ValueError("unknown challenge run structure")
     if not _NAME.fullmatch(run.candidate_id) or not _NAME.fullmatch(run.regime):
-        raise ValueError('invalid candidate or regime identifier')
+        raise ValueError("invalid candidate or regime identifier")
     if not isinstance(run.tape_sha256, str) or not _SHA.fullmatch(
         run.tape_sha256
     ) or not isinstance(run.source_sha256, str) or not _SHA.fullmatch(
         run.source_sha256
     ):
-        raise ValueError('sealed research tape/source hash missing')
+        raise ValueError("sealed research tape/source hash missing")
     if type(run.seed) is not int or not 0 <= run.seed <= 2**32 - 1:
-        raise ValueError('invalid independent challenge seed')
-    if run.split != 'holdout':
-        raise ValueError('training/evaluation overlap forbidden')
+        raise ValueError("invalid independent challenge seed")
+    if run.split != "holdout":
+        raise ValueError("training/evaluation overlap forbidden")
     if not all(_bounded_int(x) for x in (
         run.started_at_unix, run.ended_at_unix, run.label_available_at_unix
     )) or not (run.started_at_unix < run.ended_at_unix
               <= run.label_available_at_unix <= as_of_unix):
-        raise ValueError('time-leaking or unavailable research label')
+        raise ValueError("time-leaking or unavailable research label")
     if not _finite(run.gross_return, -10.0, 10.0):
-        raise ValueError('gross return must be finite and bounded')
+        raise ValueError("gross return must be finite and bounded")
     if not _finite(run.cost_fraction, 0.0, 10.0):
-        raise ValueError('non-negative explicit cost fraction required')
+        raise ValueError("non-negative explicit cost fraction required")
 
 
 def _one_sided_sign_p(wins: int, non_ties: int) -> float:
@@ -93,18 +93,18 @@ def compare_paired_research(
     Re-use with newly observed results requires a new hash-bound report.
     """
     if not isinstance(baseline_id, str) or not _NAME.fullmatch(baseline_id):
-        raise ValueError('invalid benchmark candidate identity')
+        raise ValueError("invalid benchmark candidate identity")
     if not _bounded_int(as_of_unix):
-        raise ValueError('invalid comparison as-of')
+        raise ValueError("invalid comparison as-of")
     if type(minimum_pairs) is not int or not 2 <= minimum_pairs <= _MAX_PAIRS:
-        raise ValueError('invalid minimum pair count')
+        raise ValueError("invalid minimum pair count")
     if type(minimum_regimes) is not int or not 1 <= minimum_regimes <= 128:
-        raise ValueError('invalid minimum regime count')
+        raise ValueError("invalid minimum regime count")
     if (
         not isinstance(runs, (list, tuple)) or not runs
         or len(runs) > _MAX_MODELS * _MAX_PAIRS
     ):
-        raise ValueError('research comparison input exceeds bounded size')
+        raise ValueError("research comparison input exceeds bounded size")
 
     groups: dict[str, dict[tuple[int, str], ResearchRun]] = {}
     for run in runs:
@@ -112,23 +112,23 @@ def compare_paired_research(
         rows = groups.setdefault(run.candidate_id, {})
         key = (run.seed, run.regime)
         if key in rows:
-            raise ValueError('duplicate seed/regime in research candidate')
+            raise ValueError("duplicate seed/regime in research candidate")
         if len(rows) >= _MAX_PAIRS:
-            raise ValueError('too many candidate scenarios')
+            raise ValueError("too many candidate scenarios")
         rows[key] = run
     if len(groups) < 2 or len(groups) > _MAX_MODELS:
-        raise ValueError('baseline and bounded candidate roster required')
+        raise ValueError("baseline and bounded candidate roster required")
     baseline = groups.get(baseline_id)
     if not baseline:
-        raise ValueError('baseline missing paired research evidence')
+        raise ValueError("baseline missing paired research evidence")
     baseline_keys = set(baseline)
     if len(baseline_keys) < minimum_pairs:
-        raise ValueError('insufficient completed holdout pair samples')
+        raise ValueError("insufficient completed holdout pair samples")
     if len({regime for _, regime in baseline_keys}) < minimum_regimes:
-        raise ValueError('insufficient distinct holdout regimes')
+        raise ValueError("insufficient distinct holdout regimes")
     for name, rows in groups.items():
         if set(rows) != baseline_keys:
-            raise ValueError(f'incomparable scenario coverage:{name}')
+            raise ValueError(f"incomparable scenario coverage:{name}")
         for key, sample in rows.items():
             ref = baseline[key]
             if (
@@ -136,7 +136,7 @@ def compare_paired_research(
                 or sample.started_at_unix != ref.started_at_unix
                 or sample.ended_at_unix != ref.ended_at_unix
             ):
-                raise ValueError('incompatible holdout tape or time window')
+                raise ValueError("incompatible holdout tape or time window")
 
     pairs = sorted(baseline_keys)
     results: list[dict] = []
@@ -150,46 +150,46 @@ def compare_paired_research(
         losses = sum(1 for d in differences if d < -1e-12)
         non_ties = wins + losses
         results.append({
-            'candidate_id': name,
-            'paired_scenarios': len(pairs),
-            'non_tied_pairs': non_ties,
-            'wins': wins,
-            'losses': losses,
-            'median_net_excess': statistics.median(differences),
-            'nominal_one_sided_p_value': _one_sided_sign_p(wins, non_ties),
+            "candidate_id": name,
+            "paired_scenarios": len(pairs),
+            "non_tied_pairs": non_ties,
+            "wins": wins,
+            "losses": losses,
+            "median_net_excess": statistics.median(differences),
+            "nominal_one_sided_p_value": _one_sided_sign_p(wins, non_ties),
         })
     # Holm-Bonferroni controls familywise error under the stated null,
     # even with dependence among tests. It does not establish independent
     # samples or a causal trading advantage.
     rank = sorted(results, key=lambda r: (
-        r['nominal_one_sided_p_value'], r['candidate_id']
+        r["nominal_one_sided_p_value"], r["candidate_id"]
     ))
     previous = 0.0
     for i, result in enumerate(rank):
         adjusted = min(
-            1.0, max(previous, (len(rank) - i) * result['nominal_one_sided_p_value'])
+            1.0, max(previous, (len(rank) - i) * result["nominal_one_sided_p_value"])
         )
-        result['holm_adjusted_p_value'] = adjusted
+        result["holm_adjusted_p_value"] = adjusted
         previous = adjusted
     sorted_runs = [asdict(groups[name][key])
                    for name in sorted(groups) for key in pairs]
     body = {
-        'schema': 'tradinggym.paired-holdout.v1',
-        'baseline_id': baseline_id,
-        'as_of_unix': as_of_unix,
-        'candidate_count': len(results),
-        'paired_scenarios': len(pairs),
-        'regimes': sorted({regime for _, regime in pairs}),
-        'candidates': sorted(results, key=lambda r: r['candidate_id']),
-        'source_records_sha256': hashlib.sha256(json.dumps(
-            sorted_runs, sort_keys=True, separators=(',', ':'), allow_nan=False
+        "schema": "tradinggym.paired-holdout.v1",
+        "baseline_id": baseline_id,
+        "as_of_unix": as_of_unix,
+        "candidate_count": len(results),
+        "paired_scenarios": len(pairs),
+        "regimes": sorted({regime for _, regime in pairs}),
+        "candidates": sorted(results, key=lambda r: r["candidate_id"]),
+        "source_records_sha256": hashlib.sha256(json.dumps(
+            sorted_runs, sort_keys=True, separators=(",", ":"), allow_nan=False
         ).encode()).hexdigest(),
-        'statistical_independence_verified': False,
-        'selection_authority_granted': False,
-        'promotion_authority_granted': False,
-        'funded_live_eligible': False,
+        "statistical_independence_verified": False,
+        "selection_authority_granted": False,
+        "promotion_authority_granted": False,
+        "funded_live_eligible": False,
     }
-    body['report_sha256'] = hashlib.sha256(json.dumps(
-        body, sort_keys=True, separators=(',', ':'), allow_nan=False
+    body["report_sha256"] = hashlib.sha256(json.dumps(
+        body, sort_keys=True, separators=(",", ":"), allow_nan=False
     ).encode()).hexdigest()
     return body
