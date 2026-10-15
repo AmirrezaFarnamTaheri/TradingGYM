@@ -243,6 +243,63 @@ class ProviderRepository:
         return result
 
 
+def selected_provider_credential_refs(
+    intelligence: Any,
+    providers: list[ProviderConfig] | tuple[ProviderConfig, ...],
+) -> frozenset[str]:
+    """Authorize only configured model keys for one trading worker.
+
+    This resolves *names* of environment variables, never their values.
+    RL/rules and absent intelligence settings delegate no model secrets.
+    Explicit fast/deep modes reject missing providers before spawning;
+    optional AUTO capabilities may be unavailable without becoming grants.
+    """
+    from trading_gym.common.intelligence_config import IntelligenceMode
+
+    if intelligence is None or intelligence.mode in (
+        IntelligenceMode.RL,
+        IntelligenceMode.RULES,
+    ):
+        return frozenset()
+
+    catalogue = {provider.provider_id: provider for provider in providers}
+    chosen: list[str] = []
+    mode = intelligence.mode
+    if mode in (IntelligenceMode.SYSTEM1, IntelligenceMode.AUTO):
+        chosen.extend(intelligence.system1_provider_ids)
+    if mode in (
+        IntelligenceMode.SYSTEM1,
+        IntelligenceMode.AUTO,
+        IntelligenceMode.FUSION,
+        IntelligenceMode.LLM,
+    ) and intelligence.llm_provider_id:
+        chosen.append(intelligence.llm_provider_id)
+    if (
+        mode in (IntelligenceMode.LLM, IntelligenceMode.FUSION)
+        and not intelligence.llm_provider_id
+    ):
+        raise ValueError("configured LLM provider not found")
+    if mode is IntelligenceMode.SYSTEM1 and not intelligence.system1_provider_ids:
+        raise ValueError("configured System-1 provider not found")
+
+    requested = frozenset(chosen)
+    if len(requested) != len(chosen):
+        raise ValueError("duplicate configured model provider")
+
+    references: set[str] = set()
+    for provider_id in requested:
+        provider = catalogue.get(provider_id)
+        if provider is None or not provider.enabled or provider.kind is ProviderKind.CLI:
+            if mode is IntelligenceMode.AUTO:
+                continue
+            raise ValueError(f"model provider {provider_id!r} not found or disabled")
+        # Fast-mode native providers and ordinary chat providers both carry
+        # credential references; choosing one never implies permission to
+        # share the secrets of unrelated installed provider presets.
+        references.update(provider.credential_refs)
+    return frozenset(references)
+
+
 def provider_status(
     config: ProviderConfig,
     *,
