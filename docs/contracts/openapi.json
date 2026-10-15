@@ -17978,7 +17978,8 @@
             "default": "openai_chat",
             "enum": [
               "openai_chat",
-              "systemone"
+              "systemone",
+              "systemone_fixed"
             ],
             "title": "Wire Protocol",
             "type": "string"
