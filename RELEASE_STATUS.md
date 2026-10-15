@@ -1,5 +1,43 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 skill review and capability-routing convergence
+
+The new [ADR-050](docs/architecture/ADR-050-skill-capability-review-convergence.md)
+records a first- and second-order integration of Skillbox / TypeSafe
+skill-management semantics into TradingGYM's existing skill owners.
+
+- Hardened `skills/intake.py` against symlink and oversized file input,
+  recorded content digests and sanitized risk markers; no skill code executes.
+- Hardened `skills/static_assurance.py` and `skills/quarantine.py`:
+  canonical SHA-256, read-only capability validation, independent reviewer
+  identities, immutable catalogue snapshots and bounded iterative workflow
+  DAG verification (duplicate IDs, retry limits, timeouts and cycles).
+- Added `skills/capability_selection.py` and a standalone
+  `scripts/preview_skill_capabilities.py` CLI. It requires digest equality,
+  explicit consent, owner match, independent reviewers, expiry and only
+  read-only capabilities. It emits **non-authoritative review hints**,
+  never approvals, tool activations, network/model calls or orders.
+- Added new focused tests and updated source-accountability hashes. The
+  exact GitHub bytes of the four modified/new skill modules were checked
+  against their locally verified SHA-256 fingerprints.
+
+**Observed verification:** 17/17 local in-process tests and 6/6 offline
+CLI tests passed under Python 3.13.5, with source syntax compilation.
+Exact-branch pinned Python tests, formatter, frontend, Rust and venue
+reconciliation are still **unverified**.
+
+**Hosted CI:** run
+[38791466658](https://github.com/AmirrezaFarnamTaheri/TradingGYM/actions/runs/38791466658)
+reported nine failed jobs with **no recorded execution steps** and
+three skipped jobs. This is not evidence of a failing or passing
+application test. Runners, account configuration and billing policy
+must be inspected externally before obtaining usable CI receipts.
+
+**Release:** PR #2 stays draft and unmerged; funded-live **NO-GO**.
+Cryptographic reviewer attestation, persistent revocation, role-scoped
+research UI and broker emergency-gate qualification remain open.
+
+
 ## 2026-10-15 annualized Sharpe display evidence integrity
 
 The standalone annualized Sharpe report now validates its complete
