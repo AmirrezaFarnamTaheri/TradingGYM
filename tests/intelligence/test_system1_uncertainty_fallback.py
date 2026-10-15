@@ -12,7 +12,9 @@ from trading_gym.intelligence.llm_backend import LLMTransportResponse
 from trading_gym.intelligence.policy_adapter import IntelligencePolicyAdapter
 from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
 from trading_gym.intelligence.system1_backend import System1DecisionBackend
-from trading_gym.intelligence.systemone_native_backend import NativeSystemOneDecisionBackend
+from trading_gym.intelligence.systemone_native_backend import (
+    NativeSystemOneDecisionBackend,
+)
 from trading_gym.intelligence.types import BackendUnavailable
 
 
