@@ -465,3 +465,116 @@ def test_system1_opted_in_working_memory_must_be_connected_at_startup():
             action_high=5,
             provider_repository=Repository(),
         )
+
+
+def test_provider_cooldown_survives_model_and_key_roster_changes(tmp_path: Path):
+    from trading_gym.intelligence.llm_key_pool import default_rotation_path
+
+    one = default_rotation_path(
+        "provider-a", "https://api.example/v1", "small", ("MODEL_KEY_ONE",)
+    )
+    two = default_rotation_path(
+        "provider-a", "https://api.example/v1", "large",
+        ("MODEL_KEY_TWO", "MODEL_KEY_THREE"),
+    )
+    assert one == two
+
+    clock = [1_000.0]
+    state = tmp_path / "shared.json"
+    first = CredentialPool(
+        ("MODEL_KEY_ONE",), state_path=state,
+        env={"MODEL_KEY_ONE": "secret-one"}, now=lambda: clock[0],
+    )
+    first.cool_down_all(90.0)
+    second = CredentialPool(
+        ("MODEL_KEY_TWO", "MODEL_KEY_THREE"), state_path=state,
+        env={"MODEL_KEY_TWO": "secret-two", "MODEL_KEY_THREE": "secret-three"},
+        now=lambda: clock[0],
+    )
+    with pytest.raises(CredentialsUnavailable):
+        second.acquire()
+    clock[0] = 1_091.0
+    assert second.acquire().reference in {"MODEL_KEY_TWO", "MODEL_KEY_THREE"}
+
+
+def test_quota_error_type_stops_rotating_even_when_per_key_opted_in(
+    tmp_path: Path,
+):
+    keys = {"MODEL_KEY_ONE": "one-secret", "MODEL_KEY_TWO": "two-secret"}
+    pool = CredentialPool(
+        tuple(keys), state_path=tmp_path / "shared.json", env=keys
+    )
+    attempts = []
+
+    def post(secret: str, remaining: float):
+        attempts.append(secret)
+        if secret == "one-secret":
+            return httpx.Response(
+                429,
+                json={"error": {"type": "insufficient_quota", "code": None}},
+                request=httpx.Request("POST", "https://api.example/v1"),
+            )
+        return httpx.Response(
+            200, request=httpx.Request("POST", "https://api.example/v1")
+        )
+
+    with pytest.raises(CredentialsUnavailable, match="rate_or_quota"):
+        request_with_rotation(
+            pool, post, timeout_seconds=2, rotate_on_rate_limit=True
+        )
+    assert attempts == ["one-secret"]
+    with pytest.raises(CredentialsUnavailable):
+        pool.acquire()
+
+
+def test_organization_rate_limit_is_shared_even_when_per_key_opted_in(
+    tmp_path: Path,
+):
+    keys = {"MODEL_KEY_ONE": "one-secret", "MODEL_KEY_TWO": "two-secret"}
+    pool = CredentialPool(
+        tuple(keys), state_path=tmp_path / "shared.json", env=keys
+    )
+    attempts = []
+
+    def post(secret: str, remaining: float):
+        attempts.append(secret)
+        return httpx.Response(
+            429,
+            headers={"X-RateLimit-Scope": "organization", "Retry-After": "90"},
+            request=httpx.Request("POST", "https://api.example/v1"),
+        )
+
+    with pytest.raises(CredentialsUnavailable, match="rate_or_quota"):
+        request_with_rotation(
+            pool, post, timeout_seconds=2, rotate_on_rate_limit=True
+        )
+    assert attempts == ["one-secret"]
+
+
+def test_credential_rotation_migrates_removed_key_cooldown_without_corruption(
+    tmp_path: Path,
+):
+    clock = [5_000.0]
+    state = tmp_path / "shared.json"
+    original = CredentialPool(
+        ("MODEL_KEY_ONE", "MODEL_KEY_TWO"), state_path=state,
+        env={"MODEL_KEY_ONE": "one", "MODEL_KEY_TWO": "two"},
+        now=lambda: clock[0],
+    )
+    original.cool_down("MODEL_KEY_TWO", 30.0)
+    replacement = CredentialPool(
+        ("MODEL_KEY_THREE",), state_path=state,
+        env={"MODEL_KEY_THREE": "three"},
+        now=lambda: clock[0],
+    )
+    assert replacement.acquire().reference == "MODEL_KEY_THREE"
+    # Reintroducing a previously cooled key cannot skip its cooldown.
+    reintroduced = CredentialPool(
+        ("MODEL_KEY_TWO",), state_path=state,
+        env={"MODEL_KEY_TWO": "two"},
+        now=lambda: clock[0],
+    )
+    with pytest.raises(CredentialsUnavailable):
+        reintroduced.acquire()
+    clock[0] = 5_031.0
+    assert reintroduced.acquire().reference == "MODEL_KEY_TWO"
