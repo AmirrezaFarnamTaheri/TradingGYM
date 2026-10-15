@@ -1,5 +1,40 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-16 — Finite risk evidence and insolvency contracts
+
+ADR-044 records additional source-level convergence from Vibe-Trading's
+risk-analysis hygiene into the **existing** TradingGYM risk plane:
+
+- `risk/analytics.py`: rejects invalid/infinite/bool return observations,
+  caps input streams, adds finite empirical VaR and fractional-tail Expected
+  Shortfall, and distinguishes the Gaussian approximation from
+  Cornish–Fisher quantiles (the latter does not claim a parametric ES).
+- `risk/portfolio.py`: bounds account equity, peak and day-start values,
+  individual signed notionals and Boolean-coercible risk settings.
+  Dangerous infinite, near-zero or implausibly large account inputs no
+  longer produce apparently permitted leverage/drawdown reports.
+- `risk/stress.py`: insolvent or numerically undefined ratios are **null**
+  with explicit denial violations; successful stress output remains finite
+  JSON and the SHA-256 receipt is bound to normalized serialized numbers.
+- `docs/contracts/openapi.json`: reflects these input bounds and
+  nullable stress fields. Targeted risk, regression and schema tests were
+  added, without creating a second broker or risking user capital.
+
+**Observed independent test boundary:** 49/49 isolated Python 3.13.5
+focused tests passed, including RED-to-GREEN failures for each module,
+and source compilation succeeded. These are not exact-head
+Python 3.11/3.12, frontend, Rust or broker tests.
+
+**Source evidence:** all 360 Python module paths were present in
+`module_accountability.json`, with zero missing/extra paths. The three
+changed risk files' full SHA-256 digests matched their recorded entries.
+The full manifest and generated OpenAPI file still require the repository
+`--check` commands on the exact PR head. GitHub Actions was observed
+**queued**, not completed, at the last check.
+
+The draft PR is **not released, not merged, and funded-live remains NO-GO**.
+
+
 ## 2026-10-16 — Seventeen archive strategy/factor convergence
 
 Built on the existing draft PR rather than changing main or creating a
