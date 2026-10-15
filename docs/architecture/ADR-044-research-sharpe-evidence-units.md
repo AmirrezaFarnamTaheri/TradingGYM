@@ -58,21 +58,23 @@ the funded-live authority.
 Isolated-source RED tests: **4 missing walk-forward windows**,
 **8 malformed bootstrap inputs**, and **21 walk-forward policy/warning
 cases** reproduced the original defects. After the separate fixes, the
-combined focused Python 3.13 mirror passed **102/102** cases with
+combined focused Python 3.13 mirror passed **112/112** cases with
 syntax compilation. These figures are *not exact-head full-repository
 test results*, because the repository checkout could not be obtained.
 
 ## Provenance of inputs
 
-The PSR input now requires one finite, one-dimensional numeric return
-sequence. Previously it removed NaN/infinity values and silently flattened
+The PSR and annualized display Sharpe inputs now require one finite,
+one-dimensional numeric return sequence. Previously it removed NaN/infinity values and silently flattened
 multiple strategies into a single sample. This could make statistical
 confidence look stronger after ignoring missing or contaminated
 observations. The function now rejects nonfinite returns, boolean
 return vectors and multi-strategy arrays instead of hiding data loss.
 
-The legacy `annualised_sharpe` display helper is unchanged; its historical
-NaN-handling behavior must not be mistaken for verified PSR evidence.
+The `annualised_sharpe` display helper was subsequently harmonized
+with the same complete-evidence contract: it rejects NaN/infinite,
+boolean and pooled return matrices and requires a positive integral
+annualization factor. Its finite valid calculation is unchanged.
 
 ## Permutation/randomized baseline statistical admission
 
@@ -132,7 +134,8 @@ The corresponding regression tests were committed to
 `tests/convergence/test_permutation_evidence_integrity.py`,
 `tests/convergence/test_walk_forward_evidence_integrity.py`,
 `tests/convergence/test_walk_forward_policy_integrity.py`, and
-`tests/convergence/test_bootstrap_evidence_integrity.py`.
+`tests/convergence/test_bootstrap_evidence_integrity.py`, and
+`tests/convergence/test_annualised_sharpe_evidence_integrity.py`.
 These are **not** full exact-branch test results. Real-world tape
 independence, autocorrelation adjustments, fees, serial dependence,
 multiple-trial recording and venue reconciliation still require their
