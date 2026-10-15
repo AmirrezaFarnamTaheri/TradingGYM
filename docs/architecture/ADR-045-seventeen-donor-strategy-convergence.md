@@ -143,6 +143,25 @@ with 478 distinct leaves and `catalogue_sha256`:
 `0a7e976b6c5752ecb55ce5294d9ea8bebec2bfe77bc26bfb6f8fea3f1602deab`.
 This hash is an index receipt, **not** independent source attestation.
 
+### D. Strategy Forge search-space integrity
+
+The existing `propose_variants()` mutated ordinary periods but ignored
+`realized_volatility.lookback`. That would leave the new regime strategy's
+historical window fixed across all proposed candidates, producing an
+incomplete search while appearing to optimize its settings.
+
+The `strategy_variants.mutate_indicators` parameter family now includes
+`lookback` with a **separate 2–10,000** bound. It retains the existing
+2–50 constraint for intraday `period`/`fast`/`slow`/`signal`/`smooth`,
+preserves template shape, and remains deterministic for the same RNG seed.
+The lookback is a count of historical, already-closed volatility estimates
+and cannot create future-data access.
+
+A focused source-mirror RED case showed a constant lookback of 100 across
+variants; GREEN verified determinism, original immutability, an expanded
+horizon, and bounded behavior. Repository regression tests were added
+under `tests/agent/test_volatility_variant_search.py`.
+
 ## 4. Verification evidence and limitations
 
 Focused local source-mirror tests recorded RED on the missing indicator
@@ -153,7 +172,7 @@ tests recorded RED before the module existed and passed **12/12**
 after implementation, including large fanout partitioning and tamper
 refusal. The added branch/leaf type regression passed, and the CLI
 scenarios passed **4/4** using the real 478-module candidate fixture.
-A combined isolated source-mirror rerun passed **28/28** scenarios.
+A combined isolated source-mirror rerun passed **30/30** scenarios.
 
 **Important:** source-mirror results are not the exact PR-head Python
 3.11/3.12 suite. Schema, full app imports, Rust and frontend builds,
