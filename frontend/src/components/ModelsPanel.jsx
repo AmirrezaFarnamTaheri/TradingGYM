@@ -27,17 +27,26 @@ export default function ModelsPanel() {
 
   // Fetch active model.  TanStack Query v5 removed the useQuery onSuccess
   // option, so the store is synchronized from the polled data in an effect.
-  const { data: activeData } = useQuery({
+  const {
+    data: activeData,
+    isError: activeStatusError,
+    isLoading: activeStatusLoading,
+    refetch: refetchActiveStatus,
+  } = useQuery({
     queryKey: ['active-model'],
     queryFn: () => modelsAPI.getActive().then(r => r.data),
     refetchInterval: 5000,
   });
 
   useEffect(() => {
-    if (activeData?.active_model) {
-      setActiveModel(activeData.active_model);
+    if (activeStatusError) {
+      // A failed authority read cannot justify a cached active-model label.
+      setActiveModel(null);
+    } else if (activeData && Object.prototype.hasOwnProperty.call(activeData, 'active_model')) {
+      // Null means explicitly inactive; it must clear prior state.
+      setActiveModel(activeData.active_model ?? null);
     }
-  }, [activeData?.active_model, setActiveModel]);
+  }, [activeData?.active_model, activeStatusError, setActiveModel]);
 
   const models = modelsData?.models || [];
 
@@ -112,9 +121,32 @@ export default function ModelsPanel() {
       <div className="info-box" role="region" aria-label="Model registry summary">
         <p>
           <strong>Active Model:</strong>{' '}
-          <span aria-label={`Current active model is ${activeData?.active_model || 'none selected'}`}>
-            {activeData?.active_model || 'None'}
+          <span
+            data-testid="active-model-status"
+            role={activeStatusError ? 'alert' : undefined}
+            aria-label={
+              activeStatusError
+                ? 'Unable to verify active model status'
+                : `Current active model is ${activeData?.active_model || 'none selected'}`
+            }
+          >
+            {activeStatusError
+              ? 'Unable to verify'
+              : activeStatusLoading
+                ? 'Checking…'
+                : activeData && Object.prototype.hasOwnProperty.call(activeData, 'active_model')
+                  ? activeData.active_model || 'None'
+                  : 'Unable to verify'}
           </span>
+          {activeStatusError && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => refetchActiveStatus()}
+            >
+              Retry active model status
+            </button>
+          )}
         </p>
         <p>
           <strong>Total Models:</strong> <span aria-label={`${models.length} models available`}>{models.length}</span>
@@ -141,7 +173,7 @@ export default function ModelsPanel() {
             </thead>
             <tbody>
               {models.map((model) => {
-                const isActive = model.version === activeData?.active_model;
+                const isActive = !activeStatusError && model.version === activeData?.active_model;
                 const modifiedDate = model.created_at
                   ? new Date(model.created_at).toLocaleDateString()
                   : model.timestamp
