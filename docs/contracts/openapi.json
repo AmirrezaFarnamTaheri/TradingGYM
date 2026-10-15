@@ -17068,17 +17068,20 @@
         "additionalProperties": false,
         "properties": {
           "day_start_equity": {
-            "exclusiveMinimum": 0.0,
+            "maximum": 1e+30,
+            "minimum": 1e-12,
             "title": "Day Start Equity",
             "type": "number"
           },
           "equity": {
-            "exclusiveMinimum": 0.0,
+            "maximum": 1e+30,
+            "minimum": 1e-12,
             "title": "Equity",
             "type": "number"
           },
           "peak_equity": {
-            "exclusiveMinimum": 0.0,
+            "maximum": 1e+30,
+            "minimum": 1e-12,
             "title": "Peak Equity",
             "type": "number"
           },
@@ -17477,6 +17480,8 @@
             "type": "string"
           },
           "notional": {
+            "maximum": 1e+30,
+            "minimum": -1e+30,
             "title": "Notional",
             "type": "number"
           },
