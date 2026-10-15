@@ -48,6 +48,13 @@ export default function ModelsPanel() {
     }
   }, [activeData?.active_model, activeStatusError, setActiveModel]);
 
+  const activeStatusVerified = Boolean(
+    !activeStatusError &&
+    !activeStatusLoading &&
+    activeData &&
+    Object.prototype.hasOwnProperty.call(activeData, 'active_model')
+  );
+
   const models = modelsData?.models || [];
 
   // Set active mutation
@@ -173,7 +180,11 @@ export default function ModelsPanel() {
             </thead>
             <tbody>
               {models.map((model) => {
-                const isActive = !activeStatusError && model.version === activeData?.active_model;
+                const isActive =
+                  activeStatusVerified && model.version === activeData?.active_model;
+                const modelStatusLabel = !activeStatusVerified
+                  ? 'status unverified'
+                  : isActive ? 'currently active' : 'inactive';
                 const modifiedDate = model.created_at
                   ? new Date(model.created_at).toLocaleDateString()
                   : model.timestamp
@@ -185,7 +196,7 @@ export default function ModelsPanel() {
                     key={model.version}
                     className={selectedModel === model.version ? 'selected' : ''}
                     onClick={() => setSelectedModel(model.version)}
-                    aria-label={`Model ${model.version}, ${isActive ? 'currently active' : 'inactive'}, ${model.has_model ? 'weights available' : 'no weights'}, modified ${modifiedDate}`}
+                    aria-label={`Model ${model.version}, ${modelStatusLabel}, ${model.has_model ? 'weights available' : 'no weights'}, modified ${modifiedDate}`}
                   >
                     <td>
                       <strong>{model.version}</strong>
@@ -199,7 +210,13 @@ export default function ModelsPanel() {
                     </td>
                     <td aria-label={`Last modified on ${modifiedDate}`}>{modifiedDate}</td>
                     <td>
-                      {isActive ? (
+                      {!activeStatusVerified ? (
+                        <span
+                          className="badge badge-warning"
+                          role="status"
+                          aria-label={`Model ${model.version} status unverified`}
+                        >⚠ Unknown</span>
+                      ) : isActive ? (
                         <span className="badge badge-active" aria-label={`Model ${model.version} is currently active`}>🟢 Active</span>
                       ) : (
                         <span className="badge badge-inactive" aria-label={`Model ${model.version} is inactive`}>⚪ Inactive</span>
@@ -212,9 +229,14 @@ export default function ModelsPanel() {
                             e.stopPropagation();
                             setActivationModel(model.version);
                           }}
-                          disabled={isActive || !model.has_model || setActiveMutation.isPending}
+                          disabled={!activeStatusVerified || isActive || !model.has_model || setActiveMutation.isPending}
                           className="btn btn-small btn-primary"
-                          aria-label={isActive ? `Model ${model.version} is already active` : `Set model ${model.version} as active for trading`}
+                          aria-label={!activeStatusVerified
+                            ? `Cannot activate model ${model.version}: active status unverified`
+                            : isActive
+                              ? `Model ${model.version} is already active`
+                              : `Set model ${model.version} as active for trading`
+                          }
                           aria-busy={setActiveMutation.isPending}
                         >
                           {isActive ? '✓ Active' : 'Set Active'}
@@ -275,7 +297,7 @@ export default function ModelsPanel() {
           <div className="action-buttons" style={{ marginTop: '15px' }}>
             <button
               className="btn btn-primary"
-              disabled={setActiveMutation.isPending || !activationForm.proposalId || !activationForm.expectedRevision || !activationForm.actor || !activationForm.actorKey || !activationForm.approvalKey}
+              disabled={!activeStatusVerified || setActiveMutation.isPending || !activationForm.proposalId || !activationForm.expectedRevision || !activationForm.actor || !activationForm.actorKey || !activationForm.approvalKey}
               onClick={() => setActiveMutation.mutate({
                 version: activationModel,
                 authorisation: {
