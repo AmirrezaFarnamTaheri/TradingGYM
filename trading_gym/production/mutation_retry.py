@@ -111,6 +111,9 @@ def delay_for_attempt(
 
 
 OUTBOX_SCHEMA_VERSION = 1
+# A journal that has grown this large requires audited rollover and independent
+# settlement reconciliation. Never hang an API worker scanning unbounded input.
+MAX_OUTBOX_BYTES = 64 * 1024 * 1024
 OUTBOX_STATUSES = frozenset({"pending", "committed", "ambiguous", "terminal"})
 
 
@@ -277,13 +280,17 @@ class MutationOutbox:
             if not path.exists():
                 return latest
             try:
-                mode = path.stat().st_mode
+                metadata = path.stat()
             except OSError as exc:
                 raise MutationOutboxIntegrityError(
                     "mutation outbox metadata unavailable"
                 ) from exc
-            if not stat.S_ISREG(mode):
+            if not stat.S_ISREG(metadata.st_mode):
                 raise MutationOutboxIntegrityError("mutation outbox nonregular state")
+            if metadata.st_size > MAX_OUTBOX_BYTES:
+                raise MutationOutboxIntegrityError(
+                    "mutation outbox exceeds bounded journal size"
+                )
             with path.open("rb") as handle:
                 number = 0
                 while line := handle.readline(MAX_JSONL_RECORD_BYTES + 1):
