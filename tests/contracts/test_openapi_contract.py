@@ -79,3 +79,10 @@ def test_emergency_transition_requires_both_principal_credential_headers() -> No
     assert not headers["X-Approver-Key"]["required"]
     # Missing principal factors deny in handler with 403. They are
     # nullable only at schema level so the failure is a consistent 403.
+
+
+def test_provider_contract_advertises_both_typed_systemone_dialects() -> None:
+    schema = json.loads((ROOT / "docs/contracts/openapi.json").read_text())
+    protocols = schema["components"]["schemas"]["ProviderConfig"]["properties"]
+    allowed = protocols["wire_protocol"]["enum"]
+    assert allowed == ["openai_chat", "systemone", "systemone_fixed"]
