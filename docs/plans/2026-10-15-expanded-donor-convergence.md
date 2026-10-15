@@ -131,20 +131,28 @@ with pinned source hashes and explicit decimal currency/fee/tick units.
 **Files:**
 - Existing: `trading_gym/strategy_lab/overfitting.py`
 - Existing: `trading_gym/experiments/sealed_spec.py`
-- Proposed: `trading_gym/experiments/peer_strategy_comparison.py`
-- Proposed test: `tests/experiments/test_peer_strategy_comparison.py`
+- Implemented: `trading_gym/experiments/peer_strategy_comparison.py`
+- Implemented: `scripts/compare_strategy_replays.py`
+- Tests: `tests/experiments/test_peer_strategy_comparison.py`
+- Tests: `tests/experiments/test_peer_strategy_comparison_cli.py`
 
 **Interfaces:** bounded, sealed research strategies and as-of returns;
 produce reproducible ranking evidence with method assumptions, not trading
 grants.
 
-- [ ] Add failing tests for hindsight-contaminated labels, overlapping
-  train/test regimes, multiplicity-adjusted selection, missing fill fees,
-  zero-trade strategies and identical candidate digests.
-- [ ] Implement deterministic per-candidate replay receipts, net-of-cost
-  metrics, uncertainty and non-promotable model-comparison status.
-- [ ] Compare against AI-Trader's experiment/challenge scoring and Vibe
-  factor/cost evaluation; reject unbounded social leaderboard designs.
+- [x] Reproduce non-aligned source hashes/timestamps, train/holdout overlap,
+  future samples, duplicate candidates, invalid costs and no-turnover cases.
+- [x] Implement deterministic per-candidate paired replay receipts,
+  net-of-cost returns, descriptive block uncertainty and permanent
+  no-capital-authority status.
+- [x] Review AI-Trader's metric snapshot and Vibe's turnover/causality
+  behavior; keep the bounded research scorecard rather than importing
+  a second simulation or broker.
+- [x] Add CLI sanitization, duplicate JSON-field rejection, finite numeric
+  checks, and input/output byte budgets.
+- [ ] Independently substantiate trading-fee assumptions, actual settlement
+  and model-selection multiplicity under sealed multi-regime out-of-sample
+  tests before using rankings to guide human investment decisions.
 
 ### Task 6: Versioned capability/skill taxonomy and research UX
 
