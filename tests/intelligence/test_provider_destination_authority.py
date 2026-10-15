@@ -99,6 +99,9 @@ def test_chat_destination_failure_never_degrades_to_risk_on_rule(
             )
 
     fallback = RiskOnFallback()
+    # The transport captures its destination validator at construction time.
+    # Patch *before* creating the backend to reproduce call-time rejection.
+    monkeypatch.setattr(security, "validate_base_url", _reject_destination)
     primary = LLMDecisionBackend(local_chat)
     policy = IntelligencePolicyAdapter(
         primary, action_low=-1.0, action_high=1.0,
@@ -114,7 +117,6 @@ def test_chat_destination_failure_never_degrades_to_risk_on_rule(
             "risk_limits": {"min_leverage": -1.0, "max_leverage": 1.0},
         },
     )
-    monkeypatch.setattr(security, "validate_base_url", _reject_destination)
     with pytest.raises(PermissionError, match="provider_destination_denied"):
         policy.predict(np.array([0.0, 0.0, 0.0]))
     assert fallback.called is False
