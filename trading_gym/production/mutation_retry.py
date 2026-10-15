@@ -204,6 +204,13 @@ class MutationOutbox:
         outcome: str,
         detail: str = "",
     ) -> None:
+        """Commit a bound state transition with cross-process compare-and-swap.
+
+        The same durable claim lock protects both new submissions and their
+        terminal observations. An unknown venue outcome cannot be erased by
+        reclassifying it as a local terminal rejection; clearing ambiguity
+        requires a separately verified committed outcome.
+        """
         if outcome not in OUTBOX_STATUSES or outcome == "pending":
             raise ValueError("outcome must be committed, ambiguous or terminal")
         entry: dict[str, str | int] = {
@@ -216,7 +223,39 @@ class MutationOutbox:
             "detail": detail[:200],
             "recorded_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._append(entry)
+        path = self.path
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            with FileLock(str(path) + ".claim.lock", timeout=5):
+                prior = self.latest_by_key().get(idempotency_key)
+                if prior is None:
+                    raise MutationOutboxIntegrityError(
+                        "mutation outcome requires recorded pending intent"
+                    )
+                if any(
+                    prior.get(field) != entry[field]
+                    for field in ("proposal_id", "operation", "payload_sha256")
+                ):
+                    raise MutationOutboxIntegrityError(
+                        "mutation outcome identity mismatch"
+                    )
+                existing = prior["status"]
+                if existing == outcome:
+                    return  # idempotent recovery; do not grow the durable log
+                allowed = (
+                    (existing == "pending"
+                     and outcome in {"committed", "ambiguous", "terminal"})
+                    or (existing == "ambiguous" and outcome == "committed")
+                )
+                if not allowed:
+                    raise MutationOutboxIntegrityError(
+                        "invalid transition for mutation outcome"
+                    )
+                self._append(entry)
+        except Timeout as exc:
+            raise MutationOutboxIntegrityError(
+                "mutation outcome claim lock timed out"
+            ) from exc
 
     def _append(self, entry: dict[str, str | int]) -> None:
         # This helper holds an inter-process lock, flushes and fsyncs the line.
@@ -302,9 +341,10 @@ class MutationOutbox:
                         if (
                             entry["status"] == "pending"
                             or previous["status"] == "terminal"
+                            or previous["status"] == "committed"
                             or (
-                                previous["status"] == "committed"
-                                and entry["status"] != "ambiguous"
+                                previous["status"] == "ambiguous"
+                                and entry["status"] == "terminal"
                             )
                         ):
                             raise MutationOutboxIntegrityError(
