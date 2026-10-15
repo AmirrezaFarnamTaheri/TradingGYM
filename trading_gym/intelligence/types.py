@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
+from numbers import Real
 from typing import Any
 
 
@@ -59,6 +61,10 @@ class MarketContext:
         }
 
 
+class InvalidDecisionSignal(ValueError):
+    """Malformed advisory signal, not a recoverable provider outage."""
+
+
 @dataclass(frozen=True)
 class DecisionSignal:
     """One backend's advice for the current bar.
@@ -74,14 +80,17 @@ class DecisionSignal:
     rationale: str
 
     def __post_init__(self) -> None:
+        if type(self.action_kind) is not ActionKind:
+            raise InvalidDecisionSignal("action_kind must be an ActionKind")
         if not np_finite(self.target_leverage):
-            raise ValueError("target_leverage must be finite")
-        if not 0.0 <= self.confidence <= 1.0:
-            raise ValueError("confidence must be within [0, 1]")
+            raise InvalidDecisionSignal("target_leverage must be finite")
+        if not np_finite(self.confidence) or not 0.0 <= self.confidence <= 1.0:
+            raise InvalidDecisionSignal("confidence must be within [0, 1]")
 
 
 def np_finite(value: float) -> bool:
-    return value == value and abs(value) != float("inf")
+    """Accept finite real scalars, but never booleans or coercible strings."""
+    return isinstance(value, Real) and not isinstance(value, bool) and math.isfinite(value)
 
 
 @dataclass(frozen=True)
