@@ -833,7 +833,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/portfolio_construction.py",
-      "sha256": "8180d40c7230df5159cdd69217297c12f3f0a479baea8c0908b7ec82623b1a33"
+      "sha256": "4a499ff0b2d7bcd7ab6c56fa3ea93d22ffb92537d9710afacc5ac95fa1b5a6d1"
     },
     {
       "owner": "trading_gym",
@@ -883,7 +883,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/institutional_os/turnover_aware.py",
-      "sha256": "4fffb48ff210b90e15b110a68fe6e5bf6cb3e33288dfd2b851ff0dce5189a23c"
+      "sha256": "b1b49ade8a6a7bf604d9bc2a7aa8164b906a679fce3a4f56089256245bb8893b"
     },
     {
       "owner": "trading_gym",
