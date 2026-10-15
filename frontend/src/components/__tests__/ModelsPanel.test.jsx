@@ -87,6 +87,34 @@ describe('ModelsPanel active-model sync', () => {
     cleanup();
   });
 
+  it('does not label models inactive or offer activation on an unknown status', async () => {
+    modelsSpy.mockResolvedValueOnce({
+      data: {
+        models: [{ version: 'model-7', has_model: true, created_at: '2026-10-01T00:00:00Z' }],
+      },
+    });
+    activeSpy.mockRejectedValueOnce(new Error('status source unavailable'));
+
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    await flushPromises();
+    const unknown = await waitForRendered(
+      container, '.badge',
+      node => node.textContent.includes('Unknown')
+    );
+    expect(unknown.getAttribute('aria-label')).toContain('status unverified');
+    expect(container.querySelector('.badge-inactive')).toBeNull();
+
+    const activation = await waitForRendered(
+      container, 'button', button => button.textContent.trim() === 'Set Active'
+    );
+    expect(activation.disabled).toBe(true);
+    const backtest = await waitForRendered(
+      container, 'button', button => button.textContent.trim() === 'Backtest'
+    );
+    expect(backtest.disabled).toBe(false);
+    cleanup();
+  });
+
   it('tracks whatever the poll currently reports, not a stale capture', async () => {
     // The store must reflect the value the query actually returns, picked up on
     // each mount -- the dead onSuccess never synchronized it at all.
