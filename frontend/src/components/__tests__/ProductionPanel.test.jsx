@@ -163,3 +163,24 @@ describe('Production reconciliation visibility', () => {
     cleanup();
   });
 });
+
+it('rejects internally contradictory broker journal snapshots', async () => {
+  reconciliationSpy.mockResolvedValue({ data: {
+    state: 'journal_clear', unresolved_total: 4, pending: 1, ambiguous: 3,
+    authority_granted: false, can_trade: false,
+  } });
+  authoritySpy.mockResolvedValue({ data: {
+    single_live_authority: 'LiveExecutionCoordinator',
+    wallet_custody: false, operation_specific_authorization: true,
+    emergency_halted: false, emergency_revision: 1,
+  } });
+  emergencySpy.mockResolvedValue({ data: { halted: false, revision: 1 } });
+  tradingSpy.mockResolvedValue({ data: { status: 'stopped' } });
+  const { container, cleanup } = renderWithClient(<ProductionPanel />);
+  await waitForRendered(
+    container, '[data-testid="production-reconciliation"]',
+    (node) => node.textContent.includes('Unverified')
+  );
+  expect(container.textContent).toContain('Journal evidence unavailable');
+  cleanup();
+});
