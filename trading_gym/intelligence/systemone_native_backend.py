@@ -30,6 +30,10 @@ from trading_gym.intelligence.llm_request_budget import (
     default_request_budget_path,
 )
 from trading_gym.intelligence.system1_context import build_system1_packet
+from trading_gym.intelligence.system1_risk import (
+    constrain_system1_signal,
+    system1_risk_window,
+)
 from trading_gym.intelligence.systemone_protocol import build_request, parse_decision
 from trading_gym.intelligence.types import (
     ActionKind,
@@ -198,6 +202,7 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
     def decide(self, context: MarketContext) -> DecisionSignal:
         if not self.is_available():
             raise BackendUnavailable("native System-One provider unavailable")
+        system1_risk_window(context, self.max_leverage)
         # PermissionError for stale live data or memory integrity propagates:
         # a lower-fidelity fallback must not bypass an authority refusal.
         packet = build_system1_packet(
@@ -238,10 +243,11 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
             # A malformed distribution or incompatible typed answer is
             # non-degradable evidence corruption, not a temporary outage.
             raise PermissionError("systemone_invalid_model_output") from exc
-        return DecisionSignal(
+        advisory = DecisionSignal(
             backend=self.name,
             action_kind=ActionKind(action),
             target_leverage=leverage,
             confidence=confidence,
             rationale=explanation,
         )
+        return constrain_system1_signal(advisory, context, self.max_leverage)
