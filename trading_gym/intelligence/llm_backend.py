@@ -208,13 +208,32 @@ _SYSTEM_PROMPT = (
 )
 
 
+def _unique_json_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Reject ambiguous provider JSON, including nested duplicate fields."""
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("duplicate_llm_json_field")
+        value[key] = item
+    return value
+
+
+def _reject_json_constant(_value: str) -> None:
+    """Python json.loads otherwise accepts nonstandard NaN/Infinity."""
+    raise ValueError("nonfinite_llm_json_constant")
+
+
 def _strict_json_parser(content: str) -> dict[str, Any] | None:
     stripped = content.strip()
     if not (stripped.startswith("{") and stripped.endswith("}")):
         return None
     try:
-        obj = json.loads(stripped)
-    except json.JSONDecodeError:
+        obj = json.loads(
+            stripped,
+            object_pairs_hook=_unique_json_pairs,
+            parse_constant=_reject_json_constant,
+        )
+    except (json.JSONDecodeError, ValueError):
         return None
     return obj if isinstance(obj, dict) else None
 
@@ -230,8 +249,12 @@ def _lenient_json_parser(content: str) -> dict[str, Any] | None:
     if brace_start == -1 or brace_end <= brace_start:
         return None
     try:
-        obj = json.loads(candidate[brace_start : brace_end + 1])
-    except json.JSONDecodeError:
+        obj = json.loads(
+            candidate[brace_start : brace_end + 1],
+            object_pairs_hook=_unique_json_pairs,
+            parse_constant=_reject_json_constant,
+        )
+    except (json.JSONDecodeError, ValueError):
         return None
     return obj if isinstance(obj, dict) else None
 
