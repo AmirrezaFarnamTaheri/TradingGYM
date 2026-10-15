@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import math
 
 import numpy as np
-from scipy.optimize import Bounds, LinearConstraint, minimize
+from scipy.optimize import Bounds, LinearConstraint, linprog, minimize
 
 MAX_ASSETS = 64
 
@@ -72,6 +72,8 @@ def solve_turnover_aware(
     turnover_penalty: float,
     max_iterations: int,
     tolerance: float,
+    groups: tuple[str, ...] | list[str] | None = None,
+    group_caps: dict[str, float] | None = None,
 ) -> TurnoverSolution:
     """Optimize weights subject to simplex and name bounds.
 
@@ -110,7 +112,47 @@ def solve_turnover_aware(
     if max_iterations * n * n > 100_000_000:
         raise ValueError("optimizer work budget exceeded")
 
+    grouped = groups is not None or group_caps is not None
+    matrix = np.empty((0, n), dtype=float)
+    caps = np.empty(0, dtype=float)
+    if grouped:
+        if not isinstance(groups, (tuple, list)) or len(groups) != n:
+            raise ValueError("group labels must cover every asset")
+        if not isinstance(group_caps, dict) or not group_caps:
+            raise ValueError("group caps must be explicitly provided")
+        if any(
+            not isinstance(name, str) or not 1 <= len(name) <= 80
+            for name in groups
+        ):
+            raise ValueError("group names must be nonempty and bounded")
+        if len(group_caps) > n or not set(group_caps).issubset(groups):
+            raise ValueError("group cap refers to an unassigned group")
+        rows = []
+        limits = []
+        for name in sorted(group_caps):
+            rows.append(np.array([1.0 if g == name else 0.0 for g in groups]))
+            limits.append(_scalar(group_caps[name], low=0.0, high=1.0, label="group cap"))
+        matrix = np.array(rows)
+        caps = np.array(limits)
+        if np.any(matrix @ lower > caps + 1e-10):
+            raise ValueError("minimum weights exceed group exposure limits")
+
     w0 = _starting_weights(previous, lower, upper)
+    if grouped and np.any(matrix @ w0 > caps + 1e-10):
+        # Unlike clipping group allocations after solving, find an actually
+        # feasible starting portfolio, or reject an infeasible policy.
+        feasible = linprog(
+            np.zeros(n),
+            A_ub=matrix,
+            b_ub=caps,
+            A_eq=np.ones((1, n)),
+            b_eq=np.array([1.0]),
+            bounds=list(zip(lower, upper)),
+            method="highs",
+        )
+        if not feasible.success or feasible.x is None:
+            raise ValueError("group exposure constraints are infeasible")
+        w0 = np.asarray(feasible.x, dtype=float)
     z0 = np.r_[w0, np.abs(w0 - previous)]
     # Each auxiliary turnover_i satisfies both inequalities:
     # turnover_i - w_i >= -previous_i; turnover_i + w_i >= previous_i.
@@ -121,6 +163,14 @@ def solve_turnover_aware(
         LinearConstraint(np.r_[np.ones(n), np.zeros(n)], 1.0, 1.0),
         LinearConstraint(a, np.r_[-previous, previous], np.full(2 * n, np.inf)),
     ]
+    if grouped:
+        constraints.append(
+            LinearConstraint(
+                np.c_[matrix, np.zeros((len(caps), n))],
+                np.full(len(caps), -np.inf),
+                caps,
+            )
+        )
 
     def objective(x: np.ndarray) -> float:
         w = x[:n]
@@ -146,6 +196,7 @@ def solve_turnover_aware(
         or np.any(w > upper + 1e-6)
         or abs(float(w.sum()) - 1.0) > 1e-6
         or np.any(result.x[n:] < np.abs(w - previous) - 1e-6)
+        or (grouped and np.any(matrix @ w > caps + 1e-6))
     ):
         raise ValueError("turnover optimization did not converge to a feasible result")
     w = w.copy()
