@@ -76,6 +76,41 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self._snapshot_patcher = patcher.start()
         self.addCleanup(patcher.stop)
 
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_panic_arriving_during_model_inference_prevents_live_reconciliation(
+        self, mock_sleep, mock_writer
+    ):
+        """No newly inferred order may be sent after a panic is raised."""
+        pending = {"raised": False}
+
+        def infer_then_request_panic(*args, **kwargs):
+            pending["raised"] = True
+            return MagicMock(item=lambda: 0.5), None
+
+        self.model.predict.side_effect = infer_then_request_panic
+        with (
+            patch(
+                "apps.common.trade_loop.panic_requested",
+                side_effect=lambda: pending["raised"],
+            ),
+            patch(
+                "apps.common.trade_loop.handle_panic_request",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as flatten,
+        ):
+            await trade_loop(
+                self.env, self.model, self.client, self.cfg,
+                live_adapter=self.live_adapter,
+            )
+
+        flatten.assert_awaited_once_with(self.live_adapter)
+        self.live_adapter.reconcile.assert_not_called()
+        self.env.step.assert_not_called()
+        mock_writer.return_value.write.assert_not_called()
+
     @patch("apps.common.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_trade_loop_simulation_basic(self, mock_sleep, MockMetricsWriter):
