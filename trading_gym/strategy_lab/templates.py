@@ -553,7 +553,9 @@ def template_catalogue() -> dict[str, StrategySpec]:
                 mode=LogicMode.ALL,
                 conditions=[
                     condition(
-                        field("close"), Operator.CROSSES_ABOVE, indicator("prior_high20")
+                        field("close"),
+                        Operator.CROSSES_ABOVE,
+                        indicator("prior_high20"),
                     ),
                     condition(indicator("adx14"), Operator.GT, constant(22.0)),
                     condition(indicator("di_plus"), Operator.GT, indicator("di_minus")),
