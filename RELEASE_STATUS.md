@@ -1,5 +1,40 @@
 # Hardening branch status — 2026-10-11
 
+## Order evidence and chain identity convergence — 2026-10-15
+
+New implementation: ADR-044 and `trading_gym/convergence/peer_execution_parity.py`
+add a **read-only**, immutable, one-order execution-evidence comparison.
+It handles exact Decimal fee/cash/position arithmetic; matched versus
+drifted broker readbacks; causal event sequence and as-of checks;
+identical fill retries and conflicting execution-ID collisions;
+post-only maker and IOC partial-fill semantics; and explicit
+unsettled-order finality. Broker submission and funded-live authority
+are not part of this module.
+
+`trading_gym/production/chain.normalize_chain` now rejects boolean,
+fractional, whitespace and noncanonical chain IDs instead of coercing
+them to other chains. Canonical integer and decimal-string IDs remain
+supported. Pathological Decimal scales and false reconciliation caused
+by default-context rounding are denied/corrected respectively.
+
+The additional donor static import/call index covers 3,114 readable
+source files in 17 ZIP archives, with the original full member
+inventory covering 4,226 entries. This does not establish that all
+donor methods are semantically equivalent or accepted for production.
+
+**Verification:** RED-to-GREEN focused local source-mirror tests:
+34/34 for peer execution and chain identity, plus 4 RSI boundary tests
+against a corrected isolated source snippet (**38/38 combined**).
+The current PR already contains the flat-RSI neutralization, so
+only protective regression coverage was added for that behavior.
+A full repository checkout could not be obtained from the offline
+container, and GitHub Actions runs reported job failures with zero
+executed steps. Exact-head Python 3.11/3.12, frontend, Rust,
+source-manifest and full OpenAPI-generation checks remain unverified.
+
+**Trading safety:** draft PR, unmerged; broker and funded-live **NO-GO**.
+
+
 ## System-1 endpoint/credential/JSON trust boundaries — 2026-10-15
 
 Continuing the draft PR's multi-key and System-1 work, the chat and native
