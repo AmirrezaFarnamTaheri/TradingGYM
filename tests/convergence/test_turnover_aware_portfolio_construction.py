@@ -129,3 +129,36 @@ def test_large_turnover_problem_fails_before_solver_allocation():
                 f"ASSET{i}": 1.0 / n for i in range(n)
             },
         )
+
+
+def test_group_exposure_cap_is_respected_with_transparent_receipt():
+    payload = request().model_dump()
+    payload.update(
+        asset_groups={"AAA": "equities", "BBB": "crypto"},
+        group_caps={"crypto": 0.3},
+    )
+    result = construct_portfolio(PortfolioConstructionRequest(**payload))
+    assert result.weights["BBB"] <= 0.300001
+    assert result.group_exposure == pytest.approx({
+        "equities": result.weights["AAA"],
+        "crypto": result.weights["BBB"],
+    })
+    assert result.group_caps_sha256 is not None
+    assert result.execution_authority_granted is False
+
+
+@pytest.mark.parametrize(
+    "group_inputs",
+    [
+        {"asset_groups": {"AAA": "equities"}, "group_caps": {"equities": 0.5}},
+        {"asset_groups": {"AAA": "equities", "BBB": "crypto"},
+         "group_caps": {"unknown": 0.6}},
+        {"asset_groups": {"AAA": "equities", "BBB": "crypto"}},
+        {"group_caps": {"crypto": 0.4}},
+        {"asset_groups": {"AAA": "equities", "BBB": "crypto"},
+         "group_caps": {"crypto": True}},
+    ],
+)
+def test_incomplete_or_misleading_group_policy_cannot_be_accepted(group_inputs):
+    with pytest.raises(ValueError):
+        PortfolioConstructionRequest(**{**request().model_dump(), **group_inputs})
