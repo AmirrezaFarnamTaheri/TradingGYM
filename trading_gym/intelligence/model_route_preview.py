@@ -17,7 +17,7 @@ from typing import Any
 _ID = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{1,79}$")
 _CAPABILITY = re.compile(r"^[a-z][a-z0-9._-]{1,39}$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
-_WIRES = frozenset({"systemone", "openai_chat"})
+_WIRES = frozenset({"systemone", "systemone_fixed", "openai_chat"})
 _HEALTH = frozenset({"available", "degraded", "unavailable", "unprobed"})
 _CANDIDATE_COLUMNS = frozenset({
     "provider_id", "model_id", "wire_protocol", "capabilities",
