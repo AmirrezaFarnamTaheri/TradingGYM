@@ -66,6 +66,46 @@ describe('Intelligence model fleet status', () => {
     cleanup();
   });
 
+  it('can refresh a model-fleet snapshot without silently polling or reloading', async () => {
+    const callsBefore = statusSpy.mock.calls.length;
+    statusSpy.mockResolvedValueOnce({
+      data: { mode: 'system1', note: 'first snapshot', backends: [] },
+    });
+    statusSpy.mockResolvedValueOnce({
+      data: { mode: 'rules', note: 'new snapshot', backends: [] },
+    });
+    const { container, cleanup } = renderWithClient(<IntelligencePanel />);
+    await flushPromises();
+    await waitForRendered(container, '.info-box', el => el.textContent.includes('system1'));
+    const refresh = await waitForRendered(
+      container, 'button', el => el.textContent.includes('Refresh status')
+    );
+    refresh.click();
+    await flushPromises();
+    await waitForRendered(container, '.info-box', el => el.textContent.includes('rules'));
+    expect(statusSpy.mock.calls.length - callsBefore).toBe(2);
+    cleanup();
+  });
+
+  it('retries a failed intelligence fetch using the same read-only control', async () => {
+    statusSpy.mockRejectedValueOnce(new Error('health temporarily unavailable'));
+    statusSpy.mockResolvedValueOnce({
+      data: { mode: 'rules', note: 'recovered', backends: [] },
+    });
+    const { container, cleanup } = renderWithClient(<IntelligencePanel />);
+    await flushPromises();
+    const error = await waitForRendered(container, '[role="alert"]');
+    expect(error.textContent).toContain('temporarily unavailable');
+    const refresh = await waitForRendered(
+      container, 'button', el => el.textContent.includes('Refresh status')
+    );
+    refresh.click();
+    await flushPromises();
+    await waitForRendered(container, '.info-box', el => el.textContent.includes('recovered'));
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    cleanup();
+  });
+
   it('shows curated presets as read-only and disabled by default', async () => {
     statusSpy.mockResolvedValueOnce({
       data: {
