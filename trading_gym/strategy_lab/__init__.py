@@ -1,5 +1,10 @@
 """Safe declarative strategy design, validation, and evaluation."""
 
+from trading_gym.strategy_lab.causal_replay import (
+    CausalReplayReport,
+    replay_evaluated_signals,
+    replay_strategy,
+)
 from trading_gym.strategy_lab.evaluator import evaluate_strategy
 from trading_gym.strategy_lab.models import StrategySpec
 from trading_gym.strategy_lab.repository import StrategyRepository
@@ -10,10 +15,13 @@ from trading_gym.strategy_lab.validation import (
 )
 
 __all__ = [
+    "CausalReplayReport",
     "StrategyRepository",
     "StrategySpec",
     "StrategyValidationReport",
     "evaluate_strategy",
+    "replay_evaluated_signals",
+    "replay_strategy",
     "template_catalogue",
     "validate_strategy_spec",
 ]
