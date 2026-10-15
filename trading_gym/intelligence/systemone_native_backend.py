@@ -210,18 +210,9 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
             working_memory=self._working_memory,
             experience_memory=self._experience_memory,
         )
-        risk_cap = (
-            context.risk_limits.get("max_leverage") if context.risk_limits else None
-        )
-        if risk_cap is not None:
-            from trading_gym.intelligence.systemone_protocol import _limit
-
-            try:
-                _limit(risk_cap, allow_zero=True)
-            except ValueError as exc:
-                # Invalid operator risk bounds are authority failures, not
-                # recoverable model outages that may trigger rule fallback.
-                raise PermissionError("systemone_invalid_risk_limit") from exc
+        # The signed lower/upper window was validated before the model call.
+        # Do not pass a symmetric risk_ceiling to the typed parser: a zero
+        # LONG cap can coexist with an explicitly permitted SHORT exposure.
 
         self.last_context_sha256 = hashlib.sha256(packet.encode("utf-8")).hexdigest()
         request = build_request(packet, self.config.model)
@@ -235,7 +226,6 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
                 result,
                 confidence_floor=self.confidence_floor,
                 max_leverage=self.max_leverage,
-                risk_ceiling=risk_cap,
             )
         except ValueError as exc:
             if str(exc) == "systemone_low_confidence_escalate":
