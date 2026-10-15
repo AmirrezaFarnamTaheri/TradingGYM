@@ -35,6 +35,7 @@ from trading_gym.intelligence.llm_key_pool import (
     ProviderHardQuotaError,
     default_rotation_path,
     request_with_rotation,
+    reject_terminal_provider_status,
 )
 from trading_gym.intelligence.system1_context import (
     MAX_CONTEXT_CHARS,
@@ -155,8 +156,7 @@ def httpx_transport(
                 )
             else:
                 response = post("", timeout_seconds)
-                if response.status_code == 403:
-                    raise PermissionError("provider_access_denied")
+                reject_terminal_provider_status(response)
                 response.raise_for_status()
             if len(response.content) > 256 * 1024:
                 # An HTTP 200 with unbounded provider data is corrupted
