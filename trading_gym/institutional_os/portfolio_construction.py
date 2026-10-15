@@ -149,12 +149,16 @@ class PortfolioConstructionRequest(BaseModel):
                 prior is None
                 or set(prior) != {asset.asset_id for asset in self.assets}
             ):
-                raise ValueError("turnover-aware construction requires complete prior holdings")
+                raise ValueError(
+                    "turnover-aware construction requires complete prior holdings"
+                )
             if (
                 any(value < 0.0 or value > 1.0 for value in prior.values())
                 or not math.isclose(sum(prior.values()), 1.0, abs_tol=1e-8)
             ):
-                raise ValueError("previous holdings must be fully invested and long only")
+                raise ValueError(
+                    "previous holdings must be fully invested and long only"
+                )
             if (self.asset_groups is None) != (self.group_caps is None):
                 raise ValueError("group labels and caps must be supplied together")
             if self.asset_groups is not None:
@@ -173,7 +177,9 @@ class PortfolioConstructionRequest(BaseModel):
             or self.turnover_penalty != 0.0
             or self.risk_aversion != 1.0
         ):
-            raise ValueError("turnover settings cannot be silently ignored by other methods")
+            raise ValueError(
+                "turnover settings cannot be silently ignored by other methods"
+            )
         return self
 
 
