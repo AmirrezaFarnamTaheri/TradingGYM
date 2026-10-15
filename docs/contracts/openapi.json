@@ -16774,6 +16774,33 @@
             "title": "Expected Return",
             "type": "number"
           },
+          "group_caps_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group Caps Sha256"
+          },
+          "group_exposure": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group Exposure"
+          },
           "marginal_risk_contribution": {
             "additionalProperties": {
               "type": "number"
@@ -16871,6 +16898,22 @@
       "PortfolioConstructionRequest": {
         "additionalProperties": false,
         "properties": {
+          "asset_groups": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "maxProperties": 64,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Asset Groups"
+          },
           "assets": {
             "items": {
               "$ref": "#/components/schemas/PortfolioAssetInput"
@@ -16890,6 +16933,22 @@
             "maxItems": 500,
             "title": "Correlation Matrix",
             "type": "array"
+          },
+          "group_caps": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "maxProperties": 64,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group Caps"
           },
           "maximum_iterations": {
             "default": 2000,
