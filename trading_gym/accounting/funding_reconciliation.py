@@ -198,6 +198,12 @@ def reconcile_funding(
         k: observed.get(k, Decimal(0)) - expected.get(k, Decimal(0))
         for k in sorted(set(expected) | set(observed))
     }
+    # Per-event rounding tolerance must not conceal material aggregate
+    # drift across a sequence of settlements. Compare each currency
+    # independently; balances in different currencies are not fungible.
+    for currency, difference in differences.items():
+        if abs(difference) > tol:
+            blockers.append(f"funding_aggregate_mismatch:{currency}")
     report = {
         "schema": "tradinggym.funding-readback.v1",
         "as_of_unix": now,
