@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 import json
 import os
+import stat
 import tempfile
 import threading
 
@@ -82,6 +83,11 @@ class EmergencyController:
             # *existing* state must never be interpreted as unhalted.
             return EmergencyState()
         try:
+            file_state = path.stat()
+            if not stat.S_ISREG(file_state.st_mode):
+                raise ValueError("invalid_emergency_state: nonregular record")
+            if file_state.st_size > 64 * 1024:
+                raise ValueError("invalid_emergency_state: oversized record")
             with path.open("rb") as handle:
                 payload = handle.read(64 * 1024 + 1)
             if len(payload) > 64 * 1024:
