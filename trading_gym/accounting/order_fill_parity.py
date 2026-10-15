@@ -49,7 +49,7 @@ def _amount(value: Decimal, name: str, *, positive: bool = False) -> None:
         or abs(value) > MAX_VALUE
     ):
         raise ValueError(f"{name} must be finite bounded decimal")
-    if (value <= 0) if positive else (value < 0):
+    if (positive and value <= 0) or (not positive and value < 0):
         raise ValueError(f"{name} must be nonnegative or positive")
 
 
