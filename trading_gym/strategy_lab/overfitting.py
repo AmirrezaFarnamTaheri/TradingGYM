@@ -121,6 +121,18 @@ def bootstrap_sharpe_interval(
 EULER_MASCHERONI = 0.5772156649015329
 
 
+def _finite_sharpe_input(value: object, label: str) -> float:
+    if (
+        isinstance(value, (bool, np.bool_))
+        or not isinstance(value, (int, float, np.integer, np.floating))
+    ):
+        raise ValueError(f"{label} must be a finite real number")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"{label} must be a finite real number")
+    return result
+
+
 def sharpe_estimator_variance(
     sharpe: float,
     *,
@@ -130,19 +142,33 @@ def sharpe_estimator_variance(
 ) -> float:
     """Variance of the Sharpe estimator with non-normality correction."""
 
-    if observations < 2:
-        raise ValueError("observations must be at least 2")
-    if kurtosis < 1:
-        raise ValueError("kurtosis must be at least 1")
+    if (
+        isinstance(observations, (bool, np.bool_))
+        or not isinstance(observations, (int, np.integer))
+        or observations < 2
+    ):
+        raise ValueError("observations must be an integer >= 2")
+    sharpe = _finite_sharpe_input(sharpe, "sharpe")
+    skewness = _finite_sharpe_input(skewness, "skewness")
+    kurtosis = _finite_sharpe_input(kurtosis, "kurtosis")
+    # Sample moments must satisfy Pearson's inequality: K >= 1 + S^2.
+    if kurtosis < 1.0 + skewness * skewness - 1e-12:
+        raise ValueError("kurtosis must be consistent with sample skewness")
     numerator = 1.0 - skewness * sharpe + ((kurtosis - 1.0) / 4.0) * sharpe * sharpe
+    if not math.isfinite(numerator) or numerator < -1e-12:
+        raise ValueError("Sharpe estimator variance must be finite and non-negative")
     return max(1e-15, numerator / (observations - 1))
 
 
 def expected_maximum_standard_normal(trials: int) -> float:
     """Expected maximum of ``trials`` independent standard normals."""
 
-    if trials < 1:
-        raise ValueError("trials must be positive")
+    if (
+        isinstance(trials, (bool, np.bool_))
+        or not isinstance(trials, (int, np.integer))
+        or trials < 1
+    ):
+        raise ValueError("trials must be a positive integer")
     if trials == 1:
         return 0.0
     normal = NormalDist()
@@ -162,9 +188,9 @@ def deflated_sharpe_ratio(
 ) -> float:
     """Probability that Sharpe exceeds the multiple-testing benchmark.
 
-    ``trial_sharpe_std`` should be the standard deviation across tested strategy
-    Sharpes when available. The conservative default uses the sampling standard
-    error under a zero-Sharpe null.
+    ``observed_sharpe`` and ``trial_sharpe_std`` must be **per period**,
+    not annualized. The latter is the dispersion of Sharpe estimates across
+    tried strategies; the default uses the zero-Sharpe sampling error.
     """
 
     variance = sharpe_estimator_variance(
@@ -173,9 +199,11 @@ def deflated_sharpe_ratio(
         skewness=skewness,
         kurtosis=kurtosis,
     )
+    observed_sharpe = _finite_sharpe_input(observed_sharpe, "observed_sharpe")
     trial_std = trial_sharpe_std
     if trial_std is None:
         trial_std = math.sqrt(sharpe_estimator_variance(0.0, observations=observations))
+    trial_std = _finite_sharpe_input(trial_std, "trial_sharpe_std")
     if trial_std < 0:
         raise ValueError("trial_sharpe_std must be non-negative")
     benchmark = expected_maximum_standard_normal(trials) * trial_std
