@@ -116,12 +116,17 @@ def httpx_transport(
         def post(secret: str, remaining: float) -> httpx.Response:
             # Re-check the destination immediately before each retry, not just
             # at startup (prevent stored-address and DNS-rebinding bypasses).
-            base = validate_base_url(
-                base_url,
-                allow_private=config.allow_private_network,
-                allow_loopback=config.kind.value == "local",
-                resolve_dns=True,
-            )
+            try:
+                base = validate_base_url(
+                    base_url,
+                    allow_private=config.allow_private_network,
+                    allow_loopback=config.kind.value == "local",
+                    resolve_dns=True,
+                )
+            except ValueError as exc:
+                # Endpoint policy/SSRF rejection is a security boundary,
+                # not an LLM outage permitting risk-on fallback.
+                raise PermissionError("provider_destination_denied") from exc
             headers = {"Content-Type": "application/json"}
             if secret:
                 headers["Authorization"] = f"Bearer {secret}"
