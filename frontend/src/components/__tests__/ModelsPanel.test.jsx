@@ -115,6 +115,30 @@ describe('ModelsPanel active-model sync', () => {
     cleanup();
   });
 
+  it('treats malformed active-model identifiers as unknown, not inactive', async () => {
+    modelsSpy.mockResolvedValueOnce({
+      data: { models: [{ version: 'model-7', has_model: true }] },
+    });
+    activeSpy.mockResolvedValueOnce({ data: { active_model: 42 } });
+
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    await flushPromises();
+    await waitForRendered(
+      container, '[data-testid="active-model-status"]',
+      node => node.textContent.includes('Unable to verify')
+    );
+    expect(useStore.getState().activeModel).toBeNull();
+    const unknown = await waitForRendered(
+      container, '.badge', node => node.textContent.includes('Unknown')
+    );
+    expect(unknown.getAttribute('aria-label')).toContain('status unverified');
+    const activate = await waitForRendered(
+      container, 'button', node => node.textContent.trim() === 'Set Active'
+    );
+    expect(activate.disabled).toBe(true);
+    cleanup();
+  });
+
   it('tracks whatever the poll currently reports, not a stale capture', async () => {
     // The store must reflect the value the query actually returns, picked up on
     // each mount -- the dead onSuccess never synchronized it at all.
