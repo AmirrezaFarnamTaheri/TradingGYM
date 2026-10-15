@@ -1,5 +1,46 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-16 — Seventeen archive strategy/factor convergence
+
+Built on the existing draft PR rather than changing main or creating a
+competing execution/portfolio engine. See ADR-045 for the 17 archive donor
+crosswalk, comprehensive archive-member inventory, protected authority
+boundaries, and second-order integration roadmap.
+
+**Implemented, research only:**
+
+- Validated past/current-bar Money Flow Index (`mfi`) and
+  per-bar log-return `realized_volatility` with optional causal rolling
+  percentile. Bounded indicator parameters, direct OHLCV validation,
+  warmup planning and published IndicatorSpec enum were updated together.
+- Added two declarative strategy hypotheses,
+  `mfi_trend_confirmation` and `volatility_expansion_breakout`,
+  including stop-loss/expiry and capped position settings. Synthetic
+  fixture signals and no-future-suffix invariance were evaluated locally.
+- Added hash-bound, hierarchical read-only `FactorCandidate` taxonomy,
+  with 2–255 maximum options per selection step and explicit
+  `can_trade=false`, `can_execute=false` at leaf resolution.
+  Exposed from the public Strategy Lab module.
+- Added offline `scripts/build_factor_catalogue.py` for validated
+  candidate metadata. An exported manifest covers **478** standalone
+  Vibe factor sources (excluding six package initializer files):
+  191 GTJA, 154 Qlib, 101 Alpha, 20 fundamental and 12 academic.
+  The CLI never executes source code, invokes a model or mutates
+  financial/strategy state.
+
+**Observed verification:** local source-mirror RED-to-GREEN cycles
+for the proposed indicator and factor-tree code; last combined run
+**28/28 passed** (12 indicator + 12 hierarchy + 4 CLI cases).
+These are NOT the complete pinned Python 3.11/3.12 repository suite,
+browser build, Rust checks, model calibration or broker integration.
+A recent hosted Actions run (#38813622837) failed nine required job
+groups with zero executed job steps; it is a runner-environment blocker,
+not a passing application CI receipt. `audit_module_accountability.py --check`,
+`export_openapi.py --check` and same-head integration must run before merge.
+
+**Release:** PR #2 remains draft and funded-live **NO-GO**.
+
+
 ## Cross-worker terminal LLM credential/quota denials — 2026-10-15
 
 Implemented typed, persisted fail-closed routing for the multi-key
