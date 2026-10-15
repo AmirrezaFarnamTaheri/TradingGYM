@@ -1,4 +1,4 @@
-"""Pure browser telemetry guard; no network or authority side effects."""
+/** Pure browser telemetry guard; no network or authority side effects. */
 
 const VALID_LEVELS = new Set([
   'DEBUG', 'INFO', 'WARNING', 'WARN', 'ERROR', 'CRITICAL', 'SUCCESS',
