@@ -151,11 +151,25 @@ def httpx_transport(
                     raise PermissionError("provider_access_denied")
                 response.raise_for_status()
             if len(response.content) > 256 * 1024:
-                raise BackendUnavailable("LLM provider response exceeds byte budget")
-            payload = response.json()
-            content = payload["choices"][0]["message"]["content"]
+                # An HTTP 200 with unbounded provider data is corrupted
+                # evidence, not an outage that may authorize a rules trade.
+                raise PermissionError("llm_response_byte_budget_exceeded")
+            try:
+                payload = response.json()
+            except (ValueError, TypeError) as exc:
+                raise PermissionError("llm_malformed_http_response") from exc
+            if not isinstance(payload, dict):
+                raise PermissionError("llm_invalid_response_envelope")
+            choices = payload.get("choices")
+            if not isinstance(choices, list) or not 1 <= len(choices) <= 8:
+                raise PermissionError("llm_invalid_response_envelope")
+            item = choices[0]
+            message = item.get("message") if isinstance(item, dict) else None
+            content = (
+                message.get("content") if isinstance(message, dict) else None
+            )
             if not isinstance(content, str):
-                raise BackendUnavailable("LLM response content is not text")
+                raise PermissionError("llm_invalid_response_envelope")
             return LLMTransportResponse(content=content)
         except PermissionError:
             raise  # provider authorization denial cannot degrade to a trade
@@ -359,6 +373,8 @@ class LLMDecisionBackend(IntelligenceBackend):
         ]
         response = self._transport(self.config.base_url or "", messages)
         if not isinstance(response.content, str) or len(response.content) > 65_536:
+            if self._strict_json_only:
+                raise PermissionError("system1_response_text_budget_exceeded")
             raise BackendUnavailable("LLM response is not bounded text")
         outcome = self._ladder.run({"content": response.content})
         parse_mode = outcome.mode_used or "strict_json"
