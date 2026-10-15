@@ -113,3 +113,30 @@ def test_dangling_symlink_is_not_treated_as_missing_state(
             persistence.atomic_write_text(state, "{}")
     assert not missing_target.exists()
     assert state.is_symlink()
+
+@pytest.mark.parametrize("operation", ["read", "append", "replace"])
+def test_state_file_rejects_nonregular_fifo_before_open(
+    tmp_path: Path, monkeypatch, operation: str
+) -> None:
+    """FIFO paths are not normal durable state and can block an API worker."""
+    import os
+
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("POSIX FIFO test")
+    state = tmp_path / "state.jsonl"
+    os.mkfifo(state)
+    original_open = Path.open
+
+    def reject_fifo_open(self, *args, **kwargs):
+        if self == state:
+            pytest.fail("attempted to open attacker-supplied FIFO")
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", reject_fifo_open)
+    with pytest.raises(ValueError, match="non-regular"):
+        if operation == "read":
+            persistence.read_json(state, {})
+        elif operation == "append":
+            persistence.append_jsonl(state, {"state": "pending"})
+        else:
+            persistence.atomic_write_text(state, "{}")
