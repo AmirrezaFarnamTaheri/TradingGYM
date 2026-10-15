@@ -38,6 +38,7 @@ class IndicatorSpec(BaseModel):
         "obv",
         "stochastic",
         "donchian",
+        "adx",
     ]
     alias: Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_]{0,63}$")]
     params: dict[str, float | int | str | bool] = Field(default_factory=dict)
@@ -56,6 +57,7 @@ class IndicatorSpec(BaseModel):
             "bollinger": {"period", "deviations", "component"},
             "stochastic": {"period", "smooth", "component"},
             "donchian": {"period", "component"},
+            "adx": {"period", "component"},
         }[self.name]
         unknown = set(self.params) - allowed
         if unknown:
@@ -73,6 +75,7 @@ class IndicatorSpec(BaseModel):
             "bollinger": {"upper", "middle", "lower"},
             "stochastic": {"k", "d"},
             "donchian": {"upper", "middle", "lower"},
+            "adx": {"adx", "plus_di", "minus_di", "dx"},
         }
         if self.name in components and "component" in self.params:
             if str(self.params["component"]) not in components[self.name]:
