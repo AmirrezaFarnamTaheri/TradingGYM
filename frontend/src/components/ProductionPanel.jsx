@@ -92,8 +92,8 @@ export default function ProductionPanel() {
         <div>
           <h2>Production Authority</h2>
           <p className="muted">
-            Read-only controls evidence. Funded execution requires the single production
-            coordinator, separate operator authorization, and independent broker verification.
+            Read-only controls evidence. Funded execution requires the single production coordinator,
+            separate operator authorization, and independent broker verification.
           </p>
         </div>
         <button
