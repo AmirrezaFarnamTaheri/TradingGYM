@@ -128,7 +128,7 @@ def build_intelligence_policy(
             # The native choice/noul/score wire format is not OpenAI chat.
             backend_type = (
                 NativeSystemOneDecisionBackend
-                if provider.wire_protocol == "systemone"
+                if provider.wire_protocol in {"systemone", "systemone_fixed"}
                 else System1DecisionBackend
             )
             result.append(
