@@ -196,21 +196,16 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
             "status": "skipped",
             "reason": "short_not_allowed",
         }
-        # Each observation is genuinely a new closed candle; five failed
-        # attempts must exhaust the bounded error budget.
-        snapshots = [self.make_feature_snapshot() for _ in range(6)]
-        for index, snapshot in enumerate(snapshots):
-            snapshot.base_candle_timestamp += index
-        self._snapshot_patcher.side_effect = snapshots
-        mock_sleep.side_effect = [None] * 5 + [AssertionError("loop did not stop")]
-        await trade_loop(
-            self.env,
-            self.model,
-            self.client,
-            self.cfg,
-            live_adapter=self.live_adapter,
-        )
-        self.assertEqual(self.live_adapter.reconcile.call_count, 5)
+        # A denied broker operation must halt; an unrelated next candle
+        # cannot magically turn an authorization denial into permission.
+        mock_sleep.side_effect = AssertionError("denied live operation was retried")
+        with self.assertRaisesRegex(RuntimeError, "live reconciliation denied"):
+            await trade_loop(
+                self.env, self.model, self.client, self.cfg,
+                live_adapter=self.live_adapter,
+            )
+        self.assertEqual(self.live_adapter.reconcile.call_count, 1)
+        mock_sleep.assert_not_awaited()
         self.env.step.assert_not_called()
         mock_writer.return_value.write.assert_not_called()
 
