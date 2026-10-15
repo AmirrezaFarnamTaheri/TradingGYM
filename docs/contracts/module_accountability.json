@@ -127,6 +127,11 @@
     },
     {
       "owner": "trading_gym",
+      "path": "trading_gym/agent/capability_selection.py",
+      "sha256": "94db8bdb255557a06b2f159f0b9217764c48dfe43243fd473ee66795195fec89"
+    },
+    {
+      "owner": "trading_gym",
       "path": "trading_gym/agent/degradation_ladder.py",
       "sha256": "1896f2d7f56c6ed1f2e06404862ec790eac4ca71c039e65747d83f47a260d1a4"
     },
