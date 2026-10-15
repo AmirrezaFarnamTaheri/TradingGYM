@@ -161,3 +161,25 @@ def test_explicit_low_confidence_hold_does_not_escalate_to_risk_on_fallback():
     assert selected == "hold"
     assert leverage == 0
     assert "hold" in explanation
+
+
+def test_fixed_engine_omits_model_selector_but_preserves_typed_state():
+    packet = {
+        "schema": "system1.market.v1",
+        "authority": "advisory_only; never executes orders",
+        "market": {"symbol": "BTCUSDT", "last_close": 110.0},
+    }
+    body = build_request(
+        json.dumps(packet), "mlx-community/Qwen3-1.7B-4bit",
+        include_model=False,
+    )
+    assert "model" not in body
+    assert body["state"] == packet
+    assert tuple(body["questions"]) == ("direction", "risk_off")
+
+
+def test_invalid_native_model_selector_policy_is_rejected():
+    packet = {"schema": "system1.market.v1",
+              "authority": "advisory_only; never executes orders"}
+    with pytest.raises(ValueError):
+        build_request(json.dumps(packet), "engine-1", include_model="false")
