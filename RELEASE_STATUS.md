@@ -1,5 +1,26 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 second-order execution-cost robustness
+
+The research-only `trading_gym/experiments/cost_sensitivity.py` module
+adds deterministic multi-scenario fee/slippage comparison, ranking
+reversals and hashed per-scenario evidence. It reuses the bounded,
+aligned paired-holdout comparator without extending live order or
+portfolio-authority permissions. Its independent eight-case test
+suite passed in an isolated source mirror.
+
+Across the paired scorecard, CLI, cost scenarios, RSI/stochastic
+regressions, prior ADX indicator and historical timestamp tests,
+**55/55 focused isolated tests passed** under Python 3.13.5.
+The newly pushed cost-sensitivity module and tests match the
+locally tested file bytes by Git object SHA.
+
+Source-accountability now includes the new research module;
+repository-wide generator and exact-head CI checks are still
+**unverified**. All reports remain nonpromotable, real fill costs
+are not known from simulations, and funded-live remains **NO-GO**.
+
+
 ## 2026-10-15 paired research and strategy-indicator follow-up
 
 ADR-044 implements a higher-level **offline paired strategy comparison
