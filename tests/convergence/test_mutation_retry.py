@@ -680,3 +680,15 @@ def test_atomic_claim_keeps_cancellation_possible_during_unknown_outcome(tmp_pat
         payload_sha256="hash-cancel",
     )
     assert len(scan_outbox(outbox)) == 2
+
+
+@pytest.mark.parametrize("invalid", [3.0, True, 0, -1, 6, float("nan")])
+def test_mutation_attempt_budget_must_be_bounded_integer(invalid):
+    with pytest.raises((ValueError, TypeError)):
+        MutationRetryPolicy(max_attempts=invalid)
+
+
+@pytest.mark.parametrize("invalid", [float("inf"), float("nan"), -1.0, 0.0])
+def test_mutation_retry_max_delay_must_be_finite_and_positive(invalid):
+    with pytest.raises(ValueError):
+        MutationRetryPolicy(max_delay_s=invalid)
