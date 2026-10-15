@@ -50,6 +50,9 @@ export default function AuthzPanel() {
     onSuccess: () => {
       toast.success('Grant revoked (terminal)');
       setPendingRevoke(null);
+      // Previously checked scopes may have lost permission with this
+      // revocation. Never leave their old ALLOWED verdict on screen.
+      setCheckResult(null);
       refresh();
     },
     onError: (error) => toast.error(error.message || 'Revocation failed'),
