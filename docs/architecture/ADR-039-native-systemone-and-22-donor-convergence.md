@@ -41,13 +41,16 @@ market-microstructure donor functions.
 
 ## Implemented native advisory protocol
 
-A `ProviderConfig` now has an **opt-in** `wire_protocol` enum:
-`openai_chat` (default and backward compatible) or `systemone`.
-The latter has a validated `systemone_path` (default
-`/v1/systemone`). CLI providers cannot use the native HTTP protocol. Normal
-LLM mode rejects native providers instead of making a mistaken chat call.
-System-1 factory selection uses the typed backend only for those configured
-native providers; all other model slots retain strict chat parsing.
+A `ProviderConfig` has an **opt-in** `wire_protocol` enum:
+`openai_chat` (default), `systemone` (hosted, model selected on each
+request) or `systemone_fixed` (self-hosted Go engine, model fixed at startup).
+Both typed protocols use the validated `systemone_path` (default
+`/v1/systemone`). The Go fixed engine rejects an unknown request `model`
+field; the hosted service requires it. These wire dialects must **not**
+be auto-guessed. The endpoint joiner accepts base URLs ending at the origin,
+`/v1`, or an operator proxy prefix without duplicating `/v1`.
+CLI providers cannot use either typed HTTP protocol; ordinary LLM chat mode
+rejects both instead of accidentally issuing a completions request.
 
 The native backend:
 1. Uses TradingGYM's current bounded `system1.market.v1` market/account/risk
@@ -71,6 +74,25 @@ The native backend:
    native endpoint identifies **route reachability only**, not a calibrated
    model or a correct prediction.
 
+## Hosted vs fixed-model request semantics
+
+| Configuration | Body fields | Request ownership |
+| --- | --- | --- |
+| `wire_protocol=systemone` | `model`, bounded `state`, typed `questions` | Hosted scorer selects the approved model per call; TradingGYM supplies a fresh `Idempotency-Key` **per logical decision**, reused through eligible credential failovers |
+| `wire_protocol=systemone_fixed` | bounded `state`, typed `questions`; no `model` | Self-hosted engine owns the startup model. TradingGYM must pin the expected response `model` identity; it does not send a hosted-only idempotency header |
+| `wire_protocol=openai_chat` | `model`, `messages` | Existing OpenAI-compatible chat transport; distinct from native choice/noul |
+
+A provider's **reported response model** must still match the configured
+model identifier even for a process-fixed engine. A syntactically matching
+response is *not* proof of predictive calibration, live venue authorization,
+or independent model authenticity. Requests with an incorrect protocol fail
+closed rather than silently falling back to a different wire contract.
+
+Hosted System One advertises the `Idempotency-Key` header for logical
+request de-duplication. The key never grants additional quota, and per-provider
+rate limits, paid credit limits, independent spending limits and the existing
+per-hour operator request counter remain authoritative.
+
 ### Safe opt-in examples (disabled by default)
 
 Register providers through the governed provider repository/API, with real
@@ -84,7 +106,7 @@ configuration templates**, not auto-registered executable presets:
   "display_name": "Go System-One typed advisory",
   "model": "YOUR_LOADED_MODEL_ID",
   "base_url": "http://127.0.0.1:8080",
-  "wire_protocol": "systemone",
+  "wire_protocol": "systemone_fixed",
   "systemone_path": "/v1/systemone",
   "max_requests_per_hour": 60,
   "enabled": false
