@@ -1538,12 +1538,17 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/__init__.py",
-      "sha256": "69412cce759cdb3eac7272a057a10a785c0229bfc3367ecdc851888b3a4926eb"
+      "sha256": "9cfc0b1acf903cc784e47e71bbcd18014947a0104f206b495caf34a345572860"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/adx.py",
       "sha256": "71ce90bb900987305286a9e981f776baab004a35d516d72fdc81aaabf64744cb"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/strategy_lab/causal_replay.py",
+      "sha256": "8be100a6e5aece399c0e6e68dc252bacd21edd53995e558c0dc1e5428c44528f"
     },
     {
       "owner": "trading_gym",
@@ -1553,12 +1558,12 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/indicators.py",
-      "sha256": "2d87ca850ca539e07c5a77919b3b06006dd0566bb47ffa6423f2b339d79f5816"
+      "sha256": "c0e03e05f946a3c16106846ec4f001be9dd42b14e7eab7ebbcfac79981d3878f"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/models.py",
-      "sha256": "35d94e4c59824ce0563c7815ebb6d3ff6f35679f674d1e5281bf775194103e45"
+      "sha256": "837dfa983ebc0ad4d03076995eb1e262a759ff6b954fee21ecccac1eb10a138a"
     },
     {
       "owner": "trading_gym",
