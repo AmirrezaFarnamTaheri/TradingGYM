@@ -215,6 +215,16 @@ def plan_rebalance(
     # Sells precede buys in the plan so the projected cash calculation is
     # deterministic and does not assume external financing.
     candidates.sort(key=lambda item: (0 if item[1] < 0 else 1, item[0]))
+    total_estimated_cost = sum(
+        (
+            abs(delta) * holding_map[instrument_id].price_base * cost_rate
+            for instrument_id, delta in candidates
+        ),
+        Decimal("0"),
+    )
+    projected_equity = equity - total_estimated_cost
+    if not projected_equity.is_finite() or projected_equity <= 0:
+        raise ValueError("projected_equity must remain positive after costs")
     projected_cash = cash_base
     projected_quantities = {item.instrument_id: item.quantity for item in holdings}
     trades: list[PlannedRebalanceTrade] = []
@@ -237,7 +247,7 @@ def plan_rebalance(
         projected_quantities[instrument_id] += delta_quantity
         projected_value = projected_quantities[instrument_id] * holding.price_base
         before_weight = values[instrument_id] / equity
-        projected_weight = projected_value / equity
+        projected_weight = projected_value / projected_equity
         trades.append(
             PlannedRebalanceTrade(
                 instrument_id=instrument_id,
@@ -256,7 +266,7 @@ def plan_rebalance(
     turnover = total_turnover / equity
     if turnover > policy.maximum_turnover_fraction:
         blockers.append("maximum_turnover_exceeded")
-    cash_weight = projected_cash / equity
+    cash_weight = projected_cash / projected_equity
     if projected_cash < 0:
         blockers.append("projected_cash_negative")
     if cash_weight < policy.minimum_cash_weight:
@@ -266,7 +276,7 @@ def plan_rebalance(
         target = target_map.get(instrument_id)
         target_weight = target.target_weight if target else Decimal("0")
         projected_weight = (
-            projected_quantities[instrument_id] * holding.price_base / equity
+            projected_quantities[instrument_id] * holding.price_base / projected_equity
         )
         residual[instrument_id] = projected_weight - target_weight
         if target and abs(residual[instrument_id]) > target.tolerance_weight:
