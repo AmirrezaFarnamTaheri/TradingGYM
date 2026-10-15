@@ -17151,8 +17151,15 @@
             "type": "boolean"
           },
           "loss_fraction": {
-            "title": "Loss Fraction",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loss Fraction"
           },
           "mutation_performed": {
             "default": false,
@@ -17167,8 +17174,15 @@
             "type": "array"
           },
           "post_stress_gross_leverage": {
-            "title": "Post Stress Gross Leverage",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Stress Gross Leverage"
           },
           "report_sha256": {
             "pattern": "^[0-9a-f]{64}$",
