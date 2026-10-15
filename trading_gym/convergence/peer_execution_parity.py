@@ -9,7 +9,7 @@ Cross-order account activity, FX conversion and funding are out of scope.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, localcontext
 import hashlib
 import json
 import re
@@ -65,6 +65,8 @@ def _number(v: Decimal, label: str, *, allow_negative: bool = False) -> Decimal:
         raise ValueError(f"{label} must be a bounded finite Decimal")
     if not allow_negative and v < 0:
         raise ValueError(f"{label} must be nonnegative")
+    if len(v.as_tuple().digits) > 38 or not -30 <= v.as_tuple().exponent <= 30:
+        raise ValueError(f"{label} exceeds Decimal precision budget")
     return v
 
 
@@ -81,8 +83,17 @@ def _epoch(v: object, label: str) -> int:
 
 
 def _units(qty: Decimal, increment: Decimal, label: str) -> None:
-    if (qty % increment) != 0:
-        raise ValueError(f"{label} violates required lot or tick increment")
+    if qty == 0:
+        return
+    if qty.adjusted() - increment.adjusted() > 18:
+        raise ValueError(f"{label} exceeds increment precision budget")
+    try:
+        with localcontext() as context:
+            context.prec = 80
+            if (qty % increment) != 0:
+                raise ValueError(f"{label} violates required lot or tick increment")
+    except InvalidOperation as exc:
+        raise ValueError(f"{label} exceeds increment precision budget") from exc
 
 
 def _canonical(values: object) -> bytes:
@@ -193,18 +204,21 @@ def reconcile_peer_execution(
         if order.order_type == "post_only" and entry.liquidity == "taker":
             raise PermissionError("post_only order cannot report a taker fill")
         distinct.append(entry)
-    accounted = sum((f.quantity for f in distinct), Decimal("0"))
+    with localcontext() as context:
+        context.prec = 80
+        accounted = sum((f.quantity for f in distinct), Decimal("0"))
+        sign = Decimal("1") if order.side == "buy" else Decimal("-1")
+        computed_position = position_before + sign * accounted
+        computed_cash = cash_before - sum(
+            (sign * f.quantity * f.price + f.fee_base for f in distinct),
+            Decimal("0"),
+        )
     if accounted > total:
         raise ValueError("cumulative fill quantity exceeds intended order quantity")
     if broker.status == "filled" and accounted != total:
         raise ValueError("filled order lacks matching complete fills")
-    sign = Decimal("1") if order.side == "buy" else Decimal("-1")
-    computed_position = position_before + sign * accounted
     if computed_position < 0:
         raise ValueError("order readback would create unpermitted short position")
-    computed_cash = cash_before - sum(
-        (sign * f.quantity * f.price + f.fee_base for f in distinct), Decimal("0")
-    )
     differences: list[str] = []
     if venue_filled != accounted:
         differences.append("filled_quantity")
