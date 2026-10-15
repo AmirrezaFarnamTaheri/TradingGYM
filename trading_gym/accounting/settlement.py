@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import Annotated, Any
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -130,8 +131,6 @@ def _is_business_day(calendar: MarketCalendarSpec, local_date: date) -> bool:
 
 def contractual_settlement_date(obligation: SettlementObligation) -> date:
     calendar = obligation.convention.calendar
-    from zoneinfo import ZoneInfo
-
     local = obligation.trade_at.astimezone(ZoneInfo(calendar.timezone_name)).date()
     remaining = obligation.convention.business_days
     candidate = local
@@ -182,9 +181,12 @@ def evaluate_settlement(
     overdue: list[str] = []
     failed: list[str] = []
     blockers: list[str] = []
-    as_of_date = as_of.astimezone(timezone.utc).date()
     for item in sorted(obligations, key=lambda value: value.obligation_id):
         due = contractual_settlement_date(item)
+        # Contractual dates belong to the settlement venue, not UTC.
+        as_of_date = as_of.astimezone(
+            ZoneInfo(item.convention.calendar.timezone_name)
+        ).date()
         is_overdue = item.state is SettlementState.PENDING and as_of_date > due
         days_overdue = (as_of_date - due).days if is_overdue else 0
         if item.state is SettlementState.PENDING:
