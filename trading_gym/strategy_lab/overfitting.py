@@ -256,6 +256,21 @@ def summarise_walk_forward(
     min_profitable_ratio: float = 0.5,
     max_median_degradation: float = 0.75,
 ) -> WalkForwardSummary:
+    if (
+        isinstance(min_windows, (bool, np.bool_))
+        or not isinstance(min_windows, (int, np.integer))
+        or min_windows < 1
+    ):
+        raise ValueError("min_windows must be a positive integer")
+    min_efficiency = _finite_sharpe_input(min_efficiency, "min_efficiency")
+    min_profitable_ratio = _finite_sharpe_input(
+        min_profitable_ratio, "min_profitable_ratio"
+    )
+    max_median_degradation = _finite_sharpe_input(
+        max_median_degradation, "max_median_degradation"
+    )
+    if min_efficiency < 0 or not 0 <= min_profitable_ratio <= 1:
+        raise ValueError("invalid walk-forward robustness threshold")
     in_sample = np.asarray(in_sample_returns, dtype=float)
     out_sample = np.asarray(out_of_sample_returns, dtype=float)
     if in_sample.shape != out_sample.shape or in_sample.ndim != 1:
@@ -273,11 +288,18 @@ def summarise_walk_forward(
         mean_oos / mean_is if mean_is > 0 else (1.0 if mean_oos >= mean_is else 0.0)
     )
     profitable_ratio = float(np.mean(out_sample > 0))
-    degradation = np.where(
-        np.abs(in_sample) > 1e-15,
-        (in_sample - out_sample) / np.abs(in_sample),
-        np.where(out_sample >= 0, 0.0, 1.0),
+    # np.where evaluates both branches eagerly and therefore computes
+    # division by zero even where the outcome is discarded. Use masked
+    # division so zero baseline windows remain finite and deterministic.
+    denominator = np.abs(in_sample)
+    nonzero = denominator > 1e-15
+    degradation = np.divide(
+        in_sample - out_sample,
+        denominator,
+        out=np.zeros_like(in_sample, dtype=float),
+        where=nonzero,
     )
+    degradation[~nonzero] = np.where(out_sample[~nonzero] >= 0, 0.0, 1.0)
     median_degradation = float(np.median(degradation))
     robust = (
         in_sample.size >= min_windows
