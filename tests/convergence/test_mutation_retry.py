@@ -710,3 +710,32 @@ def test_retry_attempt_number_must_be_positive_integer(invalid):
     policy = MutationRetryPolicy()
     with pytest.raises(ValueError):
         delay_for_attempt(policy, invalid)
+
+def test_outbox_rejects_fifo_before_read_or_journal_append(
+    tmp_path, monkeypatch
+):
+    import os
+    from pathlib import Path
+
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("POSIX FIFO test")
+    state = tmp_path / "mutation-outbox.jsonl"
+    os.mkfifo(state)
+    real_open = Path.open
+
+    def block_fifo(self, *args, **kwargs):
+        if self == state:
+            pytest.fail("mutation outbox must not open FIFO")
+        return real_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", block_fifo)
+    journal = MutationOutbox(state)
+    with pytest.raises(MutationOutboxIntegrityError, match="nonregular"):
+        journal.latest_by_key()
+    with pytest.raises(ValueError, match="non-regular"):
+        journal.record_pending(
+            idempotency_key="aa" * 16,
+            proposal_id="proposed",
+            operation="spot.market",
+            payload_sha256="bb" * 32,
+        )
