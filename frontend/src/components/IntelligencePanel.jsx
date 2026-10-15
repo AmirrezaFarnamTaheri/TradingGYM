@@ -59,11 +59,13 @@ export default function IntelligencePanel() {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshCount, setRefreshCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       setLoading(true);
+      setError('');
       try {
         const res = await api.get('/intelligence/status');
         if (!cancelled) {
@@ -80,11 +82,21 @@ export default function IntelligencePanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshCount]);
 
   return (
     <div className="panel intelligence-panel">
       <h2>🧠 Intelligence</h2>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        aria-label="Refresh model-fleet intelligence status snapshot"
+        aria-busy={loading}
+        disabled={loading}
+        onClick={() => setRefreshCount(count => count + 1)}
+      >
+        Refresh status
+      </button>
       {loading && <div className="loading">Loading intelligence status…</div>}
       {error && (
         <div role="alert" className="error">
