@@ -69,7 +69,8 @@ class IndicatorSpec(BaseModel):
             raise ValueError(
                 f"unsupported {self.name} parameters: {', '.join(sorted(unknown))}"
             )
-        for key in {"period", "fast", "slow", "signal", "smooth", "lookback"} & set(self.params):
+        period_keys = {"period", "fast", "slow", "signal", "smooth", "lookback"}
+        for key in period_keys & set(self.params):
             value = self.params[key]
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ValueError(f"{key} must be numeric")
