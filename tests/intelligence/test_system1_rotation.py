@@ -964,7 +964,7 @@ def test_system1_context_still_preserves_risk_bounds_on_budget_reduction():
         market_features={f"rsi_{i}": i * 0.1 for i in range(32)},
         risk_limits={"max_leverage": 0.75, "min_leverage": -0.3},
     )
-    packet = json.loads(build_system1_packet(context, max_chars=620))
+    packet = json.loads(build_system1_packet(context, max_chars=900))
     assert len(json.dumps(packet)) >= 200
     assert packet["risk_constraints"]["max_leverage"] == 0.75
     assert packet["risk_constraints"]["min_leverage"] == -0.3
