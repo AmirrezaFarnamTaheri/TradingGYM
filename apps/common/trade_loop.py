@@ -224,7 +224,9 @@ async def trade_loop(
                         "live execution failed; broker reconciliation required"
                     )
                 if status == "skipped":
-                    if execution_result.get("reason") not in {"dust", "no_executable_leg"}:
+                    if execution_result.get("reason") not in {
+                        "dust", "no_executable_leg"
+                    }:
                         # A denial (e.g. short_not_allowed, locked or unknown)
                         # is not a harmless idle candle or retryable outage.
                         raise UnrecognizedExecutionStatus(
