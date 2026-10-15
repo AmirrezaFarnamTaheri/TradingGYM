@@ -11,11 +11,15 @@ from __future__ import annotations
 import hashlib
 import os
 from typing import Any, Callable
-from urllib.parse import urljoin
 
 import httpx
 
-from trading_gym.agent.providers import ProviderConfig, ProviderKind, provider_status
+from trading_gym.agent.providers import (
+    ProviderConfig,
+    ProviderKind,
+    join_provider_endpoint,
+    provider_status,
+)
 from trading_gym.common.security import validate_base_url
 from trading_gym.intelligence.base import IntelligenceBackend
 from trading_gym.intelligence.llm_key_pool import (
@@ -54,7 +58,7 @@ def httpx_systemone_transport(
     config: ProviderConfig, *, timeout_seconds: float = 5.0
 ) -> NativeTransport:
     """Bounded synchronous native inference using the governed HTTP fleet."""
-    if config.wire_protocol != "systemone":
+    if config.wire_protocol not in {"systemone", "systemone_fixed"}:
         raise ValueError("native transport requires systemone wire protocol")
     if not 0 < timeout_seconds <= 20:
         raise ValueError("invalid System-One transport timeout")
@@ -88,9 +92,7 @@ def httpx_systemone_transport(
                 allow_loopback=config.kind is ProviderKind.LOCAL,
                 resolve_dns=True,
             )
-            endpoint = urljoin(
-                base.rstrip("/") + "/", config.systemone_path.lstrip("/")
-            )
+            endpoint = join_provider_endpoint(base, config.systemone_path)
             headers = {"Content-Type": "application/json"}
             if secret:
                 headers["Authorization"] = f"Bearer {secret}"
@@ -165,7 +167,7 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
         working_memory: Any = None,
         experience_memory: Any = None,
     ) -> None:
-        if provider_config.wire_protocol != "systemone":
+        if provider_config.wire_protocol not in {"systemone", "systemone_fixed"}:
             raise ValueError("native backend requires systemone provider protocol")
         # Reject unsafe numeric configuration before ever constructing a client.
         from trading_gym.intelligence.systemone_protocol import _limit, _probability
@@ -225,7 +227,10 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
         # LONG cap can coexist with an explicitly permitted SHORT exposure.
 
         self.last_context_sha256 = hashlib.sha256(packet.encode("utf-8")).hexdigest()
-        request = build_request(packet, self.config.model)
+        request = build_request(
+            packet, self.config.model,
+            include_model=self.config.wire_protocol == "systemone",
+        )
         result = self._transport(request)
         if not isinstance(result, dict) or result.get("model") != self.config.model:
             # A silently substituted model must not become a trade signal
