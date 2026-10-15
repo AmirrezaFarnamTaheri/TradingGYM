@@ -1,5 +1,45 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-15 expanded donor strategies and second-order audit
+
+Seventeen newly supplied ZIP archives were inventoried without executing
+any peer setup script or live trader: **4,226 entries, 617 nested folders,
+4,180 unique payload hashes**; 3,113 source-code files were indexed and
+34,209 AST/lexical symbol declarations extracted. Three ZIPs repeat
+identical prior snapshots and were not merged again. See ADR-043 and
+`docs/plans/2026-10-15-expanded-donor-convergence.md`.
+
+**Implemented on PR #2:**
+- Causal Wilder ADX, +DI, -DI and DX calculations with strict value,
+  component, and two-period warmup semantics. Corrected first-period
+  smoothing to the original arithmetic Wilder seed.
+- Extended indicator grammar, evaluator registration and strategy workload
+  planning. Added two risk-bounded research-only declarative presets:
+  `adx_directional_trend` and `adx_donchian_breakout`.
+- Rejected reversed, duplicated and absent `DatetimeIndex` candle
+  timestamps before evaluating rolling indicators or crossover rules;
+  ordered and legacy RangeIndex input remains accepted.
+- Regenerated module-accountability entries for the changed strategy
+  sources, including the new ADX module, and updated the IndicatorSpec enum
+  in the published OpenAPI snapshot.
+
+**Verification:** 15/15 isolated ADX tests passed, including the
+hand-calculated Wilder recurrence and prefix/hindsight checks. Four separate
+timestamp integrity tests passed after reproducing 3 RED failures.
+A numerical synthetic regime reversal demonstrated ADX-filtered entries
+and exits without implying profitability. A **full exact-head** checkout
+was unavailable to run the Pydantic strategy-grammar, frontend, Rust,
+broker, all-hash and OpenAPI generation suites; those are still
+**unverified**, not green.
+
+The archived source index and source path-based candidate register are
+not proof that every peer method has been individually behaviorally
+audited. Vibe-Trading's 2,882-member tree and other independent agent
+runtimes still require deeper source-to-target acceptance.
+
+PR #2 remains draft and unmerged. Funded-live remains **NO-GO**.
+
+
 ## 2026-10-15 typed-signal and provider contract follow-up
 
 ADR-042 records additional source-level fixes on this draft PR:
