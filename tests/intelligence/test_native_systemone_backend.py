@@ -370,3 +370,46 @@ def test_invalid_native_http_payload_is_not_a_recoverable_model_outage(
     transport = httpx_systemone_transport(_provider())
     with pytest.raises(PermissionError, match=denial):
         transport({"model": "gemma-fast", "state": {}, "questions": {}})
+
+
+def test_fixed_systemone_engine_uses_its_configured_model_without_selector():
+    submitted = []
+    backend = NativeSystemOneDecisionBackend(
+        _provider(wire_protocol="systemone_fixed"),
+        transport=lambda body: (submitted.append(body), _answer())[1],
+    )
+    signal = backend.decide(_context())
+    assert signal.action_kind is ActionKind.LONG
+    assert "model" not in submitted[0]
+    assert submitted[0]["state"]["schema"] == "system1.market.v1"
+
+
+def test_fixed_native_protocol_cannot_be_misrouted_to_chat_completion():
+    provider = _provider(wire_protocol="systemone_fixed")
+    with pytest.raises(ValueError, match="native System-One"):
+        LLMDecisionBackend(provider)
+
+
+def test_native_endpoint_join_handles_versioned_or_unversioned_base():
+    from trading_gym.agent.providers import join_provider_endpoint
+
+    assert join_provider_endpoint(
+        "https://api.example.test", "/v1/systemone"
+    ) == "https://api.example.test/v1/systemone"
+    assert join_provider_endpoint(
+        "https://api.example.test/v1", "/v1/systemone"
+    ) == "https://api.example.test/v1/systemone"
+    assert join_provider_endpoint(
+        "https://api.example.test/proxy/v1", "/v1/systemone"
+    ) == "https://api.example.test/proxy/v1/systemone"
+    assert join_provider_endpoint(
+        "http://127.0.0.1:8080", "/v1/systemone"
+    ) == "http://127.0.0.1:8080/v1/systemone"
+
+
+def test_native_endpoint_join_does_not_drop_unrelated_base_path():
+    from trading_gym.agent.providers import join_provider_endpoint
+
+    assert join_provider_endpoint(
+        "https://api.example.test/api", "/v1/systemone"
+    ) == "https://api.example.test/api/v1/systemone"
