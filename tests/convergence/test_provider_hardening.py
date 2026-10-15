@@ -158,3 +158,15 @@ def test_provider_metadata_rejects_oversized_or_nonfinite_payloads() -> None:
                 base_url="http://127.0.0.1:11434/v1",
                 metadata=metadata,
             )
+
+
+def test_provider_repository_revalidates_bypassed_metadata(tmp_path: Path) -> None:
+    """Pydantic model_copy does not rerun validators; persistence must."""
+    cfg = config()
+    forged = cfg.model_copy(
+        update={"metadata": {"credentials": {"api_key": "plaintext-secret"}}}
+    )
+    repo = ProviderRepository(tmp_path / "providers.json")
+    with pytest.raises(ValueError, match="metadata.*credential"):
+        repo.save(forged)
+    assert repo.list() == []
