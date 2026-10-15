@@ -1,5 +1,29 @@
 # Hardening branch status — 2026-10-11
 
+## Cross-worker terminal LLM credential/quota denials — 2026-10-15
+
+Implemented typed, persisted fail-closed routing for the multi-key
+System-1 provider fleet. Bad keys may fail over to a distinct valid key
+within a bounded attempt budget, but exhausted HTTP 401 authentication
+cannot turn into a risk-on rules/RL fallback. HTTP 402, and newly
+recognized spend/credit/usage-cap 429 codes now retain a hard denial
+across workers, even after the first request has completed. Invalid
+provider request/model statuses 400/404/409/413/422 are terminal.
+The existing temporary-rate-limit path and explicit per-key rate
+opt-in remain intact; quota locks and ordinary cooldowns have distinct
+persisted reason slots and do not contain credentials.
+
+Added `tests/intelligence/test_llm_fail_closed_rotation.py`,
+updated both chat and native System-One exception boundaries, and
+regenerated `docs/contracts/module_accountability.json` for all
+three governed modules. A Git-blob-identical local copy of
+`trading_gym/intelligence/llm_key_pool.py` passed **21 focused tests**
+covering auth rotation, hard caps, expiry, invalid 4XX statuses,
+cross-process persistence, and secret-free storage. The entire
+exact-head repository suite, provider network integration, and
+funded-live qualification remain **unverified / NO-GO**.
+
+
 ## Order evidence and chain identity convergence — 2026-10-15
 
 New implementation: ADR-044 and `trading_gym/convergence/peer_execution_parity.py`
