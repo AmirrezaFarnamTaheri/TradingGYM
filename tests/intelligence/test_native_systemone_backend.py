@@ -336,7 +336,12 @@ def test_method_not_allowed_only_proves_native_route_when_post_advertised(
     [
         (b"{not-json", "systemone_malformed_http_response"),
         (b"[]", "systemone_invalid_response_envelope"),
+        (
+            b"0" * (256 * 1024 + 1),
+            "systemone_response_byte_budget_exceeded",
+        ),
     ],
+    ids=["malformed-json", "nonobject-json", "oversized-response"],
 )
 def test_invalid_native_http_payload_is_not_a_recoverable_model_outage(
     monkeypatch, raw_response, denial,
