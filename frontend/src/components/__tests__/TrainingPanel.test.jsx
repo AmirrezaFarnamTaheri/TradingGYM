@@ -2,6 +2,7 @@ import { act } from 'react-dom/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import TrainingPanel from '../TrainingPanel';
+import useStore from '../../store';
 import { flushPromises, renderWithClient, waitForRendered } from '../../test-utils.jsx';
 
 const { startSpy, statusSpy, closeSpy, socketRef } = vi.hoisted(() => ({
@@ -93,5 +94,27 @@ it('ignores malformed or invalid WebSocket logs without crashing', async () => {
   });
   await flushPromises();
   expect(container.querySelector('.log-message').textContent).toBe('hello');
+  cleanup();
+});
+
+
+it('never stores opaque WebSocket metadata or prints labeled credentials', async () => {
+  useStore.getState().clearLogs();
+  const { container, cleanup } = renderWithClient(<TrainingPanel />);
+  act(() => {
+    socketRef.current.onmessage({
+      data: JSON.stringify({
+        level: 'INFO',
+        source: 'TRAIN',
+        message: 'api_key=unsafe-test-token completed',
+        secret: 'another-sensitive-value',
+      }),
+    });
+  });
+  await flushPromises();
+  const message = await waitForRendered(container, '.log-message');
+  expect(message.textContent).toContain('[REDACTED]');
+  expect(message.textContent).not.toContain('unsafe-test-token');
+  expect(JSON.stringify(useStore.getState().logs)).not.toContain('another-sensitive-value');
   cleanup();
 });
