@@ -60,19 +60,36 @@ def probabilistic_sharpe_ratio(
     benchmark_sharpe: float = 0.0,
     periods_per_year: int = 252,
 ) -> float:
+    """Probability that per-period Sharpe exceeds an annualized benchmark.
+
+    The moment-adjusted sampling formula must use per-observation Sharpe,
+    not the annualized display value. `benchmark_sharpe` is annualized
+    for compatibility with `annualised_sharpe`; convert it before comparing.
+    """
+    if type(periods_per_year) is not int or periods_per_year <= 0:
+        raise ValueError("periods_per_year must be a positive integer")
+    if (
+        isinstance(benchmark_sharpe, (bool, np.bool_))
+        or not isinstance(
+            benchmark_sharpe, (int, float, np.integer, np.floating)
+        )
+        or not math.isfinite(float(benchmark_sharpe))
+    ):
+        raise ValueError("benchmark_sharpe must be finite and non-boolean")
     values = np.asarray(returns, dtype=float)
     values = values[np.isfinite(values)]
     if values.size < 3:
         return 0.0
-    sr = annualised_sharpe(values, periods_per_year)
-    centred = values - np.mean(values)
-    std = np.std(values, ddof=1)
+    std = float(np.std(values, ddof=1))
     if std <= 0:
         return 0.0
+    sr = float(np.mean(values) / std)
+    centred = values - np.mean(values)
     skew = float(np.mean((centred / std) ** 3))
     kurt = float(np.mean((centred / std) ** 4))
     denominator = math.sqrt(max(1e-12, 1 - skew * sr + ((kurt - 1) / 4) * sr * sr))
-    z = (sr - benchmark_sharpe) * math.sqrt(values.size - 1) / denominator
+    benchmark_per_period = float(benchmark_sharpe) / math.sqrt(periods_per_year)
+    z = (sr - benchmark_per_period) * math.sqrt(values.size - 1) / denominator
     return float(NormalDist().cdf(z))
 
 
