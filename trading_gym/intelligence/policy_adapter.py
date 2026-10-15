@@ -149,6 +149,7 @@ class IntelligencePolicyAdapter:
             market_evidence=dict(ctx.get("market_evidence") or {}),
             risk_limits=dict(ctx.get("risk_limits") or {}),
             market_features=dict(ctx.get("market_features") or {}),
+            return_basis=ctx.get("return_basis", "unspecified"),
             extras={
                 key: float(value)
                 for key, value in ctx.items()
@@ -181,6 +182,9 @@ class IntelligencePolicyAdapter:
                 and not 0 <= context.drawdown_from_peak <= 1
             )
             or type(context.is_live) is not bool
+            or context.return_basis not in {
+                "unspecified", "historical_bars", "completed_bars", "mark_updates"
+            }
             or any(not np.isfinite(value) for value in context.recent_returns)
         ):
             raise ValueError("market/account context is invalid")
