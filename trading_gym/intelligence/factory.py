@@ -57,7 +57,7 @@ def build_intelligence_policy(
         defence_drawdown=config.rules_defence_drawdown,
     )
 
-    def resolve_llm() -> LLMDecisionBackend:
+    def resolve_llm(*, strict_review: bool = False) -> LLMDecisionBackend:
         if not config.llm_provider_id:
             raise ValueError("intelligence.llm_provider_id is required for llm/fusion")
         repository = provider_repository or ProviderRepository()
@@ -72,7 +72,13 @@ def build_intelligence_policy(
             )
         if getattr(matches[0], "wire_protocol", "openai_chat") != "openai_chat":
             raise ValueError("native System-One providers cannot serve chat LLM mode")
-        return LLMDecisionBackend(matches[0])
+        return LLMDecisionBackend(
+            matches[0],
+            strict_json_only=strict_review,
+            review_confidence_floor=(
+                config.system1_confidence_floor if strict_review else None
+            ),
+        )
 
     def resolve_system1() -> tuple[IntelligenceBackend, ...]:
         if not config.system1_provider_ids:
@@ -139,7 +145,10 @@ def build_intelligence_policy(
         backend: IntelligenceBackend = fast[0]
         extra: tuple[IntelligenceBackend, ...] = tuple(fast[1:])
         if config.llm_provider_id:
-            extra += (resolve_llm(),)
+            # A System-1 uncertainty can only be reviewed by a strict,
+            # operator-configured model with the same minimum confidence.
+            # Legacy lenient text/keyword extraction is not sufficient here.
+            extra += (resolve_llm(strict_review=True),)
         if config.allow_fallback_to_rules:
             extra += (rules,)
         remaining = extra
