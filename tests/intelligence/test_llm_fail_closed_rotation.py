@@ -154,3 +154,62 @@ def test_transient_429_still_honors_shared_provider_retry_cooldown(
         request_with_rotation(pool, post, timeout_seconds=3.0)
     with pytest.raises(CredentialsUnavailable):
         _pool(path).acquire()
+
+
+def test_all_invalid_keys_remain_auth_denied_after_restart(tmp_path: Path) -> None:
+    from trading_gym.intelligence.llm_key_pool import (
+        ProviderAuthenticationError,
+    )
+
+    path = tmp_path / "rotation.json"
+    pool = _pool(path)
+
+    def post(secret: str, remaining: float) -> httpx.Response:
+        return _response(401)
+
+    with pytest.raises(ProviderAuthenticationError):
+        request_with_rotation(pool, post, timeout_seconds=3.0)
+    with pytest.raises(ProviderAuthenticationError):
+        _pool(path).acquire()
+
+
+@pytest.mark.parametrize(
+    "transport_name",
+    ["chat", "native"],
+)
+def test_authentication_denial_is_non_degradable_at_transport_boundary(
+    monkeypatch: pytest.MonkeyPatch, transport_name: str
+) -> None:
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+    from trading_gym.intelligence.llm_key_pool import (
+        ProviderAuthenticationError,
+    )
+    from trading_gym.intelligence import llm_backend, systemone_native_backend
+
+    config = ProviderConfig(
+        provider_id="owned-fast-model",
+        display_name="test only",
+        kind=ProviderKind.LOCAL,
+        model="fast",
+        base_url="http://127.0.0.1:11434/v1",
+        api_key_env="SYSTEM1_KEY_1",
+        wire_protocol=(
+            "systemone_fixed" if transport_name == "native" else "openai_chat"
+        ),
+    )
+
+    def denied(*args, **kwargs):
+        raise ProviderAuthenticationError("key fleet rejected")
+
+    if transport_name == "chat":
+        monkeypatch.setattr(llm_backend, "request_with_rotation", denied)
+        transport = llm_backend.httpx_transport(config)
+        with pytest.raises(PermissionError, match="authentication_denied"):
+            transport(config.base_url, [{"role": "user", "content": "{}"}])
+    else:
+        monkeypatch.setattr(
+            systemone_native_backend, "request_with_rotation", denied
+        )
+        transport = systemone_native_backend.httpx_systemone_transport(config)
+        with pytest.raises(PermissionError, match="authentication_denied"):
+            transport({"state": {}, "questions": {}})
