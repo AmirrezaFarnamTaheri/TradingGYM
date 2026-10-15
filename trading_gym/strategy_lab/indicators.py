@@ -7,6 +7,7 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 
+from trading_gym.strategy_lab.adx import compute_adx
 from trading_gym.strategy_lab.models import IndicatorSpec
 
 IndicatorFunction = Callable[
@@ -156,7 +157,17 @@ def donchian(
     raise ValueError("Donchian component must be upper, middle, or lower")
 
 
+def adx(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
+    """Wilder ADX and directional-movement components, read-only."""
+    return compute_adx(
+        frame,
+        period=_period(params),
+        component=str(params.get("component", "adx")),
+    )
+
+
 REGISTRY: dict[str, IndicatorFunction] = {
+    "adx": adx,
     "sma": sma,
     "ema": ema,
     "rsi": rsi,
