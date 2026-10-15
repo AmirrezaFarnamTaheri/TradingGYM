@@ -23,6 +23,11 @@ from trading_gym.accounting.models import (
     ReconciliationReport,
     ReconciliationTolerance,
 )
+from trading_gym.accounting.funding_reconciliation import (
+    FundingDue,
+    FundingReceipt,
+    reconcile_funding,
+)
 from trading_gym.accounting.order_fill_parity import (
     BrokerReadback,
     FillEvidence,
@@ -51,6 +56,9 @@ from trading_gym.accounting.corporate_actions import (
 )
 
 __all__ = [
+    "FundingDue",
+    "FundingReceipt",
+    "reconcile_funding",
     "BrokerReadback",
     "FillEvidence",
     "OrderFillParityReport",
