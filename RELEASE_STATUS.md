@@ -1,5 +1,39 @@
 # Hardening branch status — 2026-10-11
 
+## System-1 quota and rotation integrity follow-up — 2026-10-15
+
+The multi-key, cross-worker advisory inference pool now distinguishes
+trusted provider unavailability from **corrupted shared rotation state**.
+Invalid JSON, symlinks, broken file locks, non-finite clocks and failed
+writes raise a typed integrity error that both OpenAI-compatible chat
+and native System-One transports convert into `PermissionError`, rather
+than allowing a rules/RL fallback to open positions on missing authority
+evidence.
+
+Provider HTTP 429 responses are classified using current official API
+credit/organization/project spend and usage-limit error codes. A hard
+quota blocks both key rotation and risk-on backend degradation; ordinary
+temporary project-level 429s still apply a shared cooldown. Transient
+remote-protocol disconnects can fail over within the existing
+per-decision attempt/deadline budget. New regression cases cover billing
+limits, corrupt state, failed locks, invalid clocks and protocol errors
+without using or persisting real API secrets.
+
+The affected `llm_key_pool.py`, `llm_backend.py` and
+`systemone_native_backend.py` source SHA-256 values were reconciled
+to the actual PR head in `docs/contracts/module_accountability.json`.
+Operational context, privacy and failure boundaries are documented in
+`docs/architecture/SYSTEM1_CONTEXT_AND_KEY_ROTATION.md`.
+
+**Verification boundary:** regression tests are committed but no exact
+PR-head full Python matrix or live provider integration suite has passed.
+The container cannot clone the GitHub source checkout; earlier
+GitHub-hosted workflows failed before runner allocation, and the latest
+head has no completed, source-executing CI evidence. Do not merge or
+allow funded-live deployment on the basis of these source edits.
+
+
+
 ## System-1 fleet follow-up — 2026-10-15
 
 Multi-key rotation now retains a provider-level 429 cooldown across key-list
