@@ -1,6 +1,5 @@
 """Research strategy ranking must remain sensitive to plausible execution costs."""
 
-from dataclasses import replace
 import pytest
 
 from trading_gym.experiments.cost_sensitivity import compare_cost_scenarios
