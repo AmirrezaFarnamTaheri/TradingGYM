@@ -27,6 +27,7 @@ def test_duplicate_currency_aliases_do_not_overwrite_available_cash():
     "cash",
     [
         {"US$": Decimal("100")},
+        {"ß": Decimal("100")},  # Unicode uppercases to ASCII "SS"
         {"U": Decimal("100")},
         {"": Decimal("100")},
         {123: Decimal("100")},
