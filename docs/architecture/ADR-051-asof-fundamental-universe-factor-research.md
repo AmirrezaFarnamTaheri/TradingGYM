@@ -72,15 +72,29 @@ Actual source-mirror RED-to-GREEN work used Python 3.13.5 and pytest with no net
 
 | Focus | Observed isolated result |
 | --- | --- |
-| PIT filing/revision selection, numeric/unit/frame validation and future-data prefix invariance | 26 passing |
+| PIT filing/revision selection, numeric/unit/frame validation and future-data prefix invariance | 29 passing |
 | Bounded CLI behavior and secret-safe denial | 4 passing |
 | Historical universe membership, later corrections and unknown constituents | 18 passing |
 | Joined factor research-admission and authorization boundaries | 5 passing |
-| **Combined isolated total** | **53 passing** |
+| **Combined isolated total** | **56 passing** |
 
 These are isolated pure-source tests; **exact PR-head repository tests remain unverified**, including the additional public-package export test. Final production requirements still include Python 3.11/3.12, full pytest, Ruff/Black, source-accountability `--check`, generated OpenAPI `--check`, frontend, Rust, broker and venue settlement/recovery suites. Hosted Actions runners have recently failed required jobs with zero executed steps.
 
 The observed branch module-accountability manifest now includes the three new canonical modules and refreshed public `market/__init__.py` fingerprint. A complete full-source hash verification still needs the exact checkout generator.
+
+### Decimal precision follow-up
+
+The original normalizer used Decimal.__abs__ and Decimal.normalize with
+the ambient thread-local context. With Python's default 28-digit precision
+(or a caller-defined lower precision), a high-precision financial filing
+could silently lose significant digits, altering as-of reports and
+content-hash receipts. A RED regression reproduced this behavior.
+The contract now bounds significant decimal digits (64) and scale
+(-36..36), uses context-independent copy_abs for magnitude checks,
+and normalizes with an explicit 64-digit context. Negative/positive
+zero are normalized to the same canonical "0". The full isolated
+suite passed **56/56**, including three new numeric edge cases.
+No separate currency precision/rounding policy is inferred.
 
 ## 6. Remaining second- and third-order convergence candidates
 
