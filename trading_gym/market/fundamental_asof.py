@@ -12,7 +12,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Context, Decimal
 from typing import Any, Sequence
 
 _SHA = re.compile(r"^[a-f0-9]{64}$")
@@ -97,7 +97,16 @@ def _valid_fact(item: object) -> dict[str, Any]:
         raise ValueError("fundamental frame duration is inconsistent with its type")
     if type(item.value) is not Decimal or not item.value.is_finite():
         raise ValueError("fundamental value must be a finite Decimal")
-    if abs(item.value) > _MAX_VALUE:
+    decimal_digits = item.value.as_tuple()
+    if (
+        len(decimal_digits.digits) > 64
+        or decimal_digits.exponent < -36
+        or decimal_digits.exponent > 36
+    ):
+        raise ValueError("fundamental precision or scale exceeds bounds")
+    # Decimal.__abs__ and normalize() otherwise obey ambient precision;
+    # report content must not change with a caller's decimal context.
+    if item.value.copy_abs() > _MAX_VALUE:
         raise ValueError("fundamental value exceeds bounded magnitude")
     source = _identity(item.source_sha256, _SHA, "source digest")
     return {
@@ -109,7 +118,10 @@ def _valid_fact(item: object) -> dict[str, Any]:
         "period_end_unix": end,
         "filed_at_unix": filed,
         "observed_at_unix": observed,
-        "value": format(item.value.normalize(), "f"),
+        "value": (
+            "0" if item.value.is_zero()
+            else format(item.value.normalize(context=Context(prec=64)), "f")
+        ),
         "source_sha256": source,
     }
 
