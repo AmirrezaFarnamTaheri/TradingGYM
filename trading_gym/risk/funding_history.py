@@ -5,6 +5,7 @@ this evaluator requires both the effective time and actual observation time
 to precede its as-of timestamp. It neither requests venue data nor mutates
 positions, broker state, or research inputs.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,7 +23,11 @@ _MAX_EVENTS = 10_000
 
 
 def _utc(value: datetime) -> datetime:
-    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+    if (
+        not isinstance(value, datetime)
+        or value.tzinfo is None
+        or value.utcoffset() is None
+    ):
         raise ValueError("funding timestamp must be timezone-aware")
     return value.astimezone(timezone.utc)
 
@@ -36,14 +41,24 @@ class FundingObservation:
     source_sha256: str
 
     def __post_init__(self) -> None:
-        if not isinstance(self.instrument_id, str) or not _INSTRUMENT.fullmatch(self.instrument_id):
+        if (
+            not isinstance(self.instrument_id, str)
+            or not _INSTRUMENT.fullmatch(self.instrument_id)
+        ):
             raise ValueError("invalid funding instrument")
         effective, observed = _utc(self.effective_at), _utc(self.observed_at)
         if observed < effective:
             raise ValueError("observed_at cannot precede settled rate effective_at")
-        if type(self.rate) is not Decimal or not self.rate.is_finite() or abs(self.rate) > 1:
+        if (
+            type(self.rate) is not Decimal
+            or not self.rate.is_finite()
+            or abs(self.rate) > 1
+        ):
             raise ValueError("rate must be a finite bounded Decimal")
-        if not isinstance(self.source_sha256, str) or not _SHA256.fullmatch(self.source_sha256):
+        if (
+            not isinstance(self.source_sha256, str)
+            or not _SHA256.fullmatch(self.source_sha256)
+        ):
             raise ValueError("source_sha256 must be lowercase hexadecimal SHA-256")
 
 
@@ -88,12 +103,17 @@ def resolve_funding_history(
     latest: FundingObservation | None = None
     last_time: datetime | None = None
     for item in observations:
-        if not isinstance(item, FundingObservation) or item.instrument_id != instrument_id:
+        if (
+            not isinstance(item, FundingObservation)
+            or item.instrument_id != instrument_id
+        ):
             raise ValueError("mixed or invalid funding instrument observations")
         effective = _utc(item.effective_at)
         observed = _utc(item.observed_at)
         if last_time is not None and effective <= last_time:
-            raise ValueError("funding observations must have strictly increasing effective time")
+            raise ValueError(
+                "funding observations must have strictly increasing effective time"
+            )
         last_time = effective
         if effective <= decision_at and observed <= decision_at:
             eligible.append({
@@ -108,7 +128,9 @@ def resolve_funding_history(
         sort_keys=True, separators=(",", ":"), allow_nan=False,
     ).encode("utf-8")).hexdigest()
     if latest is None:
-        return FundingResolution(instrument_id, decision_at, None, None, "unavailable", 0, receipt)
+        return FundingResolution(
+            instrument_id, decision_at, None, None, "unavailable", 0, receipt
+        )
     selected_at = _utc(latest.effective_at)
     stale = decision_at - selected_at > max_age
     return FundingResolution(
