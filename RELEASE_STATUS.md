@@ -6,7 +6,8 @@
 The existing draft PR #2 now includes ADR-051 and a canonical, research-only
 point-in-time factor evidence pipeline in `trading_gym.market`:
 
-- `fundamental_asof.py`: exact Decimal, fiscal frame, reporting-unit and
+- `fundamental_asof.py`: context-independent 64-digit bounded Decimal
+  precision and scale, plus explicit fiscal frame, reporting-unit and
   dual filing/observation-time admission. Later restatements do not leak into
   prior historical decisions; quarterly/YTD and annual frames are not mixed.
   Stale, unavailable, malformed and ambiguous filings are rejected or blocked.
@@ -21,7 +22,7 @@ point-in-time factor evidence pipeline in `trading_gym.market`:
 - Added focused market and CLI regression suites and synchronized source
   SHA-256 fingerprints for all affected market modules.
 
-**Verification:** 53/53 local isolated Python 3.13.5 source-mirror tests passed
+**Verification:** 56/56 local isolated Python 3.13.5 source-mirror tests passed
 after failing behavior was reproduced. The GitHub-committed public market API
 export regression and the full pinned repository Python 3.11/3.12 suite remain
 **unverified**. No model alpha, independent SEC/source attestation,
