@@ -228,4 +228,36 @@ def test_large_decimal_fill_uses_exact_cash_product_not_context_rounding():
         ),
     )
     assert report["status"] == "matched"
-    assert report["computed_cash_base"] == format(expected.normalize(), "f")
+    # Do not compute the expected value through normalize() outside the
+    # high-precision context: that would reproduce the rounding defect.
+    assert D(report["computed_cash_base"]) == expected
+
+
+def test_large_decimal_position_receipt_does_not_round_final_formatting():
+    from decimal import localcontext
+
+    quantity = D("123456789.123456789")
+    before = D("987654321987654321.123456789012345678")
+    price = D("987654321.987654321")
+    fee = D("0.01")
+    cash_before = D("200000000000000000")
+    with localcontext() as context:
+        context.prec = 96
+        expected_position = before + quantity
+        expected_cash = cash_before - quantity * price - fee
+    report = evaluate(
+        order=intent(
+            quantity=quantity, lot_step=D("0.000000001"),
+            price_tick=D("0.000000001"),
+            position_before=before, cash_before_base=cash_before,
+        ),
+        fills=[fill(quantity=quantity, price=price, fee_base=fee)],
+        broker=readback(
+            status="filled", cumulative_filled=quantity,
+            position_qty=expected_position, cash_base=expected_cash,
+        ),
+    )
+    assert report["status"] == "matched"
+    assert D(report["computed_position_qty"]) == expected_position
+    assert D(report["computed_cash_base"]) == expected_cash
+    assert report["execution_authority_granted"] is False
