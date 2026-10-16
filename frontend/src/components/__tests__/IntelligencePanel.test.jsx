@@ -80,6 +80,7 @@ describe('Intelligence model fleet status', () => {
     const refresh = await waitForRendered(
       container, 'button', el => el.textContent.includes('Refresh status')
     );
+    expect(Array.from(container.querySelectorAll('button')).filter((button) => button.textContent.includes('Refresh status'))).toHaveLength(1);
     refresh.click();
     await flushPromises();
     await waitForRendered(container, '.info-box', el => el.textContent.includes('rules'));
