@@ -32,13 +32,26 @@ def validate_market_frame(frame: pd.DataFrame) -> None:
     # Rolling windows, crossings and warmup presume arrival-time order.
     # Reject duplicated, missing and reversed real timestamps rather
     # than computing lookahead-contaminated research signals.
-    if isinstance(frame.index, pd.DatetimeIndex) and (
+    if (
         frame.index.hasnans
         or not frame.index.is_unique
         or not frame.index.is_monotonic_increasing
     ):
         raise ValueError("market timestamps must be strictly increasing and complete")
-    values = frame.loc[:, REQUIRED_COLUMNS].to_numpy(dtype=float)
+    # Pandas' numeric coercion accepts booleans and numeric-looking strings,
+    # and can discard complex imaginary components: none are valid OHLCV.
+    for name in REQUIRED_COLUMNS:
+        dtype = frame[name].dtype
+        if (
+            pd.api.types.is_bool_dtype(dtype)
+            or pd.api.types.is_complex_dtype(dtype)
+            or not pd.api.types.is_numeric_dtype(dtype)
+        ):
+            raise ValueError(f"market data {name} must have numeric, non-boolean dtype")
+    try:
+        values = frame.loc[:, REQUIRED_COLUMNS].to_numpy(dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("market data must be finite numeric observations") from exc
     if not np.isfinite(values).all():
         raise ValueError("market data contains non-finite values")
     if (frame["high"] < frame[["open", "close", "low"]].max(axis=1)).any():
