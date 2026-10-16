@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from enum import Enum
 from typing import Annotated
 
@@ -171,6 +171,19 @@ class OrderFillParityReport(BaseModel):
     execution_authority_granted: bool = False
 
 
+def _exact_sum(amounts) -> Decimal:
+    """Aggregate bounded venue decimals without default-context rounding."""
+    with localcontext() as context:
+        context.prec = 96
+        return sum(amounts, Decimal(0))
+
+
+def _exact_mul(a: Decimal, b: Decimal) -> Decimal:
+    with localcontext() as context:
+        context.prec = 96
+        return a * b
+
+
 def _sorted_unique(items: list, key: str, label: str) -> list:
     result = sorted(items, key=lambda row: getattr(row, key))
     names = [getattr(row, key) for row in result]
@@ -255,9 +268,9 @@ def reconcile_order_fills(
         rb = by_readback.get(order.order_id)
         if order.submitted_at > as_of:
             raise ValueError("future order relative to as_of")
-        quantity = sum((f.quantity for f in current_fills), Decimal(0))
-        fee = sum((f.fee_quote for f in current_fills), Decimal(0))
-        notional = sum((f.quantity * f.price for f in current_fills), Decimal(0))
+        quantity = _exact_sum(f.quantity for f in current_fills)
+        fee = _exact_sum(f.fee_quote for f in current_fills)
+        notional = _exact_sum(f.quantity * f.price for f in current_fills)
         if rb is None:
             item_blockers.append(f"readback_missing:{order.order_id}")
         else:
@@ -302,7 +315,9 @@ def reconcile_order_fills(
             item_blockers.append(f"fok_partial_execution:{order.order_id}")
         if quantity % order.quantity_step != 0:
             item_blockers.append(f"aggregate_quantity_step:{order.order_id}")
-        if notional and fee * Decimal(10000) > notional * order.fee_ceiling_bps:
+        if notional and _exact_mul(fee, Decimal(10000)) > _exact_mul(
+            notional, order.fee_ceiling_bps
+        ):
             item_blockers.append(f"excess_fee:{order.order_id}")
 
         for fill in current_fills:
@@ -318,13 +333,18 @@ def reconcile_order_fills(
                 item_blockers.append(f"invalid_quantity_step:{fill.fill_id}")
 
         signed = quantity if order.side is Side.BUY else -quantity
-        cash_delta = (notional if order.side is Side.SELL else -notional) - fee
-        position[order.instrument_id] = (
-            position.get(order.instrument_id, Decimal(0)) + signed
-        )
-        cash[order.quote_currency] = (
-            cash.get(order.quote_currency, Decimal(0)) + cash_delta
-        )
+        cash_delta = _exact_sum((
+            notional if order.side is Side.SELL else -notional,
+            -fee,
+        ))
+        position[order.instrument_id] = _exact_sum((
+            position.get(order.instrument_id, Decimal(0)),
+            signed,
+        ))
+        cash[order.quote_currency] = _exact_sum((
+            cash.get(order.quote_currency, Decimal(0)),
+            cash_delta,
+        ))
         if not item_blockers:
             accepted_count += len(current_fills)
         blockers.extend(item_blockers)
