@@ -44,8 +44,10 @@ def test_published_but_unobserved_exclusion_does_not_leak():
         effective_at_unix=200 * DAY, published_at_unix=190 * DAY,
         observed_at_unix=205 * DAY, included=False, source_sha256="b" * 64,
     )
-    assert assess([event(), excluded], as_of=202 * DAY)["members"][0]["state"] == "included"
-    assert assess([event(), excluded], as_of=205 * DAY)["members"][0]["state"] == "excluded"
+    before = assess([event(), excluded], as_of=202 * DAY)
+    assert before["members"][0]["state"] == "included"
+    after = assess([event(), excluded], as_of=205 * DAY)
+    assert after["members"][0]["state"] == "excluded"
 
 
 def test_future_effective_membership_not_applied_early():
@@ -62,7 +64,8 @@ def test_old_period_restatement_cannot_override_newer_effective_membership():
         effective_at_unix=80 * DAY, published_at_unix=220 * DAY,
         observed_at_unix=222 * DAY, included=False, source_sha256="b" * 64,
     )
-    assert assess([event(), old_restatement], as_of=230 * DAY)["members"][0]["state"] == "included"
+    report = assess([event(), old_restatement], as_of=230 * DAY)
+    assert report["members"][0]["state"] == "included"
 
 
 def test_same_effective_date_correction_applies_only_when_known():
@@ -70,8 +73,10 @@ def test_same_effective_date_correction_applies_only_when_known():
         effective_at_unix=100 * DAY, published_at_unix=160 * DAY,
         observed_at_unix=161 * DAY, included=False, source_sha256="b" * 64,
     )
-    assert assess([event(), corrected], as_of=150 * DAY)["members"][0]["state"] == "included"
-    assert assess([event(), corrected], as_of=161 * DAY)["members"][0]["state"] == "excluded"
+    earlier = assess([event(), corrected], as_of=150 * DAY)
+    assert earlier["members"][0]["state"] == "included"
+    later = assess([event(), corrected], as_of=161 * DAY)
+    assert later["members"][0]["state"] == "excluded"
 
 
 def test_sorted_replay_receipt_is_content_bound_and_never_grants_trade():
