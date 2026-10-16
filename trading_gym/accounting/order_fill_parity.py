@@ -43,11 +43,16 @@ class Liquidity(str, Enum):
 
 
 def _amount(value: Decimal, name: str, *, positive: bool = False) -> None:
+    if not isinstance(value, Decimal) or not value.is_finite():
+        raise ValueError(f"{name} must be finite bounded decimal")
+    components = value.as_tuple()
     if (
-        not isinstance(value, Decimal)
-        or not value.is_finite()
-        or abs(value) > MAX_VALUE
+        len(components.digits) > 38
+        or not -30 <= components.exponent <= 30
     ):
+        raise ValueError(f"{name} exceeds Decimal precision budget")
+    # Decimal's regular abs() may round under the caller's context.
+    if value.copy_abs() > MAX_VALUE:
         raise ValueError(f"{name} must be finite bounded decimal")
     if (positive and value <= 0) or (not positive and value < 0):
         raise ValueError(f"{name} must be nonnegative or positive")
