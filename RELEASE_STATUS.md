@@ -1,5 +1,44 @@
 # Hardening branch status — 2026-10-11
 
+
+## 2026-10-16 — Historical fundamentals and survivorship-safe factor data
+
+The existing draft PR #2 now includes ADR-051 and a canonical, research-only
+point-in-time factor evidence pipeline in `trading_gym.market`:
+
+- `fundamental_asof.py`: exact Decimal, fiscal frame, reporting-unit and
+  dual filing/observation-time admission. Later restatements do not leak into
+  prior historical decisions; quarterly/YTD and annual frames are not mixed.
+  Stale, unavailable, malformed and ambiguous filings are rejected or blocked.
+- `universe_asof.py`: historical inclusion/exclusion events require effective,
+  published and observed times; present-day active instruments cannot be
+  presumed to have belonged to a past benchmark. Unknown membership blocks.
+- `factor_research_readiness.py`: same-as-of conservative intersection of
+  historical index membership and filing availability, with blocker receipts
+  and **no factor, broker or live-capital authority**.
+- `scripts/assess_fundamentals_asof.py`: bounded read-only offline
+  evaluation from decimal-string JSON, no API credentials or network calls.
+- Added focused market and CLI regression suites and synchronized source
+  SHA-256 fingerprints for all affected market modules.
+
+**Verification:** 53/53 local isolated Python 3.13.5 source-mirror tests passed
+after failing behavior was reproduced. The GitHub-committed public market API
+export regression and the full pinned repository Python 3.11/3.12 suite remain
+**unverified**. No model alpha, independent SEC/source attestation,
+survivorship-free benchmark history, Rust/frontend/broker certification or
+funded-live permission is implied.
+
+The seventeen archived donor ZIPs were independently inventoried at
+4,226 files / 3,124 source-classified files / 4,180 distinct payload SHA-256
+hashes; the source-symbol pass recorded 44,100 AST/heuristic declarations.
+The static inventory is not method-level behavioral qualification. Three
+newly uploaded ZIPs are byte-identical to earlier donors.
+
+Hosted CI still reports required job failures with zero executed job steps;
+it does not establish a source-level pass or fail. PR remains draft,
+unmerged; funded-live is **NO-GO**.
+
+
 ## 2026-10-16 — Finite risk evidence and insolvency contracts
 
 ADR-044 records additional source-level convergence from Vibe-Trading's
