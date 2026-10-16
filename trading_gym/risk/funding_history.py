@@ -116,27 +116,43 @@ def resolve_funding_history(
             )
         last_time = effective
         if effective <= decision_at and observed <= decision_at:
-            eligible.append({
-                "effective_at": effective.isoformat(),
-                "observed_at": observed.isoformat(),
-                "rate": str(item.rate),
-                "source_sha256": item.source_sha256,
-            })
+            eligible.append(
+                {
+                    "effective_at": effective.isoformat(),
+                    "observed_at": observed.isoformat(),
+                    "rate": str(item.rate),
+                    "source_sha256": item.source_sha256,
+                }
+            )
             latest = item
-    receipt = hashlib.sha256(json.dumps(
-        {"instrument_id": instrument_id, "observations": eligible},
-        sort_keys=True, separators=(",", ":"), allow_nan=False,
-    ).encode("utf-8")).hexdigest()
+    receipt = hashlib.sha256(
+        json.dumps(
+            {"instrument_id": instrument_id, "observations": eligible},
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
     if latest is None:
         return FundingResolution(
-            instrument_id, decision_at, None, None, "unavailable", 0, receipt
+            instrument_id,
+            decision_at,
+            None,
+            None,
+            "unavailable",
+            0,
+            receipt,
         )
     selected_at = _utc(latest.effective_at)
     stale = decision_at - selected_at > max_age
     return FundingResolution(
-        instrument_id, decision_at, selected_at,
-        None if stale else latest.rate, "stale" if stale else "available",
-        len(eligible), receipt,
+        instrument_id,
+        decision_at,
+        selected_at,
+        None if stale else latest.rate,
+        "stale" if stale else "available",
+        len(eligible),
+        receipt,
     )
 
 
