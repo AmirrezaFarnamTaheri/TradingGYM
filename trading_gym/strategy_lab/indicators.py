@@ -259,6 +259,8 @@ REGISTRY: dict[str, IndicatorFunction] = {
 
 
 def compute_indicators(frame: pd.DataFrame, specs: list[IndicatorSpec]) -> pd.DataFrame:
+    if not frame.columns.is_unique:
+        raise ValueError("market columns must be unique")
     aliases = [spec.alias for spec in specs]
     reserved = {"entry_signal", "exit_signal", "position_intent"}
     if len(set(aliases)) != len(aliases) or set(aliases) & (
