@@ -93,3 +93,12 @@ def test_report_receipt_ignores_future_only_revisions():
     future = _members(False, observed=600 * DAY)
     assert _assess(membership=_members() + future) == baseline
     assert _assess(facts=[])["report_sha256"] != baseline["report_sha256"]
+
+def test_market_package_exposes_single_canonical_pit_ownership():
+    import trading_gym.market as public
+    from trading_gym.market.fundamental_asof import assess_fundamentals_asof
+    from trading_gym.market.universe_asof import assess_universe_asof
+
+    assert public.assess_fundamentals_asof is assess_fundamentals_asof
+    assert public.assess_universe_asof is assess_universe_asof
+    assert public.assess_factor_research_readiness is assess_factor_research_readiness
