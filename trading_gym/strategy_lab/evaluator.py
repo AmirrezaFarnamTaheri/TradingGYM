@@ -20,6 +20,8 @@ MAX_BARS = 2_000_000
 
 
 def validate_market_frame(frame: pd.DataFrame) -> None:
+    if not frame.columns.is_unique:
+        raise ValueError("market columns must be unique")
     missing = [name for name in REQUIRED_COLUMNS if name not in frame.columns]
     if missing:
         raise ValueError(f"market data missing columns: {', '.join(missing)}")
