@@ -249,10 +249,22 @@ class DataProviderRouter:
             raise ValueError("market-data frame must use a DatetimeIndex")
         if output.index.tz is None:
             raise ValueError("market-data DatetimeIndex must be timezone-aware")
+        # Filtering a NaT silently would hide a corrupt source observation.
+        if output.index.hasnans:
+            raise ValueError("market-data source contains missing timestamp")
         output = output.loc[
             (output.index >= request.start) & (output.index <= request.end)
         ]
         if output.index.has_duplicates:
+            # Two unequal bars with the same source timestamp are conflicting
+            # evidence, not a benign retry. Never pick the arbitrary last
+            # value and call it a verified candle.
+            duplicates = output.loc[
+                output.index.duplicated(keep=False), list(REQUIRED_COLUMNS)
+            ]
+            for _, rows in duplicates.groupby(level=0, sort=False):
+                if rows.nunique(dropna=False).gt(1).any():
+                    raise ValueError("market-data conflicting duplicate timestamp")
             duplicate_count = int(output.index.duplicated(keep="last").sum())
             output = output.loc[~output.index.duplicated(keep="last")]
             warnings.append(f"removed {duplicate_count} duplicate timestamps")
