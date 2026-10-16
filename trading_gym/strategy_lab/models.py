@@ -36,6 +36,7 @@ class IndicatorSpec(BaseModel):
         "bollinger",
         "roc",
         "vwap",
+        "vwap_reversion_score",
         "obv",
         "stochastic",
         "donchian",
@@ -55,6 +56,7 @@ class IndicatorSpec(BaseModel):
             "atr": {"period"},
             "roc": {"period"},
             "vwap": {"period"},
+            "vwap_reversion_score": {"period", "threshold_pct", "saturation_pct"},
             "obv": set(),
             "macd": {"fast", "slow", "signal", "component"},
             "bollinger": {"period", "deviations", "component"},
@@ -100,6 +102,19 @@ class IndicatorSpec(BaseModel):
             slow = int(self.params.get("slow", 26))
             if fast >= slow:
                 raise ValueError("MACD fast period must be less than slow period")
+        if self.name == "vwap_reversion_score":
+            threshold = self.params.get("threshold_pct", 0.5)
+            saturation = self.params.get("saturation_pct", 2.0)
+            if (
+                type(threshold) not in (int, float)
+                or type(saturation) not in (int, float)
+                or not math.isfinite(threshold)
+                or not math.isfinite(saturation)
+                or not 0 < threshold < saturation <= 100
+            ):
+                raise ValueError(
+                    "VWAP score thresholds must be finite, positive and ordered"
+                )
         return self
 
 
