@@ -12,6 +12,9 @@ ADR-054 records additional PR #2 source-integrity protections:
 - Settlement projection rejects case-normalized duplicate currency cash
   keys, malformed/nonfinite cash amounts and non-ASCII currency aliases.
   One canonical currency entry remains normalized losslessly.
+- Currency-only cash projections reject obligations from multiple accounts,
+  avoiding implicit cross-account netting. Existing negative balances now
+  produce cash-shortfall blockers even without pending obligations.
 - Source-module fingerprints for the modified strategy and accounting
   files have been updated; the manifest lists 365 Python source modules.
 
