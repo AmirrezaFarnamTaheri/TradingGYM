@@ -1497,6 +1497,11 @@
     },
     {
       "owner": "trading_gym",
+      "path": "trading_gym/risk/funding_history.py",
+      "sha256": "7e617f1c46f6eddce36afe829ab9ee1bec190f07a1fada02efaa39d7e1a4bbfa"
+    },
+    {
+      "owner": "trading_gym",
       "path": "trading_gym/risk/latching_kill_switch.py",
       "sha256": "048dd08abe96430713f9b0a147710c10a43cbf93097b7d27aa5ed1dae911b47e"
     },
