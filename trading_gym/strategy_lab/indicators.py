@@ -130,6 +130,62 @@ def vwap(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd
     return value / volume.replace(0, np.nan)
 
 
+
+def vwap_reversion_score(
+    frame: pd.DataFrame, params: dict[str, float | int | str | bool]
+) -> pd.Series:
+    """Causal, research-only [-1,1] VWAP mean-reversion pressure.
+
+    The magnitude rises continuously from zero at the configured dead-zone
+    to one at saturation. Positive pressure means price below VWAP.
+    Missing or unwarmed VWAP remains NaN, never manufactured neutral evidence.
+    """
+    period = _period(params, default=20)
+    threshold = params.get("threshold_pct", 0.5)
+    saturation = params.get("saturation_pct", 2.0)
+    if (
+        type(threshold) not in (int, float)
+        or type(saturation) not in (int, float)
+        or not math.isfinite(threshold)
+        or not math.isfinite(saturation)
+        or not 0 < threshold < saturation <= 100
+    ):
+        raise ValueError("VWAP thresholds must be finite, positive and ordered")
+
+    required = ("high", "low", "close", "volume")
+    for name in required:
+        if name not in frame.columns:
+            raise ValueError("required indicator input column missing")
+        dtype = frame[name].dtype
+        if (
+            pd.api.types.is_bool_dtype(dtype)
+            or pd.api.types.is_complex_dtype(dtype)
+            or not pd.api.types.is_numeric_dtype(dtype)
+        ):
+            raise ValueError("VWAP input must be finite real numeric")
+    _validated_ohlcv(frame, required)
+    if ((frame["high"] <= 0) | (frame["low"] <= 0)).any():
+        raise ValueError("VWAP source price extrema must be positive")
+    if (
+        (frame["high"] < frame[["low", "close"]].max(axis=1))
+        | (frame["low"] > frame[["high", "close"]].min(axis=1))
+    ).any():
+        raise ValueError("VWAP source price bar is inconsistent")
+
+    benchmark = vwap(frame, {"period": period})
+    available = benchmark.notna()
+    valid_values = benchmark[available].to_numpy(dtype=float)
+    if not np.isfinite(valid_values).all() or (valid_values <= 0).any():
+        raise ValueError("VWAP benchmark is non-finite")
+    deviation = 100.0 * (benchmark - frame["close"].astype(float)) / benchmark
+    if not np.isfinite(deviation[available].to_numpy(dtype=float)).all():
+        raise ValueError("VWAP deviation is non-finite")
+    strength = (
+        (deviation.abs() - threshold) / (saturation - threshold)
+    ).clip(lower=0.0, upper=1.0)
+    return (np.sign(deviation) * strength).where(available)
+
+
 def obv(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
     direction = np.sign(frame["close"].diff()).fillna(0.0)
     return (direction * frame["volume"]).cumsum()
@@ -252,6 +308,7 @@ REGISTRY: dict[str, IndicatorFunction] = {
     "bollinger": bollinger,
     "roc": roc,
     "vwap": vwap,
+    "vwap_reversion_score": vwap_reversion_score,
     "obv": obv,
     "stochastic": stochastic,
     "donchian": donchian,
