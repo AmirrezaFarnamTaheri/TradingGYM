@@ -48,7 +48,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/accounting/settlement.py",
-      "sha256": "822abdc53e77f4751feaa1677f3838031b83768f35cb815d3cb0a3dd021fdca6"
+      "sha256": "82ed1e666f30fcc6fa6b07c148d3704242a90a2adf07d86e28ccbc9596b97f17"
     },
     {
       "owner": "trading_gym",
@@ -1618,7 +1618,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/evaluator.py",
-      "sha256": "1e891b2b30949beec32f5f991ce4108a3b685a72f6afa133c8f0fbfbe00176c6"
+      "sha256": "cc637096eebb04f5d2f37998c12cb726e4d3a04286795db52fdf08585f93ab11"
     },
     {
       "owner": "trading_gym",
@@ -1628,12 +1628,12 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/indicators.py",
-      "sha256": "630ebfc547b0ee3bfec59d4ddf15e4995b894d8ffdc4acde4892ea8cf18fb4d6"
+      "sha256": "8d0fb8dec10ec63c9075e3023205d713dfe7a0720935666e9c6389e66225cc0e"
     },
     {
       "owner": "trading_gym",
       "path": "trading_gym/strategy_lab/models.py",
-      "sha256": "5d75205f847a05dad969a69af431143ce932747847e66720d525d3865b9e8ac0"
+      "sha256": "ef7a6a1d77bbc107e50a367052994c994ef9ee7150316ef9647c3ce5e01c8af2"
     },
     {
       "owner": "trading_gym",
