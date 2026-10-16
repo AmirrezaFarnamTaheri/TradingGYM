@@ -212,3 +212,20 @@ def test_replay_never_uses_next_years_filing():
         value=Decimal("200"),
     )
     assert assess([fact(), new], as_of=520 * DAY)["facts"][0]["value"] == "125.5"
+
+def test_decimal_reporting_values_are_exact_independent_of_current_precision():
+    from decimal import localcontext
+
+    value = Decimal("12345678901234567890123456.78901234567890")
+    with localcontext() as context:
+        context.prec = 10
+        report = assess([fact(value=value)])
+    assert report["facts"][0]["value"] == (
+        "12345678901234567890123456.7890123456789"
+    )
+
+
+@pytest.mark.parametrize("value", [Decimal("1e-9999"), Decimal("0e-99999")])
+def test_extreme_decimal_scale_fails_before_normalization_or_report(value):
+    with pytest.raises(ValueError, match="precision|scale"):
+        assess([fact(value=value)])
