@@ -115,6 +115,7 @@ function DomainCard({ path, title, description, active, onSelect, disabled }) {
 export default function InstitutionalOSPanel() {
   const toast = useToast();
   const [selected, setSelected] = useState('market-intelligence/regime');
+  const [domainSearch, setDomainSearch] = useState('');
   const [payload, setPayload] = useState(JSON.stringify(SAMPLE['market-intelligence/regime'], null, 2));
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -132,6 +133,9 @@ export default function InstitutionalOSPanel() {
   const [loadingArtifacts, setLoadingArtifacts] = useState(false);
   const selectedDomain = useMemo(() => DOMAINS.find(([path]) => path === selected), [selected]);
   const domain = selected.split('/')[0];
+  const filteredDomains = useMemo(() => DOMAINS.filter(([path, title, description]) =>
+    `${path} ${title} ${description}`.toLowerCase().includes(domainSearch.trim().toLowerCase())
+  ), [domainSearch]);
 
   const loadArtifacts = async () => {
     const seq = ++artifactsSeq.current;
@@ -139,9 +143,13 @@ export default function InstitutionalOSPanel() {
     try {
       const response = await institutionalAPI.artifacts(domain, 100);
       if (seq !== artifactsSeq.current) return;
+      if (!Array.isArray(response.data) || !response.data.every((item) => item && typeof item === 'object' && !Array.isArray(item) && typeof item.artifact_id === 'string')) {
+        throw new Error('Invalid artifact history response');
+      }
       setArtifacts(response.data);
     } catch (requestError) {
       if (seq !== artifactsSeq.current) return;
+      setArtifacts([]);
       setError(requestError.message || 'Could not load institutional artefacts.');
     } finally {
       if (seq === artifactsSeq.current) setLoadingArtifacts(false);
@@ -160,6 +168,15 @@ export default function InstitutionalOSPanel() {
     setSelected(path);
     setPayload(JSON.stringify(SAMPLE[path] || {}, null, 2));
     setArtifactId(`${path.replaceAll('/', '-')}-review`);
+    setResult(null);
+    setError('');
+  };
+
+  const editPayload = (nextPayload) => {
+    // An edited request is not the input that produced the last review.
+    evaluateSeq.current += 1;
+    setRunning(false);
+    setPayload(nextPayload);
     setResult(null);
     setError('');
   };
@@ -235,8 +252,21 @@ export default function InstitutionalOSPanel() {
         </p>
       </div>
 
+      <label style={{ display: 'block', marginBottom: 12 }}>
+        <span className="status-label">Find an institutional domain</span>
+        <input
+          type="search"
+          className="text-input"
+          aria-label="Search institutional domains"
+          value={domainSearch}
+          onChange={(event) => setDomainSearch(event.target.value)}
+          placeholder="Search domain, capability or evidence type"
+          style={{ width: '100%', maxWidth: 540 }}
+        />
+      </label>
+      <p className="muted" role="status">{filteredDomains.length} of {DOMAINS.length} domains shown</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(245px, 1fr))', gap: 12 }}>
-        {DOMAINS.map(([path, title, description]) => (
+        {filteredDomains.map(([path, title, description]) => (
           <DomainCard
             key={path}
             path={path}
@@ -258,9 +288,7 @@ export default function InstitutionalOSPanel() {
             className="btn"
             disabled={running}
             onClick={() => {
-              setPayload(JSON.stringify(TURNOVER_SAMPLE, null, 2));
-              setResult(null);
-              setError('');
+              editPayload(JSON.stringify(TURNOVER_SAMPLE, null, 2));
             }}
           >
             Load turnover-aware example
@@ -270,7 +298,7 @@ export default function InstitutionalOSPanel() {
           <span className="status-label">Request JSON</span>
           <textarea
             value={payload}
-            onChange={(event) => setPayload(event.target.value)}
+            onChange={(event) => editPayload(event.target.value)}
             spellCheck={false}
             rows={18}
             style={{ width: '100%', fontFamily: 'monospace', padding: 12 }}
