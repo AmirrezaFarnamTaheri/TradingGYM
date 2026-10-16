@@ -93,7 +93,9 @@ def evaluate_strategy(frame: pd.DataFrame, strategy: StrategySpec) -> pd.DataFra
     result = enriched.copy()
     result["entry_signal"] = _group(enriched, strategy.entry)
     result["exit_signal"] = _group(enriched, strategy.exit)
+    # A simultaneous exit is an explicit risk-reduction instruction.
+    # Entry cannot override it when indicators disagree on one bar.
     result["position_intent"] = np.select(
-        [result["entry_signal"], result["exit_signal"]], [1, -1], default=0
+        [result["exit_signal"], result["entry_signal"]], [-1, 1], default=0
     ).astype(np.int8)
     return result
