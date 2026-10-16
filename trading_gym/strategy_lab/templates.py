@@ -224,6 +224,54 @@ def template_catalogue() -> dict[str, StrategySpec]:
             risk=RiskSpec(max_position_fraction=0.07, stop_loss_fraction=0.03),
             tags=["trend", "macd", "template"],
         ),
+        "vwap_contrarian_recovery": StrategySpec(
+            name="VWAP contrarian recovery (research)",
+            description=(
+                "A research-only, closed-bar mean-reversion hypothesis: "
+                "a below-VWAP deviation emerges beyond its noise band "
+                "while RSI is weak. This is not a validated source of alpha."
+            ),
+            timeframe="15m",
+            indicators=[
+                IndicatorSpec(
+                    name="vwap_reversion_score",
+                    alias="vwap_fade",
+                    params={
+                        "period": 20,
+                        "threshold_pct": 0.5,
+                        "saturation_pct": 2.0,
+                    },
+                ),
+                IndicatorSpec(name="rsi", alias="rsi14", params={"period": 14}),
+            ],
+            entry=ConditionGroup(
+                mode=LogicMode.ALL,
+                conditions=[
+                    condition(
+                        indicator("vwap_fade"),
+                        Operator.CROSSES_ABOVE,
+                        constant(0.35),
+                    ),
+                    condition(indicator("rsi14"), Operator.LT, constant(42.0)),
+                ],
+            ),
+            exit=ConditionGroup(
+                mode=LogicMode.ANY,
+                conditions=[
+                    condition(
+                        indicator("vwap_fade"), Operator.LT, constant(0.10)
+                    ),
+                    condition(indicator("rsi14"), Operator.GT, constant(55.0)),
+                ],
+            ),
+            risk=RiskSpec(
+                max_position_fraction=0.025,
+                max_leverage=1.0,
+                stop_loss_fraction=0.02,
+                max_holding_bars=32,
+            ),
+            tags=["research", "mean-reversion", "vwap", "template"],
+        ),
         "vwap_rsi_reclaim": StrategySpec(
             name="VWAP reclaim with RSI",
             description="Enter a rolling VWAP reclaim only when momentum is above neutral.",
