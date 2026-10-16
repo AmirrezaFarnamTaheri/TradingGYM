@@ -36,7 +36,9 @@ def template_catalogue() -> dict[str, StrategySpec]:
     return {
         "sma_crossover": StrategySpec(
             name="SMA crossover",
-            description="Enter when fast SMA crosses above slow SMA; exit on reverse cross.",
+            description=(
+                "Enter when fast SMA crosses above slow SMA; exit on reverse cross."
+            ),
             indicators=[
                 IndicatorSpec(name="sma", alias="fast_sma", params={"period": 20}),
                 IndicatorSpec(name="sma", alias="slow_sma", params={"period": 50}),
@@ -64,7 +66,9 @@ def template_catalogue() -> dict[str, StrategySpec]:
         ),
         "ema_roc_momentum": StrategySpec(
             name="EMA and ROC momentum",
-            description="Require both a fast/slow EMA cross and positive rate of change.",
+            description=(
+                "Require both a fast/slow EMA cross and positive rate of change."
+            ),
             indicators=[
                 IndicatorSpec(name="ema", alias="ema12", params={"period": 12}),
                 IndicatorSpec(name="ema", alias="ema26", params={"period": 26}),
@@ -112,7 +116,9 @@ def template_catalogue() -> dict[str, StrategySpec]:
         ),
         "bollinger_rsi_reversion": StrategySpec(
             name="Bollinger and RSI reversion",
-            description="Require lower-band weakness and an oversold oscillator before entry.",
+            description=(
+                "Require lower-band weakness and an oversold oscillator before entry."
+            ),
             indicators=[
                 IndicatorSpec(
                     name="bollinger",
@@ -155,7 +161,9 @@ def template_catalogue() -> dict[str, StrategySpec]:
         ),
         "donchian_breakout": StrategySpec(
             name="Donchian breakout",
-            description="Enter a prior-window high breakout and exit a shorter low-channel break.",
+            description=(
+                "Enter a prior-window high breakout and exit a shorter low-channel break."
+            ),
             indicators=[
                 IndicatorSpec(
                     name="donchian",
@@ -274,7 +282,9 @@ def template_catalogue() -> dict[str, StrategySpec]:
         ),
         "vwap_rsi_reclaim": StrategySpec(
             name="VWAP reclaim with RSI",
-            description="Enter a rolling VWAP reclaim only when momentum is above neutral.",
+            description=(
+                "Enter a rolling VWAP reclaim only when momentum is above neutral."
+            ),
             timeframe="15m",
             indicators=[
                 IndicatorSpec(name="vwap", alias="vwap20", params={"period": 20}),
@@ -624,7 +634,8 @@ def template_catalogue() -> dict[str, StrategySpec]:
                 max_holding_bars=150,
             ),
             tags=["research", "breakout", "directional-movement", "template"],
-        ),        "mfi_trend_confirmation": StrategySpec(
+        ),
+        "mfi_trend_confirmation": StrategySpec(
             name="Money-flow trend confirmation",
             description=(
                 "Research-only bullish momentum after positive money flow "
