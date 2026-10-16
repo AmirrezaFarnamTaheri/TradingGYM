@@ -1078,7 +1078,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/fundamental_asof.py",
-      "sha256": "47550c40e68cfddc721e0e08c00d1fb1758bdc2b95ff4db6a93fe62f52b34f53"
+      "sha256": "a6936b74ee2c3fe956eaf6a828a715d367059fcd14906ebb1a2447f5905d51bd"
     },
     {
       "owner": "trading_gym",
@@ -1098,7 +1098,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/universe_asof.py",
-      "sha256": "f4ab0e321f4c899c91e96ec2cc20e2478ac39615aaed55d498e317531bb18d66"
+      "sha256": "d2286ff269a2f8c60fb31ef35b890f00c1875b84926ed4adb214e5ed27b01851"
     },
     {
       "owner": "trading_gym",
