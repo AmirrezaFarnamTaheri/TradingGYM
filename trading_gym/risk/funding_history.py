@@ -135,8 +135,8 @@ def funding_cashflow_estimate(
         or abs(signed_notional) > Decimal("1e30")
     ):
         raise ValueError("signed_notional must be a finite bounded Decimal")
-    if type(intervals) is not int or not 1 <= intervals <= 10000:
-        raise ValueError("intervals must be an integer between 1 and 10000")
+    if type(intervals) is not int or intervals != 1:
+        raise ValueError("intervals require a single observed interval")
     if resolution.status != "available" or resolution.rate is None:
         raise PermissionError("funding evidence unavailable for cashflow estimate")
     return -signed_notional * resolution.rate * intervals
