@@ -1,5 +1,37 @@
 # Hardening branch status — 2026-10-11
 
+## 2026-10-16 strategy alias, exit-precedence and settlement-cash integrity
+
+ADR-054 records additional PR #2 source-integrity protections:
+
+- Declarative indicators cannot reuse raw OHLCV or derived signal columns.
+  Direct lower-level indicator calls and vectorized strategy evaluation
+  reject duplicate market-data field labels.
+- When entry and exit predicates coincide, exit intent has precedence.
+  This does not establish a live short-selling or order-routing grant.
+- Settlement projection rejects case-normalized duplicate currency cash
+  keys, malformed/nonfinite cash amounts and non-ASCII currency aliases.
+  One canonical currency entry remains normalized losslessly.
+- Source-module fingerprints for the modified strategy and accounting
+  files have been updated; the manifest lists 365 Python source modules.
+
+Two focused regression files accompany those changes. **Full exact-head
+test execution is not verified.** CI run
+`38878980999` reported failed jobs with **zero executed steps** and
+no obtainable runner logs, so those failures do not prove a source-level
+test result. New pushes may start further runs, but release status must be
+based on their actually executed steps.
+
+A nonexecuting normalized Python-AST pass of the 17 new donor archives
+examined 2,347 Python files and 21,793 nontrivial function/class nodes;
+zero *exact* normalized cross-archive subtrees were found under its
+strict comparator. This does not imply semantic non-overlap or complete
+method-level review.
+
+**PR status:** draft / unmerged; funded-live **NO-GO** pending exact-head
+CI, model calibration, venue settlement and broker recovery qualification.
+
+
 
 ## 2026-10-16 — Historical fundamentals and survivorship-safe factor data
 
