@@ -17,6 +17,11 @@ from trading_gym.market.data_router import (
     MarketDataEnvelope,
     MarketDataRequest,
 )
+from trading_gym.market.fundamental_asof import (
+    FundamentalFact,
+    FundamentalQuery,
+    assess_fundamentals_asof,
+)
 from trading_gym.market.models import AssetClass, InstrumentSpec
 from trading_gym.market.registry import InstrumentConflict, InstrumentRegistry
 from trading_gym.market.calendar import (
@@ -35,6 +40,9 @@ from trading_gym.market.calendar import (
 
 __all__ = [
     "AssetClass",
+    "FundamentalFact",
+    "FundamentalQuery",
+    "assess_fundamentals_asof",
     "BacktestLimitError",
     "BacktestPolicy",
     "CalendarException",
