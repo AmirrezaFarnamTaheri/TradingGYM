@@ -1572,6 +1572,11 @@
     },
     {
       "owner": "trading_gym",
+      "path": "trading_gym/skills/archive_intake.py",
+      "sha256": "4eff885581aebd1f59ee6d2a9f4ed0223cf65994a7e2e9c7215f2f29f27860e2"
+    },
+    {
+      "owner": "trading_gym",
       "path": "trading_gym/skills/capability_selection.py",
       "sha256": "9a3474d197ad6743b27635969d1c6fcdcf6b8164884008506bb969dc2e3a5911"
     },
