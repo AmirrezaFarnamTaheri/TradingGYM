@@ -162,7 +162,8 @@ def template_catalogue() -> dict[str, StrategySpec]:
         "donchian_breakout": StrategySpec(
             name="Donchian breakout",
             description=(
-                "Enter a prior-window high breakout and exit a shorter low-channel break."
+                "Enter a prior-window high breakout "
+                "and exit a shorter low-channel break."
             ),
             indicators=[
                 IndicatorSpec(
