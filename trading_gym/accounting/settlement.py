@@ -169,7 +169,7 @@ def evaluate_settlement(
         raise ValueError("settlement obligation identifiers must be unique")
     normalized_cash: dict[str, Decimal] = {}
     for currency, amount in settled_cash.items():
-        if not isinstance(currency, str):
+        if not isinstance(currency, str) or not currency.isascii():
             raise ValueError("settled cash currency is invalid")
         canonical = currency.upper()
         if (
