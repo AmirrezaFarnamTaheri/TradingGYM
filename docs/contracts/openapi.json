@@ -11921,6 +11921,7 @@
               "bollinger",
               "roc",
               "vwap",
+              "vwap_reversion_score",
               "obv",
               "stochastic",
               "donchian",
