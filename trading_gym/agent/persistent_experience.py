@@ -111,7 +111,11 @@ class PersistentExperienceMemory:
         max_entries: int = 500,
         recency_half_life_seconds: float = 30 * 86400.0,
         retention_days: float = 180.0,
+        read_only: bool = False,
     ) -> None:
+        if type(read_only) is not bool:
+            raise ValueError("read_only must be a boolean")
+        self._read_only = read_only
         self._memory = ExperienceMemory(
             max_entries=max_entries,
             recency_half_life_seconds=recency_half_life_seconds,
@@ -138,6 +142,8 @@ class PersistentExperienceMemory:
     ) -> Experience:
         """Append one observation; identical lessons consolidate on read."""
 
+        if self._read_only:
+            raise PermissionError("read-only memory cannot append records")
         timestamp = float(created_at) if created_at is not None else _now()
         tags = _normalise_tags(context_tags)
         bounded_lesson = lesson[:400]
@@ -217,6 +223,7 @@ class PersistentExperienceMemory:
             max_entries=self._memory.max_entries,
             recency_half_life_seconds=self._memory.recency_half_life_seconds,
             retention_days=self._retention_days,
+            read_only=True,
         )
         return {
             "valid": True,
@@ -240,6 +247,10 @@ class PersistentExperienceMemory:
 
     def _load_and_prune(self) -> None:
         if not self._path.exists():
+            if self._anchor_path.exists() or self._anchor_path.is_symlink():
+                raise MemoryJournalIntegrityError(
+                    "experience journal missing with an existing anchor"
+                )
             return
         cutoff = _now() - self._retention_days * 86400.0
         all_entries: list[dict[str, Any]] = []
@@ -249,7 +260,16 @@ class PersistentExperienceMemory:
         ):
             if not line.strip():
                 raise MemoryJournalIntegrityError("blank line in experience journal")
-            entry = json.loads(line)
+            try:
+                entry = json.loads(line)
+            except (ValueError, TypeError) as exc:
+                raise MemoryJournalIntegrityError(
+                    f"malformed experience record at position {position}"
+                ) from exc
+            if not isinstance(entry, dict):
+                raise MemoryJournalIntegrityError(
+                    f"experience record at position {position} is not an object"
+                )
             for key in ("seq", "record", "record_sha256"):
                 if key not in entry:
                     raise MemoryJournalIntegrityError(f"journal record missing {key!r}")
@@ -285,7 +305,7 @@ class PersistentExperienceMemory:
             if float(entry["record"]["created_at"]) >= cutoff
         ]
         # the pruned state is the durable state
-        if len(kept) != len(all_entries):
+        if len(kept) != len(all_entries) and not self._read_only:
             kept = self._rewrite(kept)
         self._journal = kept
         self._project()
@@ -306,16 +326,18 @@ class PersistentExperienceMemory:
             raise MemoryJournalIntegrityError(
                 "experience journal anchor is unreadable"
             ) from exc
+        if not isinstance(anchor, dict):
+            raise MemoryJournalIntegrityError("experience journal anchor is malformed")
         seq = anchor.get("seq")
         head = anchor.get("head")
-        if not isinstance(seq, int) or not isinstance(head, str):
+        if type(seq) is not int or not isinstance(head, str):
             raise MemoryJournalIntegrityError("experience journal anchor is malformed")
-        if entries and (
-            seq != entries[-1]["seq"] or head != entries[-1]["record_sha256"]
-        ):
+        expected_seq = entries[-1]["seq"] if entries else 0
+        expected_head = entries[-1]["record_sha256"] if entries else _GENESIS
+        if seq != expected_seq or head != expected_head:
             raise MemoryJournalIntegrityError(
                 "experience journal anchor does not match the sealed tail "
-                f"(anchor seq={seq}, journal ends at seq={entries[-1]['seq']}); "
+                f"(anchor seq={seq}, journal ends at seq={expected_seq}); "
                 "the journal was truncated after sealing"
             )
 

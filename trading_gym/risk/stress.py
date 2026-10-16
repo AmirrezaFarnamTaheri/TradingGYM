@@ -82,8 +82,8 @@ class PortfolioStressReport(BaseModel):
     equity_before: float
     equity_after: float
     total_pnl_base: float
-    loss_fraction: float
-    post_stress_gross_leverage: float
+    loss_fraction: float | None
+    post_stress_gross_leverage: float | None
     allowed: bool
     violations: list[str]
     positions: list[StressPositionResult]
@@ -94,7 +94,8 @@ class PortfolioStressReport(BaseModel):
 
 def _canonical(value: Any) -> bytes:
     return json.dumps(
-        value, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+        value, sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+        allow_nan=False,
     ).encode("utf-8")
 
 
@@ -105,8 +106,14 @@ def evaluate_portfolio_stress(
     scenario: StressScenario,
     policy: PortfolioStressPolicy | None = None,
 ) -> PortfolioStressReport:
-    if not math.isfinite(equity) or equity <= 0 or equity > 1e30:
+    if (
+        type(equity) not in (int, float)
+        or not math.isfinite(equity)
+        or equity <= 0
+        or equity > 1e30
+    ):
         raise ValueError("equity must be finite, positive, and bounded")
+    equity = float(equity)  # Hash the same normalized numeric data as Pydantic.
     if len(positions) > 100_000:
         raise ValueError("stress position limit exceeded")
     policy = policy or PortfolioStressPolicy()
@@ -139,14 +146,24 @@ def evaluate_portfolio_stress(
             )
         )
     after = equity + total
-    loss_fraction = max(0.0, -total / equity)
-    leverage = float("inf") if after <= 0 else stressed_gross / after
+    raw_loss_fraction = max(0.0, -total / equity)
+    loss_fraction = raw_loss_fraction if math.isfinite(raw_loss_fraction) else None
+    raw_leverage = stressed_gross / after if after > 0 else None
+    leverage = (
+        raw_leverage
+        if raw_leverage is not None and math.isfinite(raw_leverage)
+        else None
+    )
     violations: list[str] = []
-    if loss_fraction > policy.max_loss_fraction:
+    if loss_fraction is None:
+        violations.append("loss_fraction_unavailable")
+    elif loss_fraction > policy.max_loss_fraction:
         violations.append("loss_fraction")
     if after < policy.minimum_post_stress_equity:
         violations.append("minimum_equity")
-    if leverage > policy.max_post_stress_gross_leverage:
+    if leverage is None:
+        violations.append("gross_leverage_unavailable")
+    elif leverage > policy.max_post_stress_gross_leverage:
         violations.append("gross_leverage")
     payload = {
         "scenario_id": scenario.scenario_id,

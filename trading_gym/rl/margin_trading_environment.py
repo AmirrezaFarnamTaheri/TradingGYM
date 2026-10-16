@@ -138,7 +138,16 @@ class MarginTradingEnv(gym.Env):
             if not self.live_mode:
                 self.warmup_steps = 0
 
+        # An offline step advances t before returning the next observation.
+        # There must therefore be a second available bar after warmup.
+        # Live mode uses rolling buffers and does not advance t in that way.
+        if self.T < 1:
+            raise ValueError("Trading environment needs at least one market bar")
         available_steps = self.T - self.warmup_steps - 1
+        if not self.live_mode and available_steps < 1:
+            raise ValueError(
+                "Offline environment needs at least two market bars after warmup"
+            )
         self.max_steps = min(1000, available_steps)
         if self.max_steps <= 0:
             self.max_steps = 1
@@ -294,26 +303,24 @@ class MarginTradingEnv(gym.Env):
             )
 
         target_leverage = self._to_float(action)
-        current_mid = self.price[-1] if self.live_mode else self.price[self.t]
+        if not np.isfinite(target_leverage):
+            raise ValueError("Trading action must be finite")
+        idx = -1 if self.live_mode else self.t
+        current_mid = self.price[idx]
+        if not all(
+            np.isfinite(float(value)) and float(value) > 0
+            for value in (current_mid, self.price_high[idx], self.price_low[idx])
+        ):
+            # Reject a corrupt bar *before* mark-to-market. Advancing after a
+            # NaN/inf price would poison both equity and the reference mark.
+            raise ValueError("Market bar prices must be finite and positive")
         info = StepInfo()
         info.positions[self.cfg.symbol] = float(self._state.position)
         equity_start = float(self._state.equity)
 
         self._apply_mark_to_market(current_mid)
 
-        if self._should_skip_bar():
-            self._accrue_financing(info, current_mid)
-            self._advance_time(current_mid)
-            terminated, truncated = self._termination_flags()
-            info.equity = float(self._state.equity)
-            info.margin_level = self._margin_level(current_mid)
-            return (
-                self._obs(),
-                0.0,
-                terminated,
-                truncated,
-                info.to_dict() | {"skipped": True},
-            )
+        skip_trading = self._should_skip_bar()
 
         context: dict[str, Any] = {
             "nav": self.equity,
@@ -342,6 +349,27 @@ class MarginTradingEnv(gym.Env):
                 not self.truncated,
                 self.truncated,
                 info.to_dict(),
+            )
+
+        if skip_trading:
+            # An unsafe spread or invalid feature forbids new trades, not
+            # valuation, margin checks, breaker enforcement or financing.
+            self._accrue_financing(info, current_mid)
+            self._check_eod_liquidation(info, current_mid)
+            reward = self._reward(equity_start)
+            info.equity = float(self._state.equity)
+            info.margin_level = self._margin_level(current_mid)
+            self._advance_time(current_mid)
+            terminated, truncated = self._termination_flags()
+            self.equity_history.append(float(self._state.equity))
+            self.price_history.append(current_mid)
+            self.position_history.append(float(self._state.position))
+            return (
+                self._obs(),
+                reward,
+                terminated,
+                truncated,
+                info.to_dict() | {"skipped": True},
             )
 
         target_position = (target_leverage * float(self.equity)) / max(

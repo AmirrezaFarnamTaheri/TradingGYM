@@ -33,6 +33,15 @@ _WILDCARD = "*"
 _DOUBLE_WILDCARD = "**"
 _MAX_SEGMENTS = 16
 
+# New standing grants must not confer blanket economic mutation authority.
+# Legacy journal records remain parseable, so they can be audited/revoked.
+_SENSITIVE_SEGMENTS = frozenset({
+    "live", "production", "withdrawal", "x402", "wallet", "capital",
+})
+_SENSITIVE_DOMAINS = frozenset({
+    "economic", "payments", "payment", "broker", "venue",
+})
+
 
 class ScopeError(ValueError):
     """A scope string or pattern is malformed or not grantable."""
@@ -133,6 +142,27 @@ class ScopePattern:
         # concrete by construction, so ``matches`` cannot raise here.
         if any(self.matches(reserved) for reserved in RESERVED_SCOPES):
             return False
+        return True
+
+    def is_issuable(self) -> bool:
+        """Policy for *new* delegations, stricter than legacy parseability.
+
+        Only concrete names can delegate economic/live operations.
+        Historical signed records retain their original grammar for
+        verification and revocation; do not reinterpret their hashes.
+        """
+        if not self.is_grantable():
+            return False
+        if all(part not in (_WILDCARD, _DOUBLE_WILDCARD) for part in self.segments):
+            return True
+        if self.segments[0] in _SENSITIVE_DOMAINS:
+            return False
+        if any(part in _SENSITIVE_SEGMENTS for part in self.segments):
+            return False
+        # "trade.**" and "trade.*.order" could span live operations.
+        # "trade.paper.**" is bounded to the non-funded paper namespace.
+        if self.segments[0] == "trade":
+            return len(self.segments) > 1 and self.segments[1] == "paper"
         return True
 
     def specificity(self) -> tuple[int, int]:

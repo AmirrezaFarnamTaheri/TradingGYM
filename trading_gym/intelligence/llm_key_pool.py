@@ -1,0 +1,547 @@
+"""Cross-process, secret-free credential selection for advisory model traffic.
+
+Shared state stores hashes of environment reference names, a round-robin
+cursor, and wall-clock cooldowns. It never stores the actual API keys.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import os
+import re
+import stat
+import tempfile
+import time
+from dataclasses import dataclass, field
+from datetime import timezone
+from email.utils import parsedate_to_datetime
+from pathlib import Path
+from typing import Callable, Mapping, Sequence
+
+import httpx
+from filelock import FileLock, Timeout
+
+_REF_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,79}$")
+_MAX_KEYS = 16
+_MAX_STATE_BYTES = 16 * 1024
+_MAX_COOLDOWN = 86_400.0
+# Global project/provider rate limits must not disappear when key rosters
+# or model versions are changed. Unknown hashed references are retained for
+# re-added keys until they expire, never used to select a credential.
+_GLOBAL_SLOT = "__provider__"
+_HARD_QUOTA_SLOT = "__hard_quota__"
+_AUTH_DENIED_SLOT = "__authentication__"
+_SLOT_RE = re.compile(r"^[0-9a-f]{24}$")
+_MAX_TRACKED_SLOTS = 64
+
+
+class CredentialsUnavailable(RuntimeError):
+    """No eligible key, project quota, or provider unavailability."""
+
+
+class CredentialStateIntegrityError(CredentialsUnavailable):
+    """Rotation state or lock cannot be trusted; forbid model fallback."""
+
+
+class ProviderHardQuotaError(CredentialsUnavailable):
+    """Billing, spend, or organization usage hard cap; deny risk-on fallback."""
+
+
+class ProviderAuthenticationError(CredentialsUnavailable):
+    """Exhausted invalid credentials; never downgrade into trading fallback."""
+
+
+@dataclass(frozen=True)
+class CredentialLease:
+    reference: str
+    secret: str = field(repr=False, compare=False)
+
+
+def credential_references(*refs: str) -> tuple[str, ...]:
+    """Validate environment variable names, never their secret values."""
+    if len(refs) > _MAX_KEYS:
+        raise ValueError("too many provider credential references")
+    if len(refs) != len(set(refs)):
+        raise ValueError("duplicate provider credential references")
+    for name in refs:
+        if not isinstance(name, str) or not _REF_RE.fullmatch(name):
+            raise ValueError("invalid provider credential reference")
+    return tuple(refs)
+
+
+class CredentialPool:
+    """File-locked fleet-wide credential rotation; fail closed on invalid state.
+
+    Different keys do not increase provider-wide project or organization limits.
+    """
+
+    def __init__(
+        self,
+        references: Sequence[str],
+        *,
+        state_path: Path,
+        env: Mapping[str, str] | None = None,
+        now: Callable[[], float] = time.time,
+    ) -> None:
+        self.references = credential_references(*references)
+        if not self.references:
+            raise ValueError("credential pool requires a credential reference")
+        self.state_path = Path(state_path)
+        self.env = os.environ if env is None else env
+        self._now = now
+        self._ids = {
+            name: hashlib.sha256(name.encode("utf-8")).hexdigest()[:24]
+            for name in self.references
+        }
+
+    def _clock(self) -> float:
+        """Reject an invalid wall clock before consulting stored cooldowns."""
+        timestamp = self._now()
+        if (
+            type(timestamp) not in (int, float)
+            or not math.isfinite(timestamp)
+            or not 0 <= timestamp <= 9_999_999_999
+        ):
+            raise CredentialStateIntegrityError(
+                "credential rotation clock is invalid"
+            )
+        return float(timestamp)
+
+    def _state(self) -> dict:
+        path = self.state_path
+        if path.is_symlink():
+            raise CredentialStateIntegrityError(
+                "credential rotation state is invalid"
+            )
+        try:
+            metadata = path.stat()
+        except FileNotFoundError:
+            return {"schema_version": 1, "cursor": 0, "cooldowns": {}}
+        except OSError as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation state is invalid"
+            ) from exc
+        try:
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > _MAX_STATE_BYTES:
+                raise ValueError("oversized")
+            state = json.loads(path.read_text(encoding="utf-8"))
+            if (
+                not isinstance(state, dict)
+                or set(state) != {"schema_version", "cursor", "cooldowns"}
+                or type(state["schema_version"]) is not int
+                or state["schema_version"] != 1
+                or type(state["cursor"]) is not int
+                or not 0 <= state["cursor"] <= 1_000_000_000
+                or not isinstance(state["cooldowns"], dict)
+                or len(state["cooldowns"]) > _MAX_TRACKED_SLOTS
+            ):
+                raise ValueError("state shape")
+            for slot, expiry in state["cooldowns"].items():
+                if (
+                    (
+                        slot not in {_GLOBAL_SLOT, _HARD_QUOTA_SLOT, _AUTH_DENIED_SLOT}
+                        and not _SLOT_RE.fullmatch(slot)
+                    )
+                    or type(expiry) not in (float, int)
+                    or not 0 <= float(expiry) < 10_000_000_000
+                ):
+                    raise ValueError("cooldown shape")
+            return state
+        except (OSError, UnicodeError, ValueError, TypeError) as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation state is invalid"
+            ) from exc
+
+    def _write(self, state: dict) -> None:
+        path = self.state_path
+        if len(state["cooldowns"]) > _MAX_TRACKED_SLOTS:
+            raise CredentialStateIntegrityError(
+                "too many provider cooldown records"
+            )
+        payload = json.dumps(state, sort_keys=True, separators=(",", ":")).encode()
+        if len(payload) > _MAX_STATE_BYTES:
+            raise CredentialStateIntegrityError(
+                "credential rotation state is too large"
+            )
+        name: str | None = None
+        try:
+            fd, name = tempfile.mkstemp(prefix=".credential-", dir=path.parent)
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.chmod(name, 0o600)
+            os.replace(name, path)
+            name = None
+        except OSError as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation state is unwritable"
+            ) from exc
+        finally:
+            if name is not None:
+                try:
+                    os.unlink(name)
+                except OSError:
+                    pass
+
+    def _lock(self) -> FileLock:
+        path = self.state_path
+        try:
+            if path.parent.is_symlink():
+                raise CredentialStateIntegrityError(
+                    "credential rotation directory is unsafe"
+                )
+            path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            if path.is_symlink() or Path(str(path) + ".lock").is_symlink():
+                raise CredentialStateIntegrityError(
+                    "credential rotation state is unsafe"
+                )
+        except OSError as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation directory is unavailable"
+            ) from exc
+        return FileLock(str(path) + ".lock", timeout=2)
+
+    def acquire(self, *, exclude: frozenset[str] = frozenset()) -> CredentialLease:
+        try:
+            with self._lock():
+                state = self._state()
+                ts = self._clock()
+                if state["cooldowns"].get(_HARD_QUOTA_SLOT, 0) > ts:
+                    raise ProviderHardQuotaError("provider hard quota still active")
+                if state["cooldowns"].get(_AUTH_DENIED_SLOT, 0) > ts:
+                    raise ProviderAuthenticationError(
+                        "provider authentication temporarily denied"
+                    )
+                if state["cooldowns"].get(_GLOBAL_SLOT, 0) > ts:
+                    raise CredentialsUnavailable("provider-wide rate limit active")
+                # Old expired slots may be dropped. Active cooldowns for
+                # temporarily removed keys survive future roster changes.
+                state["cooldowns"] = {
+                    key: expires
+                    for key, expires in state["cooldowns"].items()
+                    if expires > ts
+                }
+                count = len(self.references)
+                for step in range(count):
+                    index = (state["cursor"] + step) % count
+                    ref = self.references[index]
+                    secret = self.env.get(ref, "")
+                    if (
+                        ref in exclude
+                        or not isinstance(secret, str)
+                        or not secret.strip()
+                        or secret != secret.strip()
+                        or "\n" in secret
+                        or "\r" in secret
+                        or state["cooldowns"].get(self._ids[ref], 0) > ts
+                    ):
+                        continue
+                    state["cursor"] = (index + 1) % count
+                    self._write(state)
+                    return CredentialLease(ref, secret)
+        except Timeout as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
+        except OSError as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
+        raise CredentialsUnavailable("no eligible provider credential")
+
+    def cool_down_all(self, seconds: float) -> None:
+        """Honor provider-level Retry-After shared by every project key."""
+        if (
+            not isinstance(seconds, (int, float))
+            or isinstance(seconds, bool)
+            or not 0 < seconds <= _MAX_COOLDOWN
+        ):
+            raise ValueError("invalid cooldown")
+        try:
+            with self._lock():
+                state = self._state()
+                ts = self._clock()
+                until = ts + seconds
+                state["cooldowns"] = {
+                    key: expires
+                    for key, expires in state["cooldowns"].items()
+                    if expires > ts
+                }
+                # A provider/project-wide 429 applies to FUTURE credentials
+                # and all model variants, not just currently configured keys.
+                state["cooldowns"][_GLOBAL_SLOT] = max(
+                    until, state["cooldowns"].get(_GLOBAL_SLOT, 0)
+                )
+                self._write(state)
+        except Timeout as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
+        except OSError as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
+
+    def _block_fleet(self, slot: str, seconds: float) -> None:
+        """Persist a terminal denial for every worker sharing this provider."""
+        if (
+            slot not in {_HARD_QUOTA_SLOT, _AUTH_DENIED_SLOT}
+            or type(seconds) not in (int, float)
+            or not math.isfinite(seconds)
+            or not 0 < seconds <= _MAX_COOLDOWN
+        ):
+            raise ValueError("invalid terminal provider cooldown")
+        try:
+            with self._lock():
+                state = self._state()
+                ts = self._clock()
+                state["cooldowns"] = {
+                    key: until
+                    for key, until in state["cooldowns"].items()
+                    if until > ts
+                }
+                state["cooldowns"][slot] = max(
+                    state["cooldowns"].get(slot, 0), ts + seconds
+                )
+                self._write(state)
+        except (Timeout, OSError) as exc:
+            raise CredentialStateIntegrityError(
+                "terminal credential cooldown unavailable"
+            ) from exc
+
+    def block_hard_quota(self, seconds: float = _MAX_COOLDOWN) -> None:
+        """Persist hard spend/usage denial without weakening its type."""
+        self._block_fleet(_HARD_QUOTA_SLOT, seconds)
+
+    def block_authentication(self, seconds: float = 3_600.0) -> None:
+        """Persist a complete-credential-fleet authentication denial."""
+        self._block_fleet(_AUTH_DENIED_SLOT, seconds)
+
+    def cool_down(self, reference: str, seconds: float) -> None:
+        if reference not in self._ids:
+            raise ValueError("unknown credential reference")
+        if (
+            not isinstance(seconds, (int, float))
+            or isinstance(seconds, bool)
+            or not 0 < seconds <= _MAX_COOLDOWN
+        ):
+            raise ValueError("invalid cooldown")
+        try:
+            with self._lock():
+                state = self._state()
+                slot = self._ids[reference]
+                ts = self._clock()
+                state["cooldowns"] = {
+                    key: expires
+                    for key, expires in state["cooldowns"].items()
+                    if expires > ts
+                }
+                state["cooldowns"][slot] = max(
+                    ts + seconds, state["cooldowns"].get(slot, 0)
+                )
+                self._write(state)
+        except Timeout as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
+        except OSError as exc:
+            raise CredentialStateIntegrityError(
+                "credential rotation lock unavailable"
+            ) from exc
+
+
+def default_rotation_path(
+    provider_id: str, base_url: str, model: str, references: Sequence[str] = ()
+) -> Path:
+    """Share rate-limit history across models and changing key rosters.
+
+    The model/references parameters are retained for existing callers, but
+    must never partition a provider-wide quota/cooldown state.
+    """
+    from trading_gym.common.persistence import resolve_data_home
+
+    discriminator = hashlib.sha256(
+        "\0".join((provider_id, base_url)).encode("utf-8")
+    ).hexdigest()[:24]
+    return resolve_data_home() / "intelligence" / f"keys-{discriminator}.json"
+
+
+def _retry_after_seconds(value: str | None, *, now: float) -> float:
+    """Parse Retry-After without sleeping inside the trading loop."""
+    if not value:
+        return 5.0
+    try:
+        seconds = float(value)
+        if not 0 < seconds <= _MAX_COOLDOWN:
+            return _MAX_COOLDOWN
+        return seconds
+    except ValueError:
+        pass
+    try:
+        requested = parsedate_to_datetime(value)
+        if requested.tzinfo is None:
+            requested = requested.replace(tzinfo=timezone.utc)
+        duration = requested.timestamp() - now
+        return min(max(duration, 1.0), _MAX_COOLDOWN)
+    except (TypeError, ValueError, OverflowError):
+        return 5.0
+
+
+def _quota_exhausted(response: object) -> bool:
+    """Do not rotate keys to evade a project-wide hard quota/spend cap."""
+    try:
+        payload = response.json()
+        body = payload.get("error", {}) if isinstance(payload, dict) else {}
+        if not isinstance(body, dict):
+            return False
+        terminal = {
+            "insufficient_quota",
+            "billing_hard_limit_reached",
+            "quota_exceeded",
+            "credit_balance_exhausted",
+            "organization_spend_limit_exceeded",
+            "project_spend_limit_exceeded",
+            "organization_usage_limit_exceeded",
+            "usage_limit_exceeded",
+            "billing_error",
+        }
+        return any(str(body.get(field, "")) in terminal for field in ("code", "type"))
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
+def reject_terminal_provider_status(response: object) -> None:
+    """Apply terminal HTTP authority rules even without a key pool.
+
+    Local/proxy providers can run without credentials. Their HTTP 4xx or
+    billing response must not be reclassified as an ordinary model outage
+    that permits a more risk-seeking fallback.
+    """
+    code = getattr(response, "status_code", None)
+    if type(code) is not int:
+        raise PermissionError("provider_invalid_http_status")
+    if code == 401:
+        raise PermissionError("provider_authentication_denied")
+    if code == 403:
+        raise PermissionError("provider_access_denied")
+    if code == 402 or (code == 429 and _quota_exhausted(response)):
+        raise ProviderHardQuotaError("provider_billing_required")
+    if code in (400, 404, 409, 413, 422):
+        raise PermissionError("provider_request_denied")
+
+
+def _shared_rate_scope(response: object) -> bool:
+    """Provider-advertised account/project/organization limits are terminal."""
+    headers = getattr(response, "headers", {})
+    scope = str(headers.get("x-ratelimit-scope", "")).strip().lower()
+    return scope in {
+        "organization", "org", "project", "account", "global", "tenant",
+        "workspace",
+    }
+
+
+def request_with_rotation(
+    pool: CredentialPool,
+    post: Callable[[str, float], object],
+    *,
+    timeout_seconds: float,
+    max_attempts: int = 3,
+    rotate_on_rate_limit: bool = False,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> object:
+    """Bounded nonblocking failover; never expose keys or bypass 403 policy.
+
+    The timeout is for the entire advisory request, not for each retry.
+    No key retries occur after a quota/spend cap or explicit scope denial.
+    """
+    if not 0 < timeout_seconds <= 120:
+        raise ValueError("invalid LLM request deadline")
+    if not 1 <= max_attempts <= _MAX_KEYS:
+        raise ValueError("invalid LLM attempt budget")
+    deadline = monotonic() + timeout_seconds
+    tried: set[str] = set()
+    tried_values: set[bytes] = set()
+    authentication_failed = False
+    auth_only_failures = True
+    for _ in range(min(max_attempts, len(pool.references))):
+        if monotonic() >= deadline:
+            break
+        try:
+            lease = pool.acquire(exclude=frozenset(tried))
+        except (
+            CredentialStateIntegrityError,
+            ProviderHardQuotaError,
+            ProviderAuthenticationError,
+        ):
+            # Persisted hard limits and authentication denials must retain
+            # their type, not become ordinary provider outages.
+            raise
+        except CredentialsUnavailable:
+            break
+        tried.add(lease.reference)
+        fingerprint = hashlib.sha256(lease.secret.encode()).digest()
+        if fingerprint in tried_values:
+            continue
+        tried_values.add(fingerprint)
+        try:
+            response = post(lease.secret, max(0.001, deadline - monotonic()))
+        except (
+            httpx.TimeoutException,
+            httpx.NetworkError,
+            httpx.RemoteProtocolError,
+        ):
+            auth_only_failures = False
+            pool.cool_down(lease.reference, 5)
+            continue
+        code = getattr(response, "status_code", None)
+        if type(code) is not int:
+            raise CredentialsUnavailable("invalid provider HTTP response")
+        if 200 <= code < 300:
+            return response
+        if code == 403:
+            raise PermissionError("provider_access_denied")
+        if code == 402:
+            # Billing denial must block later workers too; a generic
+            # cooldown would let the next caller risk-on via rules/RL.
+            pool.block_hard_quota()
+            raise ProviderHardQuotaError("provider_billing_required")
+        if code in (400, 404, 409, 413, 422):
+            # Bad request/model/configuration is not a transient health issue.
+            raise PermissionError("provider_request_denied")
+        if code == 429:
+            headers = getattr(response, "headers", {})
+            retry_after = _retry_after_seconds(
+                headers.get("retry-after"), now=pool._clock()
+            )
+            if _quota_exhausted(response):
+                # These are hard billing/usage boundaries, not transient
+                # provider health failures. Do not permit a rules/model
+                # fallback to create exposure after the account hit a cap.
+                pool.block_hard_quota()
+                raise ProviderHardQuotaError("provider_rate_or_quota_limit")
+            if _shared_rate_scope(response) or not rotate_on_rate_limit:
+                pool.cool_down_all(retry_after)
+                raise CredentialsUnavailable("provider_rate_or_quota_limit")
+            pool.cool_down(lease.reference, retry_after)
+            continue
+        if code == 401:
+            authentication_failed = True
+            pool.cool_down(lease.reference, 3_600)
+            continue
+        if code in (408, 425) or 500 <= code <= 599:
+            auth_only_failures = False
+            pool.cool_down(lease.reference, 5)
+            continue
+        raise PermissionError("provider_request_denied")
+    if authentication_failed:
+        # Only lock out the entire fleet when every reference was checked and
+        # all distinct attempted secrets rejected authentication. An eligible
+        # fourth key (beyond the caller's bounded attempt budget) must not be
+        # globally disabled just because the first three expired.
+        if auth_only_failures and len(tried) == len(pool.references):
+            pool.block_authentication()
+        raise ProviderAuthenticationError("provider_authentication_unavailable")
+    raise CredentialsUnavailable("no healthy provider credential within deadline")

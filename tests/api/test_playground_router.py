@@ -188,3 +188,32 @@ class TestPlaygroundRuns:
         )
         assert first.json()["metrics"] == second.json()["metrics"]
         assert first.json()["manifest"] == second.json()["manifest"]
+
+
+@pytest.mark.parametrize("bad_order", ["duplicate", "reversed"])
+def test_playground_api_refuses_to_silently_repair_input_timestamps(
+    auth_env, bad_order
+):
+    payload = _run_payload()
+    timestamps = payload["window"]["timestamps"]
+    if bad_order == "duplicate":
+        timestamps[1] = timestamps[0]
+    else:
+        timestamps[0], timestamps[1] = timestamps[1], timestamps[0]
+    result = _client().post(
+        "/api/v1/playground/runs",
+        headers={"X-Actor": "agent-axiom1", "X-Actor-Key": AGENT_SECRET},
+        json=payload,
+    )
+    assert result.status_code == 422
+
+
+def test_playground_api_returns_validation_status_on_impossible_spread(auth_env):
+    payload = _run_payload(fee_bps=9999.0)
+    payload["window"]["spread_bps"] = [4.0] * 240
+    response = _client().post(
+        "/api/v1/playground/runs",
+        headers={"X-Actor": "agent-axiom1", "X-Actor-Key": AGENT_SECRET},
+        json=payload,
+    )
+    assert response.status_code == 422

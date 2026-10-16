@@ -76,6 +76,41 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self._snapshot_patcher = patcher.start()
         self.addCleanup(patcher.stop)
 
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_panic_arriving_during_model_inference_prevents_live_reconciliation(
+        self, mock_sleep, mock_writer
+    ):
+        """No newly inferred order may be sent after a panic is raised."""
+        pending = {"raised": False}
+
+        def infer_then_request_panic(*args, **kwargs):
+            pending["raised"] = True
+            return MagicMock(item=lambda: 0.5), None
+
+        self.model.predict.side_effect = infer_then_request_panic
+        with (
+            patch(
+                "apps.common.trade_loop.panic_requested",
+                side_effect=lambda: pending["raised"],
+            ),
+            patch(
+                "apps.common.trade_loop.handle_panic_request",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as flatten,
+        ):
+            await trade_loop(
+                self.env, self.model, self.client, self.cfg,
+                live_adapter=self.live_adapter,
+            )
+
+        flatten.assert_awaited_once_with(self.live_adapter)
+        self.live_adapter.reconcile.assert_not_called()
+        self.env.step.assert_not_called()
+        mock_writer.return_value.write.assert_not_called()
+
     @patch("apps.common.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_trade_loop_simulation_basic(self, mock_sleep, MockMetricsWriter):
@@ -121,6 +156,8 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(float(call_args[1]), 50000.0)
 
         self.env.step.assert_called_with(0)
+        # "executed" is an acknowledgement, not a verified filled position.
+        self.assertEqual(self.env.unwrapped._state.position, Decimal("0.1"))
 
     @patch("apps.common.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
@@ -131,6 +168,150 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         await trade_loop(self.env, self.model, self.client, self.cfg, live_adapter=None)
 
         self.assertEqual(self.model.predict.call_count, 5)
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_unknown_adapter_status_does_not_publish_success(
+        self, mock_sleep, mock_writer
+    ):
+        self.live_adapter.reconcile.return_value = {"status": "broker_maybe"}
+        with self.assertRaisesRegex(RuntimeError, "unrecognized live execution"):
+            await trade_loop(
+                self.env,
+                self.model,
+                self.client,
+                self.cfg,
+                live_adapter=self.live_adapter,
+            )
+        self.assertEqual(self.live_adapter.reconcile.call_count, 1)
+        self.env.step.assert_not_called()
+        mock_writer.return_value.write.assert_not_called()
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_rejected_short_entry_is_not_reported_as_success(
+        self, mock_sleep, mock_writer
+    ):
+        self.live_adapter.reconcile.return_value = {
+            "status": "skipped",
+            "reason": "short_not_allowed",
+        }
+        # A denied broker operation must halt; an unrelated next candle
+        # cannot magically turn an authorization denial into permission.
+        mock_sleep.side_effect = AssertionError("denied live operation was retried")
+        with self.assertRaisesRegex(RuntimeError, "live reconciliation denied"):
+            await trade_loop(
+                self.env, self.model, self.client, self.cfg,
+                live_adapter=self.live_adapter,
+            )
+        self.assertEqual(self.live_adapter.reconcile.call_count, 1)
+        mock_sleep.assert_not_awaited()
+        self.env.step.assert_not_called()
+        mock_writer.return_value.write.assert_not_called()
+
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_optional_metrics_failure_does_not_stop_healthy_trading(
+        self, mock_sleep, mock_writer
+    ):
+        output = mock_writer.return_value
+        output.write.side_effect = [OSError("unavailable"), None]
+        mock_sleep.side_effect = [None, RuntimeError("Stop Loop")]
+        with self.assertRaisesRegex(RuntimeError, "Stop Loop"):
+            await trade_loop(self.env, self.model, self.client, self.cfg)
+        self.assertEqual(self.model.predict.call_count, 2)
+        self.assertEqual(output.write.call_count, 2)
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_optional_metrics_writer_initialization_recovers(
+        self, mock_sleep, mock_writer
+    ):
+        writer = MagicMock()
+        mock_writer.side_effect = [OSError("metrics dir unavailable"), writer]
+        mock_sleep.side_effect = [None, RuntimeError("Stop Loop")]
+        with self.assertRaisesRegex(RuntimeError, "Stop Loop"):
+            await trade_loop(self.env, self.model, self.client, self.cfg)
+        self.assertEqual(self.model.predict.call_count, 2)
+        self.assertEqual(mock_writer.call_count, 2)
+        writer.write.assert_called_once()
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_provider_failure_backoff_restores_healthy_fast_cadence(
+        self, mock_sleep, mock_writer
+    ):
+        self.model.predict.side_effect = [
+            ValueError("invalid"),
+            (MagicMock(item=lambda: 0.0), None),
+        ]
+        mock_sleep.side_effect = [None, RuntimeError("Stop Loop")]
+        with self.assertRaisesRegex(RuntimeError, "Stop Loop"):
+            await trade_loop(self.env, self.model, self.client, self.cfg)
+        intervals = [call.args[0] for call in mock_sleep.await_args_list]
+        self.assertAlmostEqual(intervals[0], 0.02)
+        self.assertAlmostEqual(intervals[1], 0.01)
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_subminimum_execution_skip_preserves_real_position_and_telemetry(
+        self, mock_sleep, mock_writer
+    ):
+        self.live_adapter.reconcile.return_value = {
+            "status": "skipped",
+            "reason": "no_executable_leg",
+        }
+        mock_sleep.side_effect = [RuntimeError("Stop Loop")]
+        with self.assertRaisesRegex(RuntimeError, "Stop Loop"):
+            await trade_loop(
+                self.env, self.model, self.client, self.cfg,
+                live_adapter=self.live_adapter,
+            )
+        self.live_adapter.reconcile.assert_awaited_once()
+        self.env.step.assert_called_once_with(0)
+        mock_writer.return_value.write.assert_called_once()
+        self.assertEqual(self.env.unwrapped._state.position, Decimal("0.1"))
+
+    @patch("apps.common.trade_loop.panic_requested", return_value=True)
+    @patch("apps.common.trade_loop.handle_panic_request", new_callable=AsyncMock)
+    @patch("apps.common.trade_loop.MetricsWriter")
+    async def test_failed_panic_flatten_halts_worker_without_repeating(
+        self, mock_writer, mock_handle_panic, mock_panic_requested
+    ):
+        mock_handle_panic.return_value = False
+        with self.assertRaisesRegex(RuntimeError, "panic flatten unverified"):
+            await trade_loop(
+                self.env,
+                self.model,
+                self.client,
+                self.cfg,
+                live_adapter=self.live_adapter,
+            )
+        mock_handle_panic.assert_awaited_once_with(self.live_adapter)
+        self.live_adapter.reconcile.assert_not_called()
+        mock_writer.return_value.write.assert_not_called()
+
+    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_failed_live_reconciliation_halts_without_retrying_next_bar(
+        self, mock_sleep, mock_writer
+    ):
+        """A failed broker reconciliation is not a recoverable model outage."""
+        self.live_adapter.reconcile.return_value = {
+            "status": "failed", "error_type": "MutationOutcomeUnknown"
+        }
+        mock_sleep.side_effect = AssertionError("failed live mutation was retried")
+        with self.assertRaisesRegex(RuntimeError, "live execution failed"):
+            await trade_loop(
+                self.env, self.model, self.client, self.cfg,
+                live_adapter=self.live_adapter,
+            )
+        self.live_adapter.reconcile.assert_awaited_once()
+        mock_sleep.assert_not_awaited()
+        self.env.step.assert_not_called()
+        mock_writer.return_value.write.assert_not_called()
+
 
 
 if __name__ == "__main__":

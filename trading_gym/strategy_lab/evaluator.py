@@ -20,6 +20,8 @@ MAX_BARS = 2_000_000
 
 
 def validate_market_frame(frame: pd.DataFrame) -> None:
+    if not frame.columns.is_unique:
+        raise ValueError("market columns must be unique")
     missing = [name for name in REQUIRED_COLUMNS if name not in frame.columns]
     if missing:
         raise ValueError(f"market data missing columns: {', '.join(missing)}")
@@ -27,6 +29,15 @@ def validate_market_frame(frame: pd.DataFrame) -> None:
         raise ValueError("market data must not be empty")
     if len(frame) > MAX_BARS:
         raise ValueError(f"market data exceeds {MAX_BARS} row limit")
+    # Rolling windows, crossings and warmup presume arrival-time order.
+    # Reject duplicated, missing and reversed real timestamps rather
+    # than computing lookahead-contaminated research signals.
+    if isinstance(frame.index, pd.DatetimeIndex) and (
+        frame.index.hasnans
+        or not frame.index.is_unique
+        or not frame.index.is_monotonic_increasing
+    ):
+        raise ValueError("market timestamps must be strictly increasing and complete")
     values = frame.loc[:, REQUIRED_COLUMNS].to_numpy(dtype=float)
     if not np.isfinite(values).all():
         raise ValueError("market data contains non-finite values")
@@ -34,6 +45,8 @@ def validate_market_frame(frame: pd.DataFrame) -> None:
         raise ValueError("high is below another OHLC value")
     if (frame["low"] > frame[["open", "close", "high"]].min(axis=1)).any():
         raise ValueError("low is above another OHLC value")
+    if (frame.loc[:, ("open", "high", "low", "close")] <= 0).any().any():
+        raise ValueError("market prices must be positive")
     if (frame["volume"] < 0).any():
         raise ValueError("volume must be non-negative")
 
@@ -82,7 +95,9 @@ def evaluate_strategy(frame: pd.DataFrame, strategy: StrategySpec) -> pd.DataFra
     result = enriched.copy()
     result["entry_signal"] = _group(enriched, strategy.entry)
     result["exit_signal"] = _group(enriched, strategy.exit)
+    # A simultaneous exit is an explicit risk-reduction instruction.
+    # Entry cannot override it when indicators disagree on one bar.
     result["position_intent"] = np.select(
-        [result["entry_signal"], result["exit_signal"]], [1, -1], default=0
+        [result["exit_signal"], result["entry_signal"]], [-1, 1], default=0
     ).astype(np.int8)
     return result

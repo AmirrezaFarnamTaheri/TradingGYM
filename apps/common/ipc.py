@@ -11,13 +11,14 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import mmap
 import struct
 import time
 from pathlib import Path
 from typing import Any
 
-from trading_gym.common.persistence import atomic_write_json, read_json
+from trading_gym.common.persistence import atomic_write_json
 from trading_gym.common.security import bounded_json_dumps, redact_secrets
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ DEFAULT_MMAP_SIZE = 1024 * 100
 DEFAULT_MMAP_FILE = "shared_metrics.dat"
 FORMAT_VERSION = 2
 MAX_METRICS_BYTES = 96 * 1024
+MAX_ENVELOPE_BYTES = MAX_METRICS_BYTES + 2048
 MAX_METRICS_AGE_SECONDS = 300.0
 
 
@@ -88,7 +90,11 @@ class MetricsReader:
         self.last_error: str | None = None
 
     def read(self) -> dict[str, Any]:
-        if not self.filename.exists() or self.filename.is_symlink():
+        if self.filename.is_symlink():
+            self.last_error = "invalid_path"
+            return {}
+        if not self.filename.exists():
+            self.last_error = "missing"
             return {}
         try:
             if self._looks_like_json():
@@ -112,7 +118,13 @@ class MetricsReader:
             return handle.read(1) in {b"{", b"["}
 
     def _read_envelope(self) -> dict[str, Any]:
-        envelope = read_json(self.filename, default={})
+        # Bound the bytes read through one descriptor. A corrupt metrics file
+        # must not allocate unbounded memory or starve the operator API.
+        with self.filename.open("rb") as handle:
+            raw = handle.read(MAX_ENVELOPE_BYTES + 1)
+        if len(raw) > MAX_ENVELOPE_BYTES:
+            raise ValueError("metrics envelope exceeds maximum size")
+        envelope = json.loads(raw)
         if not isinstance(envelope, dict):
             raise ValueError("metrics envelope must be an object")
         if (
@@ -126,12 +138,13 @@ class MetricsReader:
         if envelope.get("payload_sha256") != _payload_digest(payload):
             raise ValueError("metrics checksum mismatch")
         written_at = float(envelope.get("written_at", 0.0))
-        if written_at <= 0:
+        age = time.time() - written_at
+        if not math.isfinite(written_at) or written_at <= 0 or not math.isfinite(age):
             raise ValueError("metrics timestamp is invalid")
-        if (
-            self.max_age_seconds is not None
-            and time.time() - written_at > self.max_age_seconds
-        ):
+        if age < -5.0:
+            self.last_error = "future"
+            return {}
+        if self.max_age_seconds is not None and age > self.max_age_seconds:
             self.last_error = "stale"
             return {}
         self.last_error = None

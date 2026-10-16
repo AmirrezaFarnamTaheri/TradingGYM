@@ -5,7 +5,7 @@
  * All endpoints are protected by API key authentication (X-API-Key header).
  *
  * @module api
- * @version 11.0.0
+ * @see /api/v1 (versioned route prefix)
  */
 
 import axios from 'axios';
@@ -40,7 +40,7 @@ const api = axios.create({
 // =============================================================================
 
 /**
- * Request interceptor to inject API key from localStorage or environment
+ * Request interceptor to inject the session-only API key.
  */
 // Session API key: held in memory only (ADR-031 / security review M-4).
 // Nothing is written to localStorage — any legacy value is purged on load —
@@ -55,15 +55,16 @@ try {
 
 api.interceptors.request.use(
   (config) => {
-    const apiKey = sessionApiKey || import.meta.env.VITE_API_KEY || '';
+    const apiKey = sessionApiKey;
 
     if (apiKey) {
       config.headers['X-API-Key'] = apiKey;
     }
 
-    // Log request in development
+    // Do not log request bodies or headers: they may contain approval keys,
+    // live-execution consent or other authority-bearing secrets.
     if (import.meta.env.DEV) {
-      console.debug(`[API] ${config.method?.toUpperCase()} ${config.url}`, config.data || '');
+      console.debug(`[API] ${config.method?.toUpperCase()} ${config.url}`);
     }
 
     return config;
@@ -186,11 +187,15 @@ export const configAPI = {
 export const trainingAPI = {
   /**
    * Start a training run with specified configuration
-   * @param {string} configName - Name of config file (e.g., 'training_t4.yaml')
-   * @returns {Promise<{status: string, pid: number, config: string}>}
+   * @param {string} configName - An existing training YAML profile
+   * @param {string} modelVersion - Required safe registry identifier
+   * @returns {Promise<{status: string, pid: number, config: string, model_version: string}>}
    */
-  start: (configName = 'training_t4.yaml') =>
-    api.post('/train/start', { config_name: configName }),
+  start: (configName, modelVersion) =>
+    api.post('/train/start', {
+      config_name: configName,
+      model_version: modelVersion,
+    }),
 
   /**
    * Stop the currently running training process gracefully
@@ -292,6 +297,21 @@ export const modelsAPI = {
 };
 
 // =============================================================================
+// Production Authority (read-only)
+// =============================================================================
+
+/**
+ * Show independently persisted authority and emergency-stop evidence.
+ * This client intentionally exposes no production authorization mutation.
+ * Changes to funded authority remain four-eyes and server-governed.
+ */
+export const productionAPI = {
+  getAuthority: () => api.get('/production/authority'),
+  getEmergencyState: () => api.get('/production/emergency'),
+  getReconciliation: () => api.get('/production/reconciliation'),
+};
+
+// =============================================================================
 // Trading APIs
 // =============================================================================
 
@@ -366,7 +386,7 @@ export const tradingAPI = {
  */
 export function createWebSocket(endpoint) {
   const url = `${WS_BASE_URL}/ws/${endpoint}`;
-  const apiKey = getApiKey() || import.meta.env.VITE_API_KEY || '';
+  const apiKey = getApiKey() || '';
   const protocols = ['trading-gym.v1'];
   if (apiKey) {
     const bytes = new TextEncoder().encode(apiKey);
@@ -514,7 +534,7 @@ export function clearApiKey() {
  * @returns {boolean}
  */
 export function hasApiKey() {
-  return Boolean(getApiKey() || import.meta.env.VITE_API_KEY);
+  return Boolean(getApiKey());
 }
 
 // =============================================================================

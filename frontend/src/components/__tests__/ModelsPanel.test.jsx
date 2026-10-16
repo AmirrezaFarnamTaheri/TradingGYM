@@ -22,8 +22,10 @@ vi.mock('../Toast', () => ({
 
 describe('ModelsPanel active-model sync', () => {
   beforeEach(() => {
-    modelsSpy.mockClear();
-    activeSpy.mockClear();
+    modelsSpy.mockReset();
+    activeSpy.mockReset();
+    modelsSpy.mockResolvedValue({ data: { models: [] } });
+    activeSpy.mockResolvedValue({ data: { active_model: 'model-7' } });
     useStore.setState({ activeModel: null });
   });
 
@@ -39,6 +41,101 @@ describe('ModelsPanel active-model sync', () => {
     expect(activeSpy).toHaveBeenCalled();
     expect(useStore.getState().activeModel).toBe('model-7');
 
+    cleanup();
+  });
+
+  it('clears stale active state when the server explicitly has no active model', async () => {
+    useStore.setState({ activeModel: 'previously-active' });
+    activeSpy.mockResolvedValueOnce({ data: { active_model: null } });
+
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    await flushPromises();
+    const label = await waitForRendered(
+      container, '[data-testid="active-model-status"]', el => el.textContent.trim() === 'None'
+    );
+    expect(label).not.toBeNull();
+    expect(useStore.getState().activeModel).toBeNull();
+    cleanup();
+  });
+
+  it('distinguishes an unknown active model from an explicit empty selection', async () => {
+    useStore.setState({ activeModel: 'stale-active' });
+    activeSpy.mockRejectedValueOnce(new Error('registry offline'));
+
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    await flushPromises();
+
+    const unknown = await waitForRendered(
+      container, '[data-testid="active-model-status"]',
+      el => el.textContent.includes('Unable to verify')
+    );
+    expect(unknown.getAttribute('role')).toBe('alert');
+    expect(useStore.getState().activeModel).toBeNull();
+
+    const retry = await waitForRendered(
+      container, 'button',
+      el => el.textContent.includes('Retry active model status')
+    );
+    retry.click();
+    await flushPromises();
+
+    await waitForRendered(
+      container, '[data-testid="active-model-status"]',
+      el => el.textContent.trim() === 'model-7'
+    );
+    expect(useStore.getState().activeModel).toBe('model-7');
+    cleanup();
+  });
+
+  it('does not label models inactive or offer activation on an unknown status', async () => {
+    modelsSpy.mockResolvedValueOnce({
+      data: {
+        models: [{ version: 'model-7', has_model: true, created_at: '2026-10-01T00:00:00Z' }],
+      },
+    });
+    activeSpy.mockRejectedValueOnce(new Error('status source unavailable'));
+
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    await flushPromises();
+    const unknown = await waitForRendered(
+      container, '.badge',
+      node => node.textContent.includes('Unknown')
+    );
+    expect(unknown.getAttribute('aria-label')).toContain('status unverified');
+    expect(container.querySelector('.badge-inactive')).toBeNull();
+
+    const activation = await waitForRendered(
+      container, 'button', button => button.textContent.trim() === 'Set Active'
+    );
+    expect(activation.disabled).toBe(true);
+    const backtest = await waitForRendered(
+      container, 'button', button => button.textContent.trim() === 'Backtest'
+    );
+    expect(backtest.disabled).toBe(false);
+    cleanup();
+  });
+
+  it('treats malformed active-model identifiers as unknown, not inactive', async () => {
+    modelsSpy.mockResolvedValueOnce({
+      data: { models: [{ version: 'model-7', has_model: true }] },
+    });
+    activeSpy.mockResolvedValueOnce({ data: { active_model: 42 } });
+
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    await flushPromises();
+    await waitForRendered(
+      container, '[data-testid="active-model-status"]',
+      node => node.textContent.includes('Unable to verify')
+    );
+    expect(useStore.getState().activeModel).toBeNull();
+    const unknown = await waitForRendered(
+      container, '.badge', node => node.textContent.includes('Unknown')
+    );
+    expect(unknown.getAttribute('aria-label')).toContain('status unverified');
+    const activate = await waitForRendered(
+      container, 'button', node => node.textContent.trim() === 'Set Active'
+    );
+    expect(activate.disabled).toBe(true);
     cleanup();
   });
 
@@ -95,8 +192,36 @@ describe('ModelsPanel fetch errors', () => {
     await flushPromises();
 
     await waitForRendered(container, '.empty-state');
+    expect(modelsSpy).toHaveBeenCalledTimes(2);
     expect(container.querySelector('.error')).toBeNull();
 
+    cleanup();
+  });
+});
+
+describe('ModelsPanel authoritative active-model state', () => {
+  beforeEach(() => {
+    modelsSpy.mockReset();
+    activeSpy.mockReset();
+    modelsSpy.mockResolvedValue({ data: { models: [] } });
+    useStore.setState({ activeModel: 'stale-model' });
+  });
+
+  it('clears the store when the server reports no active model', async () => {
+    activeSpy.mockResolvedValue({ data: { active_model: null } });
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    await waitForRendered(container, '.info-box');
+    await flushPromises();
+    expect(useStore.getState().activeModel).toBeNull();
+    cleanup();
+  });
+
+  it('distinguishes failed active-model lookup from an authoritative None', async () => {
+    activeSpy.mockRejectedValue(new Error('active registry unavailable'));
+    const { container, cleanup } = renderWithClient(<ModelsPanel />);
+    const alert = await waitForRendered(container, '[role="alert"]');
+    expect(alert.textContent).toContain('Active model status unavailable');
+    expect(container.textContent).not.toContain('Active Model: None');
     cleanup();
   });
 });

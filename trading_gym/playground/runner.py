@@ -25,6 +25,7 @@ the strategy grammar and the frame validator with the live path.
 from __future__ import annotations
 
 import hashlib
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -76,14 +77,38 @@ class PlaygroundRunSpec:
                 f"{self.max_bars}-bar playground limit"
             )
         validate_market_frame(self.window)
+        index = self.window.index
+        if (
+            not isinstance(index, pd.DatetimeIndex)
+            or index.tz is None
+            or not index.is_unique
+            or not index.is_monotonic_increasing
+        ):
+            raise ValueError(
+                "playground bars need strictly increasing UTC-aware timestamps"
+            )
         if not isinstance(self.strategy, StrategySpec):
             raise ValueError("strategy must be a StrategySpec")
-        if self.initial_capital <= 0:
-            raise ValueError("initial_capital must be positive")
-        if self.fee_bps < 0:
-            raise ValueError("fee_bps must be non-negative")
-        if not 0.0 < self.position_fraction <= 1.0:
-            raise ValueError("position_fraction must be within (0, 1]")
+        if not math.isfinite(self.initial_capital) or self.initial_capital <= 0:
+            raise ValueError("initial_capital must be finite and positive")
+        # Costs >= 100% of purchase notional create zero/negative inventory.
+        if not math.isfinite(self.fee_bps) or not 0 <= self.fee_bps < 10_000:
+            raise ValueError("fee_bps must be finite and below 10000")
+        if (
+            not math.isfinite(self.position_fraction)
+            or not 0.0 < self.position_fraction <= 1.0
+        ):
+            raise ValueError("position_fraction must be finite and within (0, 1]")
+        if "spread_bps" in self.window:
+            spread = self.window["spread_bps"].to_numpy(dtype=np.float64)
+            if (
+                not np.isfinite(spread).all()
+                or (spread < 0).any()
+                or self.fee_bps + spread.max() / 2 >= 10_000
+            ):
+                raise ValueError(
+                    "spread_bps must be finite, non-negative and affordable"
+                )
 
     def manifest(self) -> dict[str, Any]:
         return {

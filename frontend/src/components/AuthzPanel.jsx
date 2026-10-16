@@ -18,12 +18,20 @@ export default function AuthzPanel() {
   const [checkScope, setCheckScope] = useState('trade.paper.order.submit');
   const [checkPrincipal, setCheckPrincipal] = useState('');
   const [checkResult, setCheckResult] = useState(null);
+  const [checkRevision, setCheckRevision] = useState(0);
+  const [pendingRevoke, setPendingRevoke] = useState(null);
   const queryClient = useQueryClient();
   const toast = useToast();
 
   const grantsQuery = useQuery({
     queryKey: ['authz-grants'],
-    queryFn: () => authzAPI.listGrants().then((response) => response.data),
+    queryFn: async () => {
+      const payload = (await authzAPI.listGrants()).data;
+      if (!Array.isArray(payload?.grants)) {
+        throw new Error('Invalid grants response');
+      }
+      return payload;
+    },
     refetchInterval: 15000,
   });
 
@@ -42,18 +50,49 @@ export default function AuthzPanel() {
     mutationFn: ({ grantId }) => authzAPI.revoke(grantId, actor, actorKey),
     onSuccess: () => {
       toast.success('Grant revoked (terminal)');
+      setPendingRevoke(null);
+      // Previously checked scopes may have lost permission with this
+      // revocation. Never leave their old ALLOWED verdict on screen.
+      setCheckResult(null);
       refresh();
     },
     onError: (error) => toast.error(error.message || 'Revocation failed'),
   });
 
   const checkMutation = useMutation({
-    mutationFn: () => authzAPI.check(checkScope, checkPrincipal || undefined),
-    onSuccess: (response) => setCheckResult(response.data),
-    onError: (error) => toast.error(error.message || 'Check failed'),
+    mutationFn: async ({ scope, principal }) => {
+      const response = await authzAPI.check(scope, principal || undefined);
+      if (typeof response.data?.allowed !== 'boolean') {
+        throw new Error('Invalid scope-check response');
+      }
+      return response.data;
+    },
+    onSuccess: (result, variables) => {
+      // Bind the verdict to the inputs used when the request was sent,
+      // not whatever scope/principal is now displayed by the operator.
+      setCheckResult({ ...result, ...variables });
+    },
+    onError: (error) => {
+      setCheckResult(null);
+      toast.error(error.message || 'Check failed');
+    },
   });
 
   const grants = grantsQuery.data?.grants ?? [];
+  // An absent or failed health response is not proof that the grant ledger
+  // is valid. Only an affirmative response may be displayed as healthy.
+  const legacyWildcardCount = healthQuery.data?.legacy_high_risk_wildcard_grants;
+  const legacyStatusKnown =
+    Number.isSafeInteger(legacyWildcardCount) && legacyWildcardCount >= 0;
+  const ledgerState = healthQuery.isPending
+    ? 'checking'
+    : healthQuery.isError
+      ? 'UNAVAILABLE'
+      : healthQuery.data?.ledger_valid === true
+        ? 'valid'
+        : healthQuery.data?.ledger_valid === false
+          ? 'CORRUPT'
+          : 'UNAVAILABLE';
 
   return (
     <section className="panel authz-panel" aria-label="Authorization grants">
@@ -62,10 +101,23 @@ export default function AuthzPanel() {
         Wildcard capability grants delegate bounded authority to principals.
         Ledger:{' '}
         <strong data-testid="ledger-state">
-          {healthQuery.data?.ledger_valid === false ? 'CORRUPT' : 'valid'}
+          {ledgerState}
         </strong>{' '}
         ({healthQuery.data?.entries ?? 0} entries). Revocation is terminal.
       </p>
+
+      {ledgerState === 'valid' && !legacyStatusKnown && (
+        <div className="error" role="alert" data-testid="legacy-grants-unknown">
+          Legacy economic wildcard-grant review is unavailable. Verify the
+          current authorization service before funded execution.
+        </div>
+      )}
+      {ledgerState === 'valid' && legacyStatusKnown && legacyWildcardCount > 0 && (
+        <div className="error" role="alert" data-testid="legacy-grants-warning">
+          {legacyWildcardCount} legacy high-risk wildcard grant(s) require
+          operator review and explicit revocation before funded execution.
+        </div>
+      )}
 
       <form
         className="credential-row"
@@ -91,26 +143,40 @@ export default function AuthzPanel() {
         className="check-row"
         onSubmit={(event) => {
           event.preventDefault();
-          checkMutation.mutate();
+          setCheckResult(null);
+          checkMutation.mutate({
+            scope: checkScope, principal: checkPrincipal, revision: checkRevision,
+          });
         }}
         aria-label="Scope check"
       >
         <input
           value={checkPrincipal}
-          onChange={(event) => setCheckPrincipal(event.target.value)}
+          onChange={(event) => {
+            setCheckPrincipal(event.target.value);
+            setCheckRevision((revision) => revision + 1);
+            setCheckResult(null);
+          }}
           placeholder="principal (optional; defaults to caller)"
           aria-label="Check principal"
         />
         <input
           value={checkScope}
-          onChange={(event) => setCheckScope(event.target.value)}
+          onChange={(event) => {
+            setCheckScope(event.target.value);
+            setCheckRevision((revision) => revision + 1);
+            setCheckResult(null);
+          }}
           placeholder="scope.to.check"
           aria-label="Check scope"
         />
         <button type="submit" disabled={checkMutation.isPending}>
           Check
         </button>
-        {checkResult && (
+        {checkResult
+          && checkResult.scope === checkScope
+          && checkResult.principal === checkPrincipal
+          && checkResult.revision === checkRevision && (
           <span
             className={`check-result ${checkResult.allowed ? 'allowed' : 'denied'}`}
             data-testid="check-result"
@@ -131,7 +197,7 @@ export default function AuthzPanel() {
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['authz-grants'] })}
+              onClick={() => grantsQuery.refetch()}
             >
               Retry
             </button>
@@ -168,16 +234,37 @@ export default function AuthzPanel() {
                 </td>
                 <td>{grant.expires_at}</td>
                 <td>
-                  <button
-                    type="button"
-                    disabled={!actor || !actorKey || revokeMutation.isPending}
-                    onClick={() =>
-                      revokeMutation.mutate({ grantId: grant.grant_id })
-                    }
-                    aria-label={`Revoke grant ${grant.grant_id}`}
-                  >
-                    Revoke
-                  </button>
+                  {pendingRevoke === grant.grant_id ? (
+                    <div className="button-group" role="group"
+                      aria-label={`Confirm revocation of grant ${grant.grant_id}`}>
+                      <span role="alert">
+                        Terminal revocation of {grant.grant_id}
+                      </span>
+                      <button
+                        type="button" className="btn btn-danger btn-small"
+                        disabled={!actor || !actorKey || revokeMutation.isPending}
+                        onClick={() => revokeMutation.mutate({ grantId: grant.grant_id })}
+                      >
+                        Confirm revoke
+                      </button>
+                      <button
+                        type="button" className="btn btn-secondary btn-small"
+                        disabled={revokeMutation.isPending}
+                        onClick={() => setPendingRevoke(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!actor || !actorKey || revokeMutation.isPending}
+                      onClick={() => setPendingRevoke(grant.grant_id)}
+                      aria-label={`Revoke grant ${grant.grant_id}`}
+                    >
+                      Revoke
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

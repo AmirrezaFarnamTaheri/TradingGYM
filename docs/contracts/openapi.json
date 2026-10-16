@@ -4125,7 +4125,8 @@
           "inverse-volatility",
           "minimum-variance",
           "risk-parity",
-          "maximum-diversification"
+          "maximum-diversification",
+          "turnover-aware"
         ],
         "title": "ConstructionMethod",
         "type": "string"
@@ -11922,7 +11923,10 @@
               "vwap",
               "obv",
               "stochastic",
-              "donchian"
+              "donchian",
+              "adx",
+              "mfi",
+              "realized_volatility"
             ],
             "title": "Name",
             "type": "string"
@@ -16751,6 +16755,18 @@
             "title": "Diversification Ratio",
             "type": "number"
           },
+          "estimated_one_way_turnover": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Estimated One Way Turnover"
+          },
           "execution_authority_granted": {
             "default": false,
             "title": "Execution Authority Granted",
@@ -16759,6 +16775,33 @@
           "expected_return": {
             "title": "Expected Return",
             "type": "number"
+          },
+          "group_caps_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group Caps Sha256"
+          },
+          "group_exposure": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group Exposure"
           },
           "marginal_risk_contribution": {
             "additionalProperties": {
@@ -16775,6 +16818,30 @@
             "title": "Mutation Performed",
             "type": "boolean"
           },
+          "objective_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Objective Value"
+          },
+          "previous_weights_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Previous Weights Sha256"
+          },
           "report_sha256": {
             "title": "Report Sha256",
             "type": "string"
@@ -16782,6 +16849,18 @@
           "sharpe_ratio": {
             "title": "Sharpe Ratio",
             "type": "number"
+          },
+          "turnover_regularization": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Turnover Regularization"
           },
           "volatility": {
             "title": "Volatility",
@@ -16821,6 +16900,22 @@
       "PortfolioConstructionRequest": {
         "additionalProperties": false,
         "properties": {
+          "asset_groups": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "maxProperties": 64,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Asset Groups"
+          },
           "assets": {
             "items": {
               "$ref": "#/components/schemas/PortfolioAssetInput"
@@ -16841,6 +16936,22 @@
             "title": "Correlation Matrix",
             "type": "array"
           },
+          "group_caps": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "maxProperties": 64,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group Caps"
+          },
           "maximum_iterations": {
             "default": 2000,
             "maximum": 100000.0,
@@ -16850,6 +16961,29 @@
           },
           "method": {
             "$ref": "#/components/schemas/ConstructionMethod"
+          },
+          "previous_weights": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "maxProperties": 64,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Previous Weights"
+          },
+          "risk_aversion": {
+            "default": 1.0,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Risk Aversion",
+            "type": "number"
           },
           "risk_free_rate": {
             "default": 0.0,
@@ -16863,6 +16997,13 @@
             "exclusiveMinimum": 0.0,
             "maximum": 0.1,
             "title": "Tolerance",
+            "type": "number"
+          },
+          "turnover_penalty": {
+            "default": 0.0,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Turnover Penalty",
             "type": "number"
           }
         },
@@ -16927,17 +17068,20 @@
         "additionalProperties": false,
         "properties": {
           "day_start_equity": {
-            "exclusiveMinimum": 0.0,
+            "maximum": 1e+30,
+            "minimum": 1e-12,
             "title": "Day Start Equity",
             "type": "number"
           },
           "equity": {
-            "exclusiveMinimum": 0.0,
+            "maximum": 1e+30,
+            "minimum": 1e-12,
             "title": "Equity",
             "type": "number"
           },
           "peak_equity": {
-            "exclusiveMinimum": 0.0,
+            "maximum": 1e+30,
+            "minimum": 1e-12,
             "title": "Peak Equity",
             "type": "number"
           },
@@ -17007,8 +17151,15 @@
             "type": "boolean"
           },
           "loss_fraction": {
-            "title": "Loss Fraction",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loss Fraction"
           },
           "mutation_performed": {
             "default": false,
@@ -17023,8 +17174,15 @@
             "type": "array"
           },
           "post_stress_gross_leverage": {
-            "title": "Post Stress Gross Leverage",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Stress Gross Leverage"
           },
           "report_sha256": {
             "pattern": "^[0-9a-f]{64}$",
@@ -17336,6 +17494,8 @@
             "type": "string"
           },
           "notional": {
+            "maximum": 1e+30,
+            "minimum": -1e+30,
             "title": "Notional",
             "type": "number"
           },
@@ -17875,7 +18035,17 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Api Key Env"
+          },
+          "api_key_envs": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Api Key Envs",
+            "type": "array"
           },
           "base_url": {
             "anyOf": [
@@ -17886,6 +18056,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Base Url"
           },
           "command": {
@@ -17898,6 +18069,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Command"
           },
           "display_name": {
@@ -17920,6 +18092,20 @@
           "kind": {
             "$ref": "#/components/schemas/ProviderKind"
           },
+          "max_requests_per_hour": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Requests Per Hour"
+          },
           "metadata": {
             "additionalProperties": true,
             "title": "Metadata",
@@ -17934,6 +18120,27 @@
           "provider_id": {
             "pattern": "^[A-Za-z][A-Za-z0-9_.-]{1,79}$",
             "title": "Provider Id",
+            "type": "string"
+          },
+          "rotate_on_rate_limit": {
+            "default": false,
+            "title": "Rotate On Rate Limit",
+            "type": "boolean"
+          },
+          "systemone_path": {
+            "default": "/v1/systemone",
+            "pattern": "^/[A-Za-z0-9_./-]{0,199}$",
+            "title": "Systemone Path",
+            "type": "string"
+          },
+          "wire_protocol": {
+            "default": "openai_chat",
+            "enum": [
+              "openai_chat",
+              "systemone",
+              "systemone_fixed"
+            ],
+            "title": "Wire Protocol",
             "type": "string"
           }
         },
@@ -24102,7 +24309,7 @@
         "additionalProperties": false,
         "properties": {
           "config_name": {
-            "default": "training_t4.yaml",
+            "default": "training_local.yaml",
             "maxLength": 120,
             "minLength": 5,
             "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*\\.ya?ml$",
@@ -25762,7 +25969,7 @@
   "info": {
     "description": "Governed RL trading API with evidence-first research and declarative strategy tooling",
     "title": "Trading Gym API",
-    "version": "11.0.0"
+    "version": "31.7.0+reconstructed.1"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -38426,6 +38633,38 @@
                 }
               ],
               "title": "X-Approval-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Actor-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Actor-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Approver-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Approver-Key"
             }
           },
           {

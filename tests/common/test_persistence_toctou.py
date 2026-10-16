@@ -25,9 +25,9 @@ def test_read_json_rejects_symlinks_with_the_lock_held(
             depth["held"] += 1
             return super().acquire(*args, **kwargs)
 
-        def release(self):
+        def release(self, *args, **kwargs):
             depth["held"] -= 1
-            return super().release()
+            return super().release(*args, **kwargs)
 
     real_reject = persistence._reject_symlink
 
@@ -91,3 +91,52 @@ def test_read_json_returns_default_for_missing_file_under_lock(tmp_path: Path) -
     lock so it cannot be raced into reading a swapped path."""
     missing = tmp_path / "absent.json"
     assert persistence.read_json(missing, {"default": True}) == {"default": True}
+
+
+@pytest.mark.parametrize("operation", ["read", "append", "replace"])
+def test_dangling_symlink_is_not_treated_as_missing_state(
+    tmp_path: Path, operation: str
+) -> None:
+    """A dangling link must never be followed when a store is created/opened."""
+    missing_target = tmp_path / "outside" / "state.jsonl"
+    state = tmp_path / "state.jsonl"
+    try:
+        state.symlink_to(missing_target)
+    except (NotImplementedError, OSError):
+        pytest.skip("symlink creation is unavailable on this platform")
+    with pytest.raises(ValueError, match="symlink"):
+        if operation == "read":
+            persistence.read_json(state, {"empty": True})
+        elif operation == "append":
+            persistence.append_jsonl(state, {"state": "pending"})
+        else:
+            persistence.atomic_write_text(state, "{}")
+    assert not missing_target.exists()
+    assert state.is_symlink()
+
+@pytest.mark.parametrize("operation", ["read", "append", "replace"])
+def test_state_file_rejects_nonregular_fifo_before_open(
+    tmp_path: Path, monkeypatch, operation: str
+) -> None:
+    """FIFO paths are not normal durable state and can block an API worker."""
+    import os
+
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("POSIX FIFO test")
+    state = tmp_path / "state.jsonl"
+    os.mkfifo(state)
+    original_open = Path.open
+
+    def reject_fifo_open(self, *args, **kwargs):
+        if self == state:
+            pytest.fail("attempted to open attacker-supplied FIFO")
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", reject_fifo_open)
+    with pytest.raises(ValueError, match="non-regular"):
+        if operation == "read":
+            persistence.read_json(state, {})
+        elif operation == "append":
+            persistence.append_jsonl(state, {"state": "pending"})
+        else:
+            persistence.atomic_write_text(state, "{}")

@@ -87,6 +87,28 @@ def test_gate_denies_unknown_operation_and_bad_key():
     )
 
 
+def test_gate_rejects_cancel_with_a_positive_quantity():
+    payload = evaluate_pre_trade_gate(
+        operation="order.cancel",
+        quantity=Decimal("0.1"),
+        idempotency_key="b" * 32,
+        reference_id="pending-order",
+    )
+    assert payload.allowed is False
+    assert "quantity_valid" in payload.denial_reasons
+
+
+@pytest.mark.parametrize("quantity", [Decimal("0"), Decimal("0.1")])
+def test_gate_accepts_full_or_partial_short_close(quantity):
+    payload = evaluate_pre_trade_gate(
+        operation="short.close",
+        quantity=quantity,
+        idempotency_key="a" * 32,
+        reference_id="short-1",
+    )
+    assert payload.allowed is True
+
+
 # ---------------------------------------------------------------------------
 # Stability-aware backoff (kraken session-reset refinement)
 # ---------------------------------------------------------------------------
@@ -129,6 +151,15 @@ def test_backoff_failure_resets_success_streak():
     second = backoff.next_delay()
     assert second >= first * 0.99  # continued escalation, not a silent reset
     assert second > 0
+
+
+def test_backoff_remains_bounded_after_long_outage():
+    backoff = StabilityAwareBackoff(_policy(), rng=__import__("random").Random(4))
+    for _ in range(2500):
+        assert backoff.next_delay() <= 1.0
+    for _ in range(5):
+        backoff.record_success()
+    assert backoff.next_delay() == pytest.approx(0.01)
 
 
 def test_stability_threshold_validation():

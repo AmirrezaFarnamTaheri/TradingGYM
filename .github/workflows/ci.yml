@@ -9,6 +9,13 @@ on:
     # Weekly Monday-morning dependency scan (informational job below).
     - cron: "0 6 * * 1"
 
+
+# Keep only the newest verification attempt per PR or branch. Scheduled
+# dependency scans remain independent and are never preempted by PR updates.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
 jobs:
   lint:
     name: Lint & Format
@@ -139,7 +146,10 @@ jobs:
           pip install poetry
           poetry install --with dev
 
+      # Each matrix cell executes the non-integration suite exactly once.
+      # GitHub's step condition is shell-neutral (Windows defaults to pwsh).
       - name: Run unit tests
+        if: matrix.os != 'ubuntu-latest' || matrix.python-version != '3.12'
         run: |
           poetry run pytest -m "not integration" -v --tb=short
         env:
@@ -148,7 +158,7 @@ jobs:
       - name: Run unit tests with coverage
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
         run: |
-          poetry run pytest -m "not integration" --cov=trading_gym --cov=apps --cov-report=xml --cov-report=term-missing
+          poetry run pytest -m "not integration" -v --tb=short --cov=trading_gym --cov=apps --cov-report=xml --cov-report=term-missing
         env:
           PYTHONPATH: .
 

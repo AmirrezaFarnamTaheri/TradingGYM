@@ -375,7 +375,10 @@ class SafeToolRegistry:
             result = definition.handler(request.arguments, request.actor)
         except Exception as exc:
             usage.failures += 1
-            usage.last_error = f"{type(exc).__name__}: {exc}"[:500]
+            # Error messages may embed provider URLs, account payloads,
+            # API keys or user-authored content. Meter by exception type only:
+            # the full exception still propagates to the authorized caller.
+            usage.last_error = type(exc).__name__
             raise
         return redact_secrets(result)
 

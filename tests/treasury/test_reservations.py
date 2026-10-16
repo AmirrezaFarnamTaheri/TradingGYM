@@ -105,3 +105,74 @@ def test_cross_currency_isolation(ledger):
     ledger.reserve(order_id="btc-o", currency="BTC", amount=D("0.5"))
     assert ledger.available_balance("USDT") == D("10_000")
     assert ledger.available_balance("BTC") == D("0.5")
+
+
+@pytest.mark.parametrize("amount", [D("NaN"), D("Infinity"), D("-Infinity")])
+def test_nonfinite_money_never_enters_reservation_ledger(amount):
+    with pytest.raises(ValueError, match="finite non-negative"):
+        ReservationLedger({"USDT": amount})
+
+    ledger = ReservationLedger({"USDT": D("100")})
+    with pytest.raises(ValueError, match="finite positive"):
+        ledger.reserve(order_id="bad", currency="USDT", amount=amount)
+    ledger.reserve(order_id="valid", currency="USDT", amount=D("10"))
+    with pytest.raises(ValueError, match="finite positive"):
+        ledger.commit_settlement(
+            order_id="valid", currency="USDT", settled_amount=amount
+        )
+    assert ledger.available_balance("USDT") == D("90")
+    assert ledger.reserved_for_order("valid")["USDT"] == D("10")
+
+
+def test_order_id_cannot_be_reused_after_release_or_settlement(ledger):
+    ledger.reserve(order_id="release-1", currency="USDT", amount=D("100"))
+    assert ledger.release(order_id="release-1") is True
+    with pytest.raises(ReservationError, match="already used"):
+        ledger.reserve(order_id="release-1", currency="USDT", amount=D("100"))
+
+    ledger.reserve(order_id="settled-1", currency="USDT", amount=D("200"))
+    ledger.commit_settlement(
+        order_id="settled-1", currency="USDT", settled_amount=D("210")
+    )
+    before = ledger.events_digest()
+    with pytest.raises(ReservationError, match="already used"):
+        ledger.reserve(order_id="settled-1", currency="USDT", amount=D("200"))
+    assert ledger.events_digest() == before
+    assert ledger.snapshot()["USDT"]["committed"] == D("210")
+
+
+def test_ledger_rejects_duplicate_currency_after_case_normalization():
+    with pytest.raises(ValueError, match="duplicate_normalized_currency"):
+        ReservationLedger({"usdt": D("100"), "USDT": D("200")})
+
+def test_concurrent_reservations_cannot_overcommit_same_currency():
+    from concurrent.futures import ThreadPoolExecutor
+    from time import sleep
+
+    ledger = ReservationLedger({"USDT": D("100")})
+    read_balance = ledger.available_balance
+
+    def slow_read(currency):
+        amount = read_balance(currency)
+        sleep(0.03)
+        return amount
+
+    ledger.available_balance = slow_read
+
+    def reserve(index):
+        try:
+            ledger.reserve(
+                order_id=f"concurrent-{index}",
+                currency="USDT",
+                amount=D("70"),
+            )
+        except ReservationError:
+            return False
+        return True
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        results = list(workers.map(reserve, range(2)))
+    assert results.count(True) == 1
+    assert results.count(False) == 1
+    assert ledger.snapshot()["USDT"]["reserved"] == D("70")
+    assert ledger.snapshot()["USDT"]["available"] == D("30")

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Any
-from urllib.parse import urljoin
+from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
 import httpx
 from filelock import FileLock
@@ -24,7 +25,7 @@ from trading_gym.common.audit_outbox import (
     queue_audit_event,
     verify_outbox_digest,
 )
-from trading_gym.common.security import validate_base_url
+from trading_gym.common.security import redact_secrets, validate_base_url
 from trading_gym.governance.ledger import AuditLedger
 
 
@@ -41,9 +42,23 @@ class ProviderConfig(BaseModel):
     kind: ProviderKind
     display_name: Annotated[str, Field(min_length=1, max_length=120)]
     model: Annotated[str, Field(min_length=1, max_length=200)]
+    # Native finite-choice System-One and chat-completions are distinct
+    # protocols. Preserve the existing chat behavior by default.
+    wire_protocol: Literal[
+        "openai_chat", "systemone", "systemone_fixed"
+    ] = "openai_chat"
+    systemone_path: Annotated[
+        str, Field(pattern=r"^/[A-Za-z0-9_./-]{0,199}$")
+    ] = "/v1/systemone"
     base_url: str | None = None
     health_path: Annotated[str, Field(pattern=r"^/[A-Za-z0-9_./-]{0,199}$")] = "/models"
     api_key_env: Annotated[str | None, Field(pattern=r"^[A-Z][A-Z0-9_]{1,79}$")] = None
+    api_key_envs: Annotated[tuple[str, ...], Field(max_length=16)] = ()
+    # Default: honor shared organization/project 429s; only enable when the
+    # provider documents independent per-key rate-limit buckets.
+    rotate_on_rate_limit: bool = False
+    # Optional all-key, all-model, cross-process hourly HTTP attempt ceiling.
+    max_requests_per_hour: Annotated[int | None, Field(strict=True, ge=1, le=100_000)] = None
     command: Annotated[str | None, Field(pattern=r"^[A-Za-z0-9_.-]{1,120}$")] = None
     allow_private_network: bool = False
     enabled: bool = True
@@ -56,8 +71,49 @@ class ProviderConfig(BaseModel):
             raise ValueError("health_path must be a simple absolute path")
         return value
 
+    @field_validator("systemone_path")
+    @classmethod
+    def validate_systemone_path(cls, value: str) -> str:
+        if ".." in value.split("/") or "//" in value:
+            raise ValueError("systemone_path must be a simple absolute path")
+        return value
+
+    @property
+    def credential_refs(self) -> tuple[str, ...]:
+        """Ordered env references, supporting both legacy and fleet config."""
+        # Lazy import avoids importing the intelligence package while the
+        # core provider repository itself is still initializing.
+        from trading_gym.intelligence.llm_key_pool import credential_references
+
+        return credential_references(
+            *((self.api_key_env,) if self.api_key_env else ()),
+            *self.api_key_envs,
+        )
+
+    @field_validator("metadata")
+    @classmethod
+    def validate_secret_free_metadata(cls, value: dict[str, Any]) -> dict[str, Any]:
+        """Reject credentials in metadata; only env reference names may persist.
+
+        Provider metadata is written to providers.json and displayed to the
+        operator. Nested passwords and tokens must never become persisted
+        values outside the dedicated api_key_env / api_key_envs references.
+        """
+        if redact_secrets(value) != value:
+            raise ValueError("provider metadata contains credential fields")
+        try:
+            payload = json.dumps(
+                value, sort_keys=True, allow_nan=False, separators=(",", ":")
+            ).encode("utf-8")
+        except (TypeError, ValueError, UnicodeError) as exc:
+            raise ValueError("provider metadata is not finite JSON") from exc
+        if len(payload) > 8192:
+            raise ValueError("provider metadata exceeds byte budget")
+        return value
+
     @model_validator(mode="after")
     def validate_kind(self) -> "ProviderConfig":
+        refs = self.credential_refs
         if self.kind in {ProviderKind.OPENAI_COMPATIBLE, ProviderKind.LOCAL}:
             if not self.base_url:
                 raise ValueError("HTTP providers require base_url")
@@ -71,9 +127,15 @@ class ProviderConfig(BaseModel):
             raise ValueError("CLI providers must not define base_url")
         if self.kind is ProviderKind.CLI and not self.command:
             raise ValueError("CLI providers require command")
-        if self.kind is ProviderKind.CLI and self.api_key_env is not None:
-            raise ValueError("CLI providers must not define api_key_env")
-        if self.kind is ProviderKind.OPENAI_COMPATIBLE and not self.api_key_env:
+        if self.kind is ProviderKind.CLI and refs:
+            raise ValueError("CLI providers must not define API credentials")
+        if self.kind is ProviderKind.CLI and self.wire_protocol != "openai_chat":
+            raise ValueError("CLI providers cannot use System-One HTTP protocol")
+        if self.wire_protocol in {"systemone", "systemone_fixed"} and self.rotate_on_rate_limit:
+            # Native Go System-One returns HTTP 429 when its *global*
+            # scorer is busy; rotating credentials cannot create capacity.
+            raise ValueError("native System-One does not support rate-limit key rotation")
+        if self.kind is ProviderKind.OPENAI_COMPATIBLE and not refs:
             raise ValueError(
                 "OpenAI-compatible providers require an API-key environment reference"
             )
@@ -141,6 +203,9 @@ class ProviderRepository:
         expected_revision: int | None = None,
         actor: str = "api-operator",
     ) -> dict[str, Any]:
+        # Unsafe model_copy(update=...) and model_construct(...) bypass
+        # Pydantic validators. The persistence boundary must not trust them.
+        config = ProviderConfig.model_validate(config.model_dump(mode="python"))
         with self.lock:
             document = self._load()
             revision = int(document["revision"])
@@ -205,6 +270,90 @@ class ProviderRepository:
         return result
 
 
+def selected_provider_credential_refs(
+    intelligence: Any,
+    providers: list[ProviderConfig] | tuple[ProviderConfig, ...],
+) -> frozenset[str]:
+    """Authorize only configured model keys for one trading worker.
+
+    This resolves *names* of environment variables, never their values.
+    RL/rules and absent intelligence settings delegate no model secrets.
+    Explicit fast/deep modes reject missing providers before spawning;
+    optional AUTO capabilities may be unavailable without becoming grants.
+    """
+    from trading_gym.common.intelligence_config import IntelligenceMode
+
+    if intelligence is None or intelligence.mode in (
+        IntelligenceMode.RL,
+        IntelligenceMode.RULES,
+    ):
+        return frozenset()
+
+    catalogue = {provider.provider_id: provider for provider in providers}
+    chosen: list[str] = []
+    mode = intelligence.mode
+    if mode in (IntelligenceMode.SYSTEM1, IntelligenceMode.AUTO):
+        chosen.extend(intelligence.system1_provider_ids)
+    if mode in (
+        IntelligenceMode.SYSTEM1,
+        IntelligenceMode.AUTO,
+        IntelligenceMode.FUSION,
+        IntelligenceMode.LLM,
+    ) and intelligence.llm_provider_id:
+        chosen.append(intelligence.llm_provider_id)
+    if (
+        mode in (IntelligenceMode.LLM, IntelligenceMode.FUSION)
+        and not intelligence.llm_provider_id
+    ):
+        raise ValueError("configured LLM provider not found")
+    if mode is IntelligenceMode.SYSTEM1 and not intelligence.system1_provider_ids:
+        raise ValueError("configured System-1 provider not found")
+
+    requested = frozenset(chosen)
+    if len(requested) != len(chosen):
+        raise ValueError("duplicate configured model provider")
+
+    references: set[str] = set()
+    for provider_id in requested:
+        provider = catalogue.get(provider_id)
+        if provider is None or not provider.enabled or provider.kind is ProviderKind.CLI:
+            if mode is IntelligenceMode.AUTO:
+                continue
+            raise ValueError(f"model provider {provider_id!r} not found or disabled")
+        # Fast-mode native providers and ordinary chat providers both carry
+        # credential references; choosing one never implies permission to
+        # share the secrets of unrelated installed provider presets.
+        references.update(provider.credential_refs)
+    return frozenset(references)
+
+
+def join_provider_endpoint(base_url: str, resource_path: str) -> str:
+    """Resolve one API endpoint without silently duplicating version prefixes.
+
+    A native System-One base may be the bare origin or include /v1 already.
+    Preserve unrelated proxy prefixes; remove only shared trailing path
+    components before joining a validated relative resource suffix.
+    """
+    base = urlsplit(base_url)
+    if not base.scheme or not base.netloc or base.query or base.fragment:
+        raise ValueError("invalid provider base URL")
+    if (
+        not isinstance(resource_path, str)
+        or not resource_path.startswith("/")
+        or "//" in resource_path
+        or any(x in {".", ".."} for x in resource_path.split("/"))
+    ):
+        raise ValueError("invalid provider endpoint path")
+    prefix_parts = [part for part in base.path.split("/") if part]
+    suffix_parts = [part for part in resource_path.split("/") if part]
+    for count in range(min(len(prefix_parts), len(suffix_parts)), 0, -1):
+        if prefix_parts[-count:] == suffix_parts[:count]:
+            suffix_parts = suffix_parts[count:]
+            break
+    suffix = "/".join(suffix_parts)
+    return base_url.rstrip("/") + ("/" + suffix if suffix else "")
+
+
 def provider_status(
     config: ProviderConfig,
     *,
@@ -221,11 +370,12 @@ def provider_status(
             "status": "available" if executable else "unavailable",
             "command": Path(config.command or "").name if config.command else None,
         }
-    if config.api_key_env and not os.getenv(config.api_key_env):
+    references = config.credential_refs
+    available_refs = [name for name in references if os.getenv(name)]
+    if references and not available_refs:
         return {
             "provider_id": config.provider_id,
             "status": "missing_credential_reference",
-            "api_key_env": config.api_key_env,
         }
 
     # Re-resolve immediately before every outbound request. This closes stored-URL
@@ -237,10 +387,21 @@ def provider_status(
         allow_loopback=config.kind is ProviderKind.LOCAL,
         resolve_dns=True,
     )
-    destination = urljoin(base_url.rstrip("/") + "/", config.health_path.lstrip("/"))
+    # Native /v1/systemone implementations, including the reviewed Go
+    # scorer, may expose POST only rather than an OpenAI GET /models API.
+    # A method-not-allowed response on the exact typed route is evidence of
+    # reachability, not of model readiness or decision quality.
+    health_path = (
+        config.systemone_path
+        if config.wire_protocol in {"systemone", "systemone_fixed"} and config.health_path == "/models"
+        else config.health_path
+    )
+    destination = join_provider_endpoint(base_url, health_path)
     headers: dict[str, str] = {}
-    if config.api_key_env:
-        headers["Authorization"] = f"Bearer {os.environ[config.api_key_env]}"
+    if available_refs:
+        # Health is advisory only; the real inference request rotates keys
+        # and never depends on GET /models being exposed by the provider.
+        headers["Authorization"] = f"Bearer {os.environ[available_refs[0]]}"
     try:
         with httpx.Client(
             timeout=timeout_seconds,
@@ -248,10 +409,27 @@ def provider_status(
             trust_env=False,
         ) as client:
             response = client.get(destination, headers=headers)
+        code = response.status_code
+        if 200 <= code < 300 or (
+            config.wire_protocol in {"systemone", "systemone_fixed"}
+            and health_path == config.systemone_path
+            and code == 405
+            and "POST" in {
+                method.strip().upper()
+                for method in response.headers.get("allow", "").split(",")
+            }
+        ):
+            status = "reachable"
+        elif code in (401, 403):
+            status = "unauthorized"
+        elif code >= 500:
+            status = "degraded"
+        else:
+            status = "unavailable"
         return {
             "provider_id": config.provider_id,
-            "status": "reachable" if response.status_code < 500 else "degraded",
-            "http_status": response.status_code,
+            "status": status,
+            "http_status": code,
         }
     except httpx.HTTPError as exc:
         return {

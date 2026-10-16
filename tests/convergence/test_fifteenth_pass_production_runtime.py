@@ -27,6 +27,11 @@ def _consent():
     )
 
 
+@pytest.fixture(autouse=True)
+def isolated_state_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
+
+
 @pytest.mark.asyncio
 async def test_live_adapter_fails_closed_before_any_sdk_mutation_without_consent():
     sdk = MagicMock()

@@ -106,3 +106,30 @@ def test_settled_state_requires_observed_timestamp_and_duplicates_fail():
         evaluate_settlement(
             as_of=datetime.now(timezone.utc), settled_cash={}, obligations=[item, item]
         )
+
+
+def test_account_currency_aggregate_rejects_mixed_account_obligations():
+    with pytest.raises(ValueError, match="single account"):
+        evaluate_settlement(
+            as_of=datetime(2026, 7, 10, 12, tzinfo=timezone.utc),
+            settled_cash={"USD": Decimal("2500")},
+            obligations=[
+                obligation(),
+                obligation(
+                    obligation_id="settlement-order-004",
+                    trade_id="order-004",
+                    account_id="another-account",
+                ),
+            ],
+        )
+
+
+def test_negative_existing_settled_cash_is_reported_as_shortfall():
+    report = evaluate_settlement(
+        as_of=datetime(2026, 7, 10, 12, tzinfo=timezone.utc),
+        settled_cash={"USD": Decimal("-50.00")},
+        obligations=[],
+    )
+    assert report.projected_available_cash["USD"] == Decimal("-50.00")
+    assert "settlement_cash_shortfall:USD" in report.blockers
+    assert report.settlement_authority_granted is False

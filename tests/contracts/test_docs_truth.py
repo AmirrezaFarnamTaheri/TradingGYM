@@ -5,8 +5,8 @@ code does not carry. This contract pins the truth clause mechanically:
 
 1. Every AXIOM-1 capability named in the README must map to a real
    module, and every AXIOM-1 module's docstring must name its ADR.
-2. Test-count claims in the README must match the current suite
-   manifest line format (counted from collected tests, not copied).
+2. The README must direct readers to revision-bound verification evidence,
+   rather than asserting a live test count that becomes stale after each change.
 3. The module-accountability manifest must cover every product module
    (delegates to scripts/audit_module_accountability.py --check).
 """
@@ -92,40 +92,12 @@ def module_adr_paths() -> list[str]:
     return list(_MODULE_ADR)
 
 
-def test_readme_test_count_matches_suite_manifest() -> None:
+def test_readme_points_to_revision_bound_ci_instead_of_stale_test_counts() -> None:
     readme = _read("README.md")
-    match = re.search(r"\*\*(\d+) passed, 3 skipped", readme)
-    assert match, "README must carry the suite-count line"
-    claimed = int(match.group(1))
-
-    # Count collected tests the same way CI does (cheap: --collect-only -q)
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-m",
-            "not integration",
-            "--collect-only",
-            "-q",
-            "--co",
-        ],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    tail = result.stdout.strip().splitlines()[-1]
-    # tail formats: "N tests collected" (unfiltered) or
-    # "N/M tests collected (K deselected)" (with -m filter) — use N.
-    match_tail = re.search(r"(\d+)(?:/(\d+))? tests collected", tail)
-    assert match_tail, f"unexpected collect-only tail: {tail!r}"
-    collected = int(match_tail.group(1))
-    # README states passed + skipped = collected (deselected excluded);
-    # allow the documented skip count (3) as slack either direction.
-    assert (
-        abs(claimed - collected) <= 3
-    ), f"README claims {claimed} passed but {collected} tests are collected"
+    testing_section = readme.split("## Testing", 1)[1].split("\n## ", 1)[0]
+    assert "GitHub Actions" in testing_section
+    assert "pytest -q" in testing_section
+    assert not re.search(r"Current full-suite state.*?\d+ passed", testing_section)
 
 
 def test_module_accountability_manifest_is_current() -> None:

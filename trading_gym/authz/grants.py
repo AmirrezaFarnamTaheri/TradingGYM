@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import uuid
 from dataclasses import dataclass, field, replace
@@ -50,6 +51,8 @@ _GENESIS_HASH = "0" * 64
 _PRINCIPAL_RE = r"^[a-z0-9][a-z0-9._-]{2,63}$"
 _PRINCIPAL_COMPILED = re.compile(_PRINCIPAL_RE)
 _MAX_SCOPES_PER_GRANT = 32
+_MAX_CONSTRAINTS_PER_GRANT = 32
+_CONSTRAINT_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _MAX_TTL_HOURS = 24 * 365 * 5
 _ANCHOR_SEQ = "seq"
 _ANCHOR_HEAD = "head"
@@ -148,7 +151,11 @@ class Grant:
         # issued_at < expires_at is tautologically true for any validly-issued
         # grant, which would make expiry unenforceable on the default path.
         moment = _parse_iso(now) if now is not None else _now_utc()
-        return moment < _parse_iso(self.expires_at)
+        if self._ledger is not None:
+            current = self._ledger._grants.get(self.grant_id)
+            if current is None or current.state != GrantState.ACTIVE:
+                return False
+        return _parse_iso(self.issued_at) <= moment < _parse_iso(self.expires_at)
 
     def evaluate(
         self,
@@ -166,12 +173,32 @@ class Grant:
         than silently skipping the record.
         """
 
+        if self._ledger is not None:
+            current = self._ledger._grants.get(self.grant_id)
+            if current is None or current.state != GrantState.ACTIVE:
+                return GrantDecision(
+                    allowed=False,
+                    reason=(
+                        "grant_revoked_breach"
+                        if current is not None
+                        and current.state == GrantState.REVOKED_BREACH
+                        else "grant_revoked"
+                    ),
+                    grant_id=self.grant_id,
+                )
+
         if not self.is_active(now=now):
             state = self.state
             if state == GrantState.ACTIVE:
+                moment = _parse_iso(now) if now is not None else _now_utc()
+                reason = (
+                    "grant_not_yet_valid"
+                    if moment < _parse_iso(self.issued_at)
+                    else "grant_expired"
+                )
                 return GrantDecision(
                     allowed=False,
-                    reason="grant_expired",
+                    reason=reason,
                     grant_id=self.grant_id,
                 )
             reason = (
@@ -192,27 +219,47 @@ class Grant:
                 allowed=False, reason="no_matching_scope", grant_id=self.grant_id
             )
 
-        if constraints:
-            for name, observed in constraints.items():
-                ceiling = self.constraints.get(name)
-                if ceiling is None:
-                    continue
-                if not isinstance(ceiling, (int, float)) or isinstance(ceiling, bool):
-                    raise ConstraintViolation(
-                        f"constraint ceiling {name!r} is not numeric"
-                    )
-                if not isinstance(observed, (int, float)) or isinstance(observed, bool):
-                    raise ConstraintViolation(
-                        f"observed value for {name!r} must be numeric"
-                    )
-                if observed > ceiling:
-                    if breach:
-                        self._latch_breach()
-                    return GrantDecision(
-                        allowed=False,
-                        reason=f"constraint_{name}",
-                        grant_id=self.grant_id,
-                    )
+        # Check all observations before granting, even when the corresponding
+        # ceiling is not present on this grant. NaN comparisons otherwise
+        # return False for `observed > ceiling` and silently authorize.
+        observations = constraints if constraints is not None else {}
+        if not isinstance(observations, Mapping):
+            raise ConstraintViolation("observed constraints must be a mapping")
+        for name, observed in observations.items():
+            if (
+                not isinstance(observed, (int, float))
+                or isinstance(observed, bool)
+                or (isinstance(observed, float) and not math.isfinite(observed))
+            ):
+                raise ConstraintViolation(
+                    f"observed value for {name!r} must be finite and numeric"
+                )
+
+        # A grant's own ceiling MUST have an observation. Iterating only
+        # user-supplied observations permitted omitting the risky measurement.
+        for name, ceiling in self.constraints.items():
+            if (
+                not isinstance(ceiling, (int, float))
+                or isinstance(ceiling, bool)
+                or (isinstance(ceiling, float) and not math.isfinite(ceiling))
+            ):
+                raise ConstraintViolation(
+                    f"constraint ceiling {name!r} must be finite and numeric"
+                )
+            if name not in observations:
+                return GrantDecision(
+                    allowed=False,
+                    reason=f"constraint_missing_{name}",
+                    grant_id=self.grant_id,
+                )
+            if observations[name] > ceiling:
+                if breach:
+                    self._latch_breach()
+                return GrantDecision(
+                    allowed=False,
+                    reason=f"constraint_{name}",
+                    grant_id=self.grant_id,
+                )
 
         if breach:
             self._latch_breach()
@@ -316,9 +363,20 @@ class GrantLedger:
         return cls(Path(path), verify=verify)
 
     def _load(self, *, verify: bool) -> None:
+        if self._path.is_symlink():
+            raise GrantLedgerIntegrityError("grants journal must not be a symlink")
         if not self._path.exists():
+            if verify and (
+                self._anchor_path.exists() or self._anchor_path.is_symlink()
+            ):
+                raise GrantLedgerIntegrityError(
+                    "grants journal missing but anchor exists (possible truncation)"
+                )
             return
-        raw_lines = self._path.read_text(encoding="utf-8").splitlines()
+        try:
+            raw_lines = self._path.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeError) as exc:
+            raise GrantLedgerIntegrityError("grants journal unreadable") from exc
         for number, line in enumerate(raw_lines, start=1):
             if not line.strip():
                 raise GrantLedgerIntegrityError("blank line in grants journal")
@@ -332,6 +390,10 @@ class GrantLedger:
                 raise GrantLedgerIntegrityError(
                     f"grants journal has invalid JSON at line {number}"
                 ) from exc
+            if not isinstance(record, Mapping):
+                raise GrantLedgerIntegrityError(
+                    f"journal record at line {number} is not a JSON object"
+                )
             self._events.append(self._decode_event(record))
         if verify:
             self._verify_chain()
@@ -361,21 +423,29 @@ class GrantLedger:
                     raise GrantLedgerIntegrityError(
                         f"malformed grant record at seq {event.seq}: {exc}"
                     ) from exc
+                if grant.state != GrantState.ACTIVE:
+                    raise GrantLedgerIntegrityError(
+                        f"issued event is not active at seq {event.seq}"
+                    )
+                if grant.grant_id in self._grants:
+                    raise GrantLedgerIntegrityError(
+                        f"duplicate grant id at seq {event.seq}"
+                    )
                 self._grants[grant.grant_id] = replace(grant, _ledger=self)
             elif event.type == "revoked":
                 grant_id = str(event.payload.get("grant_id", ""))
                 current: Grant | None = self._grants.get(grant_id)
-                if current is None:
+                if current is None or current.state != GrantState.ACTIVE:
                     raise GrantLedgerIntegrityError(
-                        f"revoked event references unknown grant at seq {event.seq}"
+                        f"invalid revoke transition at seq {event.seq}"
                     )
                 self._grants[grant_id] = replace(current, state=GrantState.REVOKED)
             elif event.type == "breach":
                 grant_id = str(event.payload.get("grant_id", ""))
                 latched: Grant | None = self._grants.get(grant_id)
-                if latched is None:
+                if latched is None or latched.state != GrantState.ACTIVE:
                     raise GrantLedgerIntegrityError(
-                        f"breach event references unknown grant at seq {event.seq}"
+                        f"invalid breach transition at seq {event.seq}"
                     )
                 self._grants[grant_id] = replace(
                     latched, state=GrantState.REVOKED_BREACH
@@ -421,7 +491,17 @@ class GrantLedger:
             previous = event.entry_hash
 
     def _verify_anchor(self) -> None:
+        if self._anchor_path.is_symlink():
+            raise GrantLedgerIntegrityError(
+                "grants journal anchor must not be a symlink"
+            )
         if not self._events:
+            # Do not accept a wholly truncated journal that still has its
+            # external anchor. The previous early return silently trusted it.
+            if self._anchor_path.exists():
+                raise GrantLedgerIntegrityError(
+                    "empty grants journal retains an anchor (possible truncation)"
+                )
             return
         expected_seq = self._events[-1].seq
         expected_head = self._events[-1].entry_hash
@@ -429,16 +509,29 @@ class GrantLedger:
             raise GrantLedgerIntegrityError(
                 "grants journal anchor missing for non-empty journal"
             )
-        anchor = json.loads(self._anchor_path.read_text(encoding="utf-8"))
+        try:
+            if self._anchor_path.stat().st_size > 4096:
+                raise GrantLedgerIntegrityError(
+                    "grants journal anchor exceeds size bound"
+                )
+            anchor = json.loads(self._anchor_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, ValueError) as exc:
+            raise GrantLedgerIntegrityError(
+                "grants journal anchor unreadable or invalid"
+            ) from exc
         if (
-            anchor.get(_ANCHOR_SEQ) != expected_seq
-            or anchor.get(_ANCHOR_HEAD) != expected_head
+            not isinstance(anchor, dict)
+            or set(anchor) != {_ANCHOR_SEQ, _ANCHOR_HEAD}
+            or type(anchor[_ANCHOR_SEQ]) is not int
+            or type(anchor[_ANCHOR_HEAD]) is not str
+            or anchor[_ANCHOR_SEQ] != expected_seq
+            or anchor[_ANCHOR_HEAD] != expected_head
         ):
             raise GrantLedgerIntegrityError(
                 "grants journal anchor mismatch (truncation or divergence)"
             )
 
-    def _append(self, event_type: str, ts: str, payload: dict[str, Any]) -> None:
+    def _append(self, event_type: str, ts: str, payload: dict[str, Any]) -> bool:
         # Hold the chain lock across re-read + verify + append so seq/prev_hash
         # come from the real file tail, not state verified at construction.
         # Releasing between the two is what let concurrent appends fork the
@@ -450,6 +543,32 @@ class GrantLedger:
             self._events = []
             self._grants = {}
             self._load(verify=True)
+
+            # Mutation preconditions must be rechecked against the verified
+            # disk state *while* holding the chain lock. Earlier checks can
+            # race a competing handle, resulting in duplicate revocations or
+            # grant-id collisions despite correct sequence/hash linking.
+            if event_type == "issued":
+                record = payload.get("grant")
+                if not isinstance(record, Mapping):
+                    raise GrantLedgerIntegrityError("issued payload missing grant")
+                grant_id = str(record.get("grant_id", ""))
+                if grant_id in self._grants:
+                    raise ValueError(f"duplicate grant ID: {grant_id}")
+            elif event_type in {"revoked", "breach"}:
+                grant_id = str(payload.get("grant_id", ""))
+                current = self._grants.get(grant_id)
+                if current is None:
+                    if event_type == "breach":
+                        return False
+                    raise KeyError(f"unknown grant {grant_id!r}")
+                if current.state != GrantState.ACTIVE:
+                    if event_type == "breach":
+                        return False
+                    raise ValueError(
+                        f"grant {grant_id} is {current.state}, cannot revoke"
+                    )
+
             seq = (self._events[-1].seq if self._events else 0) + 1
             prev_hash = self._events[-1].entry_hash if self._events else _GENESIS_HASH
             body = {
@@ -471,6 +590,7 @@ class GrantLedger:
             append_jsonl(self._path, event.to_json())
             self._events.append(event)
             self._write_anchor()
+            return True
 
     def _write_anchor(self) -> None:
         atomic_write_json(
@@ -487,20 +607,53 @@ class GrantLedger:
         issued_at = _parse_iso(at or request.issued_at)
         if not _PRINCIPAL_COMPILED.match(request.principal):
             raise ValueError(f"invalid principal {request.principal!r}")
-        if not isinstance(request.ttl_hours, int) or request.ttl_hours <= 0:
+        if (
+            not isinstance(request.ttl_hours, int)
+            or isinstance(request.ttl_hours, bool)
+            or request.ttl_hours <= 0
+        ):
             raise ValueError("ttl_hours must be a positive integer")
         if request.ttl_hours > _MAX_TTL_HOURS:
             raise ValueError(f"ttl_hours exceeds the {_MAX_TTL_HOURS}-hour ceiling")
         scopes = ScopeSet.parse(tuple(request.scopes))
         if not scopes.patterns:
             raise ScopeError("grant must carry at least one scope pattern")
+        for pattern in scopes.patterns:
+            if not pattern.is_issuable():
+                raise ScopeError(
+                    "new wildcard grants cannot cover live/economic authority: "
+                    f"{pattern.text!r}"
+                )
         if len(scopes.patterns) > _MAX_SCOPES_PER_GRANT:
             raise ValueError(f"grant exceeds {_MAX_SCOPES_PER_GRANT} scope patterns")
         grant_id = "gw-" + uuid.uuid4().hex[:12]
         while grant_id in self._grants:
             grant_id = "gw-" + uuid.uuid4().hex[:12]
         expires_at = issued_at + timedelta(hours=request.ttl_hours)
-        constraints = {k: v for k, v in request.constraints}
+        if len(request.constraints) > _MAX_CONSTRAINTS_PER_GRANT:
+            raise ConstraintViolation("grant has too many constraint ceilings")
+        constraints: dict[str, float] = {}
+        for item in request.constraints:
+            if not isinstance(item, (tuple, list)) or len(item) != 2:
+                raise ConstraintViolation("invalid constraint ceiling entry")
+            name, ceiling = item
+            if (
+                not isinstance(name, str)
+                or not _CONSTRAINT_NAME_RE.fullmatch(name)
+            ):
+                raise ConstraintViolation("invalid constraint ceiling name")
+            if name in constraints:
+                raise ConstraintViolation(f"duplicate constraint ceiling {name!r}")
+            if (
+                not isinstance(ceiling, (int, float))
+                or isinstance(ceiling, bool)
+                or (isinstance(ceiling, float) and not math.isfinite(ceiling))
+                or ceiling < 0
+            ):
+                raise ConstraintViolation(
+                    f"constraint ceiling {name!r} must be finite and nonnegative"
+                )
+            constraints[name] = ceiling
         grant = Grant(
             grant_id=grant_id,
             principal=request.principal,
@@ -551,11 +704,14 @@ class GrantLedger:
         if grant is None or grant.state != GrantState.ACTIVE:
             return
         latched = replace(grant, state=GrantState.REVOKED_BREACH)
-        self._append(
+        if not self._append(
             "breach",
             _format_iso(_now_utc()),
             {"grant_id": grant_id},
-        )
+        ):
+            # Another handle has already revoked or latched the grant;
+            # _append reloaded the journal, so preserve its actual state.
+            return
         self._grants[grant_id] = latched
 
     # -- queries ------------------------------------------------------------
@@ -581,16 +737,32 @@ class GrantLedger:
         now: str | None = None,
         constraints: Mapping[str, float] | None = None,
     ) -> GrantDecision:
-        """Deny-by-default evaluation across every active grant."""
+        """Deny overrides allow across all active *matching* grants.
 
+        A broad, unconstrained grant must not bypass a stricter matching
+        constraint just because it was issued first. Unrelated scopes have
+        no veto. Malformed values fail closed rather than causing a 500.
+        """
+
+        allowed: GrantDecision | None = None
         for grant in self.active_grants(principal, now=now):
             try:
                 decision = grant.evaluate(scope, now=now, constraints=constraints)
             except ScopeError:
                 return GrantDecision(allowed=False, reason="invalid_scope", grant_id="")
-            if decision.allowed:
+            except ConstraintViolation:
+                return GrantDecision(
+                    allowed=False, reason="invalid_constraints", grant_id=grant.grant_id
+                )
+            if decision.reason == "no_matching_scope":
+                continue
+            if not decision.allowed:
                 return decision
-        return GrantDecision(allowed=False, reason="no_matching_scope", grant_id="")
+            if allowed is None:
+                allowed = decision
+        return allowed or GrantDecision(
+            allowed=False, reason="no_matching_scope", grant_id=""
+        )
 
     def require(
         self,
@@ -600,11 +772,12 @@ class GrantLedger:
         now: str | None = None,
         constraints: Mapping[str, float] | None = None,
     ) -> Grant:
-        """Like ``check`` but returns the authorising grant or raises."""
+        """Use the same deny-overrides-allow verdict as ``check``."""
 
-        for grant in self.active_grants(principal, now=now):
-            decision = grant.evaluate(scope, now=now, constraints=constraints)
-            if decision.allowed:
+        decision = self.check(principal, scope, now=now, constraints=constraints)
+        if decision.allowed:
+            grant = self._grants.get(decision.grant_id)
+            if grant is not None and grant.is_active(now=now):
                 return grant
         raise ScopeDenied(f"principal {principal!r} lacks scope {scope!r}")
 

@@ -22,6 +22,14 @@ from apps.common.runtime_files import (
 logger = logging.getLogger(__name__)
 
 
+class UnrecognizedExecutionStatus(RuntimeError):
+    """The execution adapter returned a state with unknown financial meaning."""
+
+
+class PanicFlattenUnverified(RuntimeError):
+    """Emergency flatten needs explicit reconciliation before further orders."""
+
+
 async def trade_loop(
     env: MarginTradingEnv,
     model: BaseAlgorithm,
@@ -32,7 +40,10 @@ async def trade_loop(
     """Main trading loop with optional live execution and metrics reporting."""
     obs, _ = env.reset()
     logger.info("Starting trading loop...")
-    metrics_writer = MetricsWriter(METRICS_FILE)
+    # Dashboard metrics are observational, not venue authority. One broken
+    # metrics process must not consume the trading failure budget.
+    metrics_writer: MetricsWriter | None = None
+    metrics_degraded = False
 
     consecutive_errors = 0
     MAX_CONSECUTIVE_ERRORS = 5
@@ -46,8 +57,8 @@ async def trade_loop(
             if panic_requested():
                 logger.critical("PANIC SIGNAL RECEIVED")
                 if not await handle_panic_request(live_adapter):
-                    raise RuntimeError(
-                        "panic flatten failed; signal retained for retry or restart"
+                    raise PanicFlattenUnverified(
+                        "panic flatten unverified; signal retained for reconciliation"
                     )
                 logger.critical("SYSTEM HALTED BY USER")
                 break
@@ -56,29 +67,18 @@ async def trade_loop(
             unwrapped_env = cast(MarginTradingEnv, env.unwrapped)
 
             if live_adapter:
-                # 1. Get latest market data (rate-limited)
-                async def get_equity():
-                    return await asyncio.to_thread(live_adapter.get_live_equity)
-
-                async def get_pos():
-                    return await asyncio.to_thread(live_adapter._get_net_position)
-
-                # We assume 'client.get_ticker(symbol)' will be used to update price
-                async def get_price():
-                    tickers = await asyncio.to_thread(client.get_ticker, cfg.env.symbol)
-                    return float(tickers.mid_price)
-
-                async def get_features():
-                    return await asyncio.to_thread(
-                        build_live_feature_snapshot,
-                        client,
-                        cfg,
-                    )
-
-                real_equity = float(await get_equity())
-                real_pos_dec = Decimal(str(await get_pos()))
-                current_price_float = float(await get_price())
-                feature_snapshot = await get_features()
+                # Read market state sequentially; no redundant async wrappers.
+                real_equity = float(
+                    await asyncio.to_thread(live_adapter.get_live_equity)
+                )
+                real_pos_dec = Decimal(
+                    str(await asyncio.to_thread(live_adapter._get_net_position))
+                )
+                tickers = await asyncio.to_thread(client.get_ticker, cfg.env.symbol)
+                current_price_float = float(tickers.mid_price)
+                feature_snapshot = await asyncio.to_thread(
+                    build_live_feature_snapshot, client, cfg
+                )
                 if not math.isfinite(real_equity) or real_equity <= 0:
                     raise ValueError("live equity must be finite and positive")
                 if not real_pos_dec.is_finite():
@@ -111,6 +111,40 @@ async def trade_loop(
                     unwrapped_env.update_features(feature_snapshot.feature_row)
                     last_base_candle_timestamp = feature_snapshot.base_candle_timestamp
 
+                # Source metadata describes the last FULLY CLOSED market bar,
+                # not the later best bid/ask quote. System-1 uses this to
+                # reject stale snapshots and avoid fabricated prompt context.
+                unwrapped_env.latest_feature_provenance = {
+                    "bar_open_unix": int(feature_snapshot.base_candle_timestamp),
+                    "bar_seconds": int(cfg.features.timeframes[0].bar_minutes) * 60,
+                    "source_sha256": feature_snapshot.source_sha256,
+                }
+                unwrapped_env.latest_closed_bar_closes = tuple(
+                    getattr(feature_snapshot, "base_closed_closes", ())
+                )
+                # The feature row is validated and computed from CLOSED bars.
+                # Preserve a small named subset, without pretending normalized
+                # indicators are absolute prices or executable broker balances.
+                priority_terms = (
+                    "rsi", "atr", "macd", "vol", "spread",
+                    "momentum", "trend", "ema", "sma", "return",
+                )
+                labelled = [
+                    (name, float(value))
+                    for name, value in zip(
+                        feature_snapshot.feature_columns,
+                        feature_snapshot.feature_row,
+                    )
+                    if name and len(name) <= 64
+                ]
+                labelled.sort(
+                    key=lambda pair: (
+                        not any(term in pair[0].lower() for term in priority_terms),
+                        pair[0],
+                    )
+                )
+                unwrapped_env.latest_feature_summary = dict(labelled[:12])
+
                 # 3. Update the latest tradable mid. Feature generation is based
                 # only on fully closed candles; the current ticker is state, not a
                 # replacement for the feature vector.
@@ -142,6 +176,17 @@ async def trade_loop(
                 action, _ = model.predict(obs, deterministic=True)
                 logger.debug(f"Predicted action: {action}")
 
+                # Hosted System-1 or System-2 inference can take seconds.
+                # A panic may have arrived AFTER the top-of-loop check.
+                # Recheck before constructing or sending a live target.
+                if live_adapter and panic_requested():
+                    if not await handle_panic_request(live_adapter):
+                        raise PanicFlattenUnverified(
+                            "panic during inference; flatten unverified"
+                        )
+                    logger.critical("SYSTEM HALTED BY USER")
+                    break
+
             if live_adapter and is_new_closed_candle:
                 # In live mode, execute the trade via adapter instead of stepping
                 action_value = float(action.item())
@@ -165,29 +210,40 @@ async def trade_loop(
                         f"{target_position_units:.6f} -> {clipped_target_units:.6f}"
                     )
 
-                # Adapter.reconcile takes (target_position_units, current_price)
-                async def do_execute():
-                    # reconcile is async in adapter definition
-                    return await live_adapter.reconcile(
-                        clipped_target_units, current_mid
-                    )
-
-                execution_result = await do_execute()
+                execution_result = await live_adapter.reconcile(
+                    clipped_target_units, current_mid
+                )
                 if not isinstance(execution_result, dict):
                     raise RuntimeError("execution adapter returned an invalid result")
                 status = execution_result.get("status")
                 if status == "failed":
-                    raise RuntimeError(
-                        f"live execution failed ({execution_result.get('error_type', 'unknown')})"
+                    # Even a locally classified failure can follow an order
+                    # submission whose venue outcome is not independently
+                    # settled. No further funded decisions until reconciliation.
+                    raise UnrecognizedExecutionStatus(
+                        "live execution failed; broker reconciliation required"
                     )
-                if status == "skipped" and execution_result.get("reason") == "locked":
-                    raise RuntimeError(
-                        "live reconciliation was skipped because the adapter was locked"
+                if status == "skipped":
+                    if execution_result.get("reason") not in {
+                        "dust", "no_executable_leg"
+                    }:
+                        # A denial (e.g. short_not_allowed, locked or unknown)
+                        # is not a harmless idle candle or retryable outage.
+                        raise UnrecognizedExecutionStatus(
+                            "live reconciliation denied; operator review required"
+                        )
+                elif status not in {"executed", "simulated"}:
+                    # No code should interpret an unknown venue result as
+                    # success or continue submitting on a later candle.
+                    raise UnrecognizedExecutionStatus(
+                        "unrecognized live execution outcome"
                     )
 
-                # Synchronize only to a position the adapter actually executed or
-                # intentionally simulated. A skipped order retains observed state.
-                if status in {"executed", "simulated"}:
+                # A venue submission acknowledgement is NOT an observed fill;
+                # the broker may still be processing or partially filling it.
+                # Never publish the model target as an actual broker position.
+                # The next cycle independently observes authoritative balances.
+                if status == "simulated":
                     synchronized_position = Decimal(str(clipped_target_units))
                 else:
                     synchronized_position = real_pos_dec
@@ -207,7 +263,10 @@ async def trade_loop(
             logger.debug(f"Step completed. Done: {done}, Truncated: {truncated}")
             logger.debug(f"Info: {info}")
 
-            consecutive_errors = 0  # Reset error counter on success
+            # An idle poll of the same closed candle is not proof that the
+            # previous failed execution recovered. Keep its error budget.
+            if not live_adapter or is_new_closed_candle:
+                consecutive_errors = 0
 
             # --- IPC REPLACEMENT: Send metrics to the API server ---
             metrics = {
@@ -223,13 +282,33 @@ async def trade_loop(
                 ],
                 "timestamp": time.time(),
             }
-            metrics_writer.write(metrics)
+            try:
+                if metrics_writer is None:
+                    metrics_writer = MetricsWriter(METRICS_FILE)
+                metrics_writer.write(metrics)
+            except Exception as exc:
+                if not metrics_degraded:
+                    logger.warning(
+                        "Optional metrics IPC unavailable error_type=%s",
+                        type(exc).__name__,
+                    )
+                metrics_degraded = True
+                metrics_writer = None
+            else:
+                if metrics_degraded:
+                    logger.info("Optional metrics IPC recovered")
+                metrics_degraded = False
             # --------------------------------------------------------
 
             if done or truncated:
                 logger.warning("Episode finished. Resetting environment.")
                 obs, _ = env.reset()
 
+        except (UnrecognizedExecutionStatus, PanicFlattenUnverified):
+            logger.critical(
+                "Unverified live outcome; halting for reconciliation"
+            )
+            raise
         except requests.RequestException as exc:
             logger.error("API request failed error_type=%s", type(exc).__name__)
             consecutive_errors += 1
@@ -247,4 +326,10 @@ async def trade_loop(
             )
             break
 
-        await asyncio.sleep(cfg.paper_trader.loop_interval_seconds)
+        # Bound provider/model polling under failure, then automatically
+        # restore the configured fast cadence after a healthy cycle.
+        healthy_interval = float(cfg.paper_trader.loop_interval_seconds)
+        if not math.isfinite(healthy_interval) or healthy_interval <= 0:
+            raise ValueError("trading loop interval must be finite and positive")
+        backoff = 2 ** min(consecutive_errors, 4) if consecutive_errors else 1
+        await asyncio.sleep(min(60.0, healthy_interval * backoff))

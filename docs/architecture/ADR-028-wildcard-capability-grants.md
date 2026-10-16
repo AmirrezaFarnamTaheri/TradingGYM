@@ -24,3 +24,73 @@ The four-eyes path is the platform's strength — and its bottleneck for a stand
 - **Negative.** Grant issuance remains a governance event, so operators must learn one new object. Evaluation adds a per-request in-memory check (~µs), plus a JSONL append only on issuance/revocation/breach.
 - **Risks.** Over-broad patterns (mitigated: reserved-first-segment rejection, no leading `*`, property tests, golden deny tests in `tests/authz/`); breach-latch storms (mitigated: latch is idempotent for already-latched grants; journal rate is bounded by issuance discipline).
 - **Composition.** `/api/v1/authz/*` routers and `require_scope` dependencies consume this module; arms declare `required_scopes` and are pre-flighted against it (ADR-029). A future `sandbox-intersection` rule (playground strips live scopes) extends this module without changing it.
+
+## New-issuance protection (2026-10-14)
+
+The grammar remains backward-compatible with already-signed journal entries,
+including historically broad patterns. **New** grants are stricter: wildcard
+patterns in live, production, payment/economic, broker/venue or comparable
+capital-sensitive namespaces are rejected at the ledger's `issue` boundary.
+`trade.paper.**` and read/research wildcards remain available; individual
+concrete live/economic scopes still require ordinary issuer governance.
+
+Historical broad grants are **not silently rewritten or deleted**, since doing
+so would invalidate signed provenance and make revocation impossible.
+`GET /authz/health` now exposes
+`legacy_high_risk_wildcard_grants`; operators must review and explicitly
+revoke each such grant before funded deployment. This additive restriction
+does not provide transactional settlement authority or substitute for
+independent live-order approval.
+
+## Deny-overrides-allow and complete observations (2026-10-14)
+
+Every active grant matching a concrete scope participates in a decision.
+One matching grant's failed ceiling overrides an otherwise-permissive
+overlapping grant, irrespective of issuance order; unrelated scopes do not
+veto. All constraints defined on a grant require current observations on
+every evaluation, and non-finite/malformed numeric values fail closed.
+`GrantLedger.require` uses the exact `check` verdict instead of having a
+different, first-allowing traversal. A grant is never active before its
+`issued_at`, and a previously returned grant handle cannot authorize
+an action after the owning ledger has revoked it. This protects in-process
+handles; separate workers must still reload the durable journal and require
+runtime governance at the execution boundary.
+
+For historical records containing invalid numeric ceilings, direct evaluation
+raises `ConstraintViolation` and ledger-level checks return an explicit
+`invalid_constraints` denial. Signed journal bytes remain unchanged.
+
+## Journal anchor integrity under complete truncation (2026-10-14)
+
+On verified open, a journal with zero entries **must not** have a residual
+anchor, and a missing journal with an anchor is treated as a truncation.
+Malformed, oversized, nonobject or symlinked anchors, unreadable journals
+and nonobject event records raise the typed `GrantLedgerIntegrityError`
+instead of unhandled `JSONDecodeError` or `AttributeError`.
+The anchor contains exactly `seq` (integer, not boolean) and `head`
+(string), verified against the complete journal tail. This defends against
+truncation while the anchor survives; a privileged actor who removes both
+the journal and anchor still needs an **external trusted checkpoint** to
+be detected. Those stronger, externally anchored guarantees are not claimed.
+
+## Constrained issuance must be serializable and unambiguous (2026-10-14)
+
+`GrantLedger.issue` now rejects malformed constraint names, duplicate
+ceiling entries, nonnumeric/boolean/negative/non-finite ceiling values, and
+more than 32 distinct ceilings before appending to the signed journal.
+Boolean TTLs no longer pass the Python integer check. This prevents
+invalid or ambiguous new signed records, while preserving the ability
+to parse existing, historically malformed records for independent
+forensic review and explicit revocation.
+
+## Atomic lifecycle validation across ledger handles (2026-10-14)
+
+The per-journal chain lock already serialized hash-chain writes. It now
+also checks the post-reload lifecycle transition before appending:
+`issued` IDs must be new, while `revoked` and `breach` require
+an active current grant. A stale second revocation raises without
+changing disk state; a stale breach is a no-op. Semantic replay rejects
+duplicate issued IDs and repeated state transitions even if a historical
+journal's hash sequence was rewritten consistently. This closes a
+same-filesystem cross-handle race but does not qualify an unrelated
+machine or external authoritative grant store.

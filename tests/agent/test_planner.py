@@ -15,9 +15,10 @@ Contract:
 
 from __future__ import annotations
 
-
 from datetime import datetime, timezone
-from trading_gym.agent.fusion import FusionConfig
+
+import pytest
+
 from trading_gym.agent.arms import (
     ArmRegistry,
     ArmTier,
@@ -25,6 +26,7 @@ from trading_gym.agent.arms import (
     Blackboard,
     CostModel,
 )
+from trading_gym.agent.fusion import FusionConfig
 from trading_gym.agent.planner import TierCascadePlanner
 from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
 from trading_gym.intelligence.types import (
@@ -338,6 +340,51 @@ class TestDeterminism:
 
 
 class TestPlannerGuards:
+    def test_permission_denial_does_not_fall_through_to_another_arm(
+        self, tmp_path
+    ) -> None:  # type: ignore[no-untyped-def]
+        invoked: list[str] = []
+
+        class _Denied(DeterministicRuleBackend):
+            def __init__(self) -> None:
+                super().__init__()
+                self.name = "denied"
+
+            def decide(self, context: MarketContext) -> DecisionSignal:
+                invoked.append("denied")
+                raise PermissionError("risk_authority_denied")
+
+        class _Fallback(DeterministicRuleBackend):
+            def __init__(self) -> None:
+                super().__init__()
+                self.name = "fallback"
+
+            def decide(self, context: MarketContext) -> DecisionSignal:
+                invoked.append("fallback")
+                return DecisionSignal(
+                    backend=self.name,
+                    action_kind=ActionKind.LONG,
+                    target_leverage=1.0,
+                    confidence=0.9,
+                    rationale="would otherwise trade",
+                )
+
+        planner = TierCascadePlanner(
+            build_registry(
+                rules_arm("denied", backend=_Denied()),
+                rules_arm("fallback", backend=_Fallback(), tier=ArmTier.T2_STATS),
+            ),
+            FusionConfig(),
+        )
+        with pytest.raises(PermissionError, match="risk_authority_denied"):
+            planner.run(
+                make_context(),
+                regime="trend",
+                principal="agent-axiom1",
+                ledger=make_grants(tmp_path),
+            )
+        assert invoked == ["denied"]
+
     def test_arm_decide_crash_benches_not_aborts(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
         class _Boom(DeterministicRuleBackend):
             def __init__(self) -> None:
@@ -371,3 +418,48 @@ class TestPlannerGuards:
         )
         assert result.fused.escalated
         assert result.invoked_tiers == ()
+
+
+def test_availability_probe_crash_is_benched_without_aborting_cycle(
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    class _BrokenAvailability(DeterministicRuleBackend):
+        name = "broken-probe"
+
+        def is_available(self) -> bool:
+            raise RuntimeError("provider health probe failed")
+
+    registry = build_registry(
+        rules_arm("broken-probe", backend=_BrokenAvailability()),
+        rules_arm("healthy", backend=_StubbornLong("healthy")),
+    )
+    result = TierCascadePlanner(registry, FusionConfig()).run(
+        make_context(),
+        regime="trend",
+        principal="agent-axiom1",
+        ledger=make_grants(tmp_path),
+    )
+    assert ("broken-probe", "error") in result.benched
+    assert result.fused.action_kind is ActionKind.LONG
+
+
+def test_availability_probe_authority_denial_is_not_benched(
+    tmp_path,
+) -> None:  # type: ignore[no-untyped-def]
+    class _DeniedAvailability(DeterministicRuleBackend):
+        name = "denied-probe"
+
+        def is_available(self) -> bool:
+            raise PermissionError("authorization_revoked")
+
+    registry = build_registry(
+        rules_arm("denied-probe", backend=_DeniedAvailability()),
+        rules_arm("healthy", backend=_StubbornLong("healthy")),
+    )
+    with pytest.raises(PermissionError, match="authorization_revoked"):
+        TierCascadePlanner(registry, FusionConfig()).run(
+            make_context(),
+            regime="trend",
+            principal="agent-axiom1",
+            ledger=make_grants(tmp_path),
+        )

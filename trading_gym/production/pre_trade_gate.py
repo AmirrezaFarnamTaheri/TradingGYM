@@ -20,6 +20,7 @@ from decimal import Decimal
 
 _OPERATIONS = frozenset({"spot.market", "short.open", "short.close", "order.cancel"})
 _KEY_RE = re.compile(r"^[0-9a-f]{32}$")
+_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$")
 
 
 @dataclass(frozen=True)
@@ -60,7 +61,7 @@ def evaluate_pre_trade_gate(
     """Run the cheap local checks every governed mutation must satisfy."""
     checks: list[GateCheck] = []
 
-    op_known = operation in _OPERATIONS
+    op_known = isinstance(operation, str) and operation in _OPERATIONS
     checks.append(
         GateCheck(
             name="operation_known",
@@ -70,12 +71,11 @@ def evaluate_pre_trade_gate(
     )
 
     quantity_ok = isinstance(quantity, Decimal) and quantity.is_finite()
-    # short.close and order.cancel both carry zero quantity by convention:
-    # a close-everything / cancel-everything intent. A positive quantity on
-    # either is a caller bug worth surfacing. Every other operation must
-    # supply a strictly positive size.
-    zero_by_convention = operation in {"short.close", "order.cancel"}
-    if zero_by_convention:
+    # Cancellation is quantity-free. A short close can be partial (positive
+    # amount) or complete (zero); other orders require positive units.
+    if op_known and operation == "order.cancel":
+        quantity_ok = quantity_ok and quantity == 0
+    elif op_known and operation == "short.close":
         quantity_ok = quantity_ok and quantity >= 0
     else:
         quantity_ok = quantity_ok and quantity > 0
@@ -83,7 +83,9 @@ def evaluate_pre_trade_gate(
         GateCheck(name="quantity_valid", passed=quantity_ok, detail=str(quantity))
     )
 
-    key_ok = bool(_KEY_RE.fullmatch(idempotency_key or ""))
+    key_ok = isinstance(idempotency_key, str) and bool(
+        _KEY_RE.fullmatch(idempotency_key)
+    )
     checks.append(
         GateCheck(
             name="idempotency_key_format",
@@ -92,22 +94,37 @@ def evaluate_pre_trade_gate(
         )
     )
 
-    reference_required = operation in {"short.close", "order.cancel"}
-    ref_ok = bool(reference_id) if reference_required else True
+    reference_required = (
+        isinstance(operation, str) and operation in {"short.close", "order.cancel"}
+    )
+    if reference_required:
+        ref_ok = isinstance(reference_id, str) and bool(
+            _REF_RE.fullmatch(reference_id)
+        )
+    else:
+        ref_ok = True
+    reference_detail = (
+        reference_id if isinstance(reference_id, str) else "invalid-reference"
+    )
     checks.append(
         GateCheck(
             name="reference_present",
             passed=ref_ok,
-            detail=reference_id if reference_required else "not-required",
+            detail=reference_detail if reference_required else "not-required",
         )
     )
 
     reasons = tuple(c.name for c in checks if not c.passed)
+    # Keep malformed direct-call values out of the journal fingerprint;
+    # the gate reports a denial instead of raising a JSON/regex TypeError.
+    safe_operation = operation if isinstance(operation, str) else "invalid-operation"
+    safe_key = idempotency_key if isinstance(idempotency_key, str) else "invalid-key"
+    safe_ref = reference_id if isinstance(reference_id, str) else "invalid-reference"
     gate_material = {
-        "operation": operation,
+        "operation": safe_operation,
         "quantity": str(quantity),
-        "idempotency_key": idempotency_key,
-        "reference_id": reference_id,
+        "idempotency_key": safe_key,
+        "reference_id": safe_ref,
     }
     gate_id = hashlib.sha256(
         json.dumps(gate_material, sort_keys=True, separators=(",", ":")).encode()
@@ -115,7 +132,7 @@ def evaluate_pre_trade_gate(
 
     return PreTradeGatePayload(
         gate_id=gate_id,
-        operation=operation,
+        operation=safe_operation,
         allowed=not reasons,
         checks=tuple(checks),
         denial_reasons=reasons,

@@ -9,13 +9,18 @@ environment action space; downstream clip/pre-trade-gate/coordinator still run.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from dataclasses import replace
+from typing import Any, Callable, Sequence
 
 import numpy as np
 
 from trading_gym.intelligence.base import IntelligenceBackend
+from trading_gym.intelligence.fusion_backend import FusionBackend
 from trading_gym.intelligence.rl_backend import RLPolicyBackend
-from trading_gym.intelligence.types import ActionKind, DecisionSignal
+from trading_gym.intelligence.types import (
+    ActionKind, BackendUnavailable, DecisionSignal, InvalidDecisionSignal,
+    MarketContext, UncertainDecision
+)
 
 
 class IntelligencePolicyAdapter:
@@ -28,12 +33,32 @@ class IntelligencePolicyAdapter:
         action_low: float,
         action_high: float,
         fallback_backend: IntelligenceBackend | None = None,
+        fallback_backends: Sequence[IntelligenceBackend] | None = None,
         context_builder: Callable[[Any], dict[str, Any]] | None = None,
     ):
-        if action_high <= action_low:
-            raise ValueError("action_high must exceed action_low")
+        if (
+            not np.isfinite(float(action_low))
+            or not np.isfinite(float(action_high))
+            or action_high <= action_low
+            or action_low > 0
+            or action_high < 0
+        ):
+            # HOLD is zero signed leverage. If zero cannot be represented,
+            # clipping HOLD may silently manufacture a long/short order.
+            raise ValueError(
+                "action bounds must be finite, ordered and admit neutral HOLD"
+            )
         self.backend = backend
         self.fallback = fallback_backend
+        self._fallback_chain = (
+            tuple(fallback_backends)
+            if fallback_backends is not None
+            else ((fallback_backend,) if fallback_backend is not None else ())
+        )
+        ids = [id(candidate) for candidate in (backend, *self._fallback_chain)]
+        if len(ids) != len(set(ids)):
+            raise ValueError("intelligence fallback chain contains duplicate backends")
+        self.last_failure_types: tuple[str, ...] = ()
         self.action_low = float(action_low)
         self.action_high = float(action_high)
         #: Populated after every predict() for evidence/telemetry surfaces.
@@ -44,6 +69,23 @@ class IntelligencePolicyAdapter:
         return float(min(self.action_high, max(self.action_low, value)))
 
     def _signal_to_action(self, signal: DecisionSignal) -> np.ndarray:
+        # An incoherent model decision is a policy violation, not a
+        # recoverable provider outage: falling back could open exposure
+        # after the upstream signal itself failed validation.
+        if (
+            not isinstance(signal, DecisionSignal)
+            or type(signal.action_kind) is not ActionKind
+            or isinstance(signal.target_leverage, (bool, np.bool_))
+            or not isinstance(signal.target_leverage, (int, float, np.number))
+            or not np.isfinite(signal.target_leverage)
+            or isinstance(signal.confidence, (bool, np.bool_))
+            or not isinstance(signal.confidence, (int, float, np.number))
+            or not np.isfinite(signal.confidence)
+            or not 0 <= signal.confidence <= 1
+            or (signal.action_kind is ActionKind.LONG and signal.target_leverage < 0)
+            or (signal.action_kind is ActionKind.SHORT and signal.target_leverage > 0)
+        ):
+            raise PermissionError("invalid_intelligence_decision")
         # Action space is signed target leverage (see MarginTradingEnv).
         if signal.action_kind is ActionKind.HOLD or signal.target_leverage == 0.0:
             magnitude = 0.0
@@ -62,14 +104,26 @@ class IntelligencePolicyAdapter:
         variables plus the raw feature vector length — features themselves are
         opaque to backends by design (they reason on state, not z-scores).
         """
+        arr = np.asarray(observation, dtype=float).ravel()
+        # The actual observation is consumed by RL even if a custom market
+        # context builder is configured. A corrupt feature cannot be ignored
+        # merely because the fallback rules would not inspect that feature.
+        if arr.size < 3 or not np.isfinite(arr).all():
+            raise ValueError("trading observation is incomplete or nonfinite")
         if self._context_builder is not None:
             return self._context_builder(observation)
-        arr = np.asarray(observation, dtype=float).ravel()
         n_state = 3
-        state = arr[-n_state:] if arr.size >= n_state else arr
-        equity_ratio = float(np.exp(state[0])) if state.size > 0 else 1.0
-        price_ratio = float(np.exp(state[1])) if state.size > 1 else 1.0
-        position_norm = float(state[2]) if state.size > 2 else 0.0
+        state = arr[-n_state:]
+        equity_ratio = float(np.exp(state[0]))
+        price_ratio = float(np.exp(state[1]))
+        position_norm = float(state[2])
+        if (
+            not np.isfinite(equity_ratio)
+            or not np.isfinite(price_ratio)
+            or equity_ratio <= 0
+            or price_ratio <= 0
+        ):
+            raise ValueError("normalized observation ratios are invalid")
         return {
             "equity_ratio": equity_ratio,
             "price_ratio": price_ratio,
@@ -77,70 +131,189 @@ class IntelligencePolicyAdapter:
             "n_features": int(max(0, arr.size - n_state)),
         }
 
-    def predict(self, observation: Any, deterministic: bool = True, **_: Any):
-        del deterministic  # advisory backends are always deterministic-ish
-        context = self.build_context(observation)
-
-        def to_context_obj(ctx: dict[str, Any]):
-            # Bridge dict-context into the MarketContext-compatible shape the
-            # backends expect, deriving sane fields where possible.
-            from trading_gym.intelligence.types import MarketContext
-
-            return MarketContext(
-                symbol=str(ctx.get("symbol", "UNKNOWN")),
-                position_units=float(
-                    ctx.get("position_units", ctx.get("position_norm", 0.0))
-                ),
-                equity=float(ctx.get("equity", 1.0)) * 10_000.0,
-                margin_level=ctx.get("margin_level"),
-                last_close=float(ctx.get("last_close", ctx.get("price_ratio", 1.0))),
-                prev_close=None,
-                recent_returns=tuple(),
-                drawdown_from_peak=ctx.get("drawdown_from_peak"),
-                extras={
-                    k: float(v) for k, v in ctx.items() if isinstance(v, (int, float))
-                },
+    def _market_context(self, ctx: dict[str, Any]) -> MarketContext:
+        context = MarketContext(
+            symbol=str(ctx.get("symbol", "UNKNOWN")),
+            position_units=float(
+                ctx.get("position_units", ctx.get("position_norm", 0.0))
+            ),
+            # Without environment wiring, observation tails are dimensionless
+            # ratios, never synthetic account balances in quote currency.
+            equity=float(ctx.get("equity", ctx.get("equity_ratio", 1.0))),
+            margin_level=ctx.get("margin_level"),
+            last_close=float(ctx.get("last_close", ctx.get("price_ratio", 1.0))),
+            prev_close=ctx.get("prev_close"),
+            recent_returns=tuple(ctx.get("recent_returns", ())),
+            drawdown_from_peak=ctx.get("drawdown_from_peak"),
+            is_live=ctx.get("is_live", False),
+            market_evidence=dict(ctx.get("market_evidence") or {}),
+            risk_limits=dict(ctx.get("risk_limits") or {}),
+            market_features=dict(ctx.get("market_features") or {}),
+            return_basis=ctx.get("return_basis", "unspecified"),
+            extras={
+                key: float(value)
+                for key, value in ctx.items()
+                if isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and np.isfinite(value)
+            },
+        )
+        mandatory = (
+            context.position_units,
+            context.equity,
+            context.last_close,
+        )
+        optional = (
+            context.prev_close,
+            context.margin_level,
+            context.drawdown_from_peak,
+        )
+        if (
+            not all(np.isfinite(value) for value in mandatory)
+            or context.equity <= 0
+            or context.last_close <= 0
+            or any(value is not None and not np.isfinite(value) for value in optional)
+            or (
+                context.prev_close is not None
+                and context.prev_close <= 0
             )
+            or (
+                context.drawdown_from_peak is not None
+                and not 0 <= context.drawdown_from_peak <= 1
+            )
+            or type(context.is_live) is not bool
+            or context.return_basis not in {
+                "unspecified", "historical_bars", "completed_bars", "mark_updates"
+            }
+            or any(not np.isfinite(value) for value in context.recent_returns)
+        ):
+            raise ValueError("market/account context is invalid")
+        # This check MUST precede the fallback chain. A malformed upstream
+        # risk limit or indicator cannot become an ordinary provider outage
+        # that silently falls through to a more permissive decision backend.
+        for values, maximum in (
+            (context.risk_limits, 20),
+            (context.market_features, 32),
+        ):
+            if len(values) > maximum or any(
+                not isinstance(name, str)
+                or not name
+                or len(name) > 80
+                or isinstance(value, bool)
+                or not isinstance(value, (float, int, np.number))
+                or not np.isfinite(float(value))
+                for name, value in values.items()
+            ):
+                raise ValueError("market/account context is invalid")
+        limits = context.risk_limits
+        max_leverage = limits.get("max_leverage")
+        min_leverage = limits.get("min_leverage")
+        if (
+            (max_leverage is not None and max_leverage < 0)
+            or (
+                max_leverage is not None
+                and min_leverage is not None
+                and min_leverage > max_leverage
+            )
+        ):
+            raise ValueError("market/account context is invalid")
+        return context
 
-        if isinstance(self.backend, RLPolicyBackend):
-            # Real RL inference consumes the environment observation directly.
+    @staticmethod
+    def _run_backend(
+        backend: IntelligenceBackend, context: MarketContext, observation: Any
+    ) -> DecisionSignal:
+        if isinstance(backend, FusionBackend):
+            return backend.decide_with_observation(context, observation)
+        if isinstance(backend, RLPolicyBackend):
+            leverage, _ = backend.raw_predict(observation)
+            return DecisionSignal(
+                backend=backend.name,
+                action_kind=RLPolicyBackend.classify(leverage),
+                target_leverage=leverage,
+                confidence=0.7,
+                rationale=f"rl policy action {leverage:+.4f}",
+            )
+        return backend.decide(context)
+
+    def predict(self, observation: Any, deterministic: bool = True, **_: Any):
+        del deterministic  # downstream action gates still enforce limits
+        # Invalid market/account context is a non-degradable authority failure.
+        # Never manufacture fallback trades from a corrupt observation.
+        context = self._market_context(self.build_context(observation))
+        failures: list[str] = []
+        uncertain_system1 = False
+        for index, backend in enumerate((self.backend, *self._fallback_chain)):
+            if uncertain_system1 and not getattr(
+                backend, "can_review_uncertain_system1", False
+            ):
+                # Model uncertainty is not a network failure. In particular,
+                # a rules/RL floor cannot manufacture exposure after a fast
+                # model explicitly reported insufficient directional evidence.
+                failures.append(f"{backend.name}:skipped_after_uncertainty")
+                continue
             try:
-                leverage, _ = self.backend.raw_predict(observation)
-                kind = RLPolicyBackend.classify(leverage)
-                self.last_signal = DecisionSignal(
-                    backend=self.backend.name,
-                    action_kind=kind,
-                    target_leverage=leverage,
-                    confidence=0.7,
-                    rationale=f"rl policy action {leverage:+.4f}",
+                signal = self._run_backend(backend, context, observation)
+                action = self._signal_to_action(signal)
+            except UncertainDecision:
+                uncertain_system1 = True
+                failures.append(f"{backend.name}:UncertainDecision")
+                continue
+            except PermissionError:
+                # An authorization or risk policy denial is not a provider
+                # outage. Switching to a lower-fidelity backend would bypass
+                # the same authority that denied the original decision.
+                self.last_signal = None
+                self.last_failure_types = tuple(
+                    (*failures, f"{backend.name}:PermissionError")
                 )
-                return self._signal_to_action(self.last_signal), None
-            except Exception:
-                if self.fallback is None:
-                    raise
-                signal = self.fallback.decide(to_context_obj(context))
-                signal = type(signal)(
-                    backend=f"{self.fallback.name}(degraded)",
-                    action_kind=signal.action_kind,
-                    target_leverage=signal.target_leverage,
-                    confidence=signal.confidence,
+                raise
+            except InvalidDecisionSignal as exc:
+                # Invalid domain values can be rejected by the backend's
+                # DecisionSignal constructor before _signal_to_action runs.
+                # Both paths must forbid a risk-on fallback.
+                self.last_signal = None
+                self.last_failure_types = tuple(
+                    (*failures, f"{backend.name}:InvalidDecisionSignal")
+                )
+                raise PermissionError("invalid_intelligence_decision") from exc
+            except (RuntimeError, OSError) as exc:
+                # Recoverable provider/model outages may use the explicitly
+                # configured fallback chain. PermissionError was already
+                # handled above and cannot silently degrade.
+                failures.append(f"{backend.name}:{type(exc).__name__}")
+                continue
+            except Exception as exc:
+                # Bugs and malformed model outputs (ValueError/TypeError,
+                # arithmetic faults, etc.) are not network outages.
+                self.last_signal = None
+                self.last_failure_types = tuple(
+                    (*failures, f"{backend.name}:{type(exc).__name__}")
+                )
+                raise PermissionError("intelligence_backend_invalid_failure") from exc
+            if index:
+                signal = replace(
+                    signal,
+                    backend=f"{backend.name}(degraded)",
                     rationale=f"[fallback] {signal.rationale}",
                 )
-                self.last_signal = signal
-                return self._signal_to_action(signal), None
-
-        try:
-            signal = self.backend.decide(to_context_obj(context))
-        except Exception:
-            if self.fallback is None:
-                raise
-            signal = self.fallback.decide(to_context_obj(context))
-            signal = type(signal)(
-                backend=f"{self.fallback.name}(degraded)",
-                action_kind=signal.action_kind,
-                target_leverage=signal.target_leverage,
-                confidence=signal.confidence,
-                rationale=f"[fallback] {signal.rationale}",
+            self.last_signal = signal
+            self.last_failure_types = tuple(failures)
+            return action, None
+        self.last_failure_types = tuple(failures)
+        if uncertain_system1:
+            # The review roster was exhausted. A conservative abstention
+            # prevents the runtime from taking an unrelated risk-on path.
+            signal = DecisionSignal(
+                backend="system1:abstained",
+                action_kind=ActionKind.HOLD,
+                target_leverage=0.0,
+                confidence=0.0,
+                rationale="uncertain direction; no qualified review approved exposure",
             )
-        self.last_signal = signal
-        return self._signal_to_action(signal), None
+            self.last_signal = signal
+            return self._signal_to_action(signal), None
+        self.last_signal = None
+        raise BackendUnavailable(
+            "no configured intelligence backend produced a decision"
+        )

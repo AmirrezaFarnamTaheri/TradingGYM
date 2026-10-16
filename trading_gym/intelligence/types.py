@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
+from numbers import Real
 from typing import Any
 
 
@@ -30,6 +32,15 @@ class MarketContext:
     recent_returns: tuple[float, ...] = ()  # most recent first, bounded count
     drawdown_from_peak: float | None = None
     extras: dict[str, float] = field(default_factory=dict)
+    # Real-time candle provenance and risk bounds are optional on historical
+    # tests but mandatory for fresh live System-1 advice.
+    is_live: bool = False
+    market_evidence: dict[str, Any] = field(default_factory=dict)
+    risk_limits: dict[str, float] = field(default_factory=dict)
+    market_features: dict[str, float] = field(default_factory=dict)
+    # Describes the sampling of recent_returns; never assume live mark
+    # updates are completed timeframe bars.
+    return_basis: str = "unspecified"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -53,6 +64,10 @@ class MarketContext:
         }
 
 
+class InvalidDecisionSignal(ValueError):
+    """Malformed advisory signal, not a recoverable provider outage."""
+
+
 @dataclass(frozen=True)
 class DecisionSignal:
     """One backend's advice for the current bar.
@@ -68,14 +83,17 @@ class DecisionSignal:
     rationale: str
 
     def __post_init__(self) -> None:
+        if type(self.action_kind) is not ActionKind:
+            raise InvalidDecisionSignal("action_kind must be an ActionKind")
         if not np_finite(self.target_leverage):
-            raise ValueError("target_leverage must be finite")
-        if not 0.0 <= self.confidence <= 1.0:
-            raise ValueError("confidence must be within [0, 1]")
+            raise InvalidDecisionSignal("target_leverage must be finite")
+        if not np_finite(self.confidence) or not 0.0 <= self.confidence <= 1.0:
+            raise InvalidDecisionSignal("confidence must be within [0, 1]")
 
 
 def np_finite(value: float) -> bool:
-    return value == value and abs(value) != float("inf")
+    """Accept finite real scalars, but never booleans or coercible strings."""
+    return isinstance(value, Real) and not isinstance(value, bool) and math.isfinite(value)
 
 
 @dataclass(frozen=True)
@@ -88,3 +106,12 @@ class BackendHealth:
 
 class BackendUnavailable(RuntimeError):
     """Raised by ``decide`` when a backend cannot act right now."""
+
+
+class UncertainDecision(BackendUnavailable):
+    """A valid advisory model responded but lacked evidence for a trade.
+
+    This is *not* equivalent to network failure. Review can escalate only
+    to another qualified model; no risk-on rules/RL fallback is allowed
+    solely because the model was uncertain.
+    """

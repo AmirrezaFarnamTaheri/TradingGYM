@@ -89,22 +89,17 @@ class TestAuthenticationEndpoints:
     the API_KEY is set at module load time, so some behaviors differ.
     """
 
-    @pytest.mark.skip(
-        reason="Authentication isolation requires process-level isolation"
-    )
     def test_missing_api_key_returns_401(self, client):
-        """Requests without API key should return 401."""
-        # This test requires the API to be started without an API_KEY set
-        # which is not easily achievable in the current test setup
-        pass
+        """A configured protected API refuses requests without credentials."""
+        response = client.get("/api/v1/status")
+        assert response.status_code == 401
 
-    @pytest.mark.skip(
-        reason="Authentication isolation requires process-level isolation"
-    )
     def test_invalid_api_key_returns_403(self, client):
-        """Requests with invalid API key should return 403."""
-        # This test requires comparing against the real API_KEY
-        pass
+        """A configured protected API refuses incorrect credentials."""
+        response = client.get(
+            "/api/v1/status", headers={"X-API-Key": "invalid-key"}
+        )
+        assert response.status_code == 403
 
     def test_valid_api_key_returns_success(self, client, auth_headers):
         """Requests with valid API key should succeed."""

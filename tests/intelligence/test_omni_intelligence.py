@@ -373,3 +373,239 @@ def test_llm_health_reports_provider_status_without_name_error(monkeypatch):
     assert probes == [("probe-llm", 3.0)]
     assert health.available is False
     assert health.detail == "unreachable"
+
+
+def test_fusion_adapter_uses_real_rl_prediction_then_llm_veto():
+    model = _FakeModel(4.0)
+    llm = _Scripted("llm", _sig(ActionKind.HOLD, 0.0, 0.9))
+    fusion = FusionBackend(rl_backend=RLPolicyBackend(model), llm_backend=llm)
+    adapter = IntelligencePolicyAdapter(fusion, action_low=-5, action_high=20)
+    action, _ = adapter.predict(np.zeros(6))
+    assert float(action[0]) == pytest.approx(0.0)
+    assert "VETOED" in adapter.last_signal.rationale
+
+
+def test_fusion_governor_outage_falls_back_to_rl_and_recovers():
+    model = _FakeModel(3.0)
+    gov = _Scripted("llm", error=True)
+    fusion = FusionBackend(rl_backend=RLPolicyBackend(model), llm_backend=gov)
+    adapter = IntelligencePolicyAdapter(fusion, action_low=-5, action_high=20)
+    unavailable_action, _ = adapter.predict(np.zeros(6))
+    assert float(unavailable_action[0]) == pytest.approx(3.0)
+    assert "governor-unavailable" in adapter.last_signal.rationale
+    gov.error = False
+    gov.signal = _sig(ActionKind.LONG, 2.5, 0.9)
+    healthy_action, _ = adapter.predict(np.zeros(6))
+    assert float(healthy_action[0]) == pytest.approx(1.5)
+    assert "scaled" in adapter.last_signal.rationale
+
+
+def test_fusion_executor_outage_uses_explicit_rules_fallback():
+    class DeadModel:
+        def predict(self, obs, deterministic=True):
+            raise RuntimeError("GPU down")
+    fusion = FusionBackend(
+        rl_backend=RLPolicyBackend(DeadModel()),
+        llm_backend=_Scripted("llm", _sig(ActionKind.HOLD, 0.0, 0.9)),
+    )
+    adapter = IntelligencePolicyAdapter(
+        fusion,
+        action_low=-5,
+        action_high=20,
+        fallback_backend=DeterministicRuleBackend(),
+    )
+    action, _ = adapter.predict(np.zeros(6))
+    assert np.isfinite(action).all()
+    assert adapter.last_signal.backend == "rules(degraded)"
+
+
+def test_llm_inference_does_not_depend_on_an_unrelated_health_endpoint(monkeypatch):
+    import trading_gym.intelligence.llm_backend as mod
+    llm, transport = _llm_with('{"action": "long", "target_leverage": 1}')
+    def broken_probe(*args, **kwargs):
+        raise RuntimeError("optional models endpoint down")
+    monkeypatch.setattr(mod, "provider_status", broken_probe)
+    assert llm.is_available() is True  # injected transport does not probe
+    result = llm.decide(_ctx())
+    assert result.action_kind is ActionKind.LONG
+    assert transport.calls == 1
+
+
+def test_llm_health_probe_exception_isolated_without_secret_leak(monkeypatch):
+    import trading_gym.intelligence.llm_backend as mod
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+    cfg = ProviderConfig(
+        provider_id="local-broken", kind=ProviderKind.LOCAL,
+        display_name="local", model="model", base_url="http://127.0.0.1:11434/v1",
+    )
+    llm = LLMDecisionBackend(cfg)
+    def broken_probe(*args, **kwargs):
+        raise ValueError("my-private-credential")
+    monkeypatch.setattr(mod, "provider_status", broken_probe)
+    assert llm.is_available() is False
+    health = llm.health()
+    assert health.available is False
+    assert health.detail == "probe_failed:ValueError"
+    assert "my-private-credential" not in repr(health)
+
+
+def test_llm_rejects_oversized_response_without_parser_work():
+    llm, _ = _llm_with("X" * 66_000)
+    with pytest.raises(BackendUnavailable, match="bounded text"):
+        llm.decide(_ctx())
+
+
+def test_model_free_auto_uses_healthy_llm_instead_of_rules(monkeypatch):
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+    from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
+    from trading_gym.intelligence.llm_backend import LLMDecisionBackend
+    config = ProviderConfig(
+        provider_id="local-model", kind=ProviderKind.LOCAL,
+        display_name="Local model", model="m", base_url="http://127.0.0.1:11434/v1",
+    )
+    class StubRepository:
+        def list(self):
+            return [config]
+    monkeypatch.setattr(LLMDecisionBackend, "is_available", lambda _self: True)
+    adapter = build_intelligence_policy(
+        config=IntelligenceConfig(mode=IntelligenceMode.AUTO, llm_provider_id="local-model"),
+        model=None,
+        action_low=-5,
+        action_high=20,
+        provider_repository=StubRepository(),
+    )
+    assert adapter.backend.name == "llm"
+
+
+def test_model_free_auto_degrades_to_rules_without_provider():
+    from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
+    adapter = build_intelligence_policy(
+        config=IntelligenceConfig(mode=IntelligenceMode.AUTO),
+        model=None,
+        action_low=-5,
+        action_high=20,
+    )
+    assert adapter.backend.name == "rules"
+
+
+def test_market_context_builder_uses_true_equity_prices_and_returns():
+    from types import SimpleNamespace
+
+    from trading_gym.intelligence.wiring import build_market_context
+
+    state = SimpleNamespace(
+        live_mode=True,
+        price=np.array([130.0]),
+        equity=600.0,
+        position=1.25,
+        price_history=[100.0, 110.0, 120.0],
+        equity_history=[1000.0, 1200.0, 900.0],
+        _margin_level=lambda price: 0.4,
+    )
+    context = build_market_context(
+        SimpleNamespace(unwrapped=state), symbol="BTCUSDT"
+    )
+    assert context["symbol"] == "BTCUSDT"
+    assert context["equity"] == 600
+    assert context["position_units"] == 1.25
+    assert context["last_close"] == 130
+    assert context["prev_close"] == 120
+    assert len(context["recent_returns"]) == 3
+    assert context["recent_returns"][0] == pytest.approx(130 / 120 - 1)
+    assert context["drawdown_from_peak"] == pytest.approx(0.5)
+    assert context["margin_level"] == 0.4
+
+
+def test_rules_mode_exploits_real_environment_momentum_instead_of_holding():
+    from types import SimpleNamespace
+
+    from trading_gym.common.intelligence_config import (
+        IntelligenceConfig,
+        IntelligenceMode,
+    )
+    from trading_gym.intelligence.wiring import build_trading_policy
+
+    state = SimpleNamespace(
+        live_mode=True,
+        price=np.array([130.0]),
+        equity=600.0,
+        position=0.0,
+        price_history=[100.0, 110.0, 120.0],
+        equity_history=[600.0],
+        _margin_level=lambda price: None,
+    )
+    space = SimpleNamespace(low=np.array([-5.0]), high=np.array([20.0]))
+    env = SimpleNamespace(unwrapped=state, action_space=space)
+    cfg = SimpleNamespace(
+        intelligence=IntelligenceConfig(mode=IntelligenceMode.RULES),
+        env=SimpleNamespace(symbol="BTCUSDT"),
+    )
+    policy = build_trading_policy(cfg, model=None, env=env)
+    result, _ = policy.predict(np.zeros(6))
+    assert result[0] > 0
+    assert policy.last_signal.action_kind == ActionKind.LONG
+
+
+def test_real_context_failure_prevents_fabricated_rules_execution():
+    from types import SimpleNamespace
+
+    from trading_gym.intelligence.wiring import build_market_context
+
+    state = SimpleNamespace(
+        live_mode=True,
+        price=np.array([100.0]),
+        equity=float("nan"),
+        position=0.0,
+        price_history=[100.0],
+        equity_history=[1000.0],
+    )
+    with pytest.raises(ValueError, match="account or price state"):
+        build_market_context(
+            SimpleNamespace(unwrapped=state), symbol="BTCUSDT"
+        )
+
+
+def test_fusion_governor_receives_actual_account_context():
+    from types import SimpleNamespace
+
+    from trading_gym.intelligence.wiring import build_market_context
+
+    class CapturingGovernor(_Scripted):
+        def decide(self, context):
+            self.last_context = context
+            return super().decide(context)
+
+    governor = CapturingGovernor(
+        "llm", _sig(ActionKind.LONG, 2.5, 0.8)
+    )
+    state = SimpleNamespace(
+        live_mode=True,
+        price=np.array([130.0]),
+        equity=1500.0,
+        position=2.0,
+        price_history=[90.0, 100.0, 120.0],
+        equity_history=[2000.0],
+        _margin_level=lambda price: 0.6,
+    )
+    env = SimpleNamespace(unwrapped=state)
+    fusion = FusionBackend(
+        rl_backend=RLPolicyBackend(_FakeModel(4.0)),
+        llm_backend=governor,
+    )
+    policy = IntelligencePolicyAdapter(
+        fusion,
+        action_low=-5,
+        action_high=20,
+        context_builder=lambda obs: build_market_context(
+            env, symbol="BTCUSDT"
+        ),
+    )
+    action, _ = policy.predict(np.zeros(6))
+    assert float(action[0]) == pytest.approx(2.0)
+    assert governor.last_context.symbol == "BTCUSDT"
+    assert governor.last_context.equity == pytest.approx(1500.0)
+    assert governor.last_context.last_close == 130.0
+    assert governor.last_context.prev_close == 120.0
+    assert governor.last_context.recent_returns[0] == pytest.approx(
+        130 / 120 - 1
+    )

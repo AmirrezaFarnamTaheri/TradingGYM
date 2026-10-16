@@ -185,3 +185,255 @@ def test_build_trading_policy_rules_mode_returns_adapter():
     lo, hi = -5.0, 20.0
     action, _ = policy.predict(np.zeros(6))
     assert lo <= float(action[0]) <= hi
+
+
+def test_optional_provider_probe_failure_does_not_take_down_backend_status(tmp_path, monkeypatch):
+    import apps.api.intelligence as intelligence
+    def probe(cfg, timeout_seconds):
+        if cfg.provider_id == "local-ollama":
+            raise ValueError("private-credential")
+        return {"provider_id": cfg.provider_id, "status": "missing_credential_reference"}
+    monkeypatch.setattr(intelligence, "provider_status", probe)
+    result = _client(_app(tmp_path / "missing.yaml")).get("/intelligence/status", headers=AUTH)
+    assert result.status_code == 200
+    body = result.json()
+    assert body["backends"][0]["name"] == "rules"
+    assert body["backends"][0]["available"] is True
+    llm = next(b for b in body["backends"] if b["name"] == "llm:local-ollama")
+    assert llm["available"] is False
+    assert body["status"] == "degraded"
+    assert "llm:local-ollama" in body["degraded_providers"]
+    assert "private-credential" not in result.text
+
+
+def test_optional_provider_inventory_corruption_preserves_rules_status(tmp_path):
+    class BrokenInventory:
+        def list(self):
+            raise ValueError("provider file malformed, private secrets")
+    app = FastAPI()
+    app.include_router(create_intelligence_router(
+        _verify, config_path=tmp_path / "missing.yaml",
+        provider_repository=BrokenInventory(),
+    ))
+    result = TestClient(app).get("/intelligence/status", headers=AUTH)
+    assert result.status_code == 200
+    body = result.json()
+    assert body["status"] == "degraded"
+    assert body["provider_inventory_error"] == "ValueError"
+    assert body["backends"][0]["available"] is True
+    assert "private secrets" not in result.text
+
+
+def test_auto_status_prefers_healthy_llm_and_probes_with_bounded_budget(tmp_path, monkeypatch):
+    import apps.api.intelligence as intelligence
+    import json
+    calls = []
+    def healthy(cfg, timeout_seconds):
+        calls.append((cfg.provider_id, timeout_seconds))
+        return {"provider_id": cfg.provider_id, "status": "reachable"}
+    monkeypatch.setattr(intelligence, "provider_status", healthy)
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("intelligence:\n  mode: auto\n  llm_provider_id: local-ollama\n")
+    app = _app(cfg)
+    body = TestClient(app).get("/intelligence/status?probe_limit=1", headers=AUTH).json()
+    assert body["selected_hint"] == "llm:local-ollama"
+    assert calls == [("local-ollama", 1.0)]
+    remote = next(b for b in body["backends"] if b["name"] == "llm:remote-gpt")
+    assert remote["available"] is None
+    assert json.loads(remote["detail"])["status"] == "not_probed"
+    assert body["providers_probed"] == 1
+
+
+def test_status_validates_operator_probe_budget(tmp_path):
+    client = _client(_app(tmp_path / "missing.yaml"))
+    assert client.get("/intelligence/status?probe_limit=999", headers=AUTH).status_code == 422
+
+
+def test_status_exposes_system1_fleet_without_credential_values(
+    tmp_path, monkeypatch
+):
+    import apps.api.intelligence as intelligence
+
+    monkeypatch.setattr(
+        intelligence,
+        "provider_status",
+        lambda cfg, *, timeout_seconds: {
+            "provider_id": cfg.provider_id,
+            "status": "reachable",
+        },
+    )
+    config = tmp_path / "app.yaml"
+    config.write_text(
+        "intelligence:\n"
+        "  mode: system1\n"
+        "  system1_provider_ids: [remote-gpt, local-ollama]\n"
+        "  system1_use_experience_memory: true\n",
+        encoding="utf-8",
+    )
+    result = _client(_app(config)).get("/intelligence/status", headers=AUTH)
+    assert result.status_code == 200
+    payload = result.json()
+    assert payload["mode"] == "system1"
+    assert payload["system1_provider_ids"] == ["remote-gpt", "local-ollama"]
+    assert payload["system1_memory_enabled"] is True
+    assert payload["selected_hint"] == "system1:remote-gpt"
+    assert "system1:remote-gpt" in [
+        item["name"] for item in payload["backends"]
+    ]
+    assert "REMOTE_LLM_KEY_UNSET_ON_PURPOSE" not in result.text
+
+
+def test_status_does_not_fabricate_healthy_system1_when_probe_fails(
+    tmp_path, monkeypatch
+):
+    import apps.api.intelligence as intelligence
+
+    monkeypatch.setattr(
+        intelligence,
+        "provider_status",
+        lambda cfg, *, timeout_seconds: {
+            "provider_id": cfg.provider_id,
+            "status": "unreachable",
+        },
+    )
+    config = tmp_path / "app.yaml"
+    config.write_text(
+        "intelligence:\n"
+        "  mode: system1\n"
+        "  system1_provider_ids: [remote-gpt]\n",
+        encoding="utf-8",
+    )
+    result = _client(_app(config)).get("/intelligence/status", headers=AUTH)
+    assert result.status_code == 200
+    payload = result.json()
+    assert payload["selected_hint"] == "unavailable"
+    fast = next(
+        item for item in payload["backends"]
+        if item["name"] == "system1:remote-gpt"
+    )
+    assert fast["available"] is False
+
+def test_status_exposes_read_only_request_budget_and_depleted_model(tmp_path, monkeypatch):
+    import apps.api.intelligence as intelligence
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+    from trading_gym.intelligence.llm_request_budget import ProviderRequestBudget
+
+    class CappedRepo:
+        def list(self):
+            return [
+                ProviderConfig(
+                    provider_id="fast",
+                    kind=ProviderKind.LOCAL,
+                    display_name="Local fast",
+                    model="fast-v1",
+                    base_url="http://127.0.0.1:11434/v1",
+                    max_requests_per_hour=1,
+                )
+            ]
+
+    path = tmp_path / "budget.json"
+    monkeypatch.setattr(
+        intelligence, "default_request_budget_path", lambda *_: path
+    )
+    monkeypatch.setattr(
+        intelligence, "provider_status",
+        lambda _config, *, timeout_seconds: {
+            "provider_id": "fast", "status": "reachable"
+        },
+    )
+    ProviderRequestBudget(path, limit=1).reserve()
+    app = FastAPI()
+    app.include_router(create_intelligence_router(
+        _verify, provider_repository=CappedRepo(),
+    ))
+    response = TestClient(app).get("/intelligence/status", headers=AUTH)
+    assert response.status_code == 200
+    data = response.json()
+    entry = next(item for item in data["backends"] if item["name"] == "llm:fast")
+    assert entry["available"] is False
+    assert entry["request_budget"]["state"] == "exhausted"
+    assert entry["request_budget"]["remaining"] == 0
+    assert entry["request_budget"]["ceiling"] == 1
+    assert data["status"] == "degraded"
+    assert "compute" in data
+    assert "budget.json" not in response.text
+
+
+def test_status_does_not_expose_corrupt_request_budget_details(tmp_path, monkeypatch):
+    import apps.api.intelligence as intelligence
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from trading_gym.agent.providers import ProviderConfig, ProviderKind
+
+    class CappedRepo:
+        def list(self):
+            return [
+                ProviderConfig(
+                    provider_id="fast",
+                    kind=ProviderKind.LOCAL,
+                    display_name="Local fast",
+                    model="fast-v1",
+                    base_url="http://127.0.0.1:11434/v1",
+                    max_requests_per_hour=1,
+                )
+            ]
+
+    budget_path = tmp_path / "private-budget.json"
+    budget_path.write_text("{invalid")
+    monkeypatch.setattr(
+        intelligence, "default_request_budget_path", lambda *_: budget_path
+    )
+    app = FastAPI()
+    app.include_router(create_intelligence_router(
+        _verify, provider_repository=CappedRepo(),
+    ))
+    response = TestClient(app).get(
+        "/intelligence/status?probe_limit=0", headers=AUTH
+    )
+    assert response.status_code == 200
+    entry = next(
+        item for item in response.json()["backends"] if item["name"] == "llm:fast"
+    )
+    assert entry["available"] is False
+    assert entry["request_budget"] == {"state": "unavailable"}
+    assert "private-budget" not in response.text
+
+
+def test_status_separates_working_memory_disclosure_from_experience_consent(
+    tmp_path,
+):
+    cfg = tmp_path / "app.yaml"
+    cfg.write_text(
+        "intelligence:\n"
+        "  mode: system1\n"
+        "  system1_provider_ids: [local-ollama]\n"
+        "  system1_use_experience_memory: false\n"
+        "  system1_use_working_memory: true\n",
+        encoding="utf-8",
+    )
+    response = _client(_app(cfg)).get(
+        "/intelligence/status?probe_limit=0", headers=AUTH,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["system1_memory_enabled"] is False
+    assert payload["system1_working_memory_enabled"] is True
+
+
+
+def test_intelligence_status_lists_disabled_provider_presets_without_credentials(
+    tmp_path,
+):
+    response = _client(_app(tmp_path / "missing.yaml")).get(
+        "/intelligence/status?probe_limit=0", headers=AUTH,
+    )
+    assert response.status_code == 200
+    presets = response.json()["provider_presets"]
+    assert {"go-systemone", "openjev-decider", "ollama", "openrouter"} <= {
+        preset["preset_id"] for preset in presets
+    }
+    assert all(preset["enabled_by_default"] is False for preset in presets)
+    assert all("api_key" not in str(preset).lower() for preset in presets)
+    assert "ROUTER_KEY_ONE" not in response.text

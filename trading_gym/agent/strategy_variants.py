@@ -20,7 +20,7 @@ Two invariants make this safe to expose:
   variants rather than padding with duplicates.
 
 What is mutated: integer indicator parameters (``period``, ``fast``,
-``slow``, ``signal``, ``smooth``) and numeric comparison constants in
+``slow``, ``signal``, ``smooth``) and bounded historical ``lookback`` and numeric comparison constants in
 the entry/exit conditions. Structure — which indicators exist, which
 operators compare them — is *not* mutated: that is a structural (S-tier)
 change under ADR-033 and needs replicated holdout evidence, not a
@@ -54,7 +54,7 @@ __all__ = [
 MIN_PERIOD = 2
 MAX_PERIOD = 50
 
-_PARAM_KEYS = ("period", "fast", "slow", "signal", "smooth")
+_PARAM_KEYS = ("period", "fast", "slow", "signal", "smooth", "lookback")
 
 
 def validate_range(mutation_range: tuple[int, int]) -> tuple[int, int]:
@@ -92,7 +92,11 @@ def mutate_indicators(
             current = int(params[key])
             span = max(2, current // 3)
             delta = int(rng.integers(-span, span + 1))
-            params[key] = max(lo, min(hi, current + delta))
+            # Historical percentile lookback is a separate research horizon:
+            # do not collapse a 100-bar context to the intraday 2–50
+            # threshold used for the ordinary short indicator periods.
+            lower, upper = (2, 10_000) if key == "lookback" else (lo, hi)
+            params[key] = max(lower, min(upper, current + delta))
         if indicator.name == "macd":
             params = _repair_macd(params, lo, hi)
         mutated.append(

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
 
+from trading_gym.strategy_lab.adx import compute_adx
 from trading_gym.strategy_lab.models import IndicatorSpec
 
 IndicatorFunction = Callable[
@@ -17,10 +19,16 @@ IndicatorFunction = Callable[
 def _period(
     params: dict[str, float | int | str | bool], key: str = "period", default: int = 14
 ) -> int:
-    value = int(params.get(key, default))
-    if value < 2 or value > 10_000:
-        raise ValueError(f"{key} must be between 2 and 10000")
-    return value
+    value = params.get(key, default)
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or int(value) != value
+        or not 2 <= int(value) <= 10_000
+    ):
+        raise ValueError(f"{key} must be an integer between 2 and 10000")
+    return int(value)
 
 
 def sma(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
@@ -50,7 +58,10 @@ def rsi(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.
     )
     relative = gain / loss.replace(0, np.nan)
     result = 100 - (100 / (1 + relative))
-    return result.where(loss.ne(0), 100.0).where(gain.ne(0), 0.0)
+    # Both smoothed average gain and loss being zero means no price change.
+    # RSI is neutral in that case, not an oversold directional signal.
+    directional = result.where(loss.ne(0), 100.0).where(gain.ne(0), 0.0)
+    return directional.mask(gain.eq(0) & loss.eq(0), 50.0)
 
 
 def atr(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
@@ -134,7 +145,8 @@ def stochastic(
     raw = 100 * (frame["close"] - low) / denominator
     component = str(params.get("component", "k"))
     if component == "d":
-        return raw.rolling(_period(params, "smooth", 3), min_periods=3).mean()
+        smooth = _period(params, "smooth", 3)
+        return raw.rolling(smooth, min_periods=smooth).mean()
     if component != "k":
         raise ValueError("Stochastic component must be k or d")
     return raw
@@ -156,7 +168,82 @@ def donchian(
     raise ValueError("Donchian component must be upper, middle, or lower")
 
 
+def adx(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
+    """Wilder ADX and directional-movement components, read-only."""
+    return compute_adx(
+        frame,
+        period=_period(params),
+        component=str(params.get("component", "adx")),
+    )
+
+
+
+def _validated_ohlcv(frame: pd.DataFrame, columns: tuple[str, ...]) -> None:
+    """Fail closed on malformed direct indicator inputs, without modifying data."""
+    if any(name not in frame.columns for name in columns):
+        raise ValueError("required indicator input column missing")
+    values = frame.loc[:, columns].to_numpy(dtype=float)
+    if not np.isfinite(values).all():
+        raise ValueError("non-finite indicator input")
+    if "close" in columns and (frame["close"] <= 0).any():
+        raise ValueError("close must be positive")
+    if "volume" in columns and (frame["volume"] < 0).any():
+        raise ValueError("volume must be non-negative")
+
+
+def realized_volatility(
+    frame: pd.DataFrame, params: dict[str, float | int | str | bool]
+) -> pd.Series:
+    """Closed-bar rolling log-return volatility or its own causal percentile.
+
+    Volatility is per bar, not annualized: callers must use the instrument's
+    timeframe when interpreting it. A tied flat-volatility window is neutral
+    (50th percentile), not a spurious high-volatility event.
+    """
+    period = _period(params)
+    lookback = _period(params, "lookback", 120)
+    component = params.get("component", "volatility")
+    if component not in ("volatility", "percentile"):
+        raise ValueError(
+            "realized volatility component must be volatility or percentile"
+        )
+    _validated_ohlcv(frame, ("close",))
+    returns = np.log(frame["close"].astype(float)).diff()
+    volatility = returns.rolling(period, min_periods=period).std(ddof=0)
+    if component == "volatility":
+        return volatility
+    rank = volatility.rolling(lookback, min_periods=lookback).rank(pct=True)
+    # Midpoint-tie correction yields exactly 50 on a constant series.
+    return (rank * 100.0 - 50.0 / lookback).clip(0.0, 100.0)
+
+
+def mfi(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.Series:
+    """0–100 Money Flow Index using strictly past/current closed OHLCV bars."""
+    period = _period(params)
+    _validated_ohlcv(frame, ("high", "low", "close", "volume"))
+    typical = (
+        frame["high"].astype(float)
+        + frame["low"].astype(float)
+        + frame["close"].astype(float)
+    ) / 3.0
+    flow = typical * frame["volume"].astype(float)
+    if not np.isfinite(flow.to_numpy()).all():
+        raise ValueError("non-finite money flow")
+    delta = typical.diff()
+    positive = flow.where(delta > 0, 0.0).mask(delta.isna())
+    negative = flow.where(delta < 0, 0.0).mask(delta.isna())
+    gain = positive.rolling(period, min_periods=period).sum()
+    loss = negative.rolling(period, min_periods=period).sum()
+    total = gain + loss
+    result = 100.0 * gain / total.where(total.ne(0))
+    # Without signed flow (flat prices or zero volume), abstain neutrally.
+    return result.mask(total.eq(0), 50.0).clip(0.0, 100.0)
+
+
 REGISTRY: dict[str, IndicatorFunction] = {
+    "adx": adx,
+    "mfi": mfi,
+    "realized_volatility": realized_volatility,
     "sma": sma,
     "ema": ema,
     "rsi": rsi,
@@ -172,6 +259,14 @@ REGISTRY: dict[str, IndicatorFunction] = {
 
 
 def compute_indicators(frame: pd.DataFrame, specs: list[IndicatorSpec]) -> pd.DataFrame:
+    if not frame.columns.is_unique:
+        raise ValueError("market columns must be unique")
+    aliases = [spec.alias for spec in specs]
+    reserved = {"entry_signal", "exit_signal", "position_intent"}
+    if len(set(aliases)) != len(aliases) or set(aliases) & (
+        set(frame.columns) | reserved
+    ):
+        raise ValueError("indicator aliases must be unique and not overwrite fields")
     output = frame.copy()
     for spec in specs:
         output[spec.alias] = REGISTRY[spec.name](output, dict(spec.params))

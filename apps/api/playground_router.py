@@ -75,8 +75,9 @@ class WindowPayload(BaseModel):
                 raise ValueError("window columns must have equal length")
             data["spread_bps"] = self.spread_bps
         frame = pd.DataFrame(data, index=index)
+        # Sorting or deduplicating would silently change the supplied backtest.
         if not frame.index.is_monotonic_increasing or frame.index.has_duplicates:
-            frame = frame.loc[~frame.index.duplicated(keep="last")].sort_index()
+            raise ValueError("window timestamps must be strictly increasing and unique")
         return frame
 
 
@@ -175,15 +176,18 @@ def create_playground_router(auth_dependency: Callable[..., Any]) -> APIRouter:
             for overlay in request.overlays
         )
 
-        spec = PlaygroundRunSpec(
-            window=window,
-            strategy=strategy,
-            overlays=overlays,
-            initial_capital=request.initial_capital,
-            fee_bps=request.fee_bps,
-            position_fraction=request.position_fraction,
-            max_bars=_MAX_WINDOW_BARS,
-        )
+        try:
+            spec = PlaygroundRunSpec(
+                window=window,
+                strategy=strategy,
+                overlays=overlays,
+                initial_capital=request.initial_capital,
+                fee_bps=request.fee_bps,
+                position_fraction=request.position_fraction,
+                max_bars=_MAX_WINDOW_BARS,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         result = run_playground(spec)
         return {
             "symbol": request.symbol,

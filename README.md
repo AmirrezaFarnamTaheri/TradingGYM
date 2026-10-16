@@ -1,4 +1,9 @@
-# Trading Gym / AxiomForge 31.7.1
+# Trading Gym / AxiomForge 31.7.0+reconstructed.1
+
+> **Packaged source identity:** `31.7.0+reconstructed.1` is the current reconstructed
+> source-release identifier. Historical 31.7.1 remediation checkpoints in
+> the documentation are validation history, not an independent published
+> package version. Funded-live production qualification remains NO-GO.
 
 Trading Gym is a governed reinforcement-learning trading platform that combines:
 
@@ -20,12 +25,25 @@ Trading Gym is a governed reinforcement-learning trading platform that combines:
 - surveillance, privacy minimisation, counterparty exposure, liquidity-to-exit analysis, failover readiness, and bounded change-control evidence;
 - forensic chain-of-custody, control-effectiveness review, dependency blast-radius analysis, and rehearsed rollback-aware runbook assurance;
 - twenty bounded institutional intelligence planes spanning semantic mining, regimes, alpha, signal graphs, portfolio construction/twins, microstructure/routing/quality, agent workforce/memory, model lifecycle/explainability/causal research, data/feature integrity, enterprise risk, policy/compliance, distributed assurance, product collaboration, and scientific reproduction;
-- replay-safe automatic mutation retry: stable idempotency keys per logical mutation, bounded backoff with jitter, transient-vs-unknown-outcome classification, coordinator ambiguity holds with fail-closed escalation, and a durable outbox journal (see ADR-022);
+- conservative mutation delivery: stable idempotency keys within one logical attempt, bounded retries of proven pre-send failures, unknown-outcome escalation without replay, and a durable shared-path intent journal (see ADR-022);
 - statistical evidence battery: Probabilistic/Deflated Sharpe Ratio, Minimum Track Record Length, CSCV/PBO overfitting detection, BCa and moving-block bootstrap confidence intervals;
 - broker-faithful simulation depth: per-symbol contract-size/margin-rate multipliers, margin-level telemetry, a lot-level position ledger feeding a graded stop-out cascade (close-worst-lot-first with minimal restoring fractions), L2 depth-walk fills in the execution engine, volume-participation caps, calibrated discrete slippage distributions, an ideal-fill upper-bound oracle, balance reservations enforced across live mutations, a long/short collateral ledger with proportional margin release (posted collateral equity-faithful), and P&L decomposition with an honest residual bucket;
 - operational hardening: latching kill switch with stale-data detection, asymmetric re-entry cooldowns, timeframe-floored ATR stops with tiered ratchet take-profits, GO/NO-GO validation orchestrator, sealed experiment specs, fill reconciliation tolerances, Retry-After-aware token buckets, cross-broker order-status normalisation, lookahead-keyed feature caches, auditable pre-trade gate payloads, experience memory, capability-degradation ladders, deterministic position-limit risk gates feeding advisory LLM payloads, and no-trade trial pruning in HPO sweeps;
 
 > **Qualification status:** source-hardened and extensively validated in the supplied environment. It is **not represented as universally production-ready**. Live exchange behaviour, credentials, deployment isolation, disaster recovery, sustained load, the complete dependency-qualified suite, and the frontend production build must be validated in the intended environment before real funds are used.
+
+## Source archive confidentiality
+
+The source ZIP builder uses **tracked Git source files only**, rather than
+walking the working directory. It refuses to run outside the source Git
+checkout, rejects tracked secret-bearing `.env` files and symlink-backed
+paths, and does not follow untracked wallet credentials, runtime journals,
+or local scratch files. See `tests/platform/test_source_release.py`.
+
+These packaging controls do not establish that a tracked source file is
+free from embedded credentials. Secret scanning, release signatures, clean
+source review, reproducible builds, and actual environment qualification
+remain distinct release requirements.
 
 ## Security and authority model
 
@@ -50,19 +68,33 @@ Independent credentials are used for separate authorities:
 | `AUDIT_HMAC_KEY` or `AUDIT_HMAC_KEYRING_JSON` + `AUDIT_HMAC_KEY_ID` | authenticated audit entries, historical verification, rotation, and sealing |
 | `ACTOR_CREDENTIALS_JSON` | principal-bound proposer, approver, executor, operator, and auditor roles |
 
+**Production emergency-state transitions:** changing the durable
+`/api/v1/production/emergency` halt marker now requires gateway API access,
+the independent `X-Approval-Key`, an authenticated `operator` principal
+(`X-Actor` with `X-Actor-Key`) and a distinct authenticated `approver`
+principal (`X-Approver` with `X-Approver-Key`). Both principals must be
+registered in `ACTOR_CREDENTIALS_JSON` with separate secrets and their
+required roles. Mere header names or a shared approval key cannot clear
+a production halt. The normal panic and independent emergency kill-all
+controls are unchanged. Emergency state changes remain revision-checked,
+with strict boolean/revision types.
+
 Broker and provider secrets are not stored in general state. Child processes receive only explicitly delegated secret variables. Actor, audit-keyring, approval, emergency, worker, and gateway credentials are stripped unless a child has an explicit, narrow need.
 
 The service is intentionally **single-tenant per process and `TRADING_GYM_HOME`**. Set `TRADING_GYM_DEPLOYMENT_MODE=single_tenant` and a stable `TRADING_GYM_TENANT_ID`. `TRADING_GYM_MULTI_TENANT=true`, any alternate deployment mode, or a mismatched `X-Tenant-ID` fails closed. Multi-tenant isolation is not claimed.
 
-## Automatic mutation retry
+**API supervisor limit:** run only one API process per local `TRADING_GYM_HOME` (for example, `uvicorn` without `--workers`). The API now holds a cross-process `runtime/api-supervisor.lock` for its lifespan and refuses a second process sharing that directory, rather than allowing two independent process registries to issue trading commands. This does not coordinate machines using separate data roots and is not an authorization to operate a multi-host funded account.
 
-Live venue mutations are retried automatically under ADR-022 rules:
+## Governed mutation delivery and recovery
 
-- one stable idempotency key per logical mutation; every attempt reuses it;
-- only provably pre-send network errors and explicit unknown-outcome errors are retried (bounded attempts, exponential backoff with jitter);
-- the coordinator latches an ambiguous key and refuses resubmission unless the venue adapter declares `supports_idempotent_replay`; clearing requires `mark_reconciled`;
-- every attempt is journalled to `TRADING_GYM_HOME/production/mutation_outbox.jsonl`; `scan_outbox()` lists intents awaiting reconciliation;
-- inherently idempotent operations (`order.cancel`) never taint their key.
+Live order submission follows ADR-022's conservative delivery rules:
+
+- One idempotency key identifies one logical mutation. Process-local receipt caching is not venue-side replay protection.
+- Only failures proven to occur *before* a network submission may be automatically retried, with a bounded attempt count and backoff. Aban does not advertise verified server-side order deduplication, so unknown post-send outcomes **must not be replayed**.
+- The durable journal records a pending intent before the first attempt and a subsequent outcome. An unresolved pending/ambiguous entry blocks fresh spending operations, including after restart, until independently reconciled.
+- Multiple processes can coordinate journal claims only when they share the same trusted `TRADING_GYM_HOME/production/mutation_outbox.jsonl` path. This is **not** a cross-machine capital-reservation or settlement system.
+- Reconciled ambiguous keys are tombstoned within the live coordinator; do not reuse them. Cancellation is permitted through the outbox when other intents are unresolved, but the venue must independently confirm the cancelled order.
+- The local treasury ledger uses estimated reservation amounts, not an authoritative broker fill/fee settlement oracle. Do not enable funded trading until an account-owner and broker-reconciliation contract is independently qualified.
 
 See `docs/architecture/ADR-022-replay-safe-automatic-mutation-retry.md` for the full decision record.
 
@@ -201,6 +233,15 @@ Use the authenticated API/operator UI. Paper mode uses live market/account state
 
 The panic endpoint remains available even if audit delivery is degraded: it commits the canonical panic signal first and reports audit degradation separately. Emergency kill requires `X-Emergency-Key` and retains the panic signal unless flattening is confirmed.
 
+Panic signals are global to the runtime data home, so only a governed live
+execution adapter (not a dry-run or paper observer) may acknowledge them.
+An acknowledgement is tied to the exact on-disk signal generation read
+before flattening; if another panic is written while the broker is being
+checked, the newer request remains pending. Dry-run flatten operations
+never send orders and can only report broker flatness after a read-only
+gross-exposure and open-order check; they cannot clear the global panic.
+An unverified or malformed signal remains a stop condition.
+
 ## Data and feature integrity
 
 - All requested historical shards must load; corrupt or missing shards fail the admission.
@@ -214,7 +255,9 @@ The panic endpoint remains available even if audit delivery is degraded: it comm
 
 ## Testing
 
-Current full-suite state (Python 3.12, dependency-complete venv): **1668 passed, 3 skipped, 0 failures** (includes AXIOM-1 authz/arms/fusion/planner/playground/attribution/autonomy/revision/memory/tool-revision/forge/forge-API/kernel-parity/docs-truth/OpenAPI-currency suites; paper venue behind the adapter seam; the Rust kernel parity block runs when a compiled artifact is present). Frontend: Vitest **39/39** plus a green production Vite build.
+Implementation map: authorization scopes and grants live in `trading_gym/authz/`; advisory agent arms live in `trading_gym/agent/arms/`; decision fusion and planning live in `trading_gym/agent/fusion.py` and `trading_gym/agent/planner.py`; deterministic strategy exercises live in `trading_gym/playground/`.
+
+Validation results belong to the exact source revision and environment where they ran. Use [GitHub Actions](https://github.com/AmirrezaFarnamTaheri/TradingGYM/actions) for the latest Python 3.11/3.12 (Windows/Linux), frontend and compiled Rust-kernel checks. The commands below reproduce the local subsets. Skipped, environment-blocked and provider-dependent checks must be reported separately; do not infer live-trading readiness from a green suite.
 
 Core hardened matrix used for this release:
 
@@ -256,6 +299,10 @@ python -m compileall -q apps trading_gym tests
 poetry run ruff check apps trading_gym tests
 poetry run mypy apps trading_gym
 ```
+
+## Resilience and performance policy
+
+See [Resilience operating contract](docs/architecture/RESILIENCE-OPERATING-CONTRACT.md) for failure-domain ownership, recovery boundaries, configurable market-data modes, cache/throughput budgets, and required production fault-injection. Market data can operate in fast, balanced or quality modes on each request. Optional intelligence/metrics may degrade; governance, broker ambiguity and invalid account state cannot be bypassed.
 
 ## Operational recovery
 

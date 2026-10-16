@@ -56,3 +56,41 @@ def test_http_tenant_boundary_is_enforced(monkeypatch) -> None:
         mismatch = client.get("/api/v1/health", headers={"X-Tenant-ID": "desk-beta"})
         assert mismatch.status_code == 400
         assert mismatch.json() == {"detail": "Tenant boundary mismatch"}
+
+def test_distributed_account_replica_topology_is_denied_without_global_fencing(
+    monkeypatch
+) -> None:
+    """Local file locks cannot fence a second host or a partitioned account."""
+    for name in (
+        "TRADING_GYM_NODE_COUNT",
+        "TRADING_GYM_REPLICA_COUNT",
+        "TRADING_GYM_DISTRIBUTED",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    monkeypatch.setenv("TRADING_GYM_NODE_COUNT", "2")
+    report = deployment_isolation_health()
+    assert report.valid is False
+    assert "multi_node_capital_owner_not_supported" in report.blockers
+    monkeypatch.setenv("TRADING_GYM_NODE_COUNT", "1")
+
+    monkeypatch.setenv("TRADING_GYM_REPLICA_COUNT", "2")
+    report = deployment_isolation_health()
+    assert report.valid is False
+    assert "multi_replica_live_owner_not_supported" in report.blockers
+    monkeypatch.setenv("TRADING_GYM_REPLICA_COUNT", "1")
+
+    monkeypatch.setenv("TRADING_GYM_DISTRIBUTED", "true")
+    report = deployment_isolation_health()
+    assert report.valid is False
+    assert "distributed_lease_backend_required" in report.blockers
+    monkeypatch.setenv("TRADING_GYM_DISTRIBUTED", "false")
+    assert deployment_isolation_health().valid is True
+
+
+def test_invalid_or_ambiguous_node_counts_fail_closed(monkeypatch) -> None:
+    monkeypatch.setenv("TRADING_GYM_NODE_COUNT", "unknown")
+    assert deployment_isolation_health().valid is False
+    monkeypatch.setenv("TRADING_GYM_NODE_COUNT", "1")
+    monkeypatch.setenv("TRADING_GYM_REPLICA_COUNT", "0")
+    assert deployment_isolation_health().valid is False

@@ -28,6 +28,17 @@ def _indicator_warmup(name: str, params: dict[str, object]) -> int:
         return int(params.get("slow", 26)) + int(params.get("signal", 9))
     if name == "stochastic":
         return int(params.get("period", 14)) + int(params.get("smooth", 3))
+    if name == "adx":
+        return 2 * int(params.get("period", 14))
+    if name == "realized_volatility":
+        period = int(params.get("period", 14))
+        return (
+            period + int(params.get("lookback", 120))
+            if params.get("component", "volatility") == "percentile"
+            else period + 1
+        )
+    if name == "mfi":
+        return int(params.get("period", 14)) + 1
     return int(params.get("period", 1))
 
 

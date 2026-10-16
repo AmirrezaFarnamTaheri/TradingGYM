@@ -160,6 +160,10 @@ class TierCascadePlanner:
                     benched.append((arm.name, _BENCH_ERROR))
                     del exc
                     continue
+                except PermissionError:
+                    # A revoked authority is not mere provider unavailability.
+                    # Never hide denial behind a lower-tier fallback proposal.
+                    raise
                 except Exception:  # noqa: BLE001 - one arm must not abort the cycle
                     benched.append((arm.name, _BENCH_ERROR))
                     continue
@@ -241,7 +245,14 @@ class TierCascadePlanner:
     ) -> str | None:
         """Return a bench reason, or None when the arm may run."""
 
-        if not arm.is_available():
+        try:
+            available = arm.is_available()
+        except PermissionError:
+            # Authority denial is not a transient provider-health failure.
+            raise
+        except Exception:  # noqa: BLE001 - one failing probe must not abort the cycle
+            return _BENCH_ERROR
+        if not available:
             return _BENCH_UNAVAILABLE
         for scope in sorted(arm.required_scopes):
             decision = ledger.check(principal, scope)
@@ -256,7 +267,11 @@ class TierCascadePlanner:
 
 
 def _tighten(config: FusionConfig, caution: CautionState) -> FusionConfig:
-    """Apply a caution state to a fusion config (tighten-only, clamped)."""
+    """Tighten vote thresholds; final leverage is reduced once in _derisk.
+
+    Scaling the cap here as well would apply the leverage multiplier twice
+    whenever an uncautioned proposal saturates the configured limit.
+    """
 
     return FusionConfig(
         weights=config.weights,
@@ -266,7 +281,7 @@ def _tighten(config: FusionConfig, caution: CautionState) -> FusionConfig:
         quorum_confidence=min(
             1.0, config.quorum_confidence + caution.quorum_confidence_delta
         ),
-        max_leverage=config.max_leverage * caution.leverage_multiplier,
+        max_leverage=config.max_leverage,
     )
 
 

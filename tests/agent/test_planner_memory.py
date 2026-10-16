@@ -354,3 +354,21 @@ class TestDeterminismWithMemory:
         assert [item.fused_summary for item in first_memory.recent(8)] == [
             item.fused_summary for item in second_memory.recent(8)
         ]
+
+def test_caution_leverage_multiplier_applies_once_at_configured_cap(
+    tmp_path: Path,
+) -> None:
+    """A limit-clamped decision must shrink once, not by the factor squared."""
+    memory = WorkingMemory(max_cycles=8)
+    planner = TierCascadePlanner(
+        registry(_Bull()),
+        FusionConfig(max_leverage=0.5),
+        memory=memory,
+    )
+    ledger = grants(tmp_path)
+    bleed(memory, planner, ledger, 2)
+
+    cautious = run(planner, ledger, cycle_id="capped")
+    assert cautious.caution.level == "elevated"
+    assert cautious.fused.action_kind is ActionKind.LONG
+    assert cautious.fused.target_leverage == pytest.approx(0.5 * 0.75)

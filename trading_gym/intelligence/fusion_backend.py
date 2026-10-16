@@ -18,6 +18,11 @@ authority, and every output still passes the pre-trade gate and coordinator.
 
 from __future__ import annotations
 
+import math
+from typing import Any
+
+from trading_gym.intelligence.rl_backend import RLPolicyBackend
+
 from trading_gym.intelligence.base import IntelligenceBackend
 from trading_gym.intelligence.types import (
     ActionKind,
@@ -66,17 +71,48 @@ class FusionBackend(IntelligenceBackend):
         )
 
     def decide(self, context: MarketContext) -> DecisionSignal:
+        """Standalone fusion for RL-like backends that support decide()."""
         if not self.rl.is_available():
             raise BackendUnavailable("fusion requires the RL executor backend")
-        try:
+        return self._govern(context, self.rl.decide(context))
+
+    def decide_with_observation(
+        self, context: MarketContext, observation: Any
+    ) -> DecisionSignal:
+        """Use the real trained RL policy when the environment is available.
+
+        RLPolicyBackend.decide(context) deliberately has no synthetic action:
+        it must consume the model observation through raw_predict instead.
+        """
+        if not self.rl.is_available():
+            raise BackendUnavailable("fusion requires the RL executor backend")
+        if isinstance(self.rl, RLPolicyBackend):
+            leverage, _ = self.rl.raw_predict(observation)
+            if not math.isfinite(leverage):
+                raise BackendUnavailable("RL prediction is not finite")
+            rl_signal = DecisionSignal(
+                backend=self.rl.name,
+                action_kind=RLPolicyBackend.classify(leverage),
+                target_leverage=leverage,
+                confidence=0.7,
+                rationale="verified RL observation action",
+            )
+        else:
             rl_signal = self.rl.decide(context)
-        except Exception:
-            raise
+        return self._govern(context, rl_signal)
+
+    def _govern(
+        self, context: MarketContext, rl_signal: DecisionSignal
+    ) -> DecisionSignal:
         if rl_signal.action_kind is ActionKind.HOLD:
             return rl_signal
 
         try:
             gov = self.llm.decide(context)
+        except PermissionError:
+            # Authorization and policy refusals are not availability failures.
+            # Never turn a revoked governor into permission for ungated RL.
+            raise
         except Exception as exc:  # noqa: BLE001 - governor loss degrades to pure RL
             return DecisionSignal(
                 backend=self.name,

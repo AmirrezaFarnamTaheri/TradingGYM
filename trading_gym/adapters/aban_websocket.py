@@ -9,11 +9,13 @@ configuration time and immediately before connecting.
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import inspect
 import json
 import logging
 import random
 import re
+import socket
 import time
 from collections import deque
 from contextlib import suppress
@@ -36,6 +38,12 @@ except ImportError:  # pragma: no cover - fallback for older versions
     from websockets.client import WebSocketClientProtocol  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+
+# websockets 13.1 logs all opening handshake headers at DEBUG. The handshake
+# contains the venue Authorization secret. Use a private, unregistered protocol
+# logger pinned at WARNING so global application DEBUG cannot expose it.
+# Connection failures are independently recorded by the module logger.
+_WIRE_LOGGER = logging.Logger("trading_gym.abantether.ws_wire", level=logging.WARNING)
 
 _SYMBOL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$")
 
@@ -72,6 +80,58 @@ def _validate_websocket_url(
     )
     translated_back = urlparse(validated)._replace(scheme=parsed.scheme).geturl()
     return translated_back
+
+
+async def _validated_tcp_target(url: str, *, allow_private: bool) -> tuple[str, int]:
+    """Resolve once and pin a vetted IP for the credential-bearing handshake.
+
+    The websocket library otherwise re-resolves the hostname after the policy
+    check. All DNS answers are checked; the selected IP becomes the actual
+    TCP target, while the URI retains its original Host and TLS server name.
+    """
+    parsed = urlparse(url)
+    host = parsed.hostname
+    if not host:
+        raise ValueError("WebSocket URL is missing a hostname")
+    port = parsed.port or (443 if parsed.scheme == "wss" else 80)
+    try:
+        resolved = await asyncio.get_running_loop().getaddrinfo(
+            host, port, type=socket.SOCK_STREAM
+        )
+    except socket.gaierror as exc:
+        raise ValueError("WebSocket hostname could not be resolved") from exc
+    if not resolved:
+        raise ValueError("WebSocket hostname returned no addresses")
+    addresses = sorted({record[4][0] for record in resolved})
+    for address in addresses:
+        validate_peer_address(
+            address, allow_private=allow_private, allow_loopback=allow_private
+        )
+    return addresses[0], port
+
+
+async def _open_no_redirect(uri: str, **kwargs: Any) -> Any:
+    """Forbid handshake redirects before any unvetted second connection.
+
+    websockets 13.1's legacy connector silently resets the pinned TCP host on
+    cross-origin redirects while retaining the Authorization header. Newer
+    connectors use a different redirect hook. Refuse unknown connector shapes.
+    """
+    connector = websockets.connect(uri, **kwargs)
+    if hasattr(connector, "process_redirect"):
+        # websockets' modern asyncio connector expects an exception return.
+        connector.process_redirect = lambda _exc: ValueError(
+            "websocket_redirect_forbidden"
+        )
+    elif hasattr(connector, "handle_redirect"):
+        # websockets 13.1 legacy connector calls this before reopening TCP.
+        def reject_redirect(_uri: str) -> None:
+            raise ValueError("websocket_redirect_forbidden")
+
+        connector.handle_redirect = reject_redirect
+    else:
+        raise RuntimeError("unsupported_websocket_redirect_policy")
+    return await connector
 
 
 @dataclass
@@ -231,6 +291,7 @@ class WebSocketClient:
             "close_timeout": 10.0,
             "max_size": self.config.max_message_bytes,
             "max_queue": 32,
+            "logger": _WIRE_LOGGER,
         }
         if "additional_headers" in parameters:
             kwargs["additional_headers"] = headers
@@ -248,21 +309,32 @@ class WebSocketClient:
         _validate_websocket_url(
             self.config.url,
             allow_private=self.config.allow_private_url,
-            resolve_dns=True,
+            resolve_dns=False,
         )
+        tcp_host, tcp_port = await _validated_tcp_target(
+            self.config.url, allow_private=self.config.allow_private_url
+        )
+        if (
+            self.config.api_key
+            and urlparse(self.config.url).scheme != "wss"
+            and not ipaddress.ip_address(tcp_host).is_loopback
+        ):
+            # The private-network opt-in is not a blanket permission to send
+            # account credentials over plaintext connections to public IPs.
+            raise ValueError("authenticated non-loopback WebSocket requires TLS")
         headers: Dict[str, str] = {}
         if self.config.api_key:
             headers["Authorization"] = f"Token {self.config.api_key}"
         try:
-            self._ws = await websockets.connect(
+            self._ws = await _open_no_redirect(
                 self.config.url,
+                host=tcp_host,
+                port=tcp_port,
                 **self._connect_kwargs(headers),
             )
-            # The URL was re-validated a moment ago, but the client library
-            # re-resolves the hostname itself when it opens the socket, so DNS
-            # can answer differently between that check and the connection
-            # (TOCTOU). Confirm the peer the socket actually landed on before
-            # sending it credentials or subscriptions.
+            # A vetted IP is used for TCP; URI hostname still controls Host
+            # and TLS certificate verification. Verify the observed peer as
+            # an additional check before sending subscription messages.
             self._verify_peer(self._ws)
             self._connected = True
             self._reconnect_count = 0

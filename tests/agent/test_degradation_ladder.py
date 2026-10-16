@@ -232,3 +232,49 @@ def test_generic_type_works_with_dataclass_value() -> None:
     assert outcome.value == Quote(bid=100.0, ask=100.5)
     assert outcome.mode_used == "level2_book"
     assert outcome.success is True
+
+
+def test_validator_crash_isolated_and_fallback_succeeds() -> None:
+    def broken_validator(value: str) -> bool:
+        raise RuntimeError(f"secret-bearing validation failed: {SECRET_TOKEN}")
+
+    ladder = DegradationLadder[str]([
+        CapabilityMode("rich", lambda _: "bad", broken_validator),
+        CapabilityMode("safe", lambda _: "hold", lambda x: x == "hold"),
+    ])
+    outcome = ladder.run({})
+    assert outcome.success
+    assert outcome.mode_used == "safe"
+    assert outcome.records[0].detail == "RuntimeError"
+    assert SECRET_TOKEN not in repr(outcome.records)
+
+
+def test_preferred_fast_mode_avoids_expensive_rich_path_and_recovers() -> None:
+    calls = []
+    def rich(_):
+        calls.append("rich")
+        return "richer"
+    def fast(_):
+        calls.append("fast")
+        return "quick"
+    ladder = DegradationLadder[str]([
+        CapabilityMode("rich", rich, lambda x: x == "richer"),
+        CapabilityMode("fast", fast, lambda x: x == "quick"),
+    ])
+    outcome = ladder.run({}, preferred_mode="fast")
+    assert (outcome.value, calls) == ("quick", ["fast"])
+    assert ladder.run({}).mode_used == "rich"
+    with pytest.raises(ValueError, match="unknown preferred"):
+        ladder.run({}, preferred_mode="unknown")
+
+
+def test_preferred_mode_failure_recovers_through_validated_rich_path() -> None:
+    calls = []
+    ladder = DegradationLadder[int]([
+        CapabilityMode("rich", lambda _: calls.append("rich") or 9, lambda x: x > 0),
+        CapabilityMode("fast", lambda _: calls.append("fast") or -1, lambda x: x > 0),
+    ])
+    outcome = ladder.run({}, preferred_mode="fast")
+    assert outcome.mode_used == "rich"
+    assert calls == ["fast", "rich"]
+    assert outcome.records[0].outcome == "invalid_output"

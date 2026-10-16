@@ -4,12 +4,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 import json
 import os
+import stat
 import tempfile
 import threading
 
 from filelock import FileLock
 
-from trading_gym.common.persistence import resolve_data_home
+from trading_gym.common.persistence import resolve_data_home, _fsync_directory
 
 
 @dataclass(frozen=True)
@@ -30,25 +31,34 @@ def apply_emergency(
     actor: str,
     approver: str,
 ) -> EmergencyState:
+    # Do not reinterpret strings or integers as Boolean controls. A direct
+    # caller outside Pydantic must not accidentally clear a durable halt.
+    if type(halt) is not bool:
+        raise ValueError("halt_must_be_boolean")
+    if type(expected_revision) is not int or expected_revision < 0:
+        raise ValueError("expected_revision_invalid")
     if state.revision != expected_revision:
         raise RuntimeError("revision_conflict")
+    if not isinstance(actor, str) or not isinstance(approver, str):
+        raise ValueError("actor_and_approver_required")
     actor = actor.strip()
     approver = approver.strip()
-    if not actor or not approver:
+    if not actor or not approver or len(actor) > 120 or len(approver) > 120:
         raise ValueError("actor_and_approver_required")
     if actor == approver:
         raise PermissionError("independent_approval_required")
+    if not isinstance(reason, str):
+        raise ValueError("reason_required")
     reason = reason.strip()
-    if not reason:
+    if not reason or len(reason) > 500:
         raise ValueError("reason_required")
     return EmergencyState(
-        halted=bool(halt),
+        halted=halt,
         revision=state.revision + 1,
         reason=reason,
         actor=actor,
         approver=approver,
     )
-
 
 class EmergencyController:
     """Small durable CAS state machine shared by API and live execution."""
@@ -64,11 +74,43 @@ class EmergencyController:
         )
 
     def snapshot(self) -> EmergencyState:
+        """Read the typed durable halt marker or reject malformed state."""
         path = self.path
+        if path.is_symlink() or path.parent.is_symlink():
+            raise ValueError("invalid_emergency_state: symlink-backed state")
         if not path.exists():
+            # A never-initialized installation starts unhalted. Malformed
+            # *existing* state must never be interpreted as unhalted.
             return EmergencyState()
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        return EmergencyState(**raw)
+        try:
+            file_state = path.stat()
+            if not stat.S_ISREG(file_state.st_mode):
+                raise ValueError("invalid_emergency_state: nonregular record")
+            if file_state.st_size > 64 * 1024:
+                raise ValueError("invalid_emergency_state: oversized record")
+            with path.open("rb") as handle:
+                payload = handle.read(64 * 1024 + 1)
+            if len(payload) > 64 * 1024:
+                raise ValueError("invalid_emergency_state: oversized record")
+            raw = json.loads(payload)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ValueError("invalid_emergency_state: unreadable record") from exc
+        if (
+            not isinstance(raw, dict)
+            or not isinstance(raw.get("halted"), bool)
+            or not isinstance(raw.get("revision"), int)
+            or isinstance(raw["revision"], bool)
+            or raw["revision"] < 0
+            or any(
+                field in raw and not isinstance(raw[field], str)
+                for field in ("reason", "actor", "approver")
+            )
+        ):
+            raise ValueError("invalid_emergency_state: malformed fields")
+        try:
+            return EmergencyState(**raw)
+        except TypeError as exc:
+            raise ValueError("invalid_emergency_state: unexpected fields") from exc
 
     def transition(
         self,
@@ -109,4 +151,5 @@ class EmergencyController:
                     os.unlink(tmp_name)
                 except FileNotFoundError:
                     pass
+            _fsync_directory(path.parent)
             return next_state

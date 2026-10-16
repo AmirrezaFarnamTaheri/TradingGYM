@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import Annotated, Any
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -66,6 +67,8 @@ class SettlementObligation(BaseModel):
                 or self.observed_settlement_at.utcoffset() is None
             ):
                 raise ValueError("observed_settlement_at must be timezone-aware")
+            if self.observed_settlement_at < self.trade_at:
+                raise ValueError("settlement_before_trade")
         if (
             self.state is SettlementState.SETTLED
             and self.observed_settlement_at is None
@@ -130,8 +133,6 @@ def _is_business_day(calendar: MarketCalendarSpec, local_date: date) -> bool:
 
 def contractual_settlement_date(obligation: SettlementObligation) -> date:
     calendar = obligation.convention.calendar
-    from zoneinfo import ZoneInfo
-
     local = obligation.trade_at.astimezone(ZoneInfo(calendar.timezone_name)).date()
     remaining = obligation.convention.business_days
     candidate = local
@@ -166,25 +167,45 @@ def evaluate_settlement(
     ids = [item.obligation_id for item in obligations]
     if len(ids) != len(set(ids)):
         raise ValueError("settlement obligation identifiers must be unique")
+    # The input balance is currency-scoped, not keyed by account. Combining
+    # unrelated accounts could silently net one account's cash against
+    # another account's payables, so this API handles one account only.
+    if len({item.account_id for item in obligations}) > 1:
+        raise ValueError("settlement projection requires a single account")
     normalized_cash: dict[str, Decimal] = {}
     for currency, amount in settled_cash.items():
+        if not isinstance(currency, str) or not currency.isascii():
+            raise ValueError("settled cash currency is invalid")
+        canonical = currency.upper()
         if (
-            not currency
-            or len(currency) > 20
+            not 2 <= len(canonical) <= 20
+            or not canonical.isascii()
+            or any(not (char.isupper() or char.isdigit()) for char in canonical)
+            or not isinstance(amount, Decimal)
             or not amount.is_finite()
             or abs(amount) > MAX_VALUE
         ):
             raise ValueError("settled cash is invalid")
-        normalized_cash[currency.upper()] = amount
+        if canonical in normalized_cash:
+            # Case-folding two keys must never silently delete account cash.
+            raise ValueError("duplicate currency in settled cash")
+        normalized_cash[canonical] = amount
     pending: dict[str, Decimal] = {}
     pending_payables: dict[str, Decimal] = {}
     projections: list[SettlementProjection] = []
     overdue: list[str] = []
     failed: list[str] = []
     blockers: list[str] = []
-    as_of_date = as_of.astimezone(timezone.utc).date()
     for item in sorted(obligations, key=lambda value: value.obligation_id):
+        if item.trade_at > as_of:
+            raise ValueError("future_trade_outside_as_of")
+        if item.observed_settlement_at is not None and item.observed_settlement_at > as_of:
+            raise ValueError("future_settlement_outside_as_of")
         due = contractual_settlement_date(item)
+        # Contractual dates belong to the settlement venue, not UTC.
+        as_of_date = as_of.astimezone(
+            ZoneInfo(item.convention.calendar.timezone_name)
+        ).date()
         is_overdue = item.state is SettlementState.PENDING and as_of_date > due
         days_overdue = (as_of_date - due).days if is_overdue else 0
         if item.state is SettlementState.PENDING:
@@ -214,6 +235,11 @@ def evaluate_settlement(
             )
         )
     available = dict(normalized_cash)
+    # Existing negative cash is already a shortfall even with zero pending
+    # payables. Preserve the signed value and surface an explicit blocker.
+    for currency, amount in available.items():
+        if amount < 0:
+            blockers.append(f"settlement_cash_shortfall:{currency}")
     # Pending receivables are not available. Pending payables reduce available
     # cash immediately to prevent reusing funds needed for settlement.
     for currency, amount in pending_payables.items():

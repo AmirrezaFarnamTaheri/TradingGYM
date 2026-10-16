@@ -27,7 +27,7 @@ class HealthCheckResult:
     status: HealthStatus
     message: str
     latency_ms: float
-    details: Dict = None
+    details: Dict | None = None
 
     def to_dict(self) -> Dict:
         return {
@@ -57,7 +57,7 @@ class HealthCheck:
     """
 
     def __init__(self):
-        self._checks: Dict[str, Callable[[], bool]] = {}
+        self._checks: Dict[str, dict] = {}
         self._last_results: Dict[str, HealthCheckResult] = {}
 
     def register(
@@ -84,10 +84,10 @@ class HealthCheck:
         results = {}
 
         for name, check in self._checks.items():
-            start = time.time()
+            start = time.monotonic()
             try:
                 is_healthy = check["func"]()
-                latency_ms = (time.time() - start) * 1000
+                latency_ms = (time.monotonic() - start) * 1000
 
                 if is_healthy:
                     result = HealthCheckResult(
@@ -104,11 +104,11 @@ class HealthCheck:
                         latency_ms=latency_ms,
                     )
             except Exception as e:
-                latency_ms = (time.time() - start) * 1000
+                latency_ms = (time.monotonic() - start) * 1000
                 result = HealthCheckResult(
                     name=name,
                     status=HealthStatus.UNHEALTHY,
-                    message=f"Check error: {str(e)}",
+                    message=f"Check error: {type(e).__name__}",
                     latency_ms=latency_ms,
                 )
 
@@ -121,6 +121,8 @@ class HealthCheck:
         """Check if system is ready (all required checks pass)."""
         results = self.run_checks()
 
+        if not self._checks:
+            return False
         for name, check in self._checks.items():
             if check["required"]:
                 result = results[name]
@@ -138,20 +140,28 @@ class HealthCheck:
         """Get detailed health status."""
         results = self.run_checks()
 
-        all_healthy = all(r.status == HealthStatus.HEALTHY for r in results.values())
-        any_unhealthy = any(
-            r.status == HealthStatus.UNHEALTHY for r in results.values()
+        failed_required = sorted(
+            name
+            for name, check in self._checks.items()
+            if check["required"] and results[name].status != HealthStatus.HEALTHY
         )
-
-        if all_healthy:
-            overall = HealthStatus.HEALTHY
-        elif any_unhealthy:
+        failed_optional = sorted(
+            name
+            for name, check in self._checks.items()
+            if not check["required"] and results[name].status != HealthStatus.HEALTHY
+        )
+        if not self._checks or failed_required:
             overall = HealthStatus.UNHEALTHY
-        else:
+        elif failed_optional:
             overall = HealthStatus.DEGRADED
+        else:
+            overall = HealthStatus.HEALTHY
 
         return {
             "status": overall.value,
+            "ready": bool(self._checks) and not failed_required,
+            "failed_required": failed_required,
+            "degraded_optional": failed_optional,
             "checks": {name: result.to_dict() for name, result in results.items()},
             "timestamp": time.time(),
         }
@@ -174,7 +184,8 @@ def check_model_loaded(model_path: str) -> bool:
     """Check if model is loaded."""
     from pathlib import Path
 
-    return Path(model_path).exists()
+    path = Path(model_path)
+    return path.is_file() and not path.is_symlink()
 
 
 def check_data_freshness(

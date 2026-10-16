@@ -11,7 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from trading_gym.agent.providers import (
     ProviderConfig,
@@ -19,7 +19,13 @@ from trading_gym.agent.providers import (
     ProviderRepository,
     provider_status,
 )
+from trading_gym.agent.provider_presets import list_provider_presets
 from trading_gym.common.intelligence_config import IntelligenceMode
+from trading_gym.intelligence.llm_request_budget import (
+    ProviderRequestBudget,
+    RequestBudgetUnavailable,
+    default_request_budget_path,
+)
 
 
 def _torch_report() -> dict[str, Any]:
@@ -52,10 +58,13 @@ def create_intelligence_router(
     effective_config_path = config_path  # None → PROJECT_ROOT/config/app.yaml in main
 
     @router.get("/status")
-    def status() -> dict[str, object]:
+    def status(probe_limit: int = Query(default=8, ge=0, le=32)) -> dict[str, object]:
 
         mode = "legacy"
         llm_provider_id = None
+        system1_provider_ids: list[str] = []
+        system1_memory_enabled = False
+        system1_working_memory_enabled = False
         if effective_config_path is not None and Path(effective_config_path).exists():
             try:
                 import yaml
@@ -77,6 +86,22 @@ def create_intelligence_router(
                 if isinstance(icfg, dict):
                     mode = str(icfg.get("mode", "legacy"))
                     llm_provider_id = icfg.get("llm_provider_id")
+                    fleet = icfg.get("system1_provider_ids", [])
+                    if (
+                        isinstance(fleet, list)
+                        and len(fleet) <= 4
+                        and all(
+                            isinstance(item, str) and 1 < len(item) <= 80
+                            for item in fleet
+                        )
+                    ):
+                        system1_provider_ids = list(fleet)
+                    system1_memory_enabled = (
+                        icfg.get("system1_use_experience_memory") is True
+                    )
+                    system1_working_memory_enabled = (
+                        icfg.get("system1_use_working_memory") is True
+                    )
             except Exception as exc:  # noqa: BLE001 - report, don't fail surface
                 return {
                     "mode": "unknown",
@@ -104,36 +129,138 @@ def create_intelligence_router(
             }
         )
 
-        for pc in repo.list():
-            if not isinstance(pc, ProviderConfig) or pc.kind is ProviderKind.CLI:
-                continue
-            st = provider_status(pc, timeout_seconds=3.0)
+        provider_error = None
+        try:
+            providers = [
+                pc for pc in repo.list()
+                if isinstance(pc, ProviderConfig) and pc.kind is not ProviderKind.CLI
+            ]
+        except Exception as exc:
+            # A corrupt optional provider inventory must not prevent the
+            # operator from seeing the deterministic rules and worker state.
+            providers = []
+            provider_error = type(exc).__name__
+        # Prioritize configured System-1 and governor providers under the
+        # bounded health probe budget; these probes are advisory, not gates
+        # for actual chat completions.
+        providers.sort(
+            key=lambda pc: (
+                system1_provider_ids.index(pc.provider_id)
+                if pc.provider_id in system1_provider_ids
+                else (5 if pc.provider_id == llm_provider_id else 6),
+                pc.provider_id,
+            )
+        )
+        provider_availability: dict[str, bool | None] = {}
+        for index, pc in enumerate(providers):
+            if index < probe_limit:
+                try:
+                    st = provider_status(pc, timeout_seconds=1.0)
+                except Exception as exc:
+                    st = {
+                        "provider_id": pc.provider_id,
+                        "status": "unavailable",
+                        "error_type": type(exc).__name__,
+                    }
+                available = st.get("status") in {"reachable", "available"}
+            else:
+                st = {"provider_id": pc.provider_id, "status": "not_probed"}
+                available = None
+            budget_state = None
+            if pc.max_requests_per_hour is not None:
+                try:
+                    admission = ProviderRequestBudget(
+                        default_request_budget_path(
+                            pc.provider_id, pc.base_url or ""
+                        ),
+                        limit=pc.max_requests_per_hour,
+                    ).status()
+                    budget_state = {
+                        "state": (
+                            "exhausted" if admission["remaining"] == 0 else "available"
+                        ),
+                        "used": admission["used"],
+                        "remaining": admission["remaining"],
+                        "ceiling": admission["ceiling"],
+                        "window_start": admission["window_start"],
+                    }
+                    if admission["remaining"] == 0:
+                        available = False
+                except (RequestBudgetUnavailable, ValueError, OSError):
+                    # An untrusted budget state must not look like an
+                    # available provider; do not disclose disk details.
+                    budget_state = {"state": "unavailable"}
+                    available = False
+            provider_availability[pc.provider_id] = available
             backends.append(
                 {
-                    "name": f"llm:{pc.provider_id}",
-                    "available": st.get("status") == "reachable",
+                    "name": (
+                        f"native:{pc.provider_id}"
+                        if pc.wire_protocol == "systemone"
+                        else f"llm:{pc.provider_id}"
+                    ),
+                    "wire_protocol": pc.wire_protocol,
+                    "available": available,
                     "device": None,
                     "detail": json.dumps(st),
+                    "request_budget": budget_state,
+                }
+            )
+
+        for provider_id in system1_provider_ids:
+            status_hint = provider_availability.get(provider_id)
+            backends.append(
+                {
+                    "name": f"system1:{provider_id}",
+                    "available": status_hint,
+                    "device": None,
+                    "detail": "fast advisory classification; model health is provisional",
                 }
             )
 
         selected = mode
-        if mode == "auto":
+        if mode == "system1":
             selected = next(
                 (
-                    b["name"]
-                    for b in backends
-                    if b["available"] is True and b["name"] != "rl"
-                )
-                or ["rl"],
-                "rl",
+                    f"system1:{name}"
+                    for name in system1_provider_ids
+                    if provider_availability.get(name) is True
+                ),
+                "unavailable",
             )
+        if mode == "auto":
+            # Rules are always reachable, but must not preempt a healthy
+            # configured model just because they were listed first.
+            llms = [
+                entry["name"] for entry in backends
+                if entry["name"].startswith("llm:") and entry["available"] is True
+            ]
+            fast = [
+                f"system1:{name}"
+                for name in system1_provider_ids
+                if provider_availability.get(name) is True
+            ]
+            selected = fast[0] if fast else llms[0] if llms else "rules"
 
+        degraded_providers = sorted(
+            entry["name"] for entry in backends
+            if entry["name"].startswith(("llm:", "native:")) and entry["available"] is False
+        )
         return {
             "mode": mode,
             "selected_hint": selected,
             "llm_provider_id": llm_provider_id,
+            "system1_provider_ids": system1_provider_ids,
+            "system1_memory_enabled": system1_memory_enabled,
+            "system1_working_memory_enabled": system1_working_memory_enabled,
             "backends": backends,
+            "provider_presets": list_provider_presets(),
+            "compute": torch_info,
+            "provider_inventory_error": provider_error,
+            "providers_total": len(providers),
+            "providers_probed": min(probe_limit, len(providers)),
+            "degraded_providers": degraded_providers,
+            "status": "degraded" if provider_error or degraded_providers else "available",
             "note": "advisory layer; authority unchanged (gate + coordinator)",
         }
 

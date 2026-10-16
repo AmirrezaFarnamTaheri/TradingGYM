@@ -174,6 +174,9 @@ def analyze_derivative_risk(
     maintenance = Decimal("0")
     funding = Decimal("0")
     stressed_total = Decimal("0")
+    # Keep a pair of plausible book-wide market shocks. A short position
+    # loses on an upward shock; a long loses on a downward shock.
+    scenarios: list[tuple[Decimal, Decimal]] = []
     violations: list[str] = []
 
     for position in positions:
@@ -190,12 +193,18 @@ def analyze_derivative_risk(
             * position.funding_rate_per_interval
             * Decimal(position.remaining_funding_intervals)
         )
-        stressed_mark = position.mark_price * (
-            Decimal("1") + policy.stress_price_shock_fraction
+        # The legacy one-sided negative shock can make an entirely short
+        # book appear *safer* as prices fall, even when a symmetric upward
+        # move would breach maintenance margin. Compare both same-direction
+        # portfolio shocks and choose the worse portfolio outcome.
+        magnitude = abs(policy.stress_price_shock_fraction)
+        down_mark = max(
+            Decimal("0"), position.mark_price * (Decimal("1") - magnitude)
         )
-        if stressed_mark <= 0:
-            stressed_mark = Decimal("0")
-        stressed_pnl = signed_contracts * (stressed_mark - position.mark_price)
+        up_mark = position.mark_price * (Decimal("1") + magnitude)
+        down_pnl = signed_contracts * (down_mark - position.mark_price)
+        up_pnl = signed_contracts * (up_mark - position.mark_price)
+        scenarios.append((down_pnl, up_pnl))
         buffer: Decimal | None = None
         item_violations: list[str] = []
         if position.liquidation_price is not None:
@@ -213,7 +222,8 @@ def analyze_derivative_risk(
         initial += initial_margin
         maintenance += maintenance_margin
         funding += projected_funding
-        stressed_total += stressed_pnl
+        # Final attribution is selected *after* the portfolio scenarios
+        # are aggregated, so hedged legs share the same shock direction.
         results.append(
             DerivativePositionRisk(
                 instrument_id=position.instrument_id,
@@ -223,7 +233,7 @@ def analyze_derivative_risk(
                 maintenance_margin=maintenance_margin,
                 projected_funding=projected_funding,
                 liquidation_buffer_fraction=buffer,
-                stressed_pnl=stressed_pnl,
+                stressed_pnl=down_pnl,
                 violations=item_violations,
             )
         )
@@ -231,6 +241,16 @@ def analyze_derivative_risk(
             f"{position.instrument_id}:{item}" for item in item_violations
         )
 
+    down_total = sum((pair[0] for pair in scenarios), Decimal("0"))
+    up_total = sum((pair[1] for pair in scenarios), Decimal("0"))
+    choose_down = down_total <= up_total
+    stressed_total = down_total if choose_down else up_total
+    results = [
+        item.model_copy(
+            update={"stressed_pnl": pair[0] if choose_down else pair[1]}
+        )
+        for item, pair in zip(results, scenarios)
+    ]
     leverage = gross / equity if equity > 0 else None
     margin_ratio = equity / maintenance if maintenance > 0 else None
     funding_drag = max(Decimal("0"), funding) / equity

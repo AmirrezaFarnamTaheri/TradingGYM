@@ -31,7 +31,7 @@ Additional independent credentials apply to specific operations:
 - `X-Approval-Key` for high/critical approval/consumption;
 - `X-Emergency-Key` for emergency process termination.
 
-The deployment is one tenant per process and `TRADING_GYM_HOME`. An optional `X-Tenant-ID` must match `TRADING_GYM_TENANT_ID`. Multi-tenant mode is unsupported and fails closed.
+The deployment is one tenant per process and `TRADING_GYM_HOME`. An optional `X-Tenant-ID` must match `TRADING_GYM_TENANT_ID`. Multi-tenant mode is unsupported and fails closed. The API also requires a **single supervisor per local data home**: startup holds `TRADING_GYM_HOME/runtime/api-supervisor.lock` and fails if another API process owns it. Do not set multiple `uvicorn --workers` for the same data home. This is a local process-ownership constraint, not a distributed funded-trading guarantee.
 
 ## Live-trading workflow
 

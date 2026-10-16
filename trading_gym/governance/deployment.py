@@ -45,6 +45,10 @@ def deployment_isolation_health() -> DeploymentIsolationHealth:
     requested_multi_tenant = (
         os.getenv("TRADING_GYM_MULTI_TENANT", "").strip().lower() in _TRUE_VALUES
     )
+    node_count = (os.getenv("TRADING_GYM_NODE_COUNT") or "1").strip()
+    replica_count = (os.getenv("TRADING_GYM_REPLICA_COUNT") or "1").strip()
+    distributed_flag = os.getenv("TRADING_GYM_DISTRIBUTED", "").strip().lower()
+    requested_distributed = distributed_flag not in {"", "0", "false", "no", "off"}
     blockers: list[str] = []
     if mode != "single_tenant":
         blockers.append("unsupported_deployment_mode")
@@ -52,9 +56,21 @@ def deployment_isolation_health() -> DeploymentIsolationHealth:
         blockers.append("multi_tenant_mode_not_supported")
     if not TENANT_ID_RE.fullmatch(tenant_id):
         blockers.append("invalid_tenant_id")
+    # These stores and their fencing tokens are local-file state machines.
+    # Multiple hosts or replicas cannot serialize a common broker account
+    # without a transactional coordination service and venue-side fencing.
+    if node_count != "1":
+        blockers.append("multi_node_capital_owner_not_supported")
+    if replica_count != "1":
+        blockers.append("multi_replica_live_owner_not_supported")
+    if requested_distributed:
+        blockers.append("distributed_lease_backend_required")
     payload = {
         "deployment_mode": mode,
         "tenant_id": tenant_id,
+        "node_count": node_count,
+        "replica_count": replica_count,
+        "distributed_requested": requested_distributed,
         "valid": not blockers,
         "single_tenant_enforced": mode == "single_tenant"
         and not requested_multi_tenant,

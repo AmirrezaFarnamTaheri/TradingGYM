@@ -7,7 +7,7 @@ const DOMAINS = [
   ['market-intelligence/regime', 'Market regimes', 'Trend, volatility, liquidity, and strategy-suitability evidence.'],
   ['alpha-factory/evaluate', 'Alpha factory', 'Falsifiable hypotheses, replication, challenge evidence, and peer-review gates.'],
   ['signal-graph/analyze', 'Signal graph', 'Indicator, factor, strategy, regime, experiment, and risk relationships.'],
-  ['portfolio/construct', 'Portfolio construction', 'Equal weight, inverse volatility, minimum variance, risk parity, and diversification.'],
+  ['portfolio/construct', 'Portfolio construction', 'Portfolio risk, diversification, and bounded turnover-aware research with optional group caps.'],
   ['portfolio/digital-twin', 'Portfolio digital twin', 'FX-aware scenario equity, liquidation value, and exposure projections.'],
   ['execution/microstructure', 'Market microstructure', 'Bounded order-book consumption, queue position, impact, and partial fills.'],
   ['execution/routing', 'Smart routing review', 'Cost, reliability, capacity, fill probability, and counterparty-aware route proposals.'],
@@ -50,6 +50,26 @@ const SAMPLE = {
     correlation_matrix: [[1, 0.6], [0.6, 1]],
     method: 'risk-parity',
   },
+};
+
+const TURNOVER_SAMPLE = {
+  assets: [
+    {
+      asset_id: 'BTC', expected_return: 0.1, volatility: 0.5,
+      minimum_weight: 0, maximum_weight: 0.8,
+    },
+    {
+      asset_id: 'ETH', expected_return: 0.08, volatility: 0.4,
+      minimum_weight: 0, maximum_weight: 0.8,
+    },
+  ],
+  correlation_matrix: [[1, 0.6], [0.6, 1]],
+  method: 'turnover-aware',
+  previous_weights: { BTC: 0.7, ETH: 0.3 },
+  turnover_penalty: 0.03,
+  risk_aversion: 1,
+  asset_groups: { BTC: 'major-crypto', ETH: 'alternative-crypto' },
+  group_caps: { 'alternative-crypto': 0.45 },
 };
 
 function canonicalize(value) {
@@ -95,6 +115,7 @@ function DomainCard({ path, title, description, active, onSelect, disabled }) {
 export default function InstitutionalOSPanel() {
   const toast = useToast();
   const [selected, setSelected] = useState('market-intelligence/regime');
+  const [domainSearch, setDomainSearch] = useState('');
   const [payload, setPayload] = useState(JSON.stringify(SAMPLE['market-intelligence/regime'], null, 2));
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -112,6 +133,9 @@ export default function InstitutionalOSPanel() {
   const [loadingArtifacts, setLoadingArtifacts] = useState(false);
   const selectedDomain = useMemo(() => DOMAINS.find(([path]) => path === selected), [selected]);
   const domain = selected.split('/')[0];
+  const filteredDomains = useMemo(() => DOMAINS.filter(([path, title, description]) =>
+    `${path} ${title} ${description}`.toLowerCase().includes(domainSearch.trim().toLowerCase())
+  ), [domainSearch]);
 
   const loadArtifacts = async () => {
     const seq = ++artifactsSeq.current;
@@ -119,9 +143,13 @@ export default function InstitutionalOSPanel() {
     try {
       const response = await institutionalAPI.artifacts(domain, 100);
       if (seq !== artifactsSeq.current) return;
+      if (!Array.isArray(response.data) || !response.data.every((item) => item && typeof item === 'object' && !Array.isArray(item) && typeof item.artifact_id === 'string')) {
+        throw new Error('Invalid artifact history response');
+      }
       setArtifacts(response.data);
     } catch (requestError) {
       if (seq !== artifactsSeq.current) return;
+      setArtifacts([]);
       setError(requestError.message || 'Could not load institutional artefacts.');
     } finally {
       if (seq === artifactsSeq.current) setLoadingArtifacts(false);
@@ -140,6 +168,15 @@ export default function InstitutionalOSPanel() {
     setSelected(path);
     setPayload(JSON.stringify(SAMPLE[path] || {}, null, 2));
     setArtifactId(`${path.replaceAll('/', '-')}-review`);
+    setResult(null);
+    setError('');
+  };
+
+  const editPayload = (nextPayload) => {
+    // An edited request is not the input that produced the last review.
+    evaluateSeq.current += 1;
+    setRunning(false);
+    setPayload(nextPayload);
     setResult(null);
     setError('');
   };
@@ -215,8 +252,21 @@ export default function InstitutionalOSPanel() {
         </p>
       </div>
 
+      <label style={{ display: 'block', marginBottom: 12 }}>
+        <span className="status-label">Find an institutional domain</span>
+        <input
+          type="search"
+          className="text-input"
+          aria-label="Search institutional domains"
+          value={domainSearch}
+          onChange={(event) => setDomainSearch(event.target.value)}
+          placeholder="Search domain, capability or evidence type"
+          style={{ width: '100%', maxWidth: 540 }}
+        />
+      </label>
+      <p className="muted" role="status">{filteredDomains.length} of {DOMAINS.length} domains shown</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(245px, 1fr))', gap: 12 }}>
-        {DOMAINS.map(([path, title, description]) => (
+        {filteredDomains.map(([path, title, description]) => (
           <DomainCard
             key={path}
             path={path}
@@ -232,11 +282,23 @@ export default function InstitutionalOSPanel() {
       <div className="section" style={{ marginTop: 18 }}>
         <h3>{selectedDomain?.[1] || 'Institutional evaluator'}</h3>
         <p>{selectedDomain?.[2]}</p>
+        {selected === 'portfolio/construct' && (
+          <button
+            type="button"
+            className="btn"
+            disabled={running}
+            onClick={() => {
+              editPayload(JSON.stringify(TURNOVER_SAMPLE, null, 2));
+            }}
+          >
+            Load turnover-aware example
+          </button>
+        )}
         <label>
           <span className="status-label">Request JSON</span>
           <textarea
             value={payload}
-            onChange={(event) => setPayload(event.target.value)}
+            onChange={(event) => editPayload(event.target.value)}
             spellCheck={false}
             rows={18}
             style={{ width: '100%', fontFamily: 'monospace', padding: 12 }}

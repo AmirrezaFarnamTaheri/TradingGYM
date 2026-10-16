@@ -8,11 +8,12 @@
  * - Tab-based navigation for different panels
  *
  * @module App
- * @version 4.2.0
+ * @see ../package.json (authoritative frontend release version)
  */
 
 import { lazy, Suspense, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import appPackage from '../package.json';
 // Shell-critical providers stay eager: they must render before any panel loads.
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
@@ -26,6 +27,7 @@ const TradingPanel = lazy(() => import('./components/TradingPanel'));
 const DataPanel = lazy(() => import('./components/DataPanel'));
 const SystemPanel = lazy(() => import('./components/SystemPanel'));
 const ConvergencePanel = lazy(() => import('./components/ConvergencePanel'));
+const IntelligencePanel = lazy(() => import('./components/IntelligencePanel'));
 const InstitutionalOSPanel = lazy(() => import('./components/InstitutionalOSPanel'));
 const ProductionPanel = lazy(() => import('./components/ProductionPanel'));
 const AuthzPanel = lazy(() => import('./components/AuthzPanel'));
@@ -46,7 +48,9 @@ const queryClient = new QueryClient({
       staleTime: 5000, // Consider data stale after 5 seconds
     },
     mutations: {
-      retry: 1,
+      // Network timeouts do not prove that a trade or approval was rejected.
+      // Automatic retries can duplicate non-idempotent POST operations.
+      retry: false,
     },
   },
 });
@@ -76,6 +80,13 @@ const tabs = [
     component: ConvergencePanel,
     helpTopic: 'general',
     description: 'Safe strategy research, provider tools, and human-governed automation',
+  },
+  {
+    key: 'intelligence',
+    label: '🧠 Model Fleet',
+    component: IntelligencePanel,
+    helpTopic: 'models',
+    description: 'Read-only System-1 roster, provider availability and request admission',
   },
   {
     key: 'forge',
@@ -146,6 +157,39 @@ const tabs = [
 ];
 
 // =============================================================================
+// Four operator workspaces, preserving all existing tab/panel identities.
+// =============================================================================
+
+const workspaces = [
+  {
+    key: 'execution',
+    label: 'Execution & Risk',
+    tabKeys: ['production', 'trading'],
+  },
+  {
+    key: 'research',
+    label: 'Research & Playground',
+    tabKeys: ['institutional', 'convergence', 'intelligence', 'playground', 'data'],
+  },
+  {
+    key: 'models',
+    label: 'Agent & Model Forge',
+    tabKeys: ['forge', 'training', 'models'],
+  },
+  {
+    key: 'governance',
+    label: 'Governance & System',
+    tabKeys: ['authz', 'system', 'config'],
+  },
+];
+
+const workspaceTabs = workspaces.map((group) => ({
+  ...group,
+  tabs: group.tabKeys.map((key) => tabs.find((tab) => tab.key === key)),
+}));
+const navigationTabs = workspaceTabs.flatMap((group) => group.tabs);
+
+// =============================================================================
 // Main App Component
 // =============================================================================
 
@@ -155,6 +199,28 @@ function AppContent() {
 
   const currentTab = tabs.find(tab => tab.key === activeTab);
   const ActiveComponent = currentTab?.component || SystemPanel;
+
+  function handleTabKeyDown(event, currentKey) {
+    const currentIndex = navigationTabs.findIndex(tab => tab.key === currentKey);
+    const last = navigationTabs.length - 1;
+    let nextIndex;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+      nextIndex = (currentIndex + 1) % tabs.length;
+    } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+      nextIndex = (currentIndex + last) % tabs.length;
+    } else if (event.key === 'Home') {
+      nextIndex = 0;
+    } else if (event.key === 'End') {
+      nextIndex = last;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    const nextKey = navigationTabs[nextIndex].key;
+    setActiveTab(nextKey);
+    event.currentTarget.closest('[role="tablist"]')
+      ?.querySelector(`#tab-${nextKey}`)?.focus();
+  }
 
   return (
     <>
@@ -167,24 +233,39 @@ function AppContent() {
           </div>
 
           <nav className="sidebar-nav" role="tablist" aria-label="Panel navigation">
-            {tabs.map(({ key, label, description }) => (
-              <button
-                key={key}
-                role="tab"
-                aria-selected={activeTab === key}
-                aria-controls={`panel-${key}`}
-                onClick={() => setActiveTab(key)}
-                className={`nav-button ${activeTab === key ? 'active' : ''}`}
-                title={description}
+            {workspaceTabs.map((workspace) => (
+              <div
+                key={workspace.key}
+                className="sidebar-workspace"
+                data-workspace={workspace.key}
+                role="presentation"
               >
-                {label}
-              </button>
+                <div className="sidebar-workspace-label" role="presentation">
+                  {workspace.label}
+                </div>
+                {workspace.tabs.map(({ key, label, description }) => (
+                  <button
+                    key={key}
+                    id={`tab-${key}`}
+                    role="tab"
+                    aria-selected={activeTab === key}
+                    aria-controls={activeTab === key ? `panel-${key}` : undefined}
+                    tabIndex={activeTab === key ? 0 : -1}
+                    onClick={() => setActiveTab(key)}
+                    onKeyDown={(event) => handleTabKeyDown(event, key)}
+                    className={`nav-button ${activeTab === key ? 'active' : ''}`}
+                    title={description}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             ))}
           </nav>
 
           <div className="sidebar-footer">
             <div className="footer-info">
-              <p className="footer-version">v31.7.0+reconstructed.1</p>
+              <p className="footer-version">v{appPackage.version}</p>
               <p className="footer-copyright">© 2026 Trading Gym</p>
               <p className="footer-note" style={{ fontSize: '10px', marginTop: '5px', opacity: 0.7 }}>
                 Evidence-qualified; deployment qualification remains environment-specific
@@ -220,7 +301,7 @@ function AppContent() {
             className="content-wrapper"
             role="tabpanel"
             id={`panel-${currentTab?.key}`}
-            aria-labelledby={currentTab?.key}
+            aria-labelledby={`tab-${currentTab?.key}`}
           >
             <ErrorBoundary>
               <Suspense fallback={<CardSkeleton />}>

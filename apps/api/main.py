@@ -41,7 +41,7 @@ import re
 import psutil
 import secrets
 from uuid import uuid4
-from filelock import FileLock
+from filelock import FileLock, Timeout
 from trading_gym.common.config import AppConfig
 from pydantic import ValidationError
 
@@ -93,6 +93,12 @@ from trading_gym.governance.runtime_authorization import (
     issue_runtime_authorization,
 )
 from trading_gym.models.versioning import ModelMetadata, ModelRegistry
+from trading_gym.agent.providers import (
+    ProviderRepository,
+    selected_provider_credential_refs,
+)
+from trading_gym.common.intelligence_config import IntelligenceMode
+from axiomforge import __version__ as PROJECT_VERSION
 
 # Configure logging EARLY (before using logger)
 logging.basicConfig(
@@ -274,19 +280,28 @@ def prune_zombies():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage app startup and shutdown."""
+    """Keep one API supervisor per local data home for its entire lifetime."""
     logger.info("FastAPI starting up...")
-
-    # 0. Validate Environment
-    validate_environment()
-
-    # 1. Prune Zombies to ensure clean slate
-    prune_zombies()
-
-    yield
-
-    logger.info("FastAPI shutting down...")
-    await cleanup_processes()
+    runtime_root = resolve_data_home() / "runtime"
+    if runtime_root.is_symlink():
+        raise ValueError("api_runtime_root_symlink")
+    runtime_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    instance_lock = FileLock(str(runtime_root / "api-supervisor.lock"))
+    try:
+        instance_lock.acquire(timeout=0)
+    except Timeout as exc:
+        raise RuntimeError("api_supervisor_already_running_for_data_home") from exc
+    try:
+        # This supervisor alone may adopt/prune application child processes.
+        validate_environment()
+        prune_zombies()
+        try:
+            yield
+        finally:
+            logger.info("FastAPI shutting down...")
+            await cleanup_processes()
+    finally:
+        instance_lock.release()
 
 
 # ============================================================================
@@ -295,7 +310,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Trading Gym API",
-    version="11.0.0",
+    version=PROJECT_VERSION,
     description="Governed RL trading API with evidence-first research and declarative strategy tooling",
     lifespan=lifespan,
 )
@@ -314,6 +329,7 @@ app.add_middleware(
         "X-API-Key",
         "X-Actor",
         "X-Actor-Key",
+        "X-Approver-Key",
         "X-Approval-Key",
         "X-Worker-Key",
         "X-Emergency-Key",
@@ -438,7 +454,7 @@ class TrainingStartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     config_name: str = Field(
-        default="training_t4.yaml",
+        default="training_local.yaml",
         min_length=5,
         max_length=120,
         pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*\.ya?ml$",
@@ -645,12 +661,28 @@ async def start_managed_process(
             **(metadata or {}),
         }
 
+    proc = None
     try:
         if before_spawn is not None:
             before_spawn()
+        # Every managed child (training, utility, paper or live) must strip
+        # ALL installed provider credentials, including arbitrary env names
+        # not matched by the generic suffix rules. Only explicitly delegated
+        # references are restored for the configured trading provider.
+        try:
+            installed_provider_refs = {
+                ref
+                for provider in ProviderRepository().list()
+                for ref in provider.credential_refs
+            }
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503, detail="Provider inventory unavailable"
+            ) from exc
         environment = child_environment(
             allowed_control_secrets=allowed_control_secrets or set(),
             allowed_secret_env=allowed_secret_env or set(),
+            blocked_secret_env=installed_provider_refs,
         )
         for name, value in (extra_environment or {}).items():
             if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,127}", name):
@@ -666,20 +698,37 @@ async def start_managed_process(
             env=environment,
         )
         identity = capture_process_identity(proc.pid, command)
-    except Exception:
+        info = {
+            **identity,
+            "status": "running",
+            "start_time": time.time(),
+            **(metadata or {}),
+        }
         async with PROCESS_LOCK:
-            if PROCESSES.get(process_key, {}).get("status") == "starting":
+            PROCESSES[process_key] = info
+    except (Exception, asyncio.CancelledError):
+        # Cancellation can happen after spawn but before the process is
+        # registered. Shut down a known child rather than abandoning it.
+        if proc is not None:
+            try:
+                if proc.returncode is None:
+                    try:
+                        proc.kill()
+                    except ProcessLookupError:
+                        pass
+                await proc.wait()
+            except Exception as cleanup_exc:
+                logger.error(
+                    "Failed to reap aborted process error_type=%s",
+                    type(cleanup_exc).__name__,
+                )
+        async with PROCESS_LOCK:
+            current = PROCESSES.get(process_key, {})
+            if current.get("status") == "starting" or (
+                proc is not None and current.get("pid") == proc.pid
+            ):
                 PROCESSES.pop(process_key, None)
         raise
-
-    info = {
-        **identity,
-        "status": "running",
-        "start_time": time.time(),
-        **(metadata or {}),
-    }
-    async with PROCESS_LOCK:
-        PROCESSES[process_key] = info
 
     if proc.stdout is not None:
         asyncio.create_task(stream_subprocess_logs(proc.stdout, source, proc.pid))
@@ -1616,6 +1665,37 @@ async def start_trading(
             "config/app.yaml",
         ]
 
+        # Model API keys never belong to arbitrary workers. Load the same
+        # validated on-disk config the child will use and delegate only the
+        # explicitly selected fast/deep provider credential references.
+        try:
+            trading_config = AppConfig.model_validate(
+                yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
+            )
+            installed_providers = ProviderRepository().list()
+            intelligence = trading_config.intelligence
+            if (
+                request.mode == "live"
+                and intelligence is not None
+                and intelligence.mode is not IntelligenceMode.RL
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Funded live requires a qualified RL-only intelligence mode",
+                )
+            selected_model_secrets = selected_provider_credential_refs(
+                intelligence, installed_providers
+            )
+        except HTTPException:
+            raise
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422, detail="Invalid model provider configuration"
+            ) from exc
+        except (OSError, RuntimeError) as exc:
+            raise HTTPException(
+                status_code=503, detail="Model provider inventory unavailable"
+            ) from exc
         registry, model_metadata, model_path = _registered_model_artifact(
             request.model_version
         )
@@ -1692,7 +1772,7 @@ async def start_trading(
                 "artifact_sha256": model_metadata.code_hash,
                 "proposal_id": request.proposal_id,
             },
-            allowed_secret_env={"ABAN_API_KEY"},
+            allowed_secret_env={"ABAN_API_KEY"} | set(selected_model_secrets),
             extra_environment=runtime_environment,
             before_spawn=before_spawn,
         )

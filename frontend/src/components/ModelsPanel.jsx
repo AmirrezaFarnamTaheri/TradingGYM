@@ -19,7 +19,7 @@ export default function ModelsPanel() {
   const setActiveModel = useStore(state => state.setActiveModel);
 
   // Fetch models
-  const { data: modelsData, isLoading, isError, error } = useQuery({
+  const { data: modelsData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['models'],
     queryFn: () => modelsAPI.list().then(r => r.data),
     refetchInterval: 5000,
@@ -27,17 +27,44 @@ export default function ModelsPanel() {
 
   // Fetch active model.  TanStack Query v5 removed the useQuery onSuccess
   // option, so the store is synchronized from the polled data in an effect.
-  const { data: activeData } = useQuery({
+  const {
+    data: activeData,
+    isError: activeStatusError,
+    isLoading: activeStatusLoading,
+    refetch: refetchActiveStatus,
+  } = useQuery({
     queryKey: ['active-model'],
     queryFn: () => modelsAPI.getActive().then(r => r.data),
     refetchInterval: 5000,
   });
 
+  const activeValueValid = Boolean(
+    activeData &&
+    Object.prototype.hasOwnProperty.call(activeData, 'active_model') &&
+    (
+      activeData.active_model === null ||
+      (
+        typeof activeData.active_model === 'string' &&
+        activeData.active_model.length > 0 &&
+        activeData.active_model.length <= 200 &&
+        activeData.active_model.trim() === activeData.active_model
+      )
+    )
+  );
+
   useEffect(() => {
-    if (activeData?.active_model) {
-      setActiveModel(activeData.active_model);
+    if (activeStatusError) {
+      // A failed authority read cannot justify a cached active-model label.
+      setActiveModel(null);
+    } else if (activeData && Object.prototype.hasOwnProperty.call(activeData, 'active_model')) {
+      // Null means inactive; malformed model IDs cannot become verified.
+      setActiveModel(activeValueValid ? activeData.active_model : null);
     }
-  }, [activeData?.active_model, setActiveModel]);
+  }, [activeData?.active_model, activeValueValid, activeStatusError, setActiveModel]);
+
+  const activeStatusVerified = Boolean(
+    !activeStatusError && !activeStatusLoading && activeValueValid
+  );
 
   const models = modelsData?.models || [];
 
@@ -96,7 +123,7 @@ export default function ModelsPanel() {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['models'] })}
+            onClick={() => refetch()}
           >
             Retry
           </button>
@@ -109,12 +136,43 @@ export default function ModelsPanel() {
     <div className="panel">
       <h2>📈 Model Registry</h2>
 
+      {activeIsError && (
+        <div role="alert" className="error">
+          Active model status unavailable: {activeError?.message || 'Request failed'}.
+          Activation controls are disabled until the active model can be verified.
+        </div>
+      )}
       <div className="info-box" role="region" aria-label="Model registry summary">
         <p>
           <strong>Active Model:</strong>{' '}
-          <span aria-label={`Current active model is ${activeData?.active_model || 'none selected'}`}>
-            {activeData?.active_model || 'None'}
+          <span
+            data-testid="active-model-status"
+            role={activeStatusError ? 'alert' : undefined}
+            aria-label={
+              activeStatusError || (!activeStatusLoading && !activeStatusVerified)
+                ? 'Unable to verify active model status'
+                : activeStatusLoading
+                  ? 'Checking active model status'
+                  : `Current active model is ${activeIsError || !activeData ? 'unavailable' : activeData.active_model || 'none selected'}`
+            }
+          >
+            {activeStatusError
+              ? 'Unable to verify'
+              : activeStatusLoading
+                ? 'Checking…'
+                : activeStatusVerified
+                  ? activeData.active_model || 'None'
+                  : 'Unable to verify'}
           </span>
+          {activeStatusError && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => refetchActiveStatus()}
+            >
+              Retry active model status
+            </button>
+          )}
         </p>
         <p>
           <strong>Total Models:</strong> <span aria-label={`${models.length} models available`}>{models.length}</span>
@@ -141,7 +199,11 @@ export default function ModelsPanel() {
             </thead>
             <tbody>
               {models.map((model) => {
-                const isActive = model.version === activeData?.active_model;
+                const isActive =
+                  activeStatusVerified && model.version === activeData?.active_model;
+                const modelStatusLabel = !activeStatusVerified
+                  ? 'status unverified'
+                  : isActive ? 'currently active' : 'inactive';
                 const modifiedDate = model.created_at
                   ? new Date(model.created_at).toLocaleDateString()
                   : model.timestamp
@@ -153,7 +215,7 @@ export default function ModelsPanel() {
                     key={model.version}
                     className={selectedModel === model.version ? 'selected' : ''}
                     onClick={() => setSelectedModel(model.version)}
-                    aria-label={`Model ${model.version}, ${isActive ? 'currently active' : 'inactive'}, ${model.has_model ? 'weights available' : 'no weights'}, modified ${modifiedDate}`}
+                    aria-label={`Model ${model.version}, ${modelStatusLabel}, ${model.has_model ? 'weights available' : 'no weights'}, modified ${modifiedDate}`}
                   >
                     <td>
                       <strong>{model.version}</strong>
@@ -167,7 +229,13 @@ export default function ModelsPanel() {
                     </td>
                     <td aria-label={`Last modified on ${modifiedDate}`}>{modifiedDate}</td>
                     <td>
-                      {isActive ? (
+                      {!activeStatusVerified ? (
+                        <span
+                          className="badge badge-warning"
+                          role="status"
+                          aria-label={`Model ${model.version} status unverified`}
+                        >⚠ Unknown</span>
+                      ) : isActive ? (
                         <span className="badge badge-active" aria-label={`Model ${model.version} is currently active`}>🟢 Active</span>
                       ) : (
                         <span className="badge badge-inactive" aria-label={`Model ${model.version} is inactive`}>⚪ Inactive</span>
@@ -180,9 +248,14 @@ export default function ModelsPanel() {
                             e.stopPropagation();
                             setActivationModel(model.version);
                           }}
-                          disabled={isActive || !model.has_model || setActiveMutation.isPending}
+                          disabled={!activeStatusVerified || isActive || !model.has_model || setActiveMutation.isPending}
                           className="btn btn-small btn-primary"
-                          aria-label={isActive ? `Model ${model.version} is already active` : `Set model ${model.version} as active for trading`}
+                          aria-label={!activeStatusVerified
+                            ? `Cannot activate model ${model.version}: active status unverified`
+                            : isActive
+                              ? `Model ${model.version} is already active`
+                              : `Set model ${model.version} as active for trading`
+                          }
                           aria-busy={setActiveMutation.isPending}
                         >
                           {isActive ? '✓ Active' : 'Set Active'}
@@ -243,7 +316,7 @@ export default function ModelsPanel() {
           <div className="action-buttons" style={{ marginTop: '15px' }}>
             <button
               className="btn btn-primary"
-              disabled={setActiveMutation.isPending || !activationForm.proposalId || !activationForm.expectedRevision || !activationForm.actor || !activationForm.actorKey || !activationForm.approvalKey}
+              disabled={!activeStatusVerified || setActiveMutation.isPending || !activationForm.proposalId || !activationForm.expectedRevision || !activationForm.actor || !activationForm.actorKey || !activationForm.approvalKey}
               onClick={() => setActiveMutation.mutate({
                 version: activationModel,
                 authorisation: {

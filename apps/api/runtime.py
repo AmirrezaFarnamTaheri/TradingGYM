@@ -46,6 +46,10 @@ _SECRET_ENV_SUFFIXES = (
 )
 
 _ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+_NUMBERED_SECRET_ENV = re.compile(
+    r"(?:^|_)(?:API_KEY|KEY|TOKEN|SECRET)_[0-9]+$"
+)
+
 _SECRET_ASSIGNMENT = re.compile(
     r"""(?ix)
     (?P<name>
@@ -66,6 +70,7 @@ def child_environment(
     *,
     allowed_control_secrets: Iterable[str] = (),
     allowed_secret_env: Iterable[str] = (),
+    blocked_secret_env: Iterable[str] = (),
 ) -> dict[str, str]:
     """Build a least-privilege worker environment.
 
@@ -77,13 +82,18 @@ def child_environment(
 
     allowed_control = set(allowed_control_secrets)
     allowed_secrets = set(allowed_secret_env)
+    blocked_secrets = set(blocked_secret_env)
     environment = os.environ.copy()
     for name in list(environment):
         if name in CONTROL_PLANE_SECRET_ENV and name not in allowed_control:
             environment.pop(name, None)
             continue
         upper = name.upper()
-        credential_like = any(upper.endswith(suffix) for suffix in _SECRET_ENV_SUFFIXES)
+        credential_like = (
+            name in blocked_secrets
+            or bool(_NUMBERED_SECRET_ENV.search(upper))
+            or any(upper.endswith(suffix) for suffix in _SECRET_ENV_SUFFIXES)
+        )
         if (
             credential_like
             and name not in allowed_secrets

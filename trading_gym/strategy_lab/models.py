@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class LogicMode(str, Enum):
@@ -38,6 +39,9 @@ class IndicatorSpec(BaseModel):
         "obv",
         "stochastic",
         "donchian",
+        "adx",
+        "mfi",
+        "realized_volatility",
     ]
     alias: Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_]{0,63}$")]
     params: dict[str, float | int | str | bool] = Field(default_factory=dict)
@@ -56,23 +60,33 @@ class IndicatorSpec(BaseModel):
             "bollinger": {"period", "deviations", "component"},
             "stochastic": {"period", "smooth", "component"},
             "donchian": {"period", "component"},
+            "adx": {"period", "component"},
+            "mfi": {"period"},
+            "realized_volatility": {"period", "lookback", "component"},
         }[self.name]
         unknown = set(self.params) - allowed
         if unknown:
             raise ValueError(
                 f"unsupported {self.name} parameters: {', '.join(sorted(unknown))}"
             )
-        for key in {"period", "fast", "slow", "signal", "smooth"} & set(self.params):
+        period_keys = {"period", "fast", "slow", "signal", "smooth", "lookback"}
+        for key in period_keys & set(self.params):
             value = self.params[key]
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ValueError(f"{key} must be numeric")
-            if int(value) != value or not 2 <= int(value) <= 10_000:
+            if (
+                not math.isfinite(float(value))
+                or int(value) != value
+                or not 2 <= int(value) <= 10_000
+            ):
                 raise ValueError(f"{key} must be an integer between 2 and 10000")
         components = {
             "macd": {"line", "signal", "histogram"},
             "bollinger": {"upper", "middle", "lower"},
             "stochastic": {"k", "d"},
             "donchian": {"upper", "middle", "lower"},
+            "adx": {"adx", "plus_di", "minus_di", "dx"},
+            "realized_volatility": {"volatility", "percentile"},
         }
         if self.name in components and "component" in self.params:
             if str(self.params["component"]) not in components[self.name]:
@@ -94,6 +108,19 @@ class Operand(BaseModel):
 
     kind: Literal["field", "indicator", "constant"]
     value: str | float
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def reject_invalid_raw_constant(cls, value: object, info: object) -> object:
+        if getattr(info, "data", {}).get("kind") == "constant" and (
+            isinstance(value, bool)
+            or (
+                isinstance(value, (int, float))
+                and not math.isfinite(float(value))
+            )
+        ):
+            raise ValueError("constant requires finite non-boolean value")
+        return value
 
     @model_validator(mode="after")
     def validate_value(self) -> "Operand":
@@ -137,12 +164,32 @@ class RiskSpec(BaseModel):
     max_daily_loss_fraction: Annotated[float, Field(gt=0.0, lt=1.0)] = 0.05
     max_sector_fraction: Annotated[float, Field(gt=0.0, le=1.0)] = 0.5
 
+    @field_validator(
+        "max_position_fraction",
+        "max_leverage",
+        "risk_per_trade_fraction",
+        "target_volatility",
+        "stop_loss_fraction",
+        "take_profit_fraction",
+        "max_portfolio_drawdown_fraction",
+        "max_daily_loss_fraction",
+        "max_sector_fraction",
+        "max_holding_bars",
+        mode="before",
+    )
+    @classmethod
+    def reject_boolean_risk_limit(cls, value: object) -> object:
+        if isinstance(value, bool):
+            raise ValueError("numeric risk limits cannot be boolean")
+        return value
+
     @model_validator(mode="after")
     def validate_sizing(self) -> "RiskSpec":
         if self.sizing_method == "risk_per_trade":
             if self.risk_per_trade_fraction is None or self.stop_loss_fraction is None:
                 raise ValueError(
-                    "risk_per_trade sizing requires risk_per_trade_fraction and stop_loss_fraction"
+                    "risk_per_trade sizing requires risk_per_trade_fraction "
+                    "and stop_loss_fraction"
                 )
         if self.sizing_method == "volatility_target" and self.target_volatility is None:
             raise ValueError("volatility_target sizing requires target_volatility")
@@ -171,8 +218,16 @@ class StrategySpec(BaseModel):
         aliases = [item.alias for item in self.indicators]
         if len(aliases) != len(set(aliases)):
             raise ValueError("indicator aliases must be unique")
-        alias_set = set(aliases)
         allowed_fields = {"open", "high", "low", "close", "volume"}
+        reserved = allowed_fields | {
+            "entry_signal", "exit_signal", "position_intent"
+        }
+        if reserved.intersection(aliases):
+            raise ValueError("indicator alias uses a reserved market or output field")
+        alias_set = set(aliases)
+        evaluator_columns = {"entry_signal", "exit_signal", "position_intent"}
+        if alias_set & (allowed_fields | evaluator_columns):
+            raise ValueError("indicator aliases cannot shadow reserved columns")
         for group in (self.entry, self.exit):
             for condition in group.conditions:
                 for operand in (condition.left, condition.right):

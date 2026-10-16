@@ -299,3 +299,23 @@ def _cost_arm(credits: float):  # type: ignore[no-untyped-def]
         cost=_credits(credits),
         required_scopes=frozenset(),
     )
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), True])
+def test_risk_guard_rejects_nonfinite_position_caps(invalid: float) -> None:
+    with pytest.raises(ValueError, match="positive and finite"):
+        RiskGuardBackend(DeterministicRuleBackend(), max_position_units=invalid)
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])
+def test_risk_guard_denies_invalid_live_position_state(invalid: float) -> None:
+    guard = RiskGuardBackend(DeterministicRuleBackend())
+    with pytest.raises(PermissionError, match="invalid_position_state"):
+        guard.decide(make_context(position_units=invalid))
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])
+def test_risk_guard_denies_invalid_drawdown_state(invalid: float) -> None:
+    guard = RiskGuardBackend(DeterministicRuleBackend())
+    with pytest.raises(PermissionError, match="invalid_drawdown_state"):
+        guard.decide(make_context(drawdown_from_peak=invalid))

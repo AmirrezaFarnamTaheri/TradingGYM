@@ -23,6 +23,7 @@ multiplier is ≤ 1, so a poisoned memory cannot loosen a gate.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+import math
 from typing import Optional
 
 __all__ = [
@@ -52,8 +53,8 @@ class WorkingMemory:
     _next_cycle: int = 1
 
     def __post_init__(self) -> None:
-        if self.max_cycles < 1:
-            raise ValueError("max_cycles must be >= 1")
+        if type(self.max_cycles) is not int or self.max_cycles < 1:
+            raise ValueError("max_cycles must be a positive integer")
 
     def next_cycle_id(self) -> str:
         """A fresh cycle id that stays monotonic across FIFO eviction.
@@ -99,8 +100,18 @@ class WorkingMemory:
 
     def settle(self, *, cycle_id: str, outcome: str, pnl_quote: float) -> CycleRecord:
         index = self._index_of(cycle_id)
+        # Non-finite P&L poisons loss-streak/caution calculations and can
+        # suppress a subsequent defensive response. Reject before mutation.
+        if isinstance(pnl_quote, bool):
+            raise ValueError("pnl_quote must be finite")
+        try:
+            amount = float(pnl_quote)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("pnl_quote must be finite") from exc
+        if not math.isfinite(amount):
+            raise ValueError("pnl_quote must be finite")
         record = self._cycles[index]
-        settled = replace(record, outcome=outcome, pnl_quote=float(pnl_quote))
+        settled = replace(record, outcome=outcome, pnl_quote=amount)
         self._cycles[index] = settled
         return settled
 
@@ -167,6 +178,15 @@ _HIGH = "high"
 _SEVERITY = {_NORMAL: 0, _ELEVATED: 1, _HIGH: 2}
 
 
+def _finite_numeric(value: object) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except (OverflowError, TypeError, ValueError):
+        return False
+
+
 @dataclass(frozen=True)
 class CautionState:
     """How much the next cycle must tighten, and why.
@@ -185,6 +205,14 @@ class CautionState:
     def __post_init__(self) -> None:
         if self.level not in _SEVERITY:
             raise ValueError(f"unknown caution level: {self.level!r}")
+        for name in (
+            "quorum_confidence_delta",
+            "disagreement_margin_delta",
+            "leverage_multiplier",
+        ):
+            value = getattr(self, name)
+            if not _finite_numeric(value):
+                raise ValueError(f"{name} must be finite and numeric")
         if self.quorum_confidence_delta < 0 or self.disagreement_margin_delta < 0:
             raise ValueError("caution deltas must be non-negative (tighten only)")
         if not 0.0 < self.leverage_multiplier <= 1.0:
@@ -211,10 +239,23 @@ class CautionPolicy:
     high_leverage_multiplier: float = 0.50
 
     def __post_init__(self) -> None:
-        if self.window < 1:
-            raise ValueError("window must be >= 1")
+        for name in ("window", "loss_streak_elevated", "loss_streak_high"):
+            value = getattr(self, name)
+            if type(value) is not int or value < 1:
+                raise ValueError(f"{name} must be a positive integer")
         if not 1 <= self.loss_streak_elevated < self.loss_streak_high:
             raise ValueError("loss streak thresholds must satisfy 1 <= elevated < high")
+        for name in (
+            "escalation_rate_elevated",
+            "elevated_quorum_delta",
+            "elevated_margin_delta",
+            "elevated_leverage_multiplier",
+            "high_quorum_delta",
+            "high_margin_delta",
+            "high_leverage_multiplier",
+        ):
+            if not _finite_numeric(getattr(self, name)):
+                raise ValueError(f"{name} must be finite and numeric")
         if not 0.0 < self.escalation_rate_elevated <= 1.0:
             raise ValueError("escalation_rate_elevated must be within (0, 1]")
         for name in (
@@ -229,6 +270,15 @@ class CautionPolicy:
             value = getattr(self, name)
             if not 0.0 < value <= 1.0:
                 raise ValueError(f"{name} must be within (0, 1]")
+        # Higher caution severity must never loosen a lower-severity gate.
+        if self.high_quorum_delta < self.elevated_quorum_delta:
+            raise ValueError("high_quorum_delta must be >= elevated_quorum_delta")
+        if self.high_margin_delta < self.elevated_margin_delta:
+            raise ValueError("high_margin_delta must be >= elevated_margin_delta")
+        if self.high_leverage_multiplier > self.elevated_leverage_multiplier:
+            raise ValueError(
+                "high_leverage_multiplier must be <= elevated_leverage_multiplier"
+            )
 
     def evaluate(self, memory: WorkingMemory) -> CautionState:
         """Highest-severity trigger wins; every trigger is reported."""

@@ -44,8 +44,19 @@ def purged_walk_forward(
 
 
 def annualised_sharpe(returns: np.ndarray, periods_per_year: int = 252) -> float:
-    values = np.asarray(returns, dtype=float)
-    values = values[np.isfinite(values)]
+    """Report Sharpe only from a complete single-strategy return series."""
+    if (
+        isinstance(periods_per_year, (bool, np.bool_))
+        or not isinstance(periods_per_year, (int, np.integer))
+        or periods_per_year <= 0
+    ):
+        raise ValueError("periods_per_year must be a positive integer")
+    raw = np.asarray(returns)
+    if raw.ndim != 1 or raw.dtype.kind not in "iuf":
+        raise ValueError("annualised Sharpe requires one-dimensional real returns")
+    values = raw.astype(float)
+    if not np.isfinite(values).all():
+        raise ValueError("annualised Sharpe requires complete finite returns")
     if values.size < 2:
         return 0.0
     deviation = float(np.std(values, ddof=1))
@@ -60,19 +71,42 @@ def probabilistic_sharpe_ratio(
     benchmark_sharpe: float = 0.0,
     periods_per_year: int = 252,
 ) -> float:
-    values = np.asarray(returns, dtype=float)
-    values = values[np.isfinite(values)]
+    """Probability that per-period Sharpe exceeds an annualized benchmark.
+
+    Requires one complete, finite, one-dimensional return series; dropping
+    non-finite observations would silently inflate statistical confidence.
+    The sampling formula must use per-observation Sharpe,
+    not the annualized display value. `benchmark_sharpe` is annualized
+    for compatibility with `annualised_sharpe`; convert it before comparing.
+    """
+    if type(periods_per_year) is not int or periods_per_year <= 0:
+        raise ValueError("periods_per_year must be a positive integer")
+    if (
+        isinstance(benchmark_sharpe, (bool, np.bool_))
+        or not isinstance(
+            benchmark_sharpe, (int, float, np.integer, np.floating)
+        )
+        or not math.isfinite(float(benchmark_sharpe))
+    ):
+        raise ValueError("benchmark_sharpe must be finite and non-boolean")
+    raw = np.asarray(returns)
+    if raw.ndim != 1 or raw.dtype.kind not in "iuf":
+        raise ValueError("PSR requires one-dimensional numerical returns")
+    values = raw.astype(float)
+    if not np.isfinite(values).all():
+        raise ValueError("PSR cannot silently discard missing or infinite returns")
     if values.size < 3:
         return 0.0
-    sr = annualised_sharpe(values, periods_per_year)
-    centred = values - np.mean(values)
-    std = np.std(values, ddof=1)
+    std = float(np.std(values, ddof=1))
     if std <= 0:
         return 0.0
+    sr = float(np.mean(values) / std)
+    centred = values - np.mean(values)
     skew = float(np.mean((centred / std) ** 3))
     kurt = float(np.mean((centred / std) ** 4))
     denominator = math.sqrt(max(1e-12, 1 - skew * sr + ((kurt - 1) / 4) * sr * sr))
-    z = (sr - benchmark_sharpe) * math.sqrt(values.size - 1) / denominator
+    benchmark_per_period = float(benchmark_sharpe) / math.sqrt(periods_per_year)
+    z = (sr - benchmark_per_period) * math.sqrt(values.size - 1) / denominator
     return float(NormalDist().cdf(z))
 
 
@@ -84,14 +118,33 @@ def bootstrap_sharpe_interval(
     seed: int = 0,
     periods_per_year: int = 252,
 ) -> tuple[float, float]:
-    values = np.asarray(returns, dtype=float)
-    values = values[np.isfinite(values)]
+    if (
+        isinstance(samples, (bool, np.bool_))
+        or not isinstance(samples, (int, np.integer))
+        or not 100 <= samples <= 100_000
+    ):
+        raise ValueError("samples must be an integer between 100 and 100000")
+    if (
+        isinstance(confidence, (bool, np.bool_))
+        or not isinstance(confidence, (int, float, np.integer, np.floating))
+        or not math.isfinite(float(confidence))
+        or not 0.5 <= confidence < 1
+    ):
+        raise ValueError("confidence must be finite and in [0.5, 1)")
+    if (
+        isinstance(periods_per_year, (bool, np.bool_))
+        or not isinstance(periods_per_year, (int, np.integer))
+        or periods_per_year <= 0
+    ):
+        raise ValueError("periods_per_year must be a positive integer")
+    raw = np.asarray(returns)
+    if raw.ndim != 1 or raw.dtype.kind not in "iuf":
+        raise ValueError("bootstrap requires one-dimensional real returns")
+    values = raw.astype(float)
+    if not np.isfinite(values).all():
+        raise ValueError("bootstrap requires complete finite returns")
     if values.size < 2:
         return (0.0, 0.0)
-    if not 100 <= samples <= 100_000:
-        raise ValueError("samples must be between 100 and 100000")
-    if not 0.5 <= confidence < 1:
-        raise ValueError("confidence must be in [0.5, 1)")
     rng = np.random.default_rng(seed)
     scores = np.empty(samples, dtype=float)
     for index in range(samples):
@@ -104,6 +157,18 @@ def bootstrap_sharpe_interval(
 EULER_MASCHERONI = 0.5772156649015329
 
 
+def _finite_sharpe_input(value: object, label: str) -> float:
+    if (
+        isinstance(value, (bool, np.bool_))
+        or not isinstance(value, (int, float, np.integer, np.floating))
+    ):
+        raise ValueError(f"{label} must be a finite real number")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"{label} must be a finite real number")
+    return result
+
+
 def sharpe_estimator_variance(
     sharpe: float,
     *,
@@ -113,19 +178,33 @@ def sharpe_estimator_variance(
 ) -> float:
     """Variance of the Sharpe estimator with non-normality correction."""
 
-    if observations < 2:
-        raise ValueError("observations must be at least 2")
-    if kurtosis < 1:
-        raise ValueError("kurtosis must be at least 1")
+    if (
+        isinstance(observations, (bool, np.bool_))
+        or not isinstance(observations, (int, np.integer))
+        or observations < 2
+    ):
+        raise ValueError("observations must be an integer >= 2")
+    sharpe = _finite_sharpe_input(sharpe, "sharpe")
+    skewness = _finite_sharpe_input(skewness, "skewness")
+    kurtosis = _finite_sharpe_input(kurtosis, "kurtosis")
+    # Sample moments must satisfy Pearson's inequality: K >= 1 + S^2.
+    if kurtosis < 1.0 + skewness * skewness - 1e-12:
+        raise ValueError("kurtosis must be consistent with sample skewness")
     numerator = 1.0 - skewness * sharpe + ((kurtosis - 1.0) / 4.0) * sharpe * sharpe
+    if not math.isfinite(numerator) or numerator < -1e-12:
+        raise ValueError("Sharpe estimator variance must be finite and non-negative")
     return max(1e-15, numerator / (observations - 1))
 
 
 def expected_maximum_standard_normal(trials: int) -> float:
     """Expected maximum of ``trials`` independent standard normals."""
 
-    if trials < 1:
-        raise ValueError("trials must be positive")
+    if (
+        isinstance(trials, (bool, np.bool_))
+        or not isinstance(trials, (int, np.integer))
+        or trials < 1
+    ):
+        raise ValueError("trials must be a positive integer")
     if trials == 1:
         return 0.0
     normal = NormalDist()
@@ -145,9 +224,9 @@ def deflated_sharpe_ratio(
 ) -> float:
     """Probability that Sharpe exceeds the multiple-testing benchmark.
 
-    ``trial_sharpe_std`` should be the standard deviation across tested strategy
-    Sharpes when available. The conservative default uses the sampling standard
-    error under a zero-Sharpe null.
+    ``observed_sharpe`` and ``trial_sharpe_std`` must be **per period**,
+    not annualized. The latter is the dispersion of Sharpe estimates across
+    tried strategies; the default uses the zero-Sharpe sampling error.
     """
 
     variance = sharpe_estimator_variance(
@@ -156,9 +235,11 @@ def deflated_sharpe_ratio(
         skewness=skewness,
         kurtosis=kurtosis,
     )
+    observed_sharpe = _finite_sharpe_input(observed_sharpe, "observed_sharpe")
     trial_std = trial_sharpe_std
     if trial_std is None:
         trial_std = math.sqrt(sharpe_estimator_variance(0.0, observations=observations))
+    trial_std = _finite_sharpe_input(trial_std, "trial_sharpe_std")
     if trial_std < 0:
         raise ValueError("trial_sharpe_std must be non-negative")
     benchmark = expected_maximum_standard_normal(trials) * trial_std
@@ -186,26 +267,50 @@ def summarise_walk_forward(
     min_profitable_ratio: float = 0.5,
     max_median_degradation: float = 0.75,
 ) -> WalkForwardSummary:
+    if (
+        isinstance(min_windows, (bool, np.bool_))
+        or not isinstance(min_windows, (int, np.integer))
+        or min_windows < 1
+    ):
+        raise ValueError("min_windows must be a positive integer")
+    min_efficiency = _finite_sharpe_input(min_efficiency, "min_efficiency")
+    min_profitable_ratio = _finite_sharpe_input(
+        min_profitable_ratio, "min_profitable_ratio"
+    )
+    max_median_degradation = _finite_sharpe_input(
+        max_median_degradation, "max_median_degradation"
+    )
+    if min_efficiency < 0 or not 0 <= min_profitable_ratio <= 1:
+        raise ValueError("invalid walk-forward robustness threshold")
     in_sample = np.asarray(in_sample_returns, dtype=float)
     out_sample = np.asarray(out_of_sample_returns, dtype=float)
     if in_sample.shape != out_sample.shape or in_sample.ndim != 1:
         raise ValueError("walk-forward arrays must be one-dimensional with equal shape")
-    finite = np.isfinite(in_sample) & np.isfinite(out_sample)
-    in_sample = in_sample[finite]
-    out_sample = out_sample[finite]
-    if in_sample.size == 0:
-        raise ValueError("walk-forward arrays contain no finite windows")
+    # Dropping incomplete windows changes the experiment sample and can
+    # overstate holdout robustness. A sealed walk-forward must account
+    # for every scheduled train/test pair, not only successful windows.
+    if in_sample.size == 0 or not (
+        np.isfinite(in_sample).all() and np.isfinite(out_sample).all()
+    ):
+        raise ValueError("walk-forward arrays require complete finite windows")
     mean_is = float(np.mean(in_sample))
     mean_oos = float(np.mean(out_sample))
     efficiency = (
         mean_oos / mean_is if mean_is > 0 else (1.0 if mean_oos >= mean_is else 0.0)
     )
     profitable_ratio = float(np.mean(out_sample > 0))
-    degradation = np.where(
-        np.abs(in_sample) > 1e-15,
-        (in_sample - out_sample) / np.abs(in_sample),
-        np.where(out_sample >= 0, 0.0, 1.0),
+    # np.where evaluates both branches eagerly and therefore computes
+    # division by zero even where the outcome is discarded. Use masked
+    # division so zero baseline windows remain finite and deterministic.
+    denominator = np.abs(in_sample)
+    nonzero = denominator > 1e-15
+    degradation = np.divide(
+        in_sample - out_sample,
+        denominator,
+        out=np.zeros_like(in_sample, dtype=float),
+        where=nonzero,
     )
+    degradation[~nonzero] = np.where(out_sample[~nonzero] >= 0, 0.0, 1.0)
     median_degradation = float(np.median(degradation))
     robust = (
         in_sample.size >= min_windows
@@ -229,11 +334,16 @@ def randomized_baseline_p_value(
 ) -> float:
     """Finite-sample permutation p-value with the Phipson-Smyth correction."""
 
-    scores = np.asarray(randomized_scores, dtype=float)
-    scores = scores[np.isfinite(scores)]
+    observed = _finite_sharpe_input(observed_score, "observed_score")
+    raw = np.asarray(randomized_scores)
+    if raw.ndim != 1 or raw.dtype.kind not in "iuf":
+        raise ValueError("randomized_scores must be one-dimensional real values")
+    scores = raw.astype(float)
+    if not np.isfinite(scores).all():
+        raise ValueError("randomized_scores must be finite and complete")
     if scores.size < 20:
         raise ValueError("at least 20 randomized scores are required")
-    exceedances = int(np.sum(scores >= observed_score))
+    exceedances = int(np.sum(scores >= observed))
     return float((exceedances + 1) / (scores.size + 1))
 
 

@@ -153,6 +153,20 @@ class TestGrantIssuance:
         grant = reopened.get(body["grant_id"])
         assert grant.state == "active"
 
+    def test_high_risk_wildcard_issue_rejected(self, auth_env) -> None:
+        response = _client().post(
+            "/api/v1/authz/grants",
+            headers={"X-Actor": "operator-1", "X-Actor-Key": OPERATOR_SECRET},
+            json={
+                "principal": "agent-axiom1",
+                "scopes": ["trade.live.**"],
+                "ttl_hours": 24,
+            },
+        )
+        assert response.status_code == 422
+        assert "wildcard" in response.json()["detail"]
+
+
     def test_issue_reserved_scope_rejected(self, auth_env) -> None:  # type: ignore[no-untyped-def]
         response = _client().post(
             "/api/v1/authz/grants",
@@ -238,3 +252,4 @@ class TestListGrants:
         body = response.json()
         assert body["ledger_valid"] is True
         assert body["entries"] == 0
+        assert body["legacy_high_risk_wildcard_grants"] == 0

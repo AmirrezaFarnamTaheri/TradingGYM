@@ -27,7 +27,8 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Mapping, Sequence
+from types import MappingProxyType
+from typing import Iterator, Mapping, Sequence
 
 from trading_gym.agent.arms.base import ArmProposal
 from trading_gym.intelligence.types import (
@@ -46,6 +47,36 @@ __all__ = [
 _FUSION_BACKEND = "fusion"
 
 
+class _FrozenWeightEntries(Mapping[tuple[str, str], float]):
+    """Read-only validated weights with safe stdlib copy/serialization."""
+
+    def __init__(self, entries: Mapping[tuple[str, str], float]) -> None:
+        self._entries = MappingProxyType(dict(entries))
+
+    def __getitem__(self, key: tuple[str, str]) -> float:
+        return self._entries[key]
+
+    def __iter__(self) -> Iterator[tuple[str, str]]:
+        return iter(self._entries)
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Mapping) and dict(self._entries) == dict(other)
+
+    def __repr__(self) -> str:
+        return f"_FrozenWeightEntries({dict(self._entries)!r})"
+
+    def __deepcopy__(self, memo: dict[int, object]) -> dict[tuple[str, str], float]:
+        # dataclasses.asdict() deep-copies non-dict mappings. Return a plain
+        # detached dict for serialization; the live object remains read-only.
+        return dict(self._entries)
+
+    def __reduce__(self):
+        return (type(self), (dict(self._entries),))
+
+
 @dataclass(frozen=True)
 class FusionWeights:
     """Per-(arm, regime) vote weights; absent entries mean *unmanaged*."""
@@ -53,13 +84,26 @@ class FusionWeights:
     entries: Mapping[tuple[str, str], float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        for key, weight in self.entries.items():
+        # Snapshot validated weights: a caller must not mutate an input dict
+        # after validation and introduce NaN/negative votes mid-session.
+        entries = dict(self.entries)
+        for key, weight in entries.items():
             if not isinstance(weight, (int, float)) or isinstance(weight, bool):
                 raise ValueError(f"weight for {key!r} must be numeric")
-            if not math.isfinite(float(weight)):
+            try:
+                finite = math.isfinite(weight)
+            except (OverflowError, TypeError, ValueError):
+                finite = False
+            if not finite:
                 raise ValueError(f"weight for {key!r} must be finite")
             if weight < 0:
                 raise ValueError(f"weight for {key!r} must be non-negative")
+        object.__setattr__(self, "entries", _FrozenWeightEntries(entries))
+
+    def __deepcopy__(self, memo: dict[int, object]) -> FusionWeights:
+        # A validated frozen snapshot is safe to share, including through
+        # deepcopy(FusionConfig(...)); never clone into a writable dict.
+        return self
 
     @classmethod
     def from_pairs(cls, *pairs: tuple[tuple[str, str], float]) -> "FusionWeights":
@@ -91,6 +135,16 @@ class FusionConfig:
     max_leverage: float = 20.0
 
     def __post_init__(self) -> None:
+        for name in ("disagreement_margin", "quorum_confidence", "max_leverage"):
+            value = getattr(self, name)
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise ValueError(f"{name} must be a finite number")
+            try:
+                finite = math.isfinite(value)
+            except (OverflowError, TypeError, ValueError):
+                finite = False
+            if not finite:
+                raise ValueError(f"{name} must be a finite number")
         if not 0.0 <= self.disagreement_margin <= 1.0:
             raise ValueError("disagreement_margin must be within [0, 1]")
         if not 0.0 < self.quorum_confidence <= 1.0:
@@ -177,6 +231,22 @@ class FusionEngine:
         for proposal in directional:
             weight = config.weights.effective(proposal.arm_name, regime)
             magnitude = proposal.signal.confidence * weight
+            # Disabled/zero-conviction arms do not carry authority. Active
+            # directional proposals must have matching signed exposure.
+            if magnitude > 0.0 and (
+                (
+                    proposal.signal.action_kind is ActionKind.LONG
+                    and proposal.signal.target_leverage <= 0.0
+                )
+                or (
+                    proposal.signal.action_kind is ActionKind.SHORT
+                    and proposal.signal.target_leverage >= 0.0
+                )
+            ):
+                return _escalation(
+                    "direction_leverage_mismatch",
+                    f"{proposal.arm_name} proposed conflicting exposure",
+                )
             contributions.append((proposal, magnitude))
             total += magnitude
             if proposal.signal.action_kind is ActionKind.LONG:
@@ -184,13 +254,17 @@ class FusionEngine:
             else:
                 net -= magnitude
 
+        if not math.isfinite(total) or not math.isfinite(net):
+            # Every individual input may be finite while cumulative vote
+            # mass overflows. Never turn inf / inf into an active decision.
+            return _escalation("conviction_overflow", "non-finite aggregate vote")
         if total <= 0.0:
             return _escalation(
                 "no_effective_weight",
                 "every directional arm is zero-weighted this regime",
             )
 
-        share = abs(net) / total
+        share = min(1.0, abs(net) / total)
         if share <= config.disagreement_margin:
             return _escalation(
                 "disagreement",
@@ -218,7 +292,16 @@ class FusionEngine:
             )
             / weight_sum
         )
+        if not math.isfinite(raw_leverage):
+            return _escalation("leverage_overflow", "non-finite weighted exposure")
         leverage = max(-config.max_leverage, min(config.max_leverage, raw_leverage))
+        if (
+            (winning is ActionKind.LONG and leverage <= 0.0)
+            or (winning is ActionKind.SHORT and leverage >= 0.0)
+        ):
+            return _escalation(
+                "zero_directional_exposure", "weighted leverage underflowed to zero"
+            )
 
         names = ", ".join(sorted(p.arm_name for p, _ in agreeing))
         return FusedDecision(

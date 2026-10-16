@@ -5,7 +5,7 @@ import { renderWithClient, flushPromises, waitForRendered } from '../../test-uti
 
 import AuthzPanel from '../AuthzPanel';
 
-const { grantsSpy, revokeSpy, toastSpies } = vi.hoisted(() => ({
+const { grantsSpy, revokeSpy, healthSpy, checkSpy, toastSpies } = vi.hoisted(() => ({
   grantsSpy: vi.fn(() =>
     Promise.resolve({
       data: {
@@ -22,6 +22,10 @@ const { grantsSpy, revokeSpy, toastSpies } = vi.hoisted(() => ({
     })
   ),
   revokeSpy: vi.fn(() => Promise.resolve({ data: { state: 'revoked' } })),
+  checkSpy: vi.fn(() => Promise.resolve({ data: { allowed: true, reason: 'ok' } })),
+  healthSpy: vi.fn(() =>
+    Promise.resolve({ data: { ledger_valid: true, entries: 3, legacy_high_risk_wildcard_grants: 0 } })
+  ),
   toastSpies: {
     info: vi.fn(),
     success: vi.fn(),
@@ -33,8 +37,8 @@ const { grantsSpy, revokeSpy, toastSpies } = vi.hoisted(() => ({
 vi.mock('../../api', () => ({
   authzAPI: {
     listGrants: grantsSpy,
-    health: vi.fn(() => Promise.resolve({ data: { ledger_valid: true, entries: 3 } })),
-    check: vi.fn(() => Promise.resolve({ data: { allowed: true, reason: 'ok' } })),
+    health: healthSpy,
+    check: checkSpy,
     issue: vi.fn(),
     revoke: revokeSpy,
   },
@@ -73,7 +77,14 @@ describe('AuthzPanel', () => {
 
     const revoke = container.querySelector('table.grants-table tbody button');
     expect(revoke.disabled).toBe(false);
+    revokeSpy.mockClear();
     revoke.click();
+    expect(revokeSpy).not.toHaveBeenCalled();
+    const confirm = await waitForRendered(
+      container, 'button',
+      (button) => button.textContent?.trim() === 'Confirm revoke'
+    );
+    confirm.click();
 
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(revokeSpy).toHaveBeenCalledWith(
@@ -117,6 +128,43 @@ describe('AuthzPanel fetch errors', () => {
   });
 });
 
+describe('AuthzPanel health visibility', () => {
+  it('never reports valid when the health endpoint is unavailable', async () => {
+    healthSpy.mockRejectedValueOnce(new Error('health endpoint offline'));
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    const ledger = await waitForRendered(
+      container,
+      '[data-testid="ledger-state"]',
+      (node) => node.textContent === 'UNAVAILABLE'
+    );
+    expect(ledger.textContent).toBe('UNAVAILABLE');
+    cleanup();
+  });
+
+  it('reports explicitly corrupt ledger state', async () => {
+    healthSpy.mockResolvedValueOnce({ data: { ledger_valid: false, entries: 3 } });
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    const ledger = await waitForRendered(
+      container,
+      '[data-testid="ledger-state"]',
+      (node) => node.textContent === 'CORRUPT'
+    );
+    expect(ledger.textContent).toBe('CORRUPT');
+    cleanup();
+  });
+});
+
+describe('AuthzPanel malformed responses', () => {
+  it('does not display no grants for a malformed server response', async () => {
+    grantsSpy.mockResolvedValueOnce({ data: { grants: null } });
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    const errorBox = await waitForRendered(container, '.error');
+    expect(errorBox.textContent).toContain('Invalid grants response');
+    expect(container.textContent).not.toContain('No active grants');
+    cleanup();
+  });
+});
+
 describe('session API key storage contract (security review M-4)', () => {
   test('api.js never persists the gateway key to localStorage', () => {
     const source = fs.readFileSync(path.resolve('src/api.js'), 'utf8');
@@ -132,5 +180,83 @@ describe('session API key storage contract (security review M-4)', () => {
     );
     expect(authzSource).toMatch(/Revocation is terminal/);
     expect(authzSource).toMatch(/ADR-028/);
+  });
+});
+
+describe('Legacy wildcard grant warnings', () => {
+  it('makes outstanding high-risk legacy grants visible to operators', async () => {
+    healthSpy.mockResolvedValueOnce({
+      data: {
+        ledger_valid: true,
+        entries: 3,
+        legacy_high_risk_wildcard_grants: 2,
+      },
+    });
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    const banner = await waitForRendered(
+      container,
+      '[data-testid="legacy-grants-warning"]'
+    );
+    expect(banner.getAttribute('role')).toBe('alert');
+    expect(banner.textContent).toContain('2 legacy high-risk wildcard');
+    expect(banner.textContent).toContain('revocation');
+    cleanup();
+  });
+
+  it('does not interpret absent legacy count as zero risk', async () => {
+    healthSpy.mockResolvedValueOnce({ data: { ledger_valid: true, entries: 3 } });
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    const banner = await waitForRendered(
+      container,
+      '[data-testid="legacy-grants-unknown"]'
+    );
+    expect(banner.textContent).toContain('unavailable');
+    cleanup();
+  });
+});
+
+describe('Authorization scope evidence cannot outlive its inputs', () => {
+  it('hides a previous ALLOWED result after the scope changes', async () => {
+    checkSpy.mockResolvedValueOnce({ data: { allowed: true, reason: 'ok' } });
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    const scope = container.querySelector('input[aria-label="Check scope"]');
+    const checkButton = container.querySelector('form.check-row button');
+    checkButton.click();
+    await waitForRendered(
+      container, '[data-testid="check-result"]',
+      (node) => node.textContent.includes('ALLOWED')
+    );
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value'
+    ).set;
+    setter.call(scope, 'trade.live.order.submit');
+    scope.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+    expect(container.querySelector('[data-testid="check-result"]')).toBeNull();
+    // Returning to the same input must not resurrect old point-in-time
+    // permission evidence without issuing another check.
+    setter.call(scope, 'trade.paper.order.submit');
+    scope.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+    expect(container.querySelector('[data-testid="check-result"]')).toBeNull();
+    cleanup();
+  });
+
+  it('does not display a delayed response after changing the principal', async () => {
+    let complete;
+    checkSpy.mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }));
+    const { container, cleanup } = renderWithClient(<AuthzPanel />);
+    container.querySelector('form.check-row button').click();
+    await flushPromises();
+    const principal = container.querySelector('input[aria-label="Check principal"]');
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value'
+    ).set;
+    setter.call(principal, 'another-principal');
+    principal.dispatchEvent(new Event('input', { bubbles: true }));
+    complete({ data: { allowed: true, reason: 'for_previous_principal' } });
+    await flushPromises();
+    expect(container.querySelector('[data-testid="check-result"]')).toBeNull();
+    cleanup();
   });
 });

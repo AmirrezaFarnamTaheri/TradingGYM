@@ -49,6 +49,9 @@ class LiveFeatureSnapshot:
     base_low: float
     source_sha256: str
     timeframe_timestamps: dict[str, int]
+    # Only validated, fully closed BASE timeframe candles (oldest-first).
+    # Separate from unclocked intrabar mark-price updates in the environment.
+    base_closed_closes: tuple[float, ...] = ()
 
 
 def _interval(tf: TimeframeConfig) -> str:
@@ -187,6 +190,7 @@ def build_live_feature_snapshot(
     timestamps: dict[str, int] = {}
     source_frames: dict[str, list[dict[str, Any]]] = {}
     base_values: tuple[int, float, float, float] | None = None
+    base_closed_closes: tuple[float, ...] = ()
     min_rows = max(20, cfg.features.rolling_window // 10)
     if min_rows > MAX_LIVE_CANDLES:
         raise ValueError("configured rolling window exceeds live history capacity")
@@ -227,6 +231,11 @@ def build_live_feature_snapshot(
         )
         source_frames[timeframe.name] = source_frame.to_dict(orient="records")
         if index == 0:
+            # Completed-bar returns for System-1 must be computed from the
+            # same validated OHLCV source as the model feature snapshot.
+            base_closed_closes = tuple(
+                float(value) for value in frame["close"].iloc[-13:]
+            )
             latest = frame.iloc[-1]
             base_values = (
                 latest_timestamp,
@@ -263,4 +272,5 @@ def build_live_feature_snapshot(
         base_low=low,
         source_sha256=source_sha256,
         timeframe_timestamps=timestamps,
+        base_closed_closes=base_closed_closes,
     )
