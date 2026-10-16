@@ -44,7 +44,9 @@ def _unix(value: object) -> int:
 
 def _seal(document: Any) -> str:
     return hashlib.sha256(
-        json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+        json.dumps(
+            document, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode()
     ).hexdigest()
 
 
