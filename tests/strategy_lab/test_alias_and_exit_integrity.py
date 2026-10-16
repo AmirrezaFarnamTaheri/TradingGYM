@@ -99,3 +99,18 @@ def test_exit_takes_priority_when_entry_and_exit_overlap():
     assert evaluated["entry_signal"].all()
     assert evaluated["exit_signal"].all()
     assert (evaluated["position_intent"] == -1).all()
+
+
+
+def test_duplicate_market_column_labels_are_rejected_before_evaluation():
+    frame = _frame()
+    frame["other"] = frame["close"]
+    frame.columns = [
+        "close" if column == "other" else column for column in frame.columns
+    ]
+    with pytest.raises(ValueError, match="market columns must be unique"):
+        from trading_gym.strategy_lab.evaluator import validate_market_frame
+
+        validate_market_frame(frame)
+    with pytest.raises(ValueError, match="market columns must be unique"):
+        compute_indicators(frame, [])
