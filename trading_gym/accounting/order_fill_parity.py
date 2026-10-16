@@ -332,10 +332,12 @@ def reconcile_order_fills(
             if fill.quantity % order.quantity_step:
                 item_blockers.append(f"invalid_quantity_step:{fill.fill_id}")
 
-        signed = quantity if order.side is Side.BUY else -quantity
+        # Decimal unary negation uses the ambient context and can silently
+        # round exact high-precision aggregates. copy_negate() never rounds.
+        signed = quantity if order.side is Side.BUY else quantity.copy_negate()
         cash_delta = _exact_sum((
-            notional if order.side is Side.SELL else -notional,
-            -fee,
+            notional if order.side is Side.SELL else notional.copy_negate(),
+            fee.copy_negate(),
         ))
         position[order.instrument_id] = _exact_sum((
             position.get(order.instrument_id, Decimal(0)),
