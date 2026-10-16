@@ -76,7 +76,7 @@ def test_large_decimal_evidence_remains_unauthorized_even_when_matched():
     price = D("987654321.987654321")
     with localcontext() as context:
         context.prec = 96
-        expected_cash = -(qty * price)
+        expected_cash = qty * price
     result = reconcile_order_fills(
         as_of=T + timedelta(seconds=5),
         orders=[OrderIntent(
@@ -103,7 +103,7 @@ def test_large_decimal_evidence_remains_unauthorized_even_when_matched():
             total_fee_quote=D("0"), source_sha256="e" * 64,
         )],
         position_deltas={"BTC-USD": -qty},
-        cash_deltas={"USD": -expected_cash},
+        cash_deltas={"USD": expected_cash},
     )
-    assert result.consistent and result.net_cash_by_currency["USD"] == -expected_cash
+    assert result.consistent and result.net_cash_by_currency["USD"] == expected_cash
     assert result.execution_authority_granted is False
