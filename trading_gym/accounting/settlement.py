@@ -167,6 +167,11 @@ def evaluate_settlement(
     ids = [item.obligation_id for item in obligations]
     if len(ids) != len(set(ids)):
         raise ValueError("settlement obligation identifiers must be unique")
+    # The input balance is currency-scoped, not keyed by account. Combining
+    # unrelated accounts could silently net one account's cash against
+    # another account's payables, so this API handles one account only.
+    if len({item.account_id for item in obligations}) > 1:
+        raise ValueError("settlement projection requires a single account")
     normalized_cash: dict[str, Decimal] = {}
     for currency, amount in settled_cash.items():
         if not isinstance(currency, str) or not currency.isascii():
@@ -230,6 +235,11 @@ def evaluate_settlement(
             )
         )
     available = dict(normalized_cash)
+    # Existing negative cash is already a shortfall even with zero pending
+    # payables. Preserve the signed value and surface an explicit blocker.
+    for currency, amount in available.items():
+        if amount < 0:
+            blockers.append(f"settlement_cash_shortfall:{currency}")
     # Pending receivables are not available. Pending payables reduce available
     # cash immediately to prevent reusing funds needed for settlement.
     for currency, amount in pending_payables.items():
