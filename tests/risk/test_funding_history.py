@@ -160,3 +160,10 @@ def test_utc_and_explicit_offset_observations_produce_identical_receipts():
         a.source_sha256,
     )
     assert quote([a], hours=3).evidence_sha256 == quote([b], hours=3).evidence_sha256
+
+def test_one_observed_rate_cannot_be_reused_as_unobserved_future_intervals():
+    one_rate = quote([obs(2)], hours=2)
+    with pytest.raises(ValueError, match="single observed interval"):
+        funding_cashflow_estimate(
+            one_rate, signed_notional=Decimal("500"), intervals=2,
+        )
