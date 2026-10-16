@@ -1,4 +1,5 @@
 """Fail-closed, point-in-time settled funding evidence across venue snapshots."""
+
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
