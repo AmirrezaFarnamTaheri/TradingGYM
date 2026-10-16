@@ -24,10 +24,29 @@ The expanded 17-archive convergence (4,226 archive entries) provides a broad arc
 
 Single lowercase keys remain accepted and normalize deterministically; invalid symbols, malformed types and NaN/infinite balances generate a stable domain error. This is a calculation/input assurance change, not a transfer, bank posting, or custody reconciliation.
 
+### 4. Currency-only cash cannot net unrelated accounts
+
+The settlement report's `settled_cash` input is keyed by currency, not by
+account, while each `SettlementObligation` carries an `account_id`.
+A report with obligations from two accounts can otherwise assume that one
+account's positive cash satisfies the other's liabilities. The evaluator
+now **refuses multiple distinct account IDs** until a separate per-account
+cash input/ledger is specified.
+
+An existing negative settled balance is now reported as a
+`settlement_cash_shortfall:<CURRENCY>` blocker even if there are no
+pending payables. Prior logic flagged a shortfall only when iterating
+pending negative obligations, masking a pre-existing cash deficit.
+
+The single-account analytical path, including independent pending-payable
+deductions, remains unchanged. These are safeguards on a read-only report,
+not evidence of settlement authority or a real custody ledger.
+
 ## Added regression contracts
 
 - `tests/strategy_lab/test_alias_and_exit_integrity.py`: raw/derived alias collisions; direct lower-level API; duplicate market columns; exit-over-entry precedence.
 - `tests/accounting/test_settlement_cash_canonicalization.py`: canonical currency collisions; non-ASCII alias spoofing; invalid input types and finite amounts; lossless single-key normalization.
+- `tests/convergence/test_settlement_plane.py`: multi-account cash netting refusal and existing negative-balance blocker.
 
 **Verification limitation:** These tests are committed with the implementation, but the available environment cannot clone the complete authenticated PR checkout, and GitHub Actions jobs have continued to fail **before executing any steps** (the earlier inspected run `38878980999` reported zero steps across all failed jobs and no downloadable job log). Do not describe them as passing exact-head CI until a runner successfully executes the pinned tests.
 
