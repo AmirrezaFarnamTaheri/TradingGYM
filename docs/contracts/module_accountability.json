@@ -1498,7 +1498,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/risk/funding_history.py",
-      "sha256": "0677f183d32216de25bac0462a9836836fbbaea9f534a191f67fac95c2ba33aa"
+      "sha256": "48c69addedc1d4b997f00c1261d1602326e0148627fa508a2926cbb10f8e199c"
     },
     {
       "owner": "trading_gym",
