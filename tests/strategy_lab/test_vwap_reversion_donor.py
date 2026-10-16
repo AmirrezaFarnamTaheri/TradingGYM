@@ -112,3 +112,10 @@ def test_research_template_is_valid_and_does_not_need_live_order_authority():
     assert result["exit_signal"].iloc[46]
     assert result["position_intent"].iloc[45] == 1
     assert result["position_intent"].iloc[46] == -1
+
+
+def test_nonpositive_extrema_are_not_usable_as_vwap_source():
+    invalid = _bars()
+    invalid.loc[10, "low"] = -0.001
+    with pytest.raises(ValueError, match="price"):
+        vwap_reversion_score(invalid, {"period": 5})
