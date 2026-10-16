@@ -96,6 +96,13 @@ def _units(qty: Decimal, increment: Decimal, label: str) -> None:
         raise ValueError(f"{label} exceeds increment precision budget") from exc
 
 
+def _exact_decimal_text(value: Decimal) -> str:
+    """Normalize evidence without ambient Decimal-context rounding."""
+    with localcontext() as context:
+        context.prec = 96
+        return format(value.normalize(), "f")
+
+
 def _canonical(values: object) -> bytes:
     return json.dumps(
         values,
@@ -240,8 +247,8 @@ def reconcile_peer_execution(
         "order_finalized": broker.status in ("filled", "cancelled"),
         "fill_events": len(distinct),
         "duplicate_events_ignored": duplicates,
-        "computed_position_qty": format(computed_position.normalize(), "f"),
-        "computed_cash_base": format(computed_cash.normalize(), "f"),
+        "computed_position_qty": _exact_decimal_text(computed_position),
+        "computed_cash_base": _exact_decimal_text(computed_cash),
         "evidence_sha256": receipt,
         "execution_authority_granted": False,
     }
