@@ -169,14 +169,22 @@ def evaluate_settlement(
         raise ValueError("settlement obligation identifiers must be unique")
     normalized_cash: dict[str, Decimal] = {}
     for currency, amount in settled_cash.items():
+        if not isinstance(currency, str):
+            raise ValueError("settled cash currency is invalid")
+        canonical = currency.upper()
         if (
-            not currency
-            or len(currency) > 20
+            not 2 <= len(canonical) <= 20
+            or not canonical.isascii()
+            or any(not (char.isupper() or char.isdigit()) for char in canonical)
+            or not isinstance(amount, Decimal)
             or not amount.is_finite()
             or abs(amount) > MAX_VALUE
         ):
             raise ValueError("settled cash is invalid")
-        normalized_cash[currency.upper()] = amount
+        if canonical in normalized_cash:
+            # Case-folding two keys must never silently delete account cash.
+            raise ValueError("duplicate currency in settled cash")
+        normalized_cash[canonical] = amount
     pending: dict[str, Decimal] = {}
     pending_payables: dict[str, Decimal] = {}
     projections: list[SettlementProjection] = []
