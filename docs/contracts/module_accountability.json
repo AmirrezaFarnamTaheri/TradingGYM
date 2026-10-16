@@ -1048,7 +1048,7 @@
     {
       "owner": "trading_gym",
       "path": "trading_gym/market/__init__.py",
-      "sha256": "f567150ccf7bb34223ae406a18b0bbb8e5da95ec34b0b4536a22d2e6914fcbfb"
+      "sha256": "64a4b927e08bfce33c124cdf19f9baab2fdaeb654bcfdf9df33ca8067784ae92"
     },
     {
       "owner": "trading_gym",
@@ -1072,6 +1072,11 @@
     },
     {
       "owner": "trading_gym",
+      "path": "trading_gym/market/factor_research_readiness.py",
+      "sha256": "2774b4441d3725a05a535c7643f82203a8565df49eba8bdd2bf343417f3e9083"
+    },
+    {
+      "owner": "trading_gym",
       "path": "trading_gym/market/fundamental_asof.py",
       "sha256": "47550c40e68cfddc721e0e08c00d1fb1758bdc2b95ff4db6a93fe62f52b34f53"
     },
@@ -1089,6 +1094,11 @@
       "owner": "trading_gym",
       "path": "trading_gym/market/registry.py",
       "sha256": "c9acdcf34faef8740f2e6a99b095e7cd6756ce2ad5935348984887f1c3a02910"
+    },
+    {
+      "owner": "trading_gym",
+      "path": "trading_gym/market/universe_asof.py",
+      "sha256": "f4ab0e321f4c899c91e96ec2cc20e2478ac39615aaed55d498e317531bb18d66"
     },
     {
       "owner": "trading_gym",
