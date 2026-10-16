@@ -83,7 +83,9 @@ def _valid_fact(item: object) -> dict[str, Any]:
         _unix(item.filed_at_unix), _unix(item.observed_at_unix),
     )
     if start > end or end > filed or filed > observed:
-        raise ValueError("incoherent fundamental period, filing or observation chronology")
+        raise ValueError(
+            "incoherent fundamental period, filing or observation chronology"
+        )
     if kind == "instant" and start != end:
         raise ValueError("instant fundamental frame must describe one date")
     if kind != "instant" and start == end:
