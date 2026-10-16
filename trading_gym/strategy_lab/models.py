@@ -218,8 +218,13 @@ class StrategySpec(BaseModel):
         aliases = [item.alias for item in self.indicators]
         if len(aliases) != len(set(aliases)):
             raise ValueError("indicator aliases must be unique")
-        alias_set = set(aliases)
         allowed_fields = {"open", "high", "low", "close", "volume"}
+        reserved = allowed_fields | {
+            "entry_signal", "exit_signal", "position_intent"
+        }
+        if reserved.intersection(aliases):
+            raise ValueError("indicator alias uses a reserved market or output field")
+        alias_set = set(aliases)
         evaluator_columns = {"entry_signal", "exit_signal", "position_intent"}
         if alias_set & (allowed_fields | evaluator_columns):
             raise ValueError("indicator aliases cannot shadow reserved columns")
