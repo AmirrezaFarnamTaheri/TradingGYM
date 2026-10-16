@@ -3,6 +3,8 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal as D, localcontext
 
+import pytest
+
 from trading_gym.accounting.order_fill_parity import (
     BrokerReadback,
     FillEvidence,
@@ -107,3 +109,20 @@ def test_large_decimal_evidence_remains_unauthorized_even_when_matched():
     )
     assert result.consistent and result.net_cash_by_currency["USD"] == expected_cash
     assert result.execution_authority_granted is False
+
+@pytest.mark.parametrize(
+    "pathological",
+    [
+        D("1e-1000"),
+        D("0." + "0" * 999 + "1"),
+    ],
+)
+def test_decimal_inputs_have_bounded_scale_before_step_modulus(pathological):
+    with pytest.raises(ValueError, match="precision"):
+        OrderIntent(
+            order_id="order003", account_id="ACC001", instrument_id="BTC-USD",
+            venue_id="VENUE1", quote_currency="USD", side="buy",
+            quantity=pathological, quantity_step=pathological,
+            price_tick=D("0.01"), submitted_at=T, time_in_force="ioc",
+            idempotency_key="c" * 32,
+        )
