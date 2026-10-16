@@ -59,7 +59,6 @@ export default function IntelligencePanel() {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [refreshRevision, setRefreshRevision] = useState(0);
   const [refreshCount, setRefreshCount] = useState(0);
 
   useEffect(() => {
@@ -95,21 +94,11 @@ export default function IntelligencePanel() {
       <div className="button-group" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
         <h2>🧠 Intelligence</h2>
         <button type="button" className="btn btn-secondary btn-small"
-          onClick={() => setRefreshRevision((revision) => revision + 1)}
+          onClick={() => setRefreshCount((count) => count + 1)}
           disabled={loading} aria-label="Refresh intelligence status">
           {loading ? 'Refreshing…' : 'Refresh status'}
         </button>
       </div>
-      <button
-        type="button"
-        className="btn btn-secondary"
-        aria-label="Refresh model-fleet intelligence status snapshot"
-        aria-busy={loading}
-        disabled={loading}
-        onClick={() => setRefreshCount(count => count + 1)}
-      >
-        Refresh status
-      </button>
       {loading && <div className="loading">Loading intelligence status…</div>}
       {error && (
         <div role="alert" className="error">
