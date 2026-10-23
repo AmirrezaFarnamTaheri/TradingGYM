@@ -57,7 +57,6 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(result["outcome"], "failed")
         self.assertEqual(result["output_bytes"], 8)
 
-
     def test_null_or_missing_step_metadata_is_not_execution_evidence(self):
         for optional_fields in ({}, {"steps": None}):
             with self.subTest(optional_fields=optional_fields):

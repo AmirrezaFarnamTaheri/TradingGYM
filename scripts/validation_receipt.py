@@ -93,7 +93,11 @@ def classify_jobs(document: dict, expected_sha: str) -> dict:
             evidence = "skipped"
         elif isinstance(steps, list) and steps and runner:
             evidence = "execution_observed"
-        elif (steps is None or steps == []) and not runner and job.get("status") == "completed":
+        elif (
+            (steps is None or steps == [])
+            and not runner
+            and job.get("status") == "completed"
+        ):
             evidence = "no_execution_evidence"
         else:
             evidence = "incomplete_metadata_or_pending"
