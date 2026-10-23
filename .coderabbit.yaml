@@ -1,0 +1,13 @@
+# A large integration contains 300+ changed paths. Keep automated review
+# within the free-plan per-review file budget without excluding production
+# execution, research, intelligence, API or frontend modules.
+# Other changed files still require human/test/release review.
+reviews:
+  profile: assertive
+  path_filters:
+    - "trading_gym/**"
+    - "apps/**"
+    - "frontend/src/**"
+    - ".github/workflows/**"
+    - "Dockerfile"
+    - "scripts/gui.py"
