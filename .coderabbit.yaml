@@ -11,3 +11,4 @@ reviews:
     - ".github/workflows/**"
     - "Dockerfile"
     - "scripts/gui.py"
+    - "scripts/build_source_release.py"

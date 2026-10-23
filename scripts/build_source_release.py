@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -68,7 +69,7 @@ def assert_clean_revision() -> None:
         raise RuntimeError("source release requires unmodified tracked files")
 
 
-def source_files() -> list[Path]:
+def source_files() -> list[tuple[Path, int]]:
     """Preflight every tracked source file before creating the ZIP."""
     try:
         root = subprocess.run(
@@ -80,7 +81,7 @@ def source_files() -> list[Path]:
         if Path(root).resolve() != ROOT.resolve():
             raise RuntimeError("release source must be its own Git checkout")
         inventory = subprocess.run(
-            ["git", "-C", str(ROOT), "ls-files", "--cached", "-z"],
+            ["git", "-C", str(ROOT), "ls-files", "--stage", "-z"],
             check=True,
             capture_output=True,
         ).stdout
@@ -93,9 +94,18 @@ def source_files() -> list[Path]:
 
     assert_clean_revision()
 
-    files: list[Path] = []
+    files: list[tuple[Path, int]] = []
     casefolded: set[str] = set()
-    for entry in entries:
+    for record in entries:
+        metadata, separator, entry = record.partition("\t")
+        fields = metadata.split()
+        if not separator or len(fields) != 3 or fields[2] != "0":
+            raise ValueError(f"unsafe Git source index record: {record!r}")
+        if fields[0] == "120000":
+            raise ValueError(f"symlink-backed tracked source path: {entry!r}")
+        if fields[0] not in {"100644", "100755"}:
+            raise ValueError(f"unsupported Git source file mode: {record!r}")
+        mode = int(fields[0], 8)
         rel = PurePosixPath(entry)
         if rel.is_absolute() or ".." in rel.parts or not rel.parts:
             raise ValueError(f"unsafe tracked source path: {entry!r}")
@@ -120,15 +130,24 @@ def source_files() -> list[Path]:
         if name.casefold() in casefolded:
             raise ValueError(f"duplicate/case-colliding release path: {name}")
         casefolded.add(name.casefold())
-        files.append(path)
-    return sorted(files)
+        files.append((path, mode))
+    return sorted(files, key=lambda item: item[0])
 
 
 files = source_files()
 with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
-    for path in files:
+    for path, mode in files:
         rel = path.relative_to(ROOT).as_posix()
-        archive.write(path, f"{ARCHIVE_ROOT}/{rel}")
+        # Canonical member metadata must derive from Git, not checkout mtimes
+        # or filesystem permissions. Compression can still vary by zlib build.
+        info = zipfile.ZipInfo(f"{ARCHIVE_ROOT}/{rel}", (1980, 1, 1, 0, 0, 0))
+        info.create_system = 3
+        info.external_attr = mode << 16
+        info.compress_type = zipfile.ZIP_DEFLATED
+        with path.open("rb") as source, archive.open(
+            info, "w", force_zip64=True
+        ) as target:
+            shutil.copyfileobj(source, target, length=1024 * 1024)
 
 try:
     assert_clean_revision()
