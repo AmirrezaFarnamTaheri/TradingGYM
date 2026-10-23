@@ -99,7 +99,11 @@ class ReservationLedger:
         with self._lock:
             if not order_id:
                 raise ValueError("order_id is required")
-            if not isinstance(amount, Decimal) or not amount.is_finite() or amount <= ZERO:
+            if (
+                not isinstance(amount, Decimal)
+                or not amount.is_finite()
+                or amount <= ZERO
+            ):
                 raise ValueError("reservation amount must be a finite positive Decimal")
             currency_u = self._require_currency(currency)
             if order_id in self._used_order_ids:

@@ -5,6 +5,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from axiomforge.live_trading import LiveConsent
+from trading_gym.adapters.enhanced_aban_client import (
+    OrderResponse,
+    OrderSide,
+    OrderStatus,
+)
 from trading_gym.execution.live_execution_adapter import LiveExecutionAdapter
 
 
@@ -67,7 +72,19 @@ async def test_live_adapter_delegates_mutation_to_single_production_coordinator(
     coordinator = MagicMock()
     authorization = object()
     coordinator.bind_authorization.return_value = authorization
-    coordinator.execute.return_value = {"result": {"id": "coordinated"}}
+    fill = OrderResponse(
+        id="coordinated",
+        code="200",
+        base_symbol="BTC",
+        quote_symbol="USDT",
+        side=OrderSide.BUY,
+        type="market",
+        status=OrderStatus.FILLED,
+        volume={"BTC": Decimal("0.25")},
+        filled_volume={"BTC": Decimal("0.25")},
+        created_at="now",
+    )
+    coordinator.execute.return_value = {"result": fill}
     adapter._coordinator = coordinator
 
     result = await adapter._mutate(
@@ -76,7 +93,7 @@ async def test_live_adapter_delegates_mutation_to_single_production_coordinator(
         quantity=Decimal("0.25"),
     )
 
-    assert result == {"id": "coordinated"}
+    assert result is fill
     coordinator.bind_authorization.assert_called_once()
     coordinator.execute.assert_called_once()
     sdk.place_market_order.assert_not_called()

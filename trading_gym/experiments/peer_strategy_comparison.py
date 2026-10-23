@@ -60,9 +60,11 @@ def _validate(row: StrategyReplay, *, train_end: int, as_of: int) -> dict:
     turnover = row.turnover_notional
     if not all(isinstance(v, (tuple, list)) for v in (times, returns, turnover)):
         raise ValueError("research inputs require bounded bar series")
-    if not 20 <= len(times) <= _MAX_BARS or not (len(times) == len(returns) == len(turnover)):
+    if not 20 <= len(times) <= _MAX_BARS or not (
+        len(times) == len(returns) == len(turnover)
+    ):
         raise ValueError("research series missing or unaligned")
-    if any(type(v) is not int for v in times) or any(
+    if any(type(v) is not int for v in times) or any(  # noqa: E721
         earlier >= later for earlier, later in zip(times, times[1:])
     ):
         raise ValueError("research close timestamps are not strictly ascending")
@@ -80,7 +82,9 @@ def _validate(row: StrategyReplay, *, train_end: int, as_of: int) -> dict:
     }
 
 
-def _paired_interval(differences: list[float], *, comparisons: int, seed: int) -> list[float]:
+def _paired_interval(
+    differences: list[float], *, comparisons: int, seed: int
+) -> list[float]:
     """Descriptive moving-block interval; not a calibrated decision gate."""
     n = len(differences)
     rng = random.Random(seed)
@@ -119,15 +123,17 @@ def compare_strategy_replays(
     if (
         not isinstance(replays, (list, tuple))
         or not 2 <= len(replays) <= _MAX_CANDIDATES
-        or type(train_end_unix) is not int
-        or type(as_of_unix) is not int
+        or type(train_end_unix) is not int  # noqa: E721
+        or type(as_of_unix) is not int  # noqa: E721
         or train_end_unix < 0
         or as_of_unix <= train_end_unix
     ):
         raise ValueError("invalid bounded comparison or chronology")
     fee = _real(fee_bps, floor=0.0, cap=1000.0)
     slippage = _real(slippage_bps, floor=0.0, cap=1000.0)
-    checked = [_validate(row, train_end=train_end_unix, as_of=as_of_unix) for row in replays]
+    checked = [
+        _validate(row, train_end=train_end_unix, as_of=as_of_unix) for row in replays
+    ]
     by_name = {row["strategy_id"]: row for row in checked}
     if len(by_name) != len(checked) or baseline_id not in by_name:
         raise ValueError("duplicate strategy or missing baseline")
@@ -146,7 +152,9 @@ def compare_strategy_replays(
     for row in checked:
         observations = [
             gross - turnover * cost_per_turnover
-            for gross, turnover in zip(row["gross_return_bps"], row["turnover_notional"])
+            for gross, turnover in zip(
+                row["gross_return_bps"], row["turnover_notional"]
+            )
         ]
         if any(not math.isfinite(v) or v <= -10_000 for v in observations):
             raise ValueError("net equity bankrupt or non-finite")
@@ -161,20 +169,26 @@ def compare_strategy_replays(
             raise ValueError("compounded research return exceeds numeric bounds")
         compounded = math.expm1(log_equity)
         diff = [v - b for v, b in zip(data, anchor_net)]
-        seed = int(item["strategy_sha256"][:16], 16) ^ int(anchor["strategy_sha256"][:16], 16)
+        seed = int(item["strategy_sha256"][:16], 16) ^ int(
+            anchor["strategy_sha256"][:16], 16
+        )
         costs = math.fsum(v * cost_per_turnover for v in item["turnover_notional"])
-        rows.append({
-            "strategy_id": item["strategy_id"],
-            "strategy_sha256": item["strategy_sha256"],
-            "bars": len(data),
-            "mean_net_return_bps": math.fsum(data) / len(data),
-            "compound_net_return_fraction": compounded,
-            "estimated_cost_bps": costs,
-            "paired_mean_edge_bps_vs_baseline": math.fsum(diff) / len(diff),
-            "paired_block_interval_bps": _paired_interval(diff, comparisons=count, seed=seed),
-            "no_observed_turnover": all(v == 0 for v in item["turnover_notional"]),
-            "eligible_for_funded_live": False,
-        })
+        rows.append(
+            {
+                "strategy_id": item["strategy_id"],
+                "strategy_sha256": item["strategy_sha256"],
+                "bars": len(data),
+                "mean_net_return_bps": math.fsum(data) / len(data),
+                "compound_net_return_fraction": compounded,
+                "estimated_cost_bps": costs,
+                "paired_mean_edge_bps_vs_baseline": math.fsum(diff) / len(diff),
+                "paired_block_interval_bps": _paired_interval(
+                    diff, comparisons=count, seed=seed
+                ),
+                "no_observed_turnover": all(v == 0 for v in item["turnover_notional"]),
+                "eligible_for_funded_live": False,
+            }
+        )
     rows.sort(key=lambda r: (-r["mean_net_return_bps"], r["strategy_id"]))
     normalized = {
         "baseline_id": baseline_id,
@@ -185,9 +199,11 @@ def compare_strategy_replays(
         "market_sha256": anchor["market_sha256"],
         "replays": checked,
     }
-    source_sha = hashlib.sha256(json.dumps(
-        normalized, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode()).hexdigest()
+    source_sha = hashlib.sha256(
+        json.dumps(
+            normalized, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode()
+    ).hexdigest()
     result = {
         "schema": "tradinggym.research.paired-strategy.v1",
         "selection_authority": "none",
@@ -201,9 +217,11 @@ def compare_strategy_replays(
         "uncertainty_method": "descriptive-circular-moving-block-bootstrap-256-bonferroni-tail",
         "results": rows,
     }
-    result["report_sha256"] = hashlib.sha256(json.dumps(
-        result, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode()).hexdigest()
+    result["report_sha256"] = hashlib.sha256(
+        json.dumps(
+            result, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode()
+    ).hexdigest()
     return result
 
 
@@ -230,7 +248,7 @@ class ResearchRun:
 
 
 def _bounded_int(v: object) -> bool:
-    return type(v) is int and 0 <= v < 10**11
+    return type(v) is int and 0 <= v < 10**11  # noqa: E721
 
 
 def _finite(v: object, lo: float, hi: float) -> bool:
@@ -242,20 +260,26 @@ def _validated(run: ResearchRun, *, as_of_unix: int) -> None:
         raise ValueError("unknown challenge run structure")
     if not _NAME.fullmatch(run.candidate_id) or not _NAME.fullmatch(run.regime):
         raise ValueError("invalid candidate or regime identifier")
-    if not isinstance(run.tape_sha256, str) or not _SHA.fullmatch(
-        run.tape_sha256
-    ) or not isinstance(run.source_sha256, str) or not _SHA.fullmatch(
-        run.source_sha256
+    if (
+        not isinstance(run.tape_sha256, str)
+        or not _SHA.fullmatch(run.tape_sha256)
+        or not isinstance(run.source_sha256, str)
+        or not _SHA.fullmatch(run.source_sha256)
     ):
         raise ValueError("sealed research tape/source hash missing")
-    if type(run.seed) is not int or not 0 <= run.seed <= 2**32 - 1:
+    if type(run.seed) is not int or not 0 <= run.seed <= 2**32 - 1:  # noqa: E721
         raise ValueError("invalid independent challenge seed")
     if run.split != "holdout":
         raise ValueError("training/evaluation overlap forbidden")
-    if not all(_bounded_int(x) for x in (
-        run.started_at_unix, run.ended_at_unix, run.label_available_at_unix
-    )) or not (run.started_at_unix < run.ended_at_unix
-              <= run.label_available_at_unix <= as_of_unix):
+    if not all(
+        _bounded_int(x)
+        for x in (run.started_at_unix, run.ended_at_unix, run.label_available_at_unix)
+    ) or not (
+        run.started_at_unix
+        < run.ended_at_unix
+        <= run.label_available_at_unix
+        <= as_of_unix
+    ):
         raise ValueError("time-leaking or unavailable research label")
     if not _finite(run.gross_return, -10.0, 10.0):
         raise ValueError("gross return must be finite and bounded")
@@ -267,12 +291,13 @@ def _one_sided_sign_p(wins: int, non_ties: int) -> float:
     if non_ties == 0:
         return 1.0
     return sum(math.comb(non_ties, k) for k in range(wins, non_ties + 1)) / (
-        2 ** non_ties
+        2**non_ties
     )
 
 
 def compare_paired_research(
-    *, baseline_id: str,
+    *,
+    baseline_id: str,
     runs: Sequence[ResearchRun],
     as_of_unix: int,
     minimum_pairs: int = 3,
@@ -288,12 +313,19 @@ def compare_paired_research(
         raise ValueError("invalid benchmark candidate identity")
     if not _bounded_int(as_of_unix):
         raise ValueError("invalid comparison as-of")
-    if type(minimum_pairs) is not int or not 2 <= minimum_pairs <= _MAX_PAIRS:
+    if (
+        type(minimum_pairs) is not int  # noqa: E721
+        or not 2 <= minimum_pairs <= _MAX_PAIRS  # noqa: E721
+    ):
         raise ValueError("invalid minimum pair count")
-    if type(minimum_regimes) is not int or not 1 <= minimum_regimes <= 128:
+    if (
+        type(minimum_regimes) is not int  # noqa: E721
+        or not 1 <= minimum_regimes <= 128  # noqa: E721
+    ):
         raise ValueError("invalid minimum regime count")
     if (
-        not isinstance(runs, (list, tuple)) or not runs
+        not isinstance(runs, (list, tuple))
+        or not runs
         or len(runs) > _MAX_MODELS * _MAX_PAIRS
     ):
         raise ValueError("research comparison input exceeds bounded size")
@@ -341,21 +373,23 @@ def compare_paired_research(
         wins = sum(1 for d in differences if d > 1e-12)
         losses = sum(1 for d in differences if d < -1e-12)
         non_ties = wins + losses
-        results.append({
-            "candidate_id": name,
-            "paired_scenarios": len(pairs),
-            "non_tied_pairs": non_ties,
-            "wins": wins,
-            "losses": losses,
-            "median_net_excess": statistics.median(differences),
-            "nominal_one_sided_p_value": _one_sided_sign_p(wins, non_ties),
-        })
+        results.append(
+            {
+                "candidate_id": name,
+                "paired_scenarios": len(pairs),
+                "non_tied_pairs": non_ties,
+                "wins": wins,
+                "losses": losses,
+                "median_net_excess": statistics.median(differences),
+                "nominal_one_sided_p_value": _one_sided_sign_p(wins, non_ties),
+            }
+        )
     # Holm-Bonferroni controls familywise error under the stated null,
     # even with dependence among tests. It does not establish independent
     # samples or a causal trading advantage.
-    rank = sorted(results, key=lambda r: (
-        r["nominal_one_sided_p_value"], r["candidate_id"]
-    ))
+    rank = sorted(
+        results, key=lambda r: (r["nominal_one_sided_p_value"], r["candidate_id"])
+    )
     previous = 0.0
     for i, result in enumerate(rank):
         adjusted = min(
@@ -363,8 +397,9 @@ def compare_paired_research(
         )
         result["holm_adjusted_p_value"] = adjusted
         previous = adjusted
-    sorted_runs = [asdict(groups[name][key])
-                   for name in sorted(groups) for key in pairs]
+    sorted_runs = [
+        asdict(groups[name][key]) for name in sorted(groups) for key in pairs
+    ]
     body = {
         "schema": "tradinggym.paired-holdout.v1",
         "baseline_id": baseline_id,
@@ -373,15 +408,19 @@ def compare_paired_research(
         "paired_scenarios": len(pairs),
         "regimes": sorted({regime for _, regime in pairs}),
         "candidates": sorted(results, key=lambda r: r["candidate_id"]),
-        "source_records_sha256": hashlib.sha256(json.dumps(
-            sorted_runs, sort_keys=True, separators=(",", ":"), allow_nan=False
-        ).encode()).hexdigest(),
+        "source_records_sha256": hashlib.sha256(
+            json.dumps(
+                sorted_runs, sort_keys=True, separators=(",", ":"), allow_nan=False
+            ).encode()
+        ).hexdigest(),
         "statistical_independence_verified": False,
         "selection_authority_granted": False,
         "promotion_authority_granted": False,
         "funded_live_eligible": False,
     }
-    body["report_sha256"] = hashlib.sha256(json.dumps(
-        body, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode()).hexdigest()
+    body["report_sha256"] = hashlib.sha256(
+        json.dumps(
+            body, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode()
+    ).hexdigest()
     return body

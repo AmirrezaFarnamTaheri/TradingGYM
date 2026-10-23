@@ -49,17 +49,13 @@ def test_old_live_env_labels_quote_returns_instead_of_claiming_candle_returns():
 
 
 def test_live_context_packet_names_its_price_and_return_sampling():
-    data = build_market_context(
-        _env(completed=(100.0, 101.0, 102.0)), symbol="BTCUSDT"
-    )
+    data = build_market_context(_env(completed=(100.0, 101.0, 102.0)), symbol="BTCUSDT")
     data["market_evidence"] = {
         "bar_open_unix": 1000,
         "bar_seconds": 300,
         "source_sha256": "a" * 64,
     }
-    packet = json.loads(
-        build_system1_packet(MarketContext(**data), now=lambda: 1350)
-    )
+    packet = json.loads(build_system1_packet(MarketContext(**data), now=lambda: 1350))
     assert packet["market"]["price_basis"] == "live_mark_quote"
     assert packet["market"]["recent_returns_basis"] == "completed_bars"
     assert packet["market"]["last_close"] == 108.0
@@ -86,7 +82,6 @@ def test_historical_context_packet_labels_source_as_historical():
     packet = json.loads(build_system1_packet(context))
     assert packet["market"]["recent_returns_basis"] == "historical_bars"
     assert packet["market"]["price_basis"] == "historical_close"
-
 
 
 @pytest.mark.parametrize("basis", ["unspecified", "mark_updates", "historical_bars"])

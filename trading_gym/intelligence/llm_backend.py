@@ -4,9 +4,8 @@ Works identically for a local Ollama/LM Studio endpoint (ProviderKind.LOCAL,
 loopback allowed) and a hosted API (OPENAI_COMPATIBLE with api_key_env) —
 the condition "local LLM" vs "single LLM API" is purely configuration.
 
-Output parsing uses a deterministic degradation ladder:
-strict JSON → tolerant JSON → keyword scan → neutral hold. Every attempt is
-recorded (evidence-plane audit trail). The LLM is an advisory signal: its
+Decision admission accepts one complete, strict JSON object. Prose, missing
+fields, ambiguous JSON and refusals never manufacture an action. The LLM is an advisory signal: its
 leverage suggestion is clipped downstream and never bypasses the gate or
 coordinator.
 """
@@ -47,14 +46,18 @@ from trading_gym.agent.degradation_ladder import (
     DegradationLadder,
 )
 from trading_gym.intelligence.base import IntelligenceBackend
+from trading_gym.intelligence.deadlines import decision_budget, remaining_seconds
+from trading_gym.intelligence.bounded_http import bounded_post, strict_response_json
 from trading_gym.intelligence.types import (
     ActionKind,
     BackendHealth,
     BackendUnavailable,
+    InvalidDecisionSignal,
     UncertainDecision,
     DecisionSignal,
     MarketContext,
 )
+
 
 @dataclass(frozen=True)
 class LLMTransportResponse:
@@ -107,13 +110,49 @@ def httpx_transport(
         else None
     )
 
-    def call(base_url: str, messages: list[dict[str, str]]) -> LLMTransportResponse:
+    def execute(base_url: str, messages: list[dict[str, str]]) -> LLMTransportResponse:
         body = {
             "model": config.model,
             "messages": messages,
             "temperature": 0.2,
             "max_tokens": 300,
         }
+
+        if config.metadata.get("supports_json_schema") is True:
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "trading_advice",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "action",
+                            "target_leverage",
+                            "confidence",
+                            "rationale",
+                        ],
+                        "properties": {
+                            "action": {
+                                "type": "string",
+                                "enum": ["hold", "long", "short"],
+                            },
+                            "target_leverage": {
+                                "type": "number",
+                                "minimum": -20,
+                                "maximum": 20,
+                            },
+                            "confidence": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1,
+                            },
+                            "rationale": {"type": "string", "maxLength": 200},
+                        },
+                    },
+                },
+            }
 
         def post(secret: str, remaining: float) -> httpx.Response:
             # Re-check the destination immediately before each retry, not just
@@ -140,10 +179,12 @@ def httpx_transport(
             with httpx.Client(
                 timeout=remaining, follow_redirects=False, trust_env=False
             ) as client:
-                return client.post(
+                return bounded_post(
+                    client,
                     urljoin(base.rstrip("/") + "/", "chat/completions"),
                     headers=headers,
                     json=body,
+                    timeout=remaining,
                 )
 
         try:
@@ -151,11 +192,11 @@ def httpx_transport(
                 response = request_with_rotation(
                     pool,
                     post,
-                    timeout_seconds=timeout_seconds,
+                    timeout_seconds=remaining_seconds(timeout_seconds),
                     rotate_on_rate_limit=config.rotate_on_rate_limit,
                 )
             else:
-                response = post("", timeout_seconds)
+                response = post("", remaining_seconds(timeout_seconds))
                 reject_terminal_provider_status(response)
                 response.raise_for_status()
             if len(response.content) > 256 * 1024:
@@ -163,7 +204,7 @@ def httpx_transport(
                 # evidence, not an outage that may authorize a rules trade.
                 raise PermissionError("llm_response_byte_budget_exceeded")
             try:
-                payload = response.json()
+                payload = strict_response_json(response)
             except (ValueError, TypeError) as exc:
                 raise PermissionError("llm_malformed_http_response") from exc
             if not isinstance(payload, dict):
@@ -173,13 +214,18 @@ def httpx_transport(
                 raise PermissionError("llm_invalid_response_envelope")
             item = choices[0]
             message = item.get("message") if isinstance(item, dict) else None
-            content = (
-                message.get("content") if isinstance(message, dict) else None
-            )
+            if isinstance(message, dict) and message.get("refusal"):
+                raise PermissionError("llm_provider_refusal")
+            if isinstance(item, dict) and item.get("finish_reason") not in (
+                None,
+                "stop",
+            ):
+                raise InvalidDecisionSignal("llm_incomplete_response")
+            content = message.get("content") if isinstance(message, dict) else None
             if not isinstance(content, str):
                 raise PermissionError("llm_invalid_response_envelope")
             return LLMTransportResponse(content=content)
-        except PermissionError:
+        except (PermissionError, InvalidDecisionSignal):
             raise  # provider authorization denial cannot degrade to a trade
         except RequestBudgetUnavailable as exc:
             raise PermissionError("provider_request_budget_denied") from exc
@@ -202,7 +248,12 @@ def httpx_transport(
         except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
             raise BackendUnavailable("LLM provider transport unavailable") from exc
 
+    def call(base_url: str, messages: list[dict[str, str]]) -> LLMTransportResponse:
+        with decision_budget(timeout_seconds):
+            return execute(base_url, messages)
+
     return call
+
 
 _SYSTEM_PROMPT = (
     "You are the governance analyst of a trading system. You receive a compact "
@@ -275,28 +326,33 @@ def _keyword_parser(content: str) -> dict[str, Any] | None:
 
 
 def _normalise_decision(obj: dict[str, Any]) -> tuple[ActionKind, float, float, str]:
-    action_raw = str(obj.get("action", "hold")).strip().lower()
-    if action_raw not in {"hold", "long", "short"}:
-        action_raw = "hold"
-    kind = ActionKind(action_raw)
-    try:
-        leverage = float(obj.get("target_leverage", 0.0))
-    except (TypeError, ValueError):
-        leverage = 0.0
-    if leverage != leverage or leverage in {float("inf"), float("-inf")}:
-        leverage = 0.0
-    if kind is ActionKind.HOLD:
-        leverage = 0.0
-    elif kind is ActionKind.LONG and leverage <= 0:
-        leverage = 1.0
-    elif kind is ActionKind.SHORT and leverage >= 0:
-        leverage = -0.5
-    try:
-        confidence = min(1.0, max(0.0, float(obj.get("confidence", 0.5))))
-    except (TypeError, ValueError):
-        confidence = 0.5
-    rationale = str(obj.get("rationale", ""))[:200]
-    return kind, leverage, confidence, rationale
+    """Validate without defaults, coercion, clipping, or directional repair.
+
+    Legacy HOLD means an explicit flat target. Abstention is an exception,
+    not a zero target, because the target-leverage executor would flatten it.
+    """
+    if (
+        set(obj) != {"action", "target_leverage", "confidence", "rationale"}
+        or obj.get("action") not in ("hold", "long", "short")
+        or type(obj.get("target_leverage")) not in (float, int)
+        or type(obj.get("confidence")) not in (float, int)
+        or not isinstance(obj.get("rationale"), str)
+        or len(obj["rationale"]) > 200
+    ):
+        raise InvalidDecisionSignal("llm_invalid_structured_response")
+    kind = ActionKind(obj["action"])
+    leverage, confidence = float(obj["target_leverage"]), float(obj["confidence"])
+    if (
+        not math.isfinite(leverage)
+        or not -20 <= leverage <= 20
+        or not math.isfinite(confidence)
+        or not 0 <= confidence <= 1
+        or (kind is ActionKind.HOLD and leverage != 0)
+        or (kind is ActionKind.LONG and leverage <= 0)
+        or (kind is ActionKind.SHORT and leverage >= 0)
+    ):
+        raise InvalidDecisionSignal("llm_incoherent_decision")
+    return kind, leverage, confidence, obj["rationale"]
 
 
 class LLMDecisionBackend(IntelligenceBackend):
@@ -313,7 +369,7 @@ class LLMDecisionBackend(IntelligenceBackend):
         context_formatter: Callable[[MarketContext], str] | None = None,
         backend_name: str | None = None,
         system_prompt: str | None = None,
-        strict_json_only: bool = False,
+        strict_json_only: bool = True,
         review_confidence_floor: float | None = None,
     ):
         if provider_config.wire_protocol != "openai_chat":
@@ -322,7 +378,9 @@ class LLMDecisionBackend(IntelligenceBackend):
         self.name = backend_name or "llm"
         self._context_formatter = context_formatter or build_system1_packet
         self._system_prompt = system_prompt or _SYSTEM_PROMPT
-        self._strict_json_only = bool(strict_json_only)
+        # Kept as a compatibility argument; False no longer permits a
+        # permissive trading parser. Legacy helpers are analysis-only.
+        self._strict_json_only = True
         if review_confidence_floor is not None:
             if (
                 type(review_confidence_floor) not in (int, float)
@@ -359,7 +417,7 @@ class LLMDecisionBackend(IntelligenceBackend):
             ),
         ]
         self._ladder: DegradationLadder[dict[str, Any] | None] = DegradationLadder(
-            ladder_modes[:1] if self._strict_json_only else ladder_modes
+            ladder_modes[:1]
         )
 
     def is_available(self) -> bool:
@@ -387,7 +445,9 @@ class LLMDecisionBackend(IntelligenceBackend):
             status = provider_status(self.config, timeout_seconds=3.0)
         except Exception as exc:
             return BackendHealth(
-                name=self.name, available=False, device=None,
+                name=self.name,
+                available=False,
+                device=None,
                 detail=f"probe_failed:{type(exc).__name__}",
             )
         return BackendHealth(
@@ -408,7 +468,7 @@ class LLMDecisionBackend(IntelligenceBackend):
         # provenance data must survive context-budget compaction intact.
         snapshot = self._context_formatter(context)
         if not isinstance(snapshot, str) or len(snapshot) > 16_000:
-            raise BackendUnavailable("LLM context is not bounded JSON")
+            raise InvalidDecisionSignal("LLM context is not bounded JSON")
         self.last_context_sha256 = hashlib.sha256(snapshot.encode()).hexdigest()
         messages = [
             {"role": "system", "content": self._system_prompt},
@@ -467,4 +527,5 @@ class LLMDecisionBackend(IntelligenceBackend):
             target_leverage=leverage,
             confidence=confidence,
             rationale=f"[{parse_mode}] {rationale}".strip(),
+            source_id=f"{self.config.provider_id}/{self.config.model}",
         )

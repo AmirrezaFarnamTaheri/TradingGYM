@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+import math
 
 from trading_gym.intelligence.base import IntelligenceBackend
 from trading_gym.intelligence.types import (
@@ -10,6 +11,8 @@ from trading_gym.intelligence.types import (
     BackendHealth,
     BackendUnavailable,
     DecisionSignal,
+    InvalidDecisionSignal,
+    np_finite,
     MarketContext,
 )
 
@@ -66,9 +69,29 @@ class RLPolicyBackend(IntelligenceBackend):
         action, _ = self.model.predict(observation, deterministic=True)
         if hasattr(action, "item"):
             action = action.item()
-        elif isinstance(action, (list, tuple)) and action:
-            action = float(action[0])
+        elif isinstance(action, (list, tuple)):
+            if len(action) != 1:
+                raise InvalidDecisionSignal("RL output must contain one target")
+            action = action[0]
+        if not np_finite(action):
+            raise InvalidDecisionSignal("RL output must be one finite real target")
         return float(action), None
+
+    def decide_with_observation(
+        self, context: MarketContext, observation: Any
+    ) -> DecisionSignal:
+        leverage, _ = self.raw_predict(observation)
+        if not math.isfinite(leverage):
+            raise InvalidDecisionSignal("nonfinite RL model output")
+        return DecisionSignal(
+            backend=self.name,
+            action_kind=self.classify(leverage),
+            target_leverage=leverage,
+            confidence=0.7,
+            rationale="RL policy on admitted observation",
+            source_id=self.name,
+            confidence_semantics="advisory_score",
+        )
 
     @staticmethod
     def classify(action_value: float) -> ActionKind:

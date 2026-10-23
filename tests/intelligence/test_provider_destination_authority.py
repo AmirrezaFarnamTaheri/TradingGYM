@@ -104,8 +104,11 @@ def test_chat_destination_failure_never_degrades_to_risk_on_rule(
         def decide(self, _context):
             self.called = True
             return DecisionSignal(
-                backend=self.name, action_kind=ActionKind.LONG,
-                target_leverage=1.0, confidence=0.9, rationale="fallback",
+                backend=self.name,
+                action_kind=ActionKind.LONG,
+                target_leverage=1.0,
+                confidence=0.9,
+                rationale="fallback",
             )
 
     fallback = RiskOnFallback()
@@ -114,7 +117,9 @@ def test_chat_destination_failure_never_degrades_to_risk_on_rule(
     monkeypatch.setattr(security, "validate_base_url", _reject_destination)
     primary = LLMDecisionBackend(local_chat)
     policy = IntelligencePolicyAdapter(
-        primary, action_low=-1.0, action_high=1.0,
+        primary,
+        action_low=-1.0,
+        action_high=1.0,
         fallback_backend=fallback,
         context_builder=lambda _obs: {
             "symbol": "BTCUSDT",

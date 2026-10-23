@@ -576,7 +576,8 @@ def template_catalogue() -> dict[str, StrategySpec]:
                 max_holding_bars=150,
             ),
             tags=["research", "breakout", "directional-movement", "template"],
-        ),        "mfi_trend_confirmation": StrategySpec(
+        ),
+        "mfi_trend_confirmation": StrategySpec(
             name="Money-flow trend confirmation",
             description=(
                 "Research-only bullish momentum after positive money flow "
@@ -660,9 +661,7 @@ def template_catalogue() -> dict[str, StrategySpec]:
                         Operator.CROSSES_ABOVE,
                         constant(60.0),
                     ),
-                    condition(
-                        field("close"), Operator.GT, indicator("prior_high20")
-                    ),
+                    condition(field("close"), Operator.GT, indicator("prior_high20")),
                     condition(indicator("mfi14"), Operator.GT, constant(55.0)),
                 ],
             ),
@@ -690,5 +689,4 @@ def template_catalogue() -> dict[str, StrategySpec]:
             ),
             tags=["research", "breakout", "volatility", "volume-flow", "template"],
         ),
-
     }

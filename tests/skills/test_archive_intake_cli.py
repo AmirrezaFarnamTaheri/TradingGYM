@@ -24,9 +24,7 @@ def run(path, *, strict=False):
     argv = [sys.executable, str(SCRIPT), "--archive", str(path)]
     if strict:
         argv.append("--fail-on-risk")
-    return subprocess.run(
-        argv, capture_output=True, text=True, cwd=ROOT, check=False
-    )
+    return subprocess.run(argv, capture_output=True, text=True, cwd=ROOT, check=False)
 
 
 def test_cli_is_read_only_for_benign_archives(tmp_path):

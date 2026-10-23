@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, ValidationInfo, model_validator
+from trading_gym.common.intelligence_config import IntelligenceConfig
 
 MAX_CONFIG_BYTES = 2 * 1024 * 1024
 _ASSET_SYMBOL = re.compile(r"^[A-Z0-9]{2,24}$")
@@ -174,7 +175,7 @@ class ShortsConfig(BaseModel):
 class CostConfig(BaseModel):
     taker_fee_bps: float
     maker_fee_bps: float = 0.0
-    dead_zone_equity_frac: float
+    dead_zone_equity_frac: float = Field(ge=0, le=1, allow_inf_nan=False)
     max_spread_bps: float
     max_valid_spread_bps: float = 100.0
     train_cost_multiplier: float = 1.0
@@ -287,6 +288,11 @@ class AttentionConfig(BaseModel):
 
 
 class FeatureConfig(BaseModel):
+    # A declared research assumption for candle sources lacking quotes. None
+    # requires an observed/admitted spread; candle range is never a quote.
+    assumed_spread_bps: Optional[float] = Field(
+        default=None, ge=0, lt=20000, allow_inf_nan=False
+    )
     timeframes: List[TimeframeConfig]
     standardization: StandardizationConfig
     attention: AttentionConfig
@@ -475,7 +481,7 @@ class AppConfig(BaseModel):
     monitoring: MonitoringConfig
     paper_trader: PaperTraderConfig
     simulator: SimulatorConfig = SimulatorConfig(steps=1000)
-    intelligence: Optional[object] = None  # IntelligenceConfig (lazy)
+    intelligence: Optional[IntelligenceConfig] = None
     mlflow: Optional[MlflowConfig] = None
     optuna: Optional[OptunaConfig] = None
     seed: int = 42
@@ -487,10 +493,6 @@ class AppConfig(BaseModel):
 
 def load_app_config(path: str | Path) -> AppConfig:
     """Load the project configuration from a YAML file."""
-    from trading_gym.common.intelligence_config import IntelligenceConfig
-
-    ns = {"IntelligenceConfig": IntelligenceConfig}
-    AppConfig.model_rebuild(_types_namespace=ns)
     data = _load_yaml(Path(path))
     return AppConfig(**data)
 

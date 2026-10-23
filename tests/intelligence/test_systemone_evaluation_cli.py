@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+
 def _row():
     return {
         "model_id": "gemma-fast",
@@ -30,8 +31,12 @@ def test_cli_produces_sanitized_evidence_only(tmp_path):
     source.write_text(json.dumps(original) + "\n", encoding="utf-8")
     process = subprocess.run(
         [
-            sys.executable, str(SCRIPT), "--records", str(source),
-            "--as-of-unix", "300",
+            sys.executable,
+            str(SCRIPT),
+            "--records",
+            str(source),
+            "--as-of-unix",
+            "300",
         ],
         cwd=ROOT,
         capture_output=True,
@@ -50,8 +55,12 @@ def test_cli_never_prints_malformed_secret_bearing_input(tmp_path):
     source.write_text("secret-do-not-print:not-json\n", encoding="utf-8")
     process = subprocess.run(
         [
-            sys.executable, str(SCRIPT), "--records", str(source),
-            "--as-of-unix", "300",
+            sys.executable,
+            str(SCRIPT),
+            "--records",
+            str(source),
+            "--as-of-unix",
+            "300",
         ],
         cwd=ROOT,
         capture_output=True,

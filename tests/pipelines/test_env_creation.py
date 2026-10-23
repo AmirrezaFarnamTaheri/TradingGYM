@@ -9,12 +9,8 @@ from trading_gym.pipelines.environment import (
     build_env_factory,
 )
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
-
-
-@pytest.fixture
-def dummy_training_stats():
-    """Provides dummy training stats for testing."""
-    return {"mean": 0.0, "std": 1.0}
+from trading_gym.pipelines.availability import feature_history_rows
+from trading_gym.pipelines.model_bundle import FrozenNormalizer
 
 
 @pytest.fixture
@@ -27,8 +23,8 @@ def dummy_data_path(tmp_path):
     data_dir.mkdir(parents=True)
 
     # Create dummy data with all required columns
-    # Need at least 20 rows for feature calculation (RSI needs 14, volatility needs window)
-    n_rows = 50
+    # Include the full causal feature history plus a nonempty replay interval.
+    n_rows = 96
     np.random.seed(42)
     base_price = 100.0
     prices = base_price + np.cumsum(np.random.randn(n_rows) * 0.5)
@@ -64,6 +60,7 @@ def test_load_environment_inputs(dummy_data_path):
     """Tests that inputs are loaded correctly and have the right types."""
     cfg = load_app_config("config/app.yaml")
     cfg.data.lake_dir = str(dummy_data_path)
+    cfg.features.attention.enabled = False
 
     inputs = load_environment_inputs(cfg, "5m")
 
@@ -72,31 +69,42 @@ def test_load_environment_inputs(dummy_data_path):
     assert "prices_mid" in inputs and isinstance(inputs["prices_mid"], np.ndarray)
     assert "prices_high" in inputs and isinstance(inputs["prices_high"], np.ndarray)
     assert "prices_low" in inputs and isinstance(inputs["prices_low"], np.ndarray)
-    assert len(inputs["prices_mid"]) == 50  # Updated for proper feature calculation
+    assert (
+        len(inputs["prices_mid"]) == 96 - feature_history_rows(cfg.features) + 1
+    )  # Updated for proper feature calculation
 
 
 @pytest.mark.integration
-def test_create_environment(dummy_data_path, dummy_training_stats):
+def test_create_environment(dummy_data_path):
     """Tests that an environment can be created from loaded inputs."""
     cfg = load_app_config("config/app.yaml")
     cfg.data.lake_dir = str(dummy_data_path)
+    cfg.features.attention.enabled = False
 
     inputs = load_environment_inputs(cfg, "5m")
-    env = create_environment(cfg, inputs, training_stats=dummy_training_stats)
+    stats = FrozenNormalizer.fit(inputs["features"]).to_stats()
+    env = create_environment(cfg, inputs, training_stats=stats)
 
     assert isinstance(env, MarginTradingEnv)
-    assert env.T == 50  # Updated for proper feature calculation
+    assert (
+        env.T == 96 - feature_history_rows(cfg.features) + 1
+    )  # Updated for proper feature calculation
     # max_steps is min(1000, available_steps)
 
 
 @pytest.mark.integration
-def test_build_env_factory(dummy_data_path, dummy_training_stats):
+def test_build_env_factory(dummy_data_path):
     """Tests that the environment factory can be built and can create an environment."""
     cfg = load_app_config("config/app.yaml")
     cfg.data.lake_dir = str(dummy_data_path)
+    cfg.features.attention.enabled = False
 
-    factory = build_env_factory(cfg, "5m", training_stats=dummy_training_stats)
+    inputs = load_environment_inputs(cfg, "5m")
+    stats = FrozenNormalizer.fit(inputs["features"]).to_stats()
+    factory = build_env_factory(cfg, "5m", training_stats=stats)
     env = factory()
 
     assert isinstance(env, MarginTradingEnv)
-    assert env.T == 50  # Updated for proper feature calculation
+    assert (
+        env.T == 96 - feature_history_rows(cfg.features) + 1
+    )  # Updated for proper feature calculation

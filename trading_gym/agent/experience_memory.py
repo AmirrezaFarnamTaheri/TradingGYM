@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import time
 from dataclasses import dataclass, field
 
@@ -81,6 +82,8 @@ class ExperienceMemory:
         # the stored timestamp and the hashed timestamp could differ by a
         # tick, so an entry rebuilt from to_dict() never recomputed its id.
         timestamp = float(created_at) if created_at is not None else _now()
+        if not math.isfinite(timestamp):
+            raise ValueError("experience timestamp must be finite")
         material = json.dumps(
             {"tags": list(tags), "outcome": outcome, "lesson": lesson, "t": timestamp},
             sort_keys=True,
@@ -115,6 +118,8 @@ class ExperienceMemory:
         now_v = now if now is not None else _now()
         scored: list[tuple[float, Experience]] = []
         for e in self._entries:
+            if e.observed_at > now_v:
+                continue
             overlap = len(wanted & set(e.context_tags))
             if overlap == 0:
                 continue

@@ -67,8 +67,7 @@ def test_write_and_execute_permissions_are_never_admitted():
     )
     assert report["selected"] == []
     assert all(
-        "forbidden_authority" in reasons
-        for reasons in report["excluded"].values()
+        "forbidden_authority" in reasons for reasons in report["excluded"].values()
     )
 
 

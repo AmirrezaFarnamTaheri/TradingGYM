@@ -13,7 +13,7 @@ NOW = 2_000_000_000
 
 
 def _rows(
-    bar_seconds: int, *, count: int = 40, forming_close: float = 999_999.0
+    bar_seconds: int, *, count: int = 64, forming_close: float = 999_999.0
 ) -> list[list[float]]:
     start = NOW - bar_seconds * (count + 1)
     rows: list[list[float]] = []
@@ -21,7 +21,7 @@ def _rows(
         timestamp = start + index * bar_seconds
         close = 100.0 + index
         rows.append([timestamp, close - 0.5, close + 1, close - 1, close, 10 + index])
-    # The current forming candle must be excluded from feature generation.
+    # The latest candle has not passed the publication delay and is excluded.
     forming_timestamp = NOW - bar_seconds
     rows.append(
         [
@@ -111,5 +111,5 @@ def test_live_snapshot_rejects_excessive_history_and_rolling_window() -> None:
     oversized = cfg.model_copy(
         update={"features": cfg.features.model_copy(update={"rolling_window": 20_000})}
     )
-    with pytest.raises(ValueError, match="rolling window"):
+    with pytest.raises(ValueError, match="feature history exceeds.*capacity"):
         build_live_feature_snapshot(Client(), oversized, now=NOW)

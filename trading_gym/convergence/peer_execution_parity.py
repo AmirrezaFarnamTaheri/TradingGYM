@@ -77,7 +77,7 @@ def _ident(v: object, label: str) -> str:
 
 
 def _epoch(v: object, label: str) -> int:
-    if type(v) is not int or not 0 <= v <= 2**63 - 1:
+    if type(v) is not int or not 0 <= v <= 2**63 - 1:  # noqa: E721
         raise ValueError(f"{label} timestamp must be a positive integer")
     return v
 
@@ -133,9 +133,9 @@ def reconcile_peer_execution(
     _ident(order.order_id, "order")
     _ident(order.client_order_id, "client order")
     _ident(order.instrument_id, "instrument")
-    if (
-        order.side not in ("buy", "sell")
-        or order.order_type not in ("post_only", "ioc")
+    if order.side not in ("buy", "sell") or order.order_type not in (
+        "post_only",
+        "ioc",
     ):
         raise ValueError("unsupported side or order type")
     total = _number(order.quantity, "order quantity")
@@ -153,7 +153,7 @@ def reconcile_peer_execution(
         raise ValueError("readback order identity mismatch")
     if not start <= observed <= finish:
         raise ValueError("readback timestamp is outside observation window")
-    if type(broker.complete) is not bool or broker.complete is not True:
+    if type(broker.complete) is not bool or broker.complete is not True:  # noqa: E721
         raise ValueError("readback must be complete")
     if broker.scope != "isolated_order":
         raise ValueError("readback must be scoped to one isolated order")
@@ -191,7 +191,10 @@ def reconcile_peer_execution(
             duplicates += 1
             continue
         seen[entry.execution_id] = entry
-        if type(entry.sequence) is not int or entry.sequence != len(distinct) + 1:
+        if (
+            type(entry.sequence) is not int  # noqa: E721
+            or entry.sequence != len(distinct) + 1  # noqa: E721
+        ):
             raise ValueError("fill sequence gap, duplicate sequence or reversal")
         timestamp = _epoch(entry.observed_at_unix, "fill")
         if not last_timestamp <= timestamp <= observed:

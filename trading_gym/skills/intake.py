@@ -10,8 +10,13 @@ import stat
 
 _MAX_PACKAGE_BYTES = 16_777_216
 _MARKERS = (
-    "subprocess", "os.system", "requests.", "http://", "https://",
-    "private_key", "mnemonic",
+    "subprocess",
+    "os.system",
+    "requests.",
+    "http://",
+    "https://",
+    "private_key",
+    "mnemonic",
 )
 _SECRET = re.compile(
     r"-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----"

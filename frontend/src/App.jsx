@@ -19,6 +19,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
 import HelpModal, { useHelp } from './components/HelpModal';
 import { CardSkeleton } from './components/LoadingSkeleton';
+import SessionGate from './components/SessionGate';
+import FirstRunJourney from './components/FirstRunJourney';
 // Panels are code-split: only the active tab's chunk is downloaded.
 const ConfigPanel = lazy(() => import('./components/ConfigPanel'));
 const TrainingPanel = lazy(() => import('./components/TrainingPanel'));
@@ -195,6 +197,7 @@ const navigationTabs = workspaceTabs.flatMap((group) => group.tabs);
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('institutional');
+  const [showJourney, setShowJourney] = useState(true);
   const { openHelp, HelpModal: HelpModalComponent } = useHelp();
 
   const currentTab = tabs.find(tab => tab.key === activeTab);
@@ -224,6 +227,10 @@ function AppContent() {
 
   return (
     <>
+      <a className="skip-link" href="#main-content" onClick={(event) => {
+        event.preventDefault();
+        document.getElementById('main-content')?.focus();
+      }}>Skip to main content</a>
       <div className="app">
         {/* Sidebar Navigation */}
         <aside className="sidebar" role="navigation" aria-label="Main navigation">
@@ -232,7 +239,7 @@ function AppContent() {
             <div className="app-subtitle">Professional RL Trading Platform</div>
           </div>
 
-          <nav className="sidebar-nav" role="tablist" aria-label="Panel navigation">
+          <nav className="sidebar-nav" role="tablist" aria-orientation="vertical" aria-label="Panel navigation">
             {workspaceTabs.map((workspace) => (
               <div
                 key={workspace.key}
@@ -264,6 +271,10 @@ function AppContent() {
           </nav>
 
           <div className="sidebar-footer">
+            <button className="btn" onClick={() => {
+              setShowJourney(true);
+              document.getElementById('main-content')?.focus();
+            }}>First-run checklist</button>
             <div className="footer-info">
               <p className="footer-version">v{appPackage.version}</p>
               <p className="footer-copyright">© 2026 Trading Gym</p>
@@ -275,7 +286,7 @@ function AppContent() {
         </aside>
 
         {/* Main Content Area */}
-        <main className="main-content" role="main">
+        <main id="main-content" className="main-content" role="main" tabIndex={-1}>
           <header className="content-header">
             <div>
               <h2>{currentTab?.label || 'Trading Gym'}</h2>
@@ -296,6 +307,12 @@ function AppContent() {
               </button>
             )}
           </header>
+
+          {showJourney && <FirstRunJourney onClose={() => setShowJourney(false)} onNavigate={(key) => {
+            setActiveTab(key);
+            setShowJourney(false);
+            document.getElementById(`tab-${key}`)?.focus();
+          }} />}
 
           <div
             className="content-wrapper"
@@ -327,7 +344,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <ErrorBoundary>
-          <AppContent />
+          <SessionGate><AppContent /></SessionGate>
         </ErrorBoundary>
       </ToastProvider>
     </QueryClientProvider>

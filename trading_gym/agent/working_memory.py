@@ -53,7 +53,7 @@ class WorkingMemory:
     _next_cycle: int = 1
 
     def __post_init__(self) -> None:
-        if type(self.max_cycles) is not int or self.max_cycles < 1:
+        if type(self.max_cycles) is not int or self.max_cycles < 1:  # noqa: E721
             raise ValueError("max_cycles must be a positive integer")
 
     def next_cycle_id(self) -> str:
@@ -111,6 +111,12 @@ class WorkingMemory:
         if not math.isfinite(amount):
             raise ValueError("pnl_quote must be finite")
         record = self._cycles[index]
+        if not isinstance(outcome, str) or not outcome.strip():
+            raise ValueError("outcome must be a non-empty label")
+        if record.outcome is not None or record.pnl_quote is not None:
+            if record.outcome == outcome and record.pnl_quote == amount:
+                return record
+            raise PermissionError("settled cycle outcome is immutable")
         settled = replace(record, outcome=outcome, pnl_quote=amount)
         self._cycles[index] = settled
         return settled
@@ -241,7 +247,7 @@ class CautionPolicy:
     def __post_init__(self) -> None:
         for name in ("window", "loss_streak_elevated", "loss_streak_high"):
             value = getattr(self, name)
-            if type(value) is not int or value < 1:
+            if type(value) is not int or value < 1:  # noqa: E721
                 raise ValueError(f"{name} must be a positive integer")
         if not 1 <= self.loss_streak_elevated < self.loss_streak_high:
             raise ValueError("loss streak thresholds must satisfy 1 <= elevated < high")

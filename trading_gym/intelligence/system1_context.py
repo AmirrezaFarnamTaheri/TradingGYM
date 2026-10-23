@@ -67,7 +67,11 @@ def _memory_digest(source: Any, tags: tuple[str, ...]) -> dict[str, Any]:
             if not isinstance(record, Mapping):
                 raise ValueError("invalid memory entries")
             lesson, support = record.get("lesson"), record.get("support")
-            if not isinstance(lesson, str) or type(support) is not int or support < 1:
+            if (
+                not isinstance(lesson, str)
+                or type(support) is not int  # noqa: E721
+                or support < 1  # noqa: E721
+            ):
                 raise ValueError("invalid memory evidence")
             digest[name].append({"lesson": lesson[:160], "support": support})
     return digest
@@ -104,17 +108,20 @@ def build_system1_packet(
     Historical/offline evaluation never sees experience written later
     (hindsight). Persistent retrieval runs only with proven live freshness.
     """
-    if type(max_chars) is not int or not 512 <= max_chars <= 16_000:
+    if type(max_chars) is not int or not 512 <= max_chars <= 16_000:  # noqa: E721
         raise ValueError("invalid system1 context budget")
     symbol = str(context.symbol)
     if not symbol or len(symbol) > 48 or any(c.isspace() for c in symbol):
         raise ValueError("invalid market symbol")
     live = getattr(context, "is_live", False)
-    if type(live) is not bool:
+    if type(live) is not bool:  # noqa: E721
         raise ValueError("invalid live context flag")
     sampling = getattr(context, "return_basis", "unspecified")
     if sampling not in {
-        "unspecified", "historical_bars", "completed_bars", "mark_updates"
+        "unspecified",
+        "historical_bars",
+        "completed_bars",
+        "mark_updates",
     }:
         raise ValueError("invalid return cadence")
     market = {
@@ -129,9 +136,7 @@ def build_system1_packet(
             if context.prev_close is not None
             else None
         ),
-        "recent_returns": [
-            _finite(v) for v in context.recent_returns[:_MAX_RETURNS]
-        ],
+        "recent_returns": [_finite(v) for v in context.recent_returns[:_MAX_RETURNS]],
     }
     # The fast model should not have to infer volatility or momentum from
     # unlabelled samples. Derive these from the same bounded, explicitly
@@ -143,8 +148,7 @@ def build_system1_packet(
         mean = math.fsum(returns) / len(returns) if returns else 0.0
         volatility = (
             math.sqrt(
-                math.fsum((value - mean) ** 2 for value in returns)
-                / len(returns)
+                math.fsum((value - mean) ** 2 for value in returns) / len(returns)
             )
             if returns
             else 0.0
@@ -179,9 +183,7 @@ def build_system1_packet(
         "equity": _finite(context.equity, positive=True),
         "position_units": _finite(context.position_units),
         "margin_level": (
-            _finite(context.margin_level)
-            if context.margin_level is not None
-            else None
+            _finite(context.margin_level) if context.margin_level is not None else None
         ),
         "drawdown": (
             _finite(context.drawdown_from_peak)
@@ -204,16 +206,14 @@ def build_system1_packet(
     evidence = getattr(context, "market_evidence", {}) or {}
     if not isinstance(evidence, Mapping):
         raise ValueError("invalid market provenance")
-    freshness: dict[str, Any] = {
-        "status": "historical" if not live else "unverified"
-    }
+    freshness: dict[str, Any] = {"status": "historical" if not live else "unverified"}
     if live and evidence:
         timestamp = evidence.get("bar_open_unix")
         interval = evidence.get("bar_seconds")
         digest = evidence.get("source_sha256")
         if (
-            type(timestamp) is not int
-            or type(interval) is not int
+            type(timestamp) is not int  # noqa: E721
+            or type(interval) is not int  # noqa: E721
             or interval < 60
             or interval > 604800
             or not isinstance(digest, str)
@@ -288,9 +288,7 @@ def build_system1_packet(
     if len(result) > max_chars:
         # A compact packet must not claim sample statistics from observations
         # that were omitted from the transmitted context.
-        packet["market"]["recent_returns"] = (
-            packet["market"]["recent_returns"][:4]
-        )
+        packet["market"]["recent_returns"] = packet["market"]["recent_returns"][:4]
         retained = packet["market"]["recent_returns"]
         retained_mean = math.fsum(retained) / len(retained) if retained else 0.0
         retained_volatility = (
@@ -298,7 +296,8 @@ def build_system1_packet(
                 math.fsum((value - retained_mean) ** 2 for value in retained)
                 / len(retained)
             )
-            if retained else 0.0
+            if retained
+            else 0.0
         )
         retained_cumulative = math.prod(1.0 + value for value in retained) - 1.0
         if not all(

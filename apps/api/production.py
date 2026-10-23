@@ -118,9 +118,7 @@ def create_production_router(verify_api_key: Callable[..., Any]) -> APIRouter:
         except ActorIdentityConfigurationError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         if operator_identity.actor == approver_identity.actor:
-            raise HTTPException(
-                status_code=403, detail="independent_approval_required"
-            )
+            raise HTTPException(status_code=403, detail="independent_approval_required")
 
         try:
             state = emergency.transition(

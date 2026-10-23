@@ -18,10 +18,16 @@ DAY = 86400
 
 def fact(**changes):
     values = dict(
-        instrument_id="NASDAQ:AAPL", field="net_income", period_type="annual",
-        period_start_unix=100 * DAY, period_end_unix=465 * DAY,
-        filed_at_unix=490 * DAY, observed_at_unix=493 * DAY,
-        value=Decimal("125.5"), unit="USD", source_sha256=SHA_A,
+        instrument_id="NASDAQ:AAPL",
+        field="net_income",
+        period_type="annual",
+        period_start_unix=100 * DAY,
+        period_end_unix=465 * DAY,
+        filed_at_unix=490 * DAY,
+        observed_at_unix=493 * DAY,
+        value=Decimal("125.5"),
+        unit="USD",
+        source_sha256=SHA_A,
     )
     values.update(changes)
     return FundamentalFact(**values)
@@ -29,8 +35,10 @@ def fact(**changes):
 
 def query(**changes):
     values = dict(
-        instrument_id="NASDAQ:AAPL", field="net_income",
-        period_type="annual", unit="USD",
+        instrument_id="NASDAQ:AAPL",
+        field="net_income",
+        period_type="annual",
+        unit="USD",
     )
     values.update(changes)
     return FundamentalQuery(**values)
@@ -68,8 +76,10 @@ def test_filing_is_available_only_after_actual_observation():
 def test_later_restatement_only_selected_after_it_is_observed():
     original = fact()
     restated = fact(
-        filed_at_unix=520 * DAY, observed_at_unix=525 * DAY,
-        value=Decimal("130"), source_sha256=SHA_B,
+        filed_at_unix=520 * DAY,
+        observed_at_unix=525 * DAY,
+        value=Decimal("130"),
+        source_sha256=SHA_B,
     )
     assert assess([restated, original], as_of=510 * DAY)["facts"][0]["value"] == "125.5"
     assert assess([original, restated], as_of=520 * DAY)["facts"][0]["value"] == "125.5"
@@ -80,13 +90,17 @@ def test_later_restatement_only_selected_after_it_is_observed():
 
 def test_later_fiscal_period_outranks_older_period_restatement():
     newer = fact(
-        period_start_unix=465 * DAY, period_end_unix=830 * DAY,
-        filed_at_unix=850 * DAY, observed_at_unix=851 * DAY,
+        period_start_unix=465 * DAY,
+        period_end_unix=830 * DAY,
+        filed_at_unix=850 * DAY,
+        observed_at_unix=851 * DAY,
         value=Decimal("200"),
     )
     older_restatement = fact(
-        filed_at_unix=860 * DAY, observed_at_unix=861 * DAY,
-        value=Decimal("190"), source_sha256=SHA_B,
+        filed_at_unix=860 * DAY,
+        observed_at_unix=861 * DAY,
+        value=Decimal("190"),
+        source_sha256=SHA_B,
     )
     report = assess([newer, older_restatement], as_of=900 * DAY)
     assert report["facts"][0]["period_end_unix"] == 830 * DAY
@@ -107,7 +121,9 @@ def test_reporting_units_and_fiscal_frames_are_not_silently_converted(
 
 def test_stale_filing_is_not_forward_filled_forever():
     report = assess(
-        [fact()], as_of=900 * DAY, max_period_age_seconds=400 * DAY,
+        [fact()],
+        as_of=900 * DAY,
+        max_period_age_seconds=400 * DAY,
     )
     assert report["facts"][0]["value"] is None
     assert "fundamental_stale:NASDAQ:AAPL:net_income:annual" in report["blockers"]
@@ -116,10 +132,12 @@ def test_stale_filing_is_not_forward_filled_forever():
 def test_same_filing_version_with_conflicting_value_is_ambiguous():
     original = fact()
     with pytest.raises(ValueError, match="conflicting"):
-        assess([
-            original,
-            replace(original, value=Decimal("900"), source_sha256=SHA_B),
-        ])
+        assess(
+            [
+                original,
+                replace(original, value=Decimal("900"), source_sha256=SHA_B),
+            ]
+        )
 
 
 def test_reordering_inputs_does_not_change_report_or_receipt():
@@ -137,10 +155,13 @@ def test_reordering_inputs_does_not_change_report_or_receipt():
 @pytest.mark.parametrize(
     "change",
     [
-        {"value": Decimal("NaN")}, {"value": Decimal("Infinity")},
-        {"value": True}, {"value": 1.0},
+        {"value": Decimal("NaN")},
+        {"value": Decimal("Infinity")},
+        {"value": True},
+        {"value": 1.0},
         {"source_sha256": "NOT-A-HASH"},
-        {"field": "net income"}, {"unit": "usd"},
+        {"field": "net income"},
+        {"unit": "usd"},
         {"period_end_unix": True},
         {"filed_at_unix": 100 * DAY},
         {"observed_at_unix": 489 * DAY},
@@ -154,9 +175,12 @@ def test_malformed_filing_evidence_fails_closed(change):
 def test_future_facts_are_allowed_in_dataset_but_not_historical_results():
     original = fact()
     future = fact(
-        period_start_unix=465 * DAY, period_end_unix=830 * DAY,
-        filed_at_unix=851 * DAY, observed_at_unix=852 * DAY,
-        value=Decimal("9000"), source_sha256=SHA_B,
+        period_start_unix=465 * DAY,
+        period_end_unix=830 * DAY,
+        filed_at_unix=851 * DAY,
+        observed_at_unix=852 * DAY,
+        value=Decimal("9000"),
+        source_sha256=SHA_B,
     )
     early = assess([original], as_of=510 * DAY)
     assert assess([original, future], as_of=510 * DAY) == early
@@ -179,8 +203,10 @@ def test_invalid_or_oversized_input_denied():
 
 def test_quarterly_flow_kept_independent_from_annual():
     quarterly = fact(
-        period_type="quarter", period_start_unix=400 * DAY,
-        period_end_unix=465 * DAY, value=Decimal("20"),
+        period_type="quarter",
+        period_start_unix=400 * DAY,
+        period_end_unix=465 * DAY,
+        value=Decimal("20"),
     )
     report = assess([fact(), quarterly], queries=[query(period_type="quarter")])
     assert report["facts"][0]["value"] == "20"
@@ -196,22 +222,27 @@ def test_quarterly_flow_kept_independent_from_annual():
 )
 def test_fiscal_frame_mismatch_cannot_mix_ytd_quarter_and_annual(kind, start, end):
     with pytest.raises(ValueError, match="frame|duration"):
-        assess([
-            fact(
-                period_type=kind,
-                period_start_unix=start,
-                period_end_unix=end,
-            )
-        ])
+        assess(
+            [
+                fact(
+                    period_type=kind,
+                    period_start_unix=start,
+                    period_end_unix=end,
+                )
+            ]
+        )
 
 
 def test_replay_never_uses_next_years_filing():
     new = fact(
-        period_start_unix=465 * DAY, period_end_unix=830 * DAY,
-        filed_at_unix=850 * DAY, observed_at_unix=853 * DAY,
+        period_start_unix=465 * DAY,
+        period_end_unix=830 * DAY,
+        filed_at_unix=850 * DAY,
+        observed_at_unix=853 * DAY,
         value=Decimal("200"),
     )
     assert assess([fact(), new], as_of=520 * DAY)["facts"][0]["value"] == "125.5"
+
 
 def test_decimal_reporting_values_are_exact_independent_of_current_precision():
     from decimal import localcontext
@@ -220,9 +251,7 @@ def test_decimal_reporting_values_are_exact_independent_of_current_precision():
     with localcontext() as context:
         context.prec = 10
         report = assess([fact(value=value)])
-    assert report["facts"][0]["value"] == (
-        "12345678901234567890123456.7890123456789"
-    )
+    assert report["facts"][0]["value"] == ("12345678901234567890123456.7890123456789")
 
 
 @pytest.mark.parametrize("value", [Decimal("1e-9999"), Decimal("0e-99999")])

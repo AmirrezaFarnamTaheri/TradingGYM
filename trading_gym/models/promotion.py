@@ -31,9 +31,9 @@ def _principal(value: str) -> str:
 
 def promote(record, *, expected_revision, actor, approver, evidence_sha256):
     if (
-        type(expected_revision) is not int
+        type(expected_revision) is not int  # noqa: E721
         or expected_revision < 0
-        or type(record.revision) is not int
+        or type(record.revision) is not int  # noqa: E721
     ):
         raise ValueError("invalid promotion revision")
     if record.revision != expected_revision:
@@ -42,9 +42,8 @@ def promote(record, *, expected_revision, actor, approver, evidence_sha256):
     reviewer = _principal(approver)
     if identity == reviewer:
         raise PermissionError("independent_approval_required")
-    if (
-        not isinstance(evidence_sha256, str)
-        or not _EVIDENCE_HASH.fullmatch(evidence_sha256)
+    if not isinstance(evidence_sha256, str) or not _EVIDENCE_HASH.fullmatch(
+        evidence_sha256
     ):
         raise ValueError("invalid evidence hash")
     if record.state != "candidate":

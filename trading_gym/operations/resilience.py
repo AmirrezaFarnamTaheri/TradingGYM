@@ -108,6 +108,8 @@ class RestorePlan(BaseModel):
     snapshot_id: str
     snapshot_valid: bool
     mutation_performed: bool = False
+    validation_scope: Literal["byte_integrity_only"] = "byte_integrity_only"
+    application_recovery_qualified: Literal[False] = False
     entries: list[RestorePlanEntry]
     creates: int
     replacements: int
@@ -125,6 +127,9 @@ class RestoreDrillReport(BaseModel):
     failures: list[str]
     source_mutation_performed: bool = False
     restore_mutation_performed: bool = False
+    validation_scope: Literal["byte_integrity_only"] = "byte_integrity_only"
+    application_recovery_qualified: Literal[False] = False
+    writer_quiescence_verified: Literal[False] = False
 
 
 class SnapshotConflict(RuntimeError):
@@ -376,6 +381,11 @@ class SnapshotService:
         valid = manifest_valid and not failures and (hmac_valid is not False)
         return {
             "valid": valid,
+            # Schema v1 never records an application-wide write barrier.
+            # This lock serializes snapshot operations, not other stores.
+            "validation_scope": "byte_integrity_only",
+            "writer_quiescence_verified": False,
+            "application_recovery_qualified": False,
             "snapshot_id": snapshot_id,
             "manifest_sha256": manifest.manifest_sha256,
             "manifest_valid": manifest_valid,
@@ -384,6 +394,22 @@ class SnapshotService:
             "total_bytes": manifest.total_bytes,
             "failures": failures,
         }
+
+    def require_application_recovery(self, snapshot_id: str) -> None:
+        """Fail closed where a consumer requires an application recovery point.
+
+        A successful byte drill cannot satisfy this gate. A future supported
+        protocol must prove every writer stopped, preserve cross-store and
+        audit-anchor relationships, then pass isolated startup/reconciliation.
+        No caller-supplied assertion can upgrade a v1 snapshot.
+        """
+        verification = self.verify(snapshot_id)
+        if not verification["valid"]:
+            raise SnapshotConflict("snapshot byte verification failed")
+        raise SnapshotConflict(
+            "snapshot schema v1 is not application-recovery qualified: "
+            "writer quiescence and isolated startup/reconciliation are unverified"
+        )
 
     def plan_restore(self, snapshot_id: str) -> RestorePlan:
         verification = self.verify(snapshot_id)

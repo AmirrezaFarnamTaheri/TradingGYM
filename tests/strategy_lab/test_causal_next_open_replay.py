@@ -58,8 +58,10 @@ def test_last_bar_signal_is_not_filled_without_next_open():
 
 def test_two_sided_fees_reduce_roundtrip_equity():
     bars = _frame(
-        [100, 100, 110, 110], [100, 110, 110, 110],
-        entries=(0,), exits=(1,),
+        [100, 100, 110, 110],
+        [100, 110, 110, 110],
+        entries=(0,),
+        exits=(1,),
     )
     free = _replay(bars, allocation_fraction=0.5, fee_bps=0)
     charged = _replay(bars, allocation_fraction=0.5, fee_bps=100)
@@ -113,8 +115,7 @@ def test_hashes_change_when_underlying_market_evidence_changes():
 
 def test_final_bar_exit_remains_unfilled():
     result = _replay(
-        _frame([100, 100, 100], [100, 100, 100],
-               entries=(0,), exits=(2,)),
+        _frame([100, 100, 100], [100, 100, 100], entries=(0,), exits=(2,)),
         fee_bps=10,
     )
     assert result.entry_count == 1 and result.exit_count == 0

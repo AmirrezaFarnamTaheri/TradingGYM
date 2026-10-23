@@ -91,7 +91,9 @@ def tail_risk(returns, *, confidence=0.99, method="gaussian", provenance="local"
         phi = math.exp(-0.5 * z * z) / math.sqrt(2 * math.pi)
         expected_shortfall = max(var, 0.0, -(mu - sigma * phi / (1 - confidence)))
         assumptions = [
-            "iid approximation", "Gaussian distribution", "historical moments"
+            "iid approximation",
+            "Gaussian distribution",
+            "historical moments",
         ]
         warnings.append("gaussian_normality_unverified")
     else:
@@ -102,7 +104,8 @@ def tail_risk(returns, *, confidence=0.99, method="gaussian", provenance="local"
             skewness = mean(v**3 for v in centred)
             excess_kurtosis = mean(v**4 for v in centred) - 3.0
             correction = (
-                z + (z * z - 1.0) * skewness / 6.0
+                z
+                + (z * z - 1.0) * skewness / 6.0
                 + (z**3 - 3.0 * z) * excess_kurtosis / 24.0
                 - (2.0 * z**3 - 5.0 * z) * skewness**2 / 36.0
             )
@@ -112,7 +115,9 @@ def tail_risk(returns, *, confidence=0.99, method="gaussian", provenance="local"
         var = max(0.0, -quantile)
         expected_shortfall = None
         assumptions = [
-            "iid approximation", "Cornish-Fisher moment expansion", "historical moments"
+            "iid approximation",
+            "Cornish-Fisher moment expansion",
+            "historical moments",
         ]
         warnings.append("cornish_fisher_quantile_only")
         if len(xs) < 30:

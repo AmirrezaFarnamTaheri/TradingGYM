@@ -15,9 +15,7 @@ def test_malformed_observations_cannot_claim_zero_risk(bad):
         tail_risk([0.03, bad, -0.01])
 
 
-@pytest.mark.parametrize(
-    "bad", [True, "0.99", float("nan"), float("inf"), 1.0, 0.5]
-)
+@pytest.mark.parametrize("bad", [True, "0.99", float("nan"), float("inf"), 1.0, 0.5])
 def test_confidence_is_strict_finite_probability(bad):
     with pytest.raises(ValueError, match="confidence"):
         tail_risk([-0.01, 0.01], confidence=bad)
@@ -31,9 +29,7 @@ def test_empirical_var_es_use_partial_tail_observation_without_implicit_fill():
         provenance="sealed-fixture",
     )
     assert result["var"] == pytest.approx(0.02)
-    assert result["expected_shortfall"] == pytest.approx(
-        (0.04 + 0.5 * 0.02) / 1.5
-    )
+    assert result["expected_shortfall"] == pytest.approx((0.04 + 0.5 * 0.02) / 1.5)
     assert result["historical_expected_shortfall"] == pytest.approx(
         result["expected_shortfall"]
     )

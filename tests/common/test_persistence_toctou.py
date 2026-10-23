@@ -114,6 +114,7 @@ def test_dangling_symlink_is_not_treated_as_missing_state(
     assert not missing_target.exists()
     assert state.is_symlink()
 
+
 @pytest.mark.parametrize("operation", ["read", "append", "replace"])
 def test_state_file_rejects_nonregular_fifo_before_open(
     tmp_path: Path, monkeypatch, operation: str

@@ -7,8 +7,8 @@ ratio still exceeds a benchmark once estimation error (and, for DSR, selection
 bias across ``n_trials`` competing configurations) is accounted for.  Nothing
 here gates execution authority.
 
-All functions are total, parameterised (no exchange-specific constants) and
-pure.  Skew/kurtosis follow the *non-excess* convention internally (normal
+Functions are parameterised (no exchange-specific constants), pure, and
+reject invalid inputs.  Skew/kurtosis follow the *non-excess* convention internally (normal
 distribution ⇒ kurtosis 3); helpers accept Fisher excess kurtosis and convert.
 """
 
@@ -48,9 +48,13 @@ def sharpe_std_error_factor(
     observed_sharpe: float,
     *,
     skew: float = 0.0,
-    kurtosis: float = 3.0,
+    kurtosis: float = 0.0,
 ) -> float:
-    """Return sqrt(1 - skew·SR + ((kurt-1)/4)·SR²) with non-excess kurtosis.
+    """Return the Sharpe standard-error factor from Fisher excess kurtosis.
+
+    ``kurtosis=0`` represents a normal distribution. Internally the formula
+    uses Pearson kurtosis (Fisher excess plus three). All Sharpe inputs must
+    use the same per-observation return frequency as ``n_obs``.
 
     Raises when the factor is not a positive real number, which happens for
     degenerate return distributions whose higher moments invalidate the
@@ -74,11 +78,13 @@ def probabilistic_sharpe_ratio(
     benchmark_sharpe: float = 0.0,
     n_obs: int,
     skew: float = 0.0,
-    kurtosis: float = 3.0,
+    kurtosis: float = 0.0,
 ) -> float:
     """PSR(SR*) = Φ((SR_obs − SR*)·sqrt(n−1) / SE-factor).
 
-    ``kurtosis`` may be supplied as Fisher excess (normal = 0).
+    ``kurtosis`` is Fisher excess (normal = 0), matching
+    ``scipy.stats.kurtosis(..., fisher=True)``. Do not pass Pearson kurtosis.
+    The Sharpe inputs are per-observation, not independently annualized.
     """
     sr, skew_f, kurt_ne = _validate_inputs(
         observed_sharpe, n_obs=n_obs, skew=skew, kurtosis=kurtosis
@@ -128,7 +134,7 @@ def deflated_sharpe_ratio(
     n_trials: int,
     n_obs: int,
     skew: float = 0.0,
-    kurtosis: float = 3.0,
+    kurtosis: float = 0.0,
     trial_sharpe_variance: float | None = None,
     trial_sharpe_std: float | None = None,
 ) -> float:
@@ -154,7 +160,7 @@ def min_track_record_length(
     *,
     benchmark_sharpe: float = 0.0,
     skew: float = 0.0,
-    kurtosis: float = 3.0,
+    kurtosis: float = 0.0,
     confidence: float = 0.95,
 ) -> float:
     """Shortest observation count for which PSR would reach ``confidence``."""
@@ -187,7 +193,7 @@ def full_statistical_report(
     *,
     n_obs: int,
     skew: float = 0.0,
-    kurtosis: float = 3.0,
+    kurtosis: float = 0.0,
     benchmark_sharpe: float = 0.0,
     psr_threshold: float = 0.90,
     dsr_threshold: float | None = None,
@@ -201,6 +207,12 @@ def full_statistical_report(
     DSR is computed only when ``n_trials`` plus a trial spread are provided;
     ``dsr_pass`` then compares against ``dsr_threshold`` (default 0.85).
     """
+    if not np.isfinite(psr_threshold) or not 0.0 <= psr_threshold <= 1.0:
+        raise ValueError("psr_threshold must be a finite probability in [0, 1]")
+    if dsr_threshold is not None and (
+        not np.isfinite(dsr_threshold) or not 0.0 <= dsr_threshold <= 1.0
+    ):
+        raise ValueError("dsr_threshold must be a finite probability in [0, 1]")
     psr = probabilistic_sharpe_ratio(
         observed_sharpe,
         benchmark_sharpe=benchmark_sharpe,

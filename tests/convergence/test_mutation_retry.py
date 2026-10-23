@@ -597,7 +597,6 @@ def test_outbox_rejects_unterminated_or_oversize_journal_lines(tmp_path):
         scan_outbox(MutationOutbox(path=path))
 
 
-
 def test_atomic_claim_prevents_concurrent_live_intents(tmp_path):
     """Independent workers cannot both clear the same outbox preflight."""
     path = tmp_path / "shared_outbox.jsonl"
@@ -617,10 +616,13 @@ def test_atomic_claim_prevents_concurrent_live_intents(tmp_path):
     with ThreadPoolExecutor(max_workers=2) as workers:
         results = list(workers.map(claim, range(2)))
     assert sum(value.startswith("accepted:") for value in results) == 1
-    assert sum(
-        value == "denied:unresolved_mutations_require_reconciliation"
-        for value in results
-    ) == 1
+    assert (
+        sum(
+            value == "denied:unresolved_mutations_require_reconciliation"
+            for value in results
+        )
+        == 1
+    )
 
     # A proven terminal failure frees the slot, without resurrecting the
     # original idempotency key or allowing an unverified pending request.
@@ -647,9 +649,10 @@ def test_atomic_claim_prevents_concurrent_live_intents(tmp_path):
         operation="spot.market",
         payload_sha256="new-hash",
     )
-    assert MutationOutbox(path).latest_by_key()["next-logical-operation"][
-        "status"
-    ] == "pending"
+    assert (
+        MutationOutbox(path).latest_by_key()["next-logical-operation"]["status"]
+        == "pending"
+    )
 
 
 def test_atomic_claim_rejects_corrupt_prior_outbox(tmp_path):
@@ -693,15 +696,14 @@ def test_mutation_retry_max_delay_must_be_finite_and_positive(invalid):
     with pytest.raises(ValueError):
         MutationRetryPolicy(max_delay_s=invalid)
 
+
 class _MaximumRandom:
     def random(self):
         return 1.0
 
 
 def test_retry_delay_never_exceeds_absolute_maximum():
-    policy = MutationRetryPolicy(
-        base_delay_s=8, max_delay_s=8, jitter_fraction=0.25
-    )
+    policy = MutationRetryPolicy(base_delay_s=8, max_delay_s=8, jitter_fraction=0.25)
     assert delay_for_attempt(policy, 1, rng=_MaximumRandom()) <= 8
 
 
@@ -711,9 +713,8 @@ def test_retry_attempt_number_must_be_positive_integer(invalid):
     with pytest.raises(ValueError):
         delay_for_attempt(policy, invalid)
 
-def test_outbox_rejects_fifo_before_read_or_journal_append(
-    tmp_path, monkeypatch
-):
+
+def test_outbox_rejects_fifo_before_read_or_journal_append(tmp_path, monkeypatch):
     import os
     from pathlib import Path
 
@@ -739,6 +740,7 @@ def test_outbox_rejects_fifo_before_read_or_journal_append(
             operation="spot.market",
             payload_sha256="bb" * 32,
         )
+
 
 def test_outbox_outcome_requires_matching_pending_before_append(tmp_path):
     journal = MutationOutbox(tmp_path / "mutations.jsonl")
@@ -811,14 +813,15 @@ def test_outbox_conflicting_outcomes_are_serialized(tmp_path):
             return "denied"
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        futures = [pool.submit(settle, "committed"),
-                   pool.submit(settle, "terminal")]
+        futures = [pool.submit(settle, "committed"), pool.submit(settle, "terminal")]
         barrier.wait()
         verdicts = [f.result(timeout=4) for f in futures]
     assert sorted(verdicts) == ["accepted", "denied"]
     assert journal.latest_by_key()[kwargs["idempotency_key"]]["status"] in {
-        "terminal", "committed"
+        "terminal",
+        "committed",
     }
+
 
 def test_outbox_rejects_oversized_total_journal_without_reading(tmp_path, monkeypatch):
     from pathlib import Path

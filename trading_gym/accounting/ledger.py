@@ -374,7 +374,11 @@ class PortfolioLedger:
         return result
 
     def apply_events(
-        self, events: list[AccountingEvent], *, actor: str = "accounting-engine"
+        self,
+        events: list[AccountingEvent],
+        *,
+        actor: str = "accounting-engine",
+        expected_revision: int | None = None,
     ) -> list[AccountSnapshot]:
         """Apply a sequence of events to this account in one locked pass.
 
@@ -393,6 +397,8 @@ class PortfolioLedger:
             document = self._load()
             before = int(document["revision"])
             results: list[AccountSnapshot] = []
+            if expected_revision is not None and before != expected_revision:
+                raise AccountingConflict("account changed after execution sizing")
             for event in events:
                 self._append_event(document, event, actor=actor)
                 results.append(self._snapshot_from(document))
@@ -406,7 +412,11 @@ class PortfolioLedger:
         fees = {key: _decimal(value) for key, value in document["fees"].items()}
         positions = document["positions"]
 
-        if event.event_type is AccountingEventType.CASH_ADJUSTMENT:
+        if event.event_type is AccountingEventType.OBSERVATION:
+            # Durable clock/provenance only; an observation never creates a
+            # holding or changes cash, unlike an admitted fill or funding event.
+            pass
+        elif event.event_type is AccountingEventType.CASH_ADJUSTMENT:
             assert event.currency is not None and event.amount is not None
             cash[event.currency] = cash.get(event.currency, Decimal("0")) + event.amount
         elif event.event_type is AccountingEventType.FEE:
@@ -515,6 +525,17 @@ class PortfolioLedger:
         document["cash"] = {key: str(value) for key, value in sorted(cash.items())}
         document["fees"] = {key: str(value) for key, value in sorted(fees.items())}
         document["positions"] = positions
+
+    def event(self, event_id: str) -> AccountingEvent | None:
+        """Read one verified immutable event for idempotent command recovery."""
+        with self.lock:
+            document = self._load()
+            if event_id not in document["event_index"]:
+                return None
+            for record in document["events"]:
+                if record["event_id"] == event_id:
+                    return AccountingEvent.model_validate(record["payload"])
+        raise AccountingConflict("event index references a missing record")
 
     def snapshot(self) -> AccountSnapshot:
         with self.lock:

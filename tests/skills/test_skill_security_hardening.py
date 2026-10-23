@@ -68,10 +68,17 @@ def test_quarantine_reviewer_hash_uniqueness_and_defensive_copies():
     saved["capabilities"].append("shell")
     repository.list()["research_reader"]["capabilities"].append("wallet_sign")
     assert repository.list()["research_reader"]["capabilities"] == ["read"]
+    admitted = repository.list()
+    with pytest.raises(ValueError, match="invalid quarantined skill metadata"):
+        repository.admit("research_reader", original, reviewer="carol", preparer="dave")
     with pytest.raises(ValueError, match="duplicate"):
         repository.admit(
-            "research_reader", original, reviewer="carol", preparer="dave"
+            "research_reader",
+            {"sha256": "a" * 64, "capabilities": ["read"]},
+            reviewer="carol",
+            preparer="dave",
         )
+    assert repository.list() == admitted
 
 
 def test_intake_refuses_symlink_and_oversized_data(tmp_path):

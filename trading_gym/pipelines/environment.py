@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional, List
+from typing import TYPE_CHECKING, Callable, Dict, Optional, List
 import logging
 
 import numpy as np
@@ -9,9 +9,12 @@ from pathlib import Path
 
 from trading_gym.common.config import AppConfig
 from trading_gym.data.data_loader import load_symbol_timeframe
-from trading_gym.features.feature_assembler import FeatureAssembler
-from trading_gym.features.feature_fusion import fuse_features
-from trading_gym.rl.margin_trading_environment import MarginTradingEnv
+from trading_gym.features.feature_fusion import fuse_features, preserve_base_context
+from trading_gym.pipelines.model_bundle import FrozenNormalizer
+from trading_gym.common.timeframes import timeframe_seconds
+
+if TYPE_CHECKING:
+    from trading_gym.rl.margin_trading_environment import MarginTradingEnv
 
 logger = logging.getLogger(__name__)
 
@@ -51,17 +54,9 @@ def _compute_stats_from_features(
     features_df: pd.DataFrame, feature_cfg
 ) -> Dict[str, Dict[str, float]]:
     """Fallback computation of normalization stats when none are provided."""
-    numeric_cols = features_df.select_dtypes(include=[np.number])
-    method = feature_cfg.standardization.method.lower()
-    if method == "robust":
-        center = numeric_cols.median()
-        scale = numeric_cols.quantile(0.75) - numeric_cols.quantile(0.25)
-    else:
-        center = numeric_cols.mean()
-        scale = numeric_cols.std()
-
-    scale = scale.replace(0, 1.0)
-    return {"method": method, "center": center.to_dict(), "scale": scale.to_dict()}
+    return FrozenNormalizer.fit(
+        features_df, feature_cfg.standardization.method
+    ).to_stats()
 
 
 def load_environment_inputs(
@@ -71,145 +66,125 @@ def load_environment_inputs(
     start_at: pd.Timestamp | str | None = None,
     end_at: pd.Timestamp | str | None = None,
 ) -> Dict[str, np.ndarray | pd.DataFrame]:
-    """Load aligned environment inputs with optional half-open UTC bounds.
+    """Load complete closed-bar features under the shared replay/live recipe.
 
-    Features are calculated from the complete admitted history first so rolling
-    indicators retain their warm-up context. The final aligned base index is then
-    sliced to ``[start_at, end_at)`` across every feature and price tensor.
+    The optional half-open bounds apply to decision/availability timestamps.
+    Earlier raw history supplies causal rolling context but no fit statistics.
+    Missing declared partitions and internal stale gaps fail closed.
     """
-    assembler = FeatureAssembler(cfg.features)
-    feature_frames: Dict[str, pd.DataFrame] = {}
-    base_raw: Optional[pd.DataFrame] = None
-    base_tf_name: Optional[str] = None
+    from trading_gym.features.feature_assembler import FeatureAssembler
+    from trading_gym.pipelines.availability import (
+        FEATURE_RECIPE,
+        SETTLEMENT_DELAY_SECONDS,
+        active_timeframes,
+        align_available_frame,
+        available_index,
+        closed_feature_frame,
+        feature_history_rows,
+        utc_bar_frame,
+    )
 
-    for idx, tf_cfg in enumerate(cfg.features.timeframes):
-        candidates = _timeframe_candidates(
-            tf_cfg.name, tf_cfg.bar_minutes, timeframe if idx == 0 else None
+    assembler = FeatureAssembler(cfg.features)
+    timeframes = active_timeframes(cfg.features)
+    base_seconds = timeframes[0].bar_minutes * 60
+    if timeframe_seconds(timeframe) != base_seconds:
+        raise ValueError(
+            "requested timeframe differs from configured base feature duration"
         )
-        raw_data = None
-        errors: list[str] = []
-        for cand in candidates:
+    frames = {}
+    base_raw = None
+    for index, tf_cfg in enumerate(timeframes):
+        candidates = _timeframe_candidates(
+            tf_cfg.name, tf_cfg.bar_minutes, timeframe if index == 0 else None
+        )
+        raw = None
+        for candidate in candidates:
             try:
-                raw_data = load_symbol_timeframe(
-                    lake_dir=Path(cfg.data.lake_dir),
-                    symbol=cfg.env.symbol,
-                    timeframe=cand,
+                raw = load_symbol_timeframe(
+                    Path(cfg.data.lake_dir), cfg.env.symbol, candidate
                 )
                 break
-            except FileNotFoundError as exc:
-                errors.append(str(exc))
+            except FileNotFoundError:
                 continue
-
-        if raw_data is None:
-            detail = "; ".join(errors) if errors else "No data candidates found."
-            msg = (
-                f"Missing data for timeframe '{tf_cfg.name}' ({candidates}) - {detail}"
+        if raw is None:
+            raise FileNotFoundError(
+                f"missing required timeframe {tf_cfg.name!r}; tried {candidates}"
             )
-            if idx == 0:
-                raise FileNotFoundError(msg)
-            logger.warning(msg)
-            continue
-
-        # Add high/low if they don't exist for compatibility with older data
-        if "high" not in raw_data.columns:
-            raw_data["high"] = raw_data["close"]
-        if "low" not in raw_data.columns:
-            raw_data["low"] = raw_data["close"]
-
-        # Ensure 'mid' price is available for the environment
-        if "mid" not in raw_data.columns:
-            raw_data["mid"] = raw_data["close"]
-
-        feature_frames[tf_cfg.name] = assembler.process(raw_data, cfg.env.symbol)
-
-        if base_raw is None:
-            base_raw = raw_data
-            base_tf_name = tf_cfg.name
-
-    if base_raw is None or base_tf_name is None:
-        raise ValueError(
-            "No feature frames were generated; check feature configuration."
+        raw = utc_bar_frame(raw)
+        for column in ("open", "high", "low", "mid"):
+            if column not in raw:
+                raw[column] = raw["close"]
+        frames[tf_cfg.name] = closed_feature_frame(
+            raw, assembler, cfg.env.symbol, bar_seconds=tf_cfg.bar_minutes * 60
         )
+        if index == 0:
+            base_raw = raw.copy()
+            base_raw["bar_open_timestamp"] = raw.index
+            base_raw.index = available_index(raw.index, base_seconds)
 
-    base_index = feature_frames[base_tf_name].index
-    if not isinstance(base_index, pd.DatetimeIndex):
-        raise ValueError("base feature frame must use a DatetimeIndex")
-    if base_index.tz is None:
-        base_index = base_index.tz_localize("UTC")
-    else:
-        base_index = base_index.tz_convert("UTC")
+    decisions = frames[timeframes[0].name].index
+    # Warm-up rows before any required frame has a complete causal history are
+    # ineligible; internal missing publications are not silently zero-filled.
+    first_complete = max(frame.index[0] for frame in frames.values())
+    decisions = decisions[decisions >= first_complete]
 
-    def normalise_bound(value: pd.Timestamp | str | None) -> pd.Timestamp | None:
+    def bound(value):
         if value is None:
             return None
-        bound = pd.Timestamp(value)
-        if bound.tzinfo is None:
-            return bound.tz_localize("UTC")
-        return bound.tz_convert("UTC")
+        timestamp = pd.Timestamp(value)
+        return (
+            timestamp.tz_localize("UTC")
+            if timestamp.tzinfo is None
+            else timestamp.tz_convert("UTC")
+        )
 
-    start_bound = normalise_bound(start_at)
-    end_bound = normalise_bound(end_at)
-    if start_bound is not None and end_bound is not None and start_bound >= end_bound:
+    start, end = bound(start_at), bound(end_at)
+    if start is not None and end is not None and start >= end:
         raise ValueError("environment start_at must precede end_at")
-    selected = np.ones(len(base_index), dtype=bool)
-    if start_bound is not None:
-        selected &= base_index >= start_bound
-    if end_bound is not None:
-        selected &= base_index < end_bound
-    base_index = base_index[selected]
-    if base_index.empty:
-        raise ValueError("environment time window contains no admitted rows")
-
-    base_raw_aligned = base_raw.copy()
-    if not isinstance(base_raw_aligned.index, pd.DatetimeIndex):
-        raise ValueError("base market data must use a DatetimeIndex")
-    if base_raw_aligned.index.tz is None:
-        base_raw_aligned.index = base_raw_aligned.index.tz_localize("UTC")
-    else:
-        base_raw_aligned.index = base_raw_aligned.index.tz_convert("UTC")
-    base_raw_aligned = base_raw_aligned.reindex(base_index)
-    if base_raw_aligned[["mid", "high", "low"]].isna().any().any():
-        raise ValueError("base market data does not align with selected feature rows")
-
-    # Align and fuse multi-timeframe features if enabled
-    ordered_features: List[pd.DataFrame] = []
-    masks: List[np.ndarray] = []
-    for tf_cfg in cfg.features.timeframes:
-        frame = feature_frames.get(tf_cfg.name)
-        if frame is None:
-            continue
-
-        aligned = frame.reindex(base_index)
-        missing_mask = aligned.isna().any(axis=1).to_numpy()
-        ffill_limit = tf_cfg.roll_fill_cap if tf_cfg.roll_fill_cap > 0 else None
-        if ffill_limit is not None:
-            aligned = aligned.ffill(limit=ffill_limit)
-        aligned = aligned.fillna(0.0)
-        ordered_features.append(aligned)
-        masks.append(missing_mask)
-
-    if not ordered_features:
-        raise ValueError("No aligned feature frames available for fusion.")
-
-    if cfg.features.attention.enabled and len(ordered_features) > 1:
-        feature_tensor = np.stack(
-            [feat.to_numpy(dtype=np.float32) for feat in ordered_features]
+    if start is not None:
+        decisions = decisions[decisions >= start]
+    if end is not None:
+        decisions = decisions[decisions < end]
+    if decisions.empty:
+        raise ValueError("environment time window contains no complete admitted rows")
+    ordered = []
+    for tf_cfg in timeframes:
+        # A higher timeframe may carry until its next expected publication.
+        # roll_fill_cap grants that many EXTRA base bars during a source outage;
+        # zero therefore permits no extra outage fill, not no normal as-of reuse.
+        maximum_age = tf_cfg.bar_minutes * 60 + tf_cfg.roll_fill_cap * base_seconds
+        aligned = align_available_frame(
+            frames[tf_cfg.name], decisions, max_age_seconds=maximum_age
         )
-        mask_tensor = np.stack(masks)
-        fused = fuse_features(feature_tensor, mask_tensor)
-        fused_features = pd.DataFrame(
-            fused,
-            index=base_index,
-            columns=feature_frames[base_tf_name].columns,
-        )
+        if ordered and tuple(aligned.columns) != tuple(ordered[0].columns):
+            raise ValueError("feature schemas differ across timeframes")
+        ordered.append(aligned)
+    if len(ordered) > 1:
+        values = np.stack([frame.to_numpy(dtype=np.float32) for frame in ordered])
+        fused = fuse_features(values, np.zeros(values.shape[:2], dtype=bool))
+        fused = preserve_base_context(fused, values[0], ordered[0].columns)
+        features = pd.DataFrame(fused, index=decisions, columns=ordered[0].columns)
     else:
-        fused_features = ordered_features[0]
-
+        features = ordered[0]
+    market = base_raw.reindex(decisions)
+    if market[["mid", "high", "low"]].isna().any().any():
+        raise ValueError("base market data is not aligned to decision timestamps")
     return {
-        "features": fused_features,
-        "prices_mid": base_raw_aligned["mid"].to_numpy(),
-        "prices_high": base_raw_aligned["high"].to_numpy(),
-        "prices_low": base_raw_aligned["low"].to_numpy(),
+        "features": features,
+        "prices_mid": market["mid"].to_numpy(),
+        "prices_high": market["high"].to_numpy(),
+        "prices_low": market["low"].to_numpy(),
+        "timestamps": decisions.asi8.astype(np.float64) / 1e9,
+        "bar_open_timestamps": pd.DatetimeIndex(market["bar_open_timestamp"]),
+        "ohlc": market[["open", "high", "low", "close"]].copy(),
+        "feature_provenance": {
+            "recipe": FEATURE_RECIPE,
+            "bar_timestamp_semantics": "open",
+            "settlement_delay_seconds": SETTLEMENT_DELAY_SECONDS,
+            "history_rows": feature_history_rows(cfg.features),
+            "timeframes": [tf.name for tf in timeframes],
+            "missingness": "complete-asof-fail-stale",
+        },
     }
 
 
@@ -218,14 +193,16 @@ def create_environment(
     inputs: Dict[str, np.ndarray | pd.DataFrame],
     live_mode: bool = False,
     training_stats: Optional[Dict[str, float]] = None,
-) -> MarginTradingEnv:
+) -> "MarginTradingEnv":
     """Create a MarginTradingEnv instance from loaded data."""
-    stats = training_stats
-    if stats is None:
-        logger.warning(
-            "training_stats not provided; computing from supplied features for normalization."
+    if training_stats is None:
+        raise ValueError(
+            "frozen training_stats required; fit on designated training rows or load an admitted model bundle"
         )
-        stats = _compute_stats_from_features(inputs["features"], cfg.features)
+    normalizer = FrozenNormalizer.from_stats(inputs["features"].columns, training_stats)
+    normalizer.validate_features(inputs["features"])
+    stats = normalizer.to_stats()
+    from trading_gym.rl.margin_trading_environment import MarginTradingEnv
 
     env = MarginTradingEnv(
         features=inputs["features"],
@@ -237,22 +214,23 @@ def create_environment(
         initial_equity=cfg.training.initial_equity,
         live_mode=live_mode,
         training_stats=stats,
+        timestamps=inputs.get("timestamps"),
+        bar_seconds=cfg.features.timeframes[0].bar_minutes * 60,
+        max_steps=cfg.simulator.steps,
     )
-    # Pass simulator steps to the environment
-    env.max_steps = cfg.simulator.steps
     return env
 
 
 def build_env_factory(
     cfg: AppConfig, timeframe: str, training_stats: Optional[Dict[str, float]] = None
-) -> Callable[[], MarginTradingEnv]:
+) -> Callable[[], "MarginTradingEnv"]:
     """
     Build a factory function that creates a MarginTradingEnv instance on demand.
     This is useful for parallelization and for creating separate eval environments.
     """
     inputs = load_environment_inputs(cfg, timeframe)
 
-    def _factory() -> MarginTradingEnv:
+    def _factory() -> "MarginTradingEnv":
         return create_environment(cfg, inputs, training_stats=training_stats)
 
     return _factory

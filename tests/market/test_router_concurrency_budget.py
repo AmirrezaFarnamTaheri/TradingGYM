@@ -280,8 +280,7 @@ def test_market_coverage_accepts_valid_missing_bar_gaps_without_filling():
     req = request()
     sparse = frame(req, rows=3)
     sparse.index = pd.DatetimeIndex(
-        [req.start, req.start + timedelta(minutes=5),
-         req.start + timedelta(minutes=15)]
+        [req.start, req.start + timedelta(minutes=5), req.start + timedelta(minutes=15)]
     )
     accepted, warnings = DataProviderRouter._normalise(sparse, req)
     assert len(accepted) == 3

@@ -4,8 +4,8 @@ import DataPanel from '../DataPanel';
 import { renderWithClient, flushPromises, waitForRendered } from '../../test-utils.jsx';
 
 const { downloadSpy, featuresSpy } = vi.hoisted(() => ({
-  downloadSpy: vi.fn(() => Promise.resolve({ job_key: 'job-1', pid: 123 })),
-  featuresSpy: vi.fn(() => Promise.resolve({ pid: 456 })),
+  downloadSpy: vi.fn(() => Promise.resolve({ data: { job_key: 'job-1', pid: 123 } })),
+  featuresSpy: vi.fn(() => Promise.resolve({ data: { pid: 456 } })),
 }));
 
 vi.mock('../../api', () => ({

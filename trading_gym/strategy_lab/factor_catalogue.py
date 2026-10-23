@@ -34,10 +34,8 @@ def _digest(value: dict) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _validate(
-    items: Sequence[FactorCandidate], fanout: int
-) -> list[FactorCandidate]:
-    if type(fanout) is not int or not 2 <= fanout <= 255:
+def _validate(items: Sequence[FactorCandidate], fanout: int) -> list[FactorCandidate]:
+    if type(fanout) is not int or not 2 <= fanout <= 255:  # noqa: E721
         raise ValueError("max_fanout must be an integer between 2 and 255")
     if not isinstance(items, (list, tuple)) or not 1 <= len(items) <= _MAX_CANDIDATES:
         raise ValueError("candidate list must be nonempty and bounded")
@@ -60,9 +58,8 @@ def _validate(
             )
         ):
             raise ValueError("invalid factor family")
-        if (
-            not isinstance(item.source_sha256, str)
-            or not _SHA.fullmatch(item.source_sha256)
+        if not isinstance(item.source_sha256, str) or not _SHA.fullmatch(
+            item.source_sha256
         ):
             raise ValueError("invalid source SHA-256 reference")
     return sorted(items, key=lambda row: (row.factor_id.casefold(), row.factor_id))
@@ -78,9 +75,7 @@ def _new_branch(node_id: str, label: str) -> dict[str, Any]:
     }
 
 
-def _pack_children(
-    children: list[dict[str, Any]], fanout: int
-) -> list[dict[str, Any]]:
+def _pack_children(children: list[dict[str, Any]], fanout: int) -> list[dict[str, Any]]:
     """Partition siblings deterministically until each branch fits the cap."""
     current = children
     depth = 0
@@ -167,9 +162,7 @@ def _walk(catalogue: dict[str, Any], path: Sequence[str]) -> dict[str, Any]:
     return node
 
 
-def options_at(
-    catalogue: dict[str, Any], path: Sequence[str]
-) -> list[dict[str, Any]]:
+def options_at(catalogue: dict[str, Any], path: Sequence[str]) -> list[dict[str, Any]]:
     """Return bounded sibling options without candidate execution or mutation."""
     node = _walk(catalogue, path)
     if node["kind"] == "factor":
@@ -186,9 +179,7 @@ def options_at(
     ]
 
 
-def resolve_leaf(
-    catalogue: dict[str, Any], path: Sequence[str]
-) -> dict[str, Any]:
+def resolve_leaf(catalogue: dict[str, Any], path: Sequence[str]) -> dict[str, Any]:
     """Require a real leaf; never infer a model-selected or default strategy."""
     node = _walk(catalogue, path)
     if node["kind"] != "factor":

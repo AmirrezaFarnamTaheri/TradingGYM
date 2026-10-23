@@ -12,9 +12,7 @@ from trading_gym.strategy_lab.overfitting import (
 )
 
 
-RETURNS = np.array(
-    [-0.012, 0.035, -0.028, 0.040, 0.007, -0.018, 0.052, 0.015, -0.005]
-)
+RETURNS = np.array([-0.012, 0.035, -0.028, 0.040, 0.007, -0.018, 0.052, 0.015, -0.005])
 
 
 def _per_period_reference(values, *, benchmark_annual=0.0, periods=252):
@@ -24,9 +22,7 @@ def _per_period_reference(values, *, benchmark_annual=0.0, periods=252):
     skew = float(np.mean(centered**3))
     kurtosis = float(np.mean(centered**4))
     benchmark_per_period = benchmark_annual / math.sqrt(periods)
-    denominator = math.sqrt(
-        1.0 - skew * sr + (kurtosis - 1.0) * sr * sr / 4.0
-    )
+    denominator = math.sqrt(1.0 - skew * sr + (kurtosis - 1.0) * sr * sr / 4.0)
     z = (sr - benchmark_per_period) * math.sqrt(len(values) - 1) / denominator
     return NormalDist().cdf(z)
 
@@ -65,9 +61,7 @@ def test_invalid_frequency_is_rejected_before_statistics(periods):
         probabilistic_sharpe_ratio(RETURNS, periods_per_year=periods)
 
 
-@pytest.mark.parametrize(
-    "benchmark", [True, float("nan"), float("inf"), float("-inf")]
-)
+@pytest.mark.parametrize("benchmark", [True, float("nan"), float("inf"), float("-inf")])
 def test_invalid_benchmark_cannot_produce_confidence(benchmark):
     with pytest.raises(ValueError, match="benchmark_sharpe"):
         probabilistic_sharpe_ratio(RETURNS, benchmark_sharpe=benchmark)
@@ -77,9 +71,7 @@ def test_numpy_real_annual_benchmark_remains_compatible():
     result = probabilistic_sharpe_ratio(
         RETURNS, benchmark_sharpe=np.float64(1.2), periods_per_year=252
     )
-    assert result == pytest.approx(
-        _per_period_reference(RETURNS, benchmark_annual=1.2)
-    )
+    assert result == pytest.approx(_per_period_reference(RETURNS, benchmark_annual=1.2))
 
 
 @pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])

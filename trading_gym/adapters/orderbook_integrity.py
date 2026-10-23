@@ -42,7 +42,7 @@ class OrderBookIntegrityGate:
         if (
             self.requires_snapshot
             or self.last_sequence is None
-            or type(sequence) is not int
+            or type(sequence) is not int  # noqa: E721
             or sequence != self.last_sequence + 1
         ):
             self._invalidate()

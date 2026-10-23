@@ -44,15 +44,9 @@ def included(path: Path) -> bool:
         return False
     if path.suffix in EXCLUDED_SUFFIXES:
         return False
-    if (
-        rel.parts[:3] == ("trading_gym", "data", "manifests")
-        and path.suffix == ".lock"
-    ):
+    if rel.parts[:3] == ("trading_gym", "data", "manifests") and path.suffix == ".lock":
         return False
-    if (
-        rel.parts[:2] == ("rust", "axiom_kernel")
-        and path.suffix == ".exit"
-    ):
+    if rel.parts[:2] == ("rust", "axiom_kernel") and path.suffix == ".exit":
         return False
     return True
 
@@ -88,8 +82,7 @@ def source_files() -> list[Path]:
             raise ValueError(f"unsafe tracked source path: {entry!r}")
         file_name = rel.name.lower()
         if file_name == ".env" or (
-            file_name.startswith(".env.")
-            and file_name not in SAFE_DOTENV_TEMPLATES
+            file_name.startswith(".env.") and file_name not in SAFE_DOTENV_TEMPLATES
         ):
             raise ValueError("tracked dotenv secret cannot enter source release")
         path = ROOT.joinpath(*rel.parts)

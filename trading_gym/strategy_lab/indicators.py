@@ -177,7 +177,6 @@ def adx(frame: pd.DataFrame, params: dict[str, float | int | str | bool]) -> pd.
     )
 
 
-
 def _validated_ohlcv(frame: pd.DataFrame, columns: tuple[str, ...]) -> None:
     """Fail closed on malformed direct indicator inputs, without modifying data."""
     if any(name not in frame.columns for name in columns):

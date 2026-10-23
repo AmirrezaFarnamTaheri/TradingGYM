@@ -45,8 +45,7 @@ def _tokens(value: object, label: str) -> list[str]:
         not isinstance(value, (tuple, list))
         or len(value) > 32
         or any(
-            not isinstance(item, str) or not _TOKEN.fullmatch(item)
-            for item in value
+            not isinstance(item, str) or not _TOKEN.fullmatch(item) for item in value
         )
         or len(set(value)) != len(value)
     ):
@@ -63,13 +62,13 @@ def _body(manifest: object) -> dict[str, Any]:
     if (
         not isinstance(manifest["kind"], str)
         or manifest["kind"] not in _KIND
-        or type(manifest["version"]) is not int
+        or type(manifest["version"]) is not int  # noqa: E721
     ):
         raise ValueError("invalid capability type or version")
     if not 1 <= manifest["version"] <= 1_000_000:
         raise ValueError("invalid capability version")
     if any(
-        type(manifest[x]) is not bool
+        type(manifest[x]) is not bool  # noqa: E721
         for x in ("remote_context", "enabled", "retired")
     ):
         raise ValueError("invalid capability boolean")
@@ -113,10 +112,10 @@ def _verify(candidate: object) -> dict[str, Any]:
 def _request(task: object) -> dict[str, Any]:
     if not isinstance(task, dict) or set(task) != _REQUIRED:
         raise ValueError("invalid capability selection request")
-    if type(task["allow_remote_context"]) is not bool:
+    if type(task["allow_remote_context"]) is not bool:  # noqa: E721
         raise ValueError("invalid remote context authorization")
     limit = task["limit"]
-    if type(limit) is not int or not 1 <= limit <= 16:
+    if type(limit) is not int or not 1 <= limit <= 16:  # noqa: E721
         raise ValueError("invalid capability selection limit")
     return {
         "required_capabilities": _tokens(task["required_capabilities"], "requirements"),

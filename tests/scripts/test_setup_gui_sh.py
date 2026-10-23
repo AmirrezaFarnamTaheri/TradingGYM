@@ -7,6 +7,8 @@ which could hang or have side effects in the test environment.
 
 import os
 import pytest
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -49,33 +51,24 @@ def test_setup_script_has_shebang(setup_script):
 
 
 def test_setup_script_check_flag(setup_script):
-    """Test that the script supports the --check flag."""
-    # Skip on Windows or in CI environments where bash might not be available
     if os.name == "nt":
-        pytest.skip("Bash script not applicable on Windows")
+        pytest.skip("Bash wrapper is not the Windows entrypoint")
+    result = subprocess.run(
+        ["bash", str(setup_script), "--help"], capture_output=True, text=True
+    )
+    assert result.returncode == 0
+    assert "--check" in result.stdout
+    assert "--dry-run" in result.stdout
 
-    # Read script content to check for --check flag support
-    with open(setup_script, "r") as f:
-        content = f.read()
 
-    assert "--check" in content, "Script should support --check flag"
-
-
-def test_setup_script_contains_required_sections(setup_script):
-    """Test that the script contains required functionality sections."""
-    with open(setup_script, "r") as f:
-        content = f.read()
-
-    # Check for key sections
-    required_sections = [
-        "python",  # Python version check
-        "node",  # Node.js check
-        "npm",  # npm check
-        "frontend",  # Frontend setup
-    ]
-
-    for section in required_sections:
-        assert section in content.lower(), f"Script should handle {section}"
+def test_canonical_bootstrap_help(project_root):
+    result = subprocess.run(
+        [sys.executable, str(project_root / "scripts/gui.py"), "--help"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "Poetry" in result.stdout and "npm" in result.stdout
 
 
 def test_pyproject_toml_exists(project_root):
@@ -121,11 +114,17 @@ def test_apps_api_main_exists(project_root):
     assert api_main.exists(), "apps/api/main.py required for API server"
 
 
-def test_script_validation_dry_run():
-    """
-    Test that we can validate the script structure.
-    This is a lightweight test that doesn't actually run the script.
-    """
-    # This test passes if we can import and validate the project structure
-    # without actually running any installation commands
-    assert True, "Project structure validation passed"
+def test_script_rejects_bad_ports_before_launch(project_root):
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(project_root / "scripts/gui.py"),
+            "start",
+            "--api-port",
+            "70000",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert "between 1 and 65535" in result.stderr

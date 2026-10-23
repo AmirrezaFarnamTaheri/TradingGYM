@@ -23,8 +23,11 @@ def _row(
         "observed_at_unix": observed,
         "label_available_at_unix": available,
         "split": "holdout",
-        "probabilities": probabilities or {
-            "hold": 0.05, "long": 0.9, "short": 0.05,
+        "probabilities": probabilities
+        or {
+            "hold": 0.05,
+            "long": 0.9,
+            "short": 0.05,
         },
         "risk_off": risk_off,
         "truth": truth,
@@ -33,14 +36,18 @@ def _row(
 
 
 def test_holdout_report_has_calibration_and_never_grants_live_authority():
-    report = evaluate_records([
-        _row(suffix="a"),
-        _row(
-            suffix="b",
-            probabilities={"hold": 0.05, "long": 0.05, "short": 0.9},
-            truth="short",
-        ),
-    ], confidence_floor=0.65, as_of_unix=300)
+    report = evaluate_records(
+        [
+            _row(suffix="a"),
+            _row(
+                suffix="b",
+                probabilities={"hold": 0.05, "long": 0.05, "short": 0.9},
+                truth="short",
+            ),
+        ],
+        confidence_floor=0.65,
+        as_of_unix=300,
+    )
     assert report["samples"] == 2
     assert report["accepted"] == 2
     assert report["coverage"] == 1.0
@@ -53,14 +60,18 @@ def test_holdout_report_has_calibration_and_never_grants_live_authority():
 
 
 def test_risk_off_and_weak_predictions_count_as_abstentions():
-    report = evaluate_records([
-        _row(suffix="a", risk_off=0.8),
-        _row(
-            suffix="b",
-            probabilities={"hold": 0.34, "long": 0.33, "short": 0.33},
-            truth="hold",
-        ),
-    ], confidence_floor=0.65, as_of_unix=300)
+    report = evaluate_records(
+        [
+            _row(suffix="a", risk_off=0.8),
+            _row(
+                suffix="b",
+                probabilities={"hold": 0.34, "long": 0.33, "short": 0.33},
+                truth="hold",
+            ),
+        ],
+        confidence_floor=0.65,
+        as_of_unix=300,
+    )
     assert report["accepted"] == 0
     assert report["accuracy_on_accepted"] is None
     assert report["coverage"] == 0
@@ -75,9 +86,10 @@ def test_replay_receipt_is_order_invariant_but_sensitive_to_evidence():
     assert first == second
     y = copy.deepcopy(y)
     y["latency_ms"] = 90
-    assert evaluate_records(
-        [x, y], as_of_unix=300
-    )["report_sha256"] != first["report_sha256"]
+    assert (
+        evaluate_records([x, y], as_of_unix=300)["report_sha256"]
+        != first["report_sha256"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -86,9 +98,13 @@ def test_replay_receipt_is_order_invariant_but_sensitive_to_evidence():
         {"split": "train"},
         {"observed_at_unix": 300},
         {"label_available_at_unix": 100},
-        {"probabilities": {
-            "hold": 0.1, "long": 0.9, "short": float("nan"),
-        }},
+        {
+            "probabilities": {
+                "hold": 0.1,
+                "long": 0.9,
+                "short": float("nan"),
+            }
+        },
         {"probabilities": {"hold": 0.0, "long": 0.0, "short": 0.0}},
         {"latency_ms": float("inf")},
         {"context_sha256": "not-a-hash"},

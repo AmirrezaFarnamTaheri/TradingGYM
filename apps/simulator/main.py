@@ -10,7 +10,6 @@ import pandas as pd
 import typer
 from filelock import FileLock
 from stable_baselines3 import PPO
-from stable_baselines3.common.env_checker import check_env
 from trading_gym.common.config import load_app_config
 from trading_gym.common.security import (
     validate_regular_file,
@@ -18,8 +17,15 @@ from trading_gym.common.security import (
 )
 import trading_gym.pipelines.environment
 from trading_gym.pipelines.environment import create_environment
-from trading_gym.data.data_loader import load_data_from_lake
-from tqdm import trange
+from trading_gym.pipelines.model_bundle import read_model_bundle
+from trading_gym.common.timeframes import periods_per_year, timeframe_seconds
+from trading_gym.pipelines.metrics import (
+    maximum_drawdown,
+    performance_metrics,
+    sortino_ratio as periodic_sortino,
+    validate_regular_decisions,
+)
+from trading_gym.pipelines.replay import replay_episode
 import mplfinance as mpf
 
 app = typer.Typer()
@@ -74,45 +80,22 @@ def _atomic_save_figure(figure, output_path: Path) -> Path:
 
 
 def calculate_max_drawdown(equity_curve: list[float]) -> tuple[float, int, int]:
-    """Calculate the maximum drawdown."""
-    peak_index = 0
-    max_drawdown = 0.0
-    drawdown_start_index = 0
-    for i, equity in enumerate(equity_curve):
-        if equity > equity_curve[peak_index]:
-            peak_index = i
-        drawdown = (equity_curve[peak_index] - equity) / equity_curve[peak_index]
-        if drawdown > max_drawdown:
-            max_drawdown = drawdown
-            drawdown_start_index = peak_index
-    dd_end_idx = int(np.argmax(np.maximum.accumulate(equity_curve) - equity_curve))
-    return (max_drawdown, int(drawdown_start_index), dd_end_idx)
+    """Percentage drawdown and its matching peak/trough indices."""
+    return maximum_drawdown(equity_curve)
 
 
-def sortino_ratio(returns: pd.Series, annualization_factor: float = 252 * 288) -> float:
-    """Calculates the Sortino ratio."""
-    target_return = 0
-    downside_diff = returns - target_return
-    downside_diff[downside_diff > 0] = 0
-    downside_std = np.sqrt((downside_diff**2).mean())
-    if downside_std == 0:
-        return np.inf
-    mean_return = returns.mean()
-    return float((mean_return / downside_std) * np.sqrt(annualization_factor))
+def sortino_ratio(returns: pd.Series, annualization_factor: float) -> float | None:
+    return periodic_sortino(returns.to_numpy(), annualization_factor)
 
 
-def calmar_ratio(
-    equity_curve: pd.Series, annualization_factor: float = 252 * 288
-) -> float:
-    """Calculates the Calmar ratio."""
-    max_drawdown, _, _ = calculate_max_drawdown(equity_curve.tolist())
-    if max_drawdown == 0.0:
-        return np.inf
+def calmar_ratio(equity_curve: pd.Series, annualization_factor: float) -> float | None:
+    return performance_metrics(
+        equity_curve.to_numpy(), periods_per_year=annualization_factor
+    ).calmar
 
-    returns = equity_curve.pct_change().dropna()
-    annualized_return = returns.mean() * annualization_factor
 
-    return float(annualized_return / max_drawdown)
+def _metric_label(value: float | None) -> str:
+    return "N/A" if value is None else f"{value:.2f}"
 
 
 def plot_returns_distribution(equity_curve: list[float], output_path: Path):
@@ -135,12 +118,16 @@ def plot_rolling_sharpe_ratio(
     equity_curve: list[float],
     output_path: Path,
     window: int = 252,
-    annualization_factor: float = 252.0,
+    annualization_factor: float | None = None,
 ):
     """Atomically plot a bounded rolling annualised Sharpe ratio."""
     if not 2 <= window <= 1_000_000:
         raise ValueError("rolling Sharpe window is out of bounds")
-    if not np.isfinite(annualization_factor) or annualization_factor <= 0:
+    if (
+        annualization_factor is None
+        or not np.isfinite(annualization_factor)
+        or annualization_factor <= 0
+    ):
         raise ValueError("annualization_factor must be finite and positive")
     returns = pd.Series(equity_curve).pct_change().dropna()
     rolling_mean = returns.rolling(window).mean()
@@ -223,9 +210,7 @@ def run(
         available_rows = len(all_data["features"])
         if available_rows < 2:
             raise ValueError("simulation window contains insufficient rows")
-        cfg.simulator.steps = min(cfg.simulator.steps, available_rows)
-        env = create_environment(cfg, all_data)
-        check_env(env)
+        cfg.simulator.steps = min(cfg.simulator.steps, available_rows - 1)
 
         with verified_regular_file_snapshot(
             model_artifact,
@@ -233,89 +218,78 @@ def run(
             label="model",
             max_bytes=8 * 1024 * 1024 * 1024,
         ) as snapshot:
+            bundle = read_model_bundle(snapshot, expected_model_sha256=model_sha256)
+            bundle.validate_config(cfg)
+            bundle.validate_features(all_data["features"])
+            bundle.validate_runtime()
             model = PPO.load(snapshot)
-        logger.info("Loaded hash-pinned simulation model")
+        logger.info("Loaded hash-pinned simulation model and frozen preprocessing")
+        env = create_environment(cfg, all_data, training_stats=bundle.training_stats)
 
-        raw = load_data_from_lake(
-            Path(cfg.data.lake_dir), (cfg.env.symbol,), (timeframe,)
-        )[cfg.env.symbol][timeframe]
-        feature_index = all_data["features"].index[: cfg.simulator.steps]
-        df_ohlc = raw.reindex(feature_index)[["open", "high", "low", "close"]]
-        if df_ohlc.isna().any().any() or len(df_ohlc) != cfg.simulator.steps:
-            raise ValueError("plot market data does not align with simulation inputs")
-        logger.info("Loaded %d aligned simulation rows", len(df_ohlc))
-
-        obs, _ = env.reset()
-        equity_curve = [cfg.training.initial_equity]
-        positions = []
-        logger.info(f"Starting simulation for {cfg.simulator.steps} steps...")
-        for i in trange(cfg.simulator.steps, desc="Simulating"):
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, done, truncated, info = env.step(action)
-            equity_curve.append(info["equity"])
-            positions.append(env.unwrapped.position)
-
-            if (i + 1) % 1000 == 0:
-                logger.debug(
-                    f"Step {i+1}/{cfg.simulator.steps}: "
-                    f"Equity={info['equity']:.2f}, Position={env.unwrapped.position}"
-                )
-
-            if done or truncated:
-                logger.info(
-                    f"Episode finished at step {i+1}. Reason: {'done' if done else 'truncated'}"
-                )
-                obs, _ = env.reset()
-
-        logger.info("Simulation finished.")
-
-        returns = pd.Series(equity_curve).pct_change().dropna()
-        annualization_factor = 252 * 288
-
-        logger.info("Calculating performance metrics...")
-        sharpe = (
-            returns.mean() / returns.std() * np.sqrt(annualization_factor)
-            if returns.std() > 0
-            else 0
+        trace = replay_episode(model, env, seed=cfg.seed, max_steps=cfg.simulator.steps)
+        equity_curve = list(trace.equity)
+        positions = list(trace.positions)
+        consumed = list(trace.decision_indices)
+        valued = list(trace.valuation_indices)
+        valuation_rows = [consumed[0], *valued]
+        valuation_times = (
+            all_data["features"].index[valuation_rows].asi8.astype(np.float64) / 1e9
         )
-        sortino = sortino_ratio(returns, annualization_factor)
-        max_dd, _, _ = calculate_max_drawdown(equity_curve)
-        calmar = calmar_ratio(pd.Series(equity_curve), annualization_factor)
-
-        logger.info(f"Sharpe Ratio: {sharpe:.2f}")
-        logger.info(f"Sortino Ratio: {sortino:.2f}")
-        logger.info(f"Calmar Ratio: {calmar:.2f}")
-        logger.info(f"Max Drawdown: {max_dd:.2%}")
+        validate_regular_decisions(valuation_times, timeframe_seconds(timeframe))
+        df_ohlc = all_data["ohlc"].iloc[valuation_rows].copy()
+        if len(df_ohlc) != len(equity_curve) or df_ohlc.isna().any().any():
+            raise ValueError("plot market data does not align with settled valuations")
+        annualization_factor = periods_per_year(timeframe, calendar_days=365.0)
+        metrics = performance_metrics(
+            equity_curve, periods_per_year=annualization_factor
+        )
+        sharpe, sortino, calmar, max_dd = (
+            metrics.sharpe,
+            metrics.sortino,
+            metrics.calmar,
+            metrics.max_drawdown,
+        )
+        logger.info("Simulation ended after %d continuous decisions", len(consumed))
+        logger.info(
+            "Sharpe=%s Sortino=%s Calmar=%s MaxDrawdown=%.4f periods/year=%.4f",
+            _metric_label(sharpe),
+            _metric_label(sortino),
+            _metric_label(calmar),
+            max_dd,
+            annualization_factor,
+        )
 
         logger.info("Preparing data for plotting.")
         df_plot = df_ohlc.copy()
         df_plot.index.name = "Date"
-        df_plot["equity"] = equity_curve[1:]
+        df_plot["equity"] = equity_curve
 
-        positions_s = pd.Series(positions, index=df_plot.index)
-        trades = positions_s.diff().fillna(0)
+        # Position changes shown at their settled valuation, including any
+        # intrabar stop-out; these markers are not fabricated venue fill times.
+        trades = pd.Series(
+            np.r_[0.0, np.diff(np.r_[0.0, positions])], index=df_plot.index
+        )
         buy_signals = np.where(trades > 0, df_plot["low"] * 0.98, np.nan)
         sell_signals = np.where(trades < 0, df_plot["high"] * 1.02, np.nan)
 
         apds = [
-            mpf.make_addplot(df_plot["equity"], panel=1, color="b", ylabel="Equity"),
-            mpf.make_addplot(
-                buy_signals,
-                type="scatter",
-                marker="^",
-                color="g",
-                panel=0,
-                markersize=50,
-            ),
-            mpf.make_addplot(
-                sell_signals,
-                type="scatter",
-                marker="v",
-                color="r",
-                panel=0,
-                markersize=50,
-            ),
+            mpf.make_addplot(df_plot["equity"], panel=1, color="b", ylabel="Equity")
         ]
+        for signal, marker, color in (
+            (buy_signals, "^", "g"),
+            (sell_signals, "v", "r"),
+        ):
+            if np.isfinite(signal).any():
+                apds.append(
+                    mpf.make_addplot(
+                        signal,
+                        type="scatter",
+                        marker=marker,
+                        color=color,
+                        panel=0,
+                        markersize=50,
+                    )
+                )
 
         fig, _ = mpf.plot(
             df_plot,
@@ -330,8 +304,8 @@ def run(
         )
 
         fig.text(0.1, 0.95, f"Sharpe: {sharpe:.2f}", fontsize=12)
-        fig.text(0.1, 0.92, f"Sortino: {sortino:.2f}", fontsize=12)
-        fig.text(0.1, 0.89, f"Calmar: {calmar:.2f}", fontsize=12)
+        fig.text(0.1, 0.92, f"Sortino: {_metric_label(sortino)}", fontsize=12)
+        fig.text(0.1, 0.89, f"Calmar: {_metric_label(calmar)}", fontsize=12)
         fig.text(0.1, 0.86, f"Max Drawdown: {max_dd:.2%}", fontsize=12)
 
         try:
@@ -347,7 +321,9 @@ def run(
 
         if plot_sharpe:
             plot_rolling_sharpe_ratio(
-                equity_curve, output_path.with_name(f"{output_path.stem}_sharpe.png")
+                equity_curve,
+                output_path.with_name(f"{output_path.stem}_sharpe.png"),
+                annualization_factor=annualization_factor,
             )
 
     except Exception as exc:

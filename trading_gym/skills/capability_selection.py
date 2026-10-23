@@ -17,22 +17,45 @@ from trading_gym.skills.static_assurance import assess_skill_static
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _ID = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _OWNER = re.compile(r"^[a-z][a-z0-9._-]{2,63}$")
-_READ_SCOPES = frozenset({
-    "read", "research.read", "strategy.read", "strategy.validate",
-    "market.read", "portfolio.read", "risk.read", "report.read",
-    "model.review", "research.inspect",
-})
-_COLUMNS = frozenset({
-    "sha256", "capabilities", "owner", "reviewer", "preparer",
-    "reviewed_at_unix", "expires_at_unix", "quarantined", "activated",
-    "risk_markers", "path", "size_bytes",
-})
+_READ_SCOPES = frozenset(
+    {
+        "read",
+        "research.read",
+        "strategy.read",
+        "strategy.validate",
+        "market.read",
+        "portfolio.read",
+        "risk.read",
+        "report.read",
+        "model.review",
+        "research.inspect",
+    }
+)
+_COLUMNS = frozenset(
+    {
+        "sha256",
+        "capabilities",
+        "owner",
+        "reviewer",
+        "preparer",
+        "reviewed_at_unix",
+        "expires_at_unix",
+        "quarantined",
+        "activated",
+        "risk_markers",
+        "path",
+        "size_bytes",
+    }
+)
 _MAX_CANDIDATES = 1024
 
 
 def _canonical(value):
     return json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
         allow_nan=False,
     ).encode("utf-8")
 
@@ -55,8 +78,10 @@ def _inventory(catalogue):
             value = record[field]
             if type(value) in (int, bool, float, str) or value is None:
                 safe[field] = value
-            elif isinstance(value, (list, tuple)) and len(value) <= 64 and all(
-                type(item) in (str, int, bool) for item in value
+            elif (
+                isinstance(value, (list, tuple))
+                and len(value) <= 64
+                and all(type(item) in (str, int, bool) for item in value)
             ):
                 safe[field] = list(value)
             else:
@@ -94,13 +119,12 @@ def preview_capability_selection(
         raise ValueError("invalid or privileged research capability request")
     if not isinstance(expected_owner, str) or not _OWNER.fullmatch(expected_owner):
         raise ValueError("invalid skill owner identity")
-    if type(operator_consent) is not bool:
+    if type(operator_consent) is not bool:  # noqa: E721
         raise ValueError("operator consent must be explicit")
-    if type(as_of_unix) is not int or as_of_unix < 0:
+    if type(as_of_unix) is not int or as_of_unix < 0:  # noqa: E721
         raise ValueError("invalid review time")
-    if (
-        not isinstance(expected_catalogue_sha256, str)
-        or not _SHA256.fullmatch(expected_catalogue_sha256)
+    if not isinstance(expected_catalogue_sha256, str) or not _SHA256.fullmatch(
+        expected_catalogue_sha256
     ):
         raise ValueError("invalid expected catalogue digest")
 
@@ -122,9 +146,8 @@ def preview_capability_selection(
             capabilities = record.get("capabilities", [])
             assurance = assess_skill_static(record)
             blockers.extend(assurance["blockers"])
-            if (
-                not isinstance(capabilities, list)
-                or any(cap not in _READ_SCOPES for cap in capabilities)
+            if not isinstance(capabilities, list) or any(
+                cap not in _READ_SCOPES for cap in capabilities
             ):
                 blockers.append("unapproved_capability")
             if isinstance(capabilities, list) and not wanted.issubset(capabilities):
@@ -145,7 +168,8 @@ def preview_capability_selection(
             review_time = record.get("reviewed_at_unix")
             expires = record.get("expires_at_unix")
             if (
-                type(review_time) is not int or type(expires) is not int
+                type(review_time) is not int  # noqa: E721
+                or type(expires) is not int  # noqa: E721
                 or not 0 <= review_time <= as_of_unix < expires
             ):
                 blockers.append("expired_review")

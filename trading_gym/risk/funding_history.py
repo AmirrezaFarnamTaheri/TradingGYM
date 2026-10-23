@@ -41,9 +41,8 @@ class FundingObservation:
     source_sha256: str
 
     def __post_init__(self) -> None:
-        if (
-            not isinstance(self.instrument_id, str)
-            or not _INSTRUMENT.fullmatch(self.instrument_id)
+        if not isinstance(self.instrument_id, str) or not _INSTRUMENT.fullmatch(
+            self.instrument_id
         ):
             raise ValueError("invalid funding instrument")
         effective, observed = _utc(self.effective_at), _utc(self.observed_at)
@@ -55,9 +54,8 @@ class FundingObservation:
             or abs(self.rate) > 1
         ):
             raise ValueError("rate must be a finite bounded Decimal")
-        if (
-            not isinstance(self.source_sha256, str)
-            or not _SHA256.fullmatch(self.source_sha256)
+        if not isinstance(self.source_sha256, str) or not _SHA256.fullmatch(
+            self.source_sha256
         ):
             raise ValueError("source_sha256 must be lowercase hexadecimal SHA-256")
 
@@ -173,7 +171,7 @@ def funding_cashflow_estimate(
         or abs(signed_notional) > Decimal("1e30")
     ):
         raise ValueError("signed_notional must be a finite bounded Decimal")
-    if type(intervals) is not int or intervals != 1:
+    if type(intervals) is not int or intervals != 1:  # noqa: E721
         raise ValueError("intervals require a single observed interval")
     if resolution.status != "available" or resolution.rate is None:
         raise PermissionError("funding evidence unavailable for cashflow estimate")

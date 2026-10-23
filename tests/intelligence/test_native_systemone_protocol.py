@@ -37,7 +37,9 @@ def test_structured_market_state_is_not_transformed_to_generated_prompt():
     assert body["model"] == "gemma-fast"
     assert body["questions"]["direction"]["type"] == "choice"
     assert set(body["questions"]["direction"]["criteria"]) == {
-        "hold", "long", "short",
+        "hold",
+        "long",
+        "short",
     }
     assert body["questions"]["risk_off"]["type"] == "noul"
 
@@ -55,22 +57,24 @@ def test_valid_direction_is_bounded_by_operator_and_context_caps():
             selected="short",
             probabilities={"hold": 0.05, "long": 0.05, "short": 0.9},
         ),
-        confidence_floor=0.65, max_leverage=1,
+        confidence_floor=0.65,
+        max_leverage=1,
     )[1] == pytest.approx(-1.0)
 
 
 def test_risk_off_tied_winners_and_zero_limit_force_hold():
-    assert parse_decision(
-        _result(risk_off=0.7), confidence_floor=0.65, max_leverage=2
-    )[:2] == ("hold", 0.0)
+    assert parse_decision(_result(risk_off=0.7), confidence_floor=0.65, max_leverage=2)[
+        :2
+    ] == ("hold", 0.0)
     tied = _result(
         selected="long",
         probabilities={"hold": 0.1, "long": 0.45, "short": 0.45},
         confidence=0.4,
     )
-    assert parse_decision(
-        tied, confidence_floor=0.0, max_leverage=2
-    )[:2] == ("hold", 0.0)
+    assert parse_decision(tied, confidence_floor=0.0, max_leverage=2)[:2] == (
+        "hold",
+        0.0,
+    )
     assert parse_decision(
         _result(), confidence_floor=0.65, max_leverage=2, risk_ceiling=0
     )[:2] == ("hold", 0.0)
@@ -114,7 +118,8 @@ def test_choice_must_match_winning_probability():
     with pytest.raises(ValueError, match="choice"):
         parse_decision(
             _result(selected="short"),
-            confidence_floor=0.5, max_leverage=1,
+            confidence_floor=0.5,
+            max_leverage=1,
         )
 
 
@@ -123,14 +128,20 @@ def test_malformed_noul_probability_denied(risk):
     with pytest.raises(ValueError, match="systemone_"):
         parse_decision(
             _result(risk_off=risk),
-            confidence_floor=0.5, max_leverage=1,
+            confidence_floor=0.5,
+            max_leverage=1,
         )
 
 
 @pytest.mark.parametrize(
     "floor,cap,ceiling",
-    [(True, 1, None), (0.5, 0, None), (0.5, float("nan"), None),
-     (0.5, 1, -1), (0.5, 1, float("inf"))],
+    [
+        (True, 1, None),
+        (0.5, 0, None),
+        (0.5, float("nan"), None),
+        (0.5, 1, -1),
+        (0.5, 1, float("inf")),
+    ],
 )
 def test_nonfinite_or_invalid_limits_rejected(floor, cap, ceiling):
     with pytest.raises(ValueError):
@@ -156,7 +167,9 @@ def test_explicit_low_confidence_hold_does_not_escalate_to_risk_on_fallback():
         confidence=0.40,
     )
     selected, leverage, _, explanation = parse_decision(
-        payload, confidence_floor=0.65, max_leverage=1,
+        payload,
+        confidence_floor=0.65,
+        max_leverage=1,
     )
     assert selected == "hold"
     assert leverage == 0
@@ -170,7 +183,8 @@ def test_fixed_engine_omits_model_selector_but_preserves_typed_state():
         "market": {"symbol": "BTCUSDT", "last_close": 110.0},
     }
     body = build_request(
-        json.dumps(packet), "mlx-community/Qwen3-1.7B-4bit",
+        json.dumps(packet),
+        "mlx-community/Qwen3-1.7B-4bit",
         include_model=False,
     )
     assert "model" not in body
@@ -179,7 +193,9 @@ def test_fixed_engine_omits_model_selector_but_preserves_typed_state():
 
 
 def test_invalid_native_model_selector_policy_is_rejected():
-    packet = {"schema": "system1.market.v1",
-              "authority": "advisory_only; never executes orders"}
+    packet = {
+        "schema": "system1.market.v1",
+        "authority": "advisory_only; never executes orders",
+    }
     with pytest.raises(ValueError):
         build_request(json.dumps(packet), "engine-1", include_model="false")

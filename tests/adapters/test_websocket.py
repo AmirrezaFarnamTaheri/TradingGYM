@@ -484,9 +484,7 @@ async def test_public_ws_credentials_require_tls_before_connect(monkeypatch):
 async def test_mixed_private_dns_answer_cannot_receive_auth_header(monkeypatch):
     import socket
 
-    config = WebSocketConfig(
-        url="wss://venue.example/ws", api_key="sensitive-token"
-    )
+    config = WebSocketConfig(url="wss://venue.example/ws", api_key="sensitive-token")
     client = WebSocketClient(config)
     calls = []
 
@@ -513,9 +511,7 @@ async def test_mixed_private_dns_answer_cannot_receive_auth_header(monkeypatch):
 async def test_websocket_auth_handshake_uses_validated_pinned_ip(monkeypatch):
     import socket
 
-    config = WebSocketConfig(
-        url="wss://venue.example/ws", api_key="sensitive-token"
-    )
+    config = WebSocketConfig(url="wss://venue.example/ws", api_key="sensitive-token")
     client = WebSocketClient(config)
     captures = []
 
@@ -543,9 +539,7 @@ async def test_websocket_auth_handshake_uses_validated_pinned_ip(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_private_opt_in_does_not_allow_public_plaintext_credentials(
-    monkeypatch
-):
+async def test_private_opt_in_does_not_allow_public_plaintext_credentials(monkeypatch):
     config = WebSocketConfig(
         url="ws://8.8.8.8/ws",
         api_key="private-token",
@@ -577,6 +571,7 @@ async def test_legacy_redirect_is_rejected_before_second_handshake(monkeypatch):
         def __await__(self):
             async def second_connection():
                 self.handle_redirect("wss://127.0.0.1/private")
+
             return second_connection().__await__()
 
     legacy = LegacyConnector()
@@ -607,6 +602,7 @@ async def test_modern_redirect_is_rejected_before_second_handshake(monkeypatch):
                 if isinstance(action, Exception):
                     raise action
                 raise AssertionError("unauthorized redirected handshake")
+
             return second_connection().__await__()
 
     modern = ModernConnector()
@@ -647,9 +643,7 @@ def test_protocol_debug_cannot_log_credential_headers_under_global_debug(monkeyp
     )
     root_logger = logging.getLogger()
     monkeypatch.setattr(root_logger, "level", logging.DEBUG)
-    kwargs = ws_client._connect_kwargs(
-        {"Authorization": "Token sensitive-token"}
-    )
+    kwargs = ws_client._connect_kwargs({"Authorization": "Token sensitive-token"})
     assert not kwargs["logger"].isEnabledFor(logging.DEBUG)
     assert kwargs["logger"].getEffectiveLevel() >= logging.WARNING
     assert kwargs["logger"] is not root_logger

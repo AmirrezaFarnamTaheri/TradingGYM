@@ -2,17 +2,17 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-import torch
-import numpy as np
 import pandas as pd
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
-from stable_baselines3.common.callbacks import CheckpointCallback
 from filelock import FileLock
 
 from trading_gym.common.config import AppConfig, FeatureConfig
 from trading_gym.common.security import redact_secrets
 from trading_gym.models.versioning import ModelRegistry
+from trading_gym.pipelines.model_bundle import (
+    FrozenNormalizer,
+    fit_model_bundle,
+    attach_model_bundle,
+)
 from trading_gym.pipelines.environment import (
     create_environment,
     load_environment_inputs,
@@ -72,21 +72,23 @@ def _atomic_model_save(model, destination: str | Path) -> Path:
     return final_path
 
 
-def make_env(cfg: AppConfig, rank: int, training_stats: dict, seed: int = 0):
+def make_env(
+    cfg: AppConfig, rank: int, training_stats: dict, seed: int = 0, *, inputs=None
+):
     """
     Factory function for creating environments in subprocesses.
     """
 
     def _init():
-        # 1. Load Data (Ideally cached or shared memory in production)
-        timeframe = cfg.data.timeframes[0]
-        # Note: In a real heavy setup, we'd load inputs once and pass via shared memory.
-        # For now, we reload to ensure isolation or rely on OS caching.
-        inputs = load_environment_inputs(cfg, timeframe)
+        # Fold training supplies its admitted snapshot; workers must not reload
+        # the full lake and accidentally expand the training partition.
+        admitted_inputs = inputs
+        if admitted_inputs is None:
+            admitted_inputs = load_environment_inputs(cfg, cfg.data.timeframes[0])
 
         # 2. Create Environment
         env = create_environment(
-            cfg, inputs, live_mode=False, training_stats=training_stats
+            cfg, admitted_inputs, live_mode=False, training_stats=training_stats
         )
 
         # 3. Seed
@@ -98,24 +100,9 @@ def make_env(cfg: AppConfig, rank: int, training_stats: dict, seed: int = 0):
 
 def calculate_training_stats(features_df: pd.DataFrame, feature_cfg: FeatureConfig):
     """Calculate normalization statistics based on configured method."""
-    logger.info("Calculating training stats...")
-    numeric_cols = features_df.select_dtypes(include=[np.number])
-
-    method = feature_cfg.standardization.method.lower()
-    if method == "robust":
-        center = numeric_cols.median()
-        scale = numeric_cols.quantile(0.75) - numeric_cols.quantile(0.25)
-    else:
-        center = numeric_cols.mean()
-        scale = numeric_cols.std()
-
-    scale = scale.replace(0, 1.0)  # Avoid divide-by-zero
-
-    return {
-        "method": method,
-        "center": center.to_dict(),
-        "scale": scale.to_dict(),
-    }
+    return FrozenNormalizer.fit(
+        features_df, feature_cfg.standardization.method
+    ).to_stats()
 
 
 def train(
@@ -124,6 +111,8 @@ def train(
     *,
     model_version: str | None = None,
     registry_dir: str | Path | None = None,
+    inputs: dict | None = None,
+    timeframe: str | None = None,
 ):
     """
     Executes the training pipeline based on the provided configuration.
@@ -132,6 +121,14 @@ def train(
         cfg: The application configuration.
         dry_run: If True, runs a very short training session for verification.
     """
+
+    import torch
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
+    from stable_baselines3.common.callbacks import CheckpointCallback
+
+    # A trial/fold must never mutate its caller's experiment configuration.
+    cfg = cfg.model_copy(deep=True)
 
     # Adjust for dry run
     if dry_run:
@@ -156,13 +153,17 @@ def train(
     # Load data once to calculate stats
     # Note: this loads data into main process memory. For huge datasets, this might need optimization.
     logger.info("Preparing data for training stats...")
-    timeframe = cfg.data.timeframes[0]
-    inputs = load_environment_inputs(cfg, timeframe)
-    training_stats = calculate_training_stats(inputs["features"], cfg.features)
+    timeframe = timeframe or cfg.data.timeframes[0]
+    if inputs is None:
+        inputs = load_environment_inputs(cfg, timeframe)
+    bundle = fit_model_bundle(cfg, inputs["features"], inputs=inputs)
+    training_stats = bundle.training_stats
 
     # 3. Environment Vectorization
     n_envs = cfg.training.n_envs
-    env_factory = [make_env(cfg, i, training_stats, cfg.seed) for i in range(n_envs)]
+    env_factory = [
+        make_env(cfg, i, training_stats, cfg.seed, inputs=inputs) for i in range(n_envs)
+    ]
 
     if n_envs > 1:
         logger.info("   Mode: Parallel (SubprocVecEnv)")
@@ -197,6 +198,9 @@ def train(
         policy_kwargs=policy_kwargs,
         seed=cfg.seed,  # Reproducibility
     )
+
+    # SB3 persists JSON-safe custom attributes inside its hash-admitted ZIP.
+    attach_model_bundle(model, bundle)
 
     # 6. Callbacks
     save_freq = max(10000 // n_envs, 1)
@@ -241,6 +245,7 @@ def train(
         _atomic_model_save(
             model, Path(cfg.training.checkpoint_dir) / "interrupted_model.zip"
         )
+        raise
 
     finally:
         env.close()

@@ -17,11 +17,20 @@ from trading_gym.intelligence.systemone_protocol import _probability
 
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _LABELS = ("hold", "long", "short")
-_COLUMNS = frozenset({
-    "model_id", "context_sha256", "source_sha256", "observed_at_unix",
-    "label_available_at_unix", "split", "probabilities", "risk_off",
-    "truth", "latency_ms",
-})
+_COLUMNS = frozenset(
+    {
+        "model_id",
+        "context_sha256",
+        "source_sha256",
+        "observed_at_unix",
+        "label_available_at_unix",
+        "split",
+        "probabilities",
+        "risk_off",
+        "truth",
+        "latency_ms",
+    }
+)
 _MAX_ROWS = 10_000
 
 
@@ -46,14 +55,14 @@ def _validate(row: object, *, as_of_unix: int | None) -> dict[str, Any]:
         raise ValueError("evaluation model id is invalid")
     start, end = row["observed_at_unix"], row["label_available_at_unix"]
     if (
-        type(start) is not int
-        or type(end) is not int
+        type(start) is not int  # noqa: E721
+        or type(end) is not int  # noqa: E721
         or start < 0
         or end <= start
         or (as_of_unix is not None and end > as_of_unix)
     ):
         raise ValueError("evaluation label unavailable or time-leaking")
-    if row["truth"] not in _LABELS or type(row["truth"]) is not str:
+    if row["truth"] not in _LABELS or type(row["truth"]) is not str:  # noqa: E721
         raise ValueError("evaluation truth must be an independently labeled direction")
     probs = row["probabilities"]
     if not isinstance(probs, dict) or set(probs) != set(_LABELS):
@@ -88,14 +97,18 @@ def evaluate_records(
     benefit from model-driven trades. Source hashes are mandatory.
     """
     confidence_floor = _probability(confidence_floor)
-    if as_of_unix is not None and (type(as_of_unix) is not int or as_of_unix < 0):
+    if as_of_unix is not None and (
+        type(as_of_unix) is not int or as_of_unix < 0  # noqa: E721
+    ):
         raise ValueError("invalid evaluation as-of timestamp")
     if not isinstance(records, (list, tuple)) or not 0 < len(records) <= _MAX_ROWS:
         raise ValueError("evaluation requires a bounded nonempty record sequence")
     normalized = [_validate(r, as_of_unix=as_of_unix) for r in records]
     normalized.sort(
         key=lambda r: (
-            r["model_id"], r["observed_at_unix"], r["context_sha256"],
+            r["model_id"],
+            r["observed_at_unix"],
+            r["context_sha256"],
         )
     )
     if len({r["model_id"] for r in normalized}) != 1:
@@ -103,7 +116,8 @@ def evaluate_records(
     seen: set[tuple[str, int, str]] = set()
     for record in normalized:
         identity = (
-            record["model_id"], record["observed_at_unix"],
+            record["model_id"],
+            record["observed_at_unix"],
             record["context_sha256"],
         )
         if identity in seen:
@@ -117,10 +131,7 @@ def evaluate_records(
     for record in normalized:
         distribution = record["probabilities"]
         peak = max(distribution.values())
-        winners = [
-            label for label in _LABELS
-            if abs(distribution[label] - peak) < 1e-9
-        ]
+        winners = [label for label in _LABELS if abs(distribution[label] - peak) < 1e-9]
         if record["risk_off"] >= 0.5:
             risk_vetoes += 1
         elif len(winners) != 1 or peak < confidence_floor:
@@ -128,25 +139,22 @@ def evaluate_records(
         else:
             accepted += 1
             correct += int(winners[0] == record["truth"])
-        correct_raw = int(
-            len(winners) == 1 and winners[0] == record["truth"]
-        )
+        correct_raw = int(len(winners) == 1 and winners[0] == record["truth"])
         bins[min(9, int(peak * 10))].append((peak, correct_raw))
         brier_total += math.fsum(
-            (
-                distribution[label]
-                - (1.0 if label == record["truth"] else 0.0)
-            ) ** 2
+            (distribution[label] - (1.0 if label == record["truth"] else 0.0)) ** 2
             for label in _LABELS
         )
         latencies.append(record["latency_ms"])
     n = len(normalized)
     ece = math.fsum(
-        (len(bucket) / n) * abs(
+        (len(bucket) / n)
+        * abs(
             math.fsum(int(right) for _, right in bucket) / len(bucket)
             - math.fsum(prob for prob, _ in bucket) / len(bucket)
         )
-        for bucket in bins if bucket
+        for bucket in bins
+        if bucket
     )
     latencies.sort()
     result: dict[str, Any] = {
@@ -166,7 +174,9 @@ def evaluate_records(
         "eligible_for_funded_live": False,
         "source_records_sha256": hashlib.sha256(
             json.dumps(
-                normalized, sort_keys=True, separators=(",", ":"),
+                normalized,
+                sort_keys=True,
+                separators=(",", ":"),
                 allow_nan=False,
             ).encode()
         ).hexdigest(),

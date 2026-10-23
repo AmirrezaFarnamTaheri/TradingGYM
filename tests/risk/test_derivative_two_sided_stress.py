@@ -61,9 +61,9 @@ def test_hedged_book_uses_consistent_portfolio_wide_stress_direction():
         policy=policy(),
     )
     assert report.stressed_equity == D("30")
-    assert sum(
-        (item.stressed_pnl for item in report.position_results), D("0")
-    ) == D("0")
+    assert sum((item.stressed_pnl for item in report.position_results), D("0")) == D(
+        "0"
+    )
     assert report.allowed is True
 
 
@@ -84,9 +84,7 @@ def test_net_long_book_selects_down_shock_and_attributed_leg_pnl():
 
 
 def test_zero_shock_leaves_book_unstressed():
-    safe = policy().model_copy(
-        update={"stress_price_shock_fraction": D("0")}
-    )
+    safe = policy().model_copy(update={"stress_price_shock_fraction": D("0")})
     report = analyze_derivative_risk(
         equity=D("50"),
         free_collateral=D("25"),

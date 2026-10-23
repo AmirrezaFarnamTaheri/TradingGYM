@@ -53,7 +53,7 @@ class FundamentalQuery:
 
 
 def _unix(value: object) -> int:
-    if type(value) is not int or not 0 <= value <= _MAX_UNIX:
+    if type(value) is not int or not 0 <= value <= _MAX_UNIX:  # noqa: E721
         raise ValueError("fundamental timestamp must be a bounded Unix integer")
     return value
 
@@ -68,7 +68,7 @@ def _fields(value: FundamentalFact | FundamentalQuery) -> tuple[str, str, str, s
     identity = _identity(value.instrument_id, _INSTRUMENT, "instrument id")
     field = _identity(value.field, _FIELD, "field")
     kind = value.period_type
-    if type(kind) is not str or kind not in _PERIOD_TYPES:
+    if type(kind) is not str or kind not in _PERIOD_TYPES:  # noqa: E721
         raise ValueError("invalid fundamental fiscal frame")
     unit = _identity(value.unit, _UNIT, "reporting unit")
     return identity, field, kind, unit
@@ -79,8 +79,10 @@ def _valid_fact(item: object) -> dict[str, Any]:
         raise ValueError("expected typed fundamental filing observation")
     instrument, field, kind, unit = _fields(item)
     start, end, filed, observed = (
-        _unix(item.period_start_unix), _unix(item.period_end_unix),
-        _unix(item.filed_at_unix), _unix(item.observed_at_unix),
+        _unix(item.period_start_unix),
+        _unix(item.period_end_unix),
+        _unix(item.filed_at_unix),
+        _unix(item.observed_at_unix),
     )
     if start > end or end > filed or filed > observed:
         raise ValueError(
@@ -119,7 +121,8 @@ def _valid_fact(item: object) -> dict[str, Any]:
         "filed_at_unix": filed,
         "observed_at_unix": observed,
         "value": (
-            "0" if item.value.is_zero()
+            "0"
+            if item.value.is_zero()
             else format(item.value.normalize(context=Context(prec=64)), "f")
         ),
         "source_sha256": source,
@@ -166,20 +169,32 @@ def assess_fundamentals_asof(
     # An offline dataset may contain filings newer than a historical
     # decision. They must not change the earlier report or its input digest.
     known = [
-        x for x in normalized
-        if max(x["filed_at_unix"], x["observed_at_unix"]) <= now
+        x for x in normalized if max(x["filed_at_unix"], x["observed_at_unix"]) <= now
     ]
-    known.sort(key=lambda x: (
-        x["instrument_id"], x["field"], x["period_type"], x["unit"],
-        x["period_end_unix"], x["period_start_unix"],
-        x["filed_at_unix"], x["observed_at_unix"], x["source_sha256"],
-    ))
+    known.sort(
+        key=lambda x: (
+            x["instrument_id"],
+            x["field"],
+            x["period_type"],
+            x["unit"],
+            x["period_end_unix"],
+            x["period_start_unix"],
+            x["filed_at_unix"],
+            x["observed_at_unix"],
+            x["source_sha256"],
+        )
+    )
     identities = set()
     for x in known:
         identity = (
-            x["instrument_id"], x["field"], x["period_type"], x["unit"],
-            x["period_start_unix"], x["period_end_unix"],
-            x["filed_at_unix"], x["observed_at_unix"],
+            x["instrument_id"],
+            x["field"],
+            x["period_type"],
+            x["unit"],
+            x["period_start_unix"],
+            x["period_end_unix"],
+            x["filed_at_unix"],
+            x["observed_at_unix"],
         )
         if identity in identities:
             raise ValueError("conflicting or duplicate fundamental filing version")
@@ -197,29 +212,41 @@ def assess_fundamentals_asof(
         selected = max(
             options,
             key=lambda x: (
-                x["period_end_unix"], x["filed_at_unix"],
+                x["period_end_unix"],
+                x["filed_at_unix"],
                 x["observed_at_unix"],
             ),
             default=None,
         )
         row: dict[str, Any] = {
-            "instrument_id": key[0], "field": key[1],
-            "period_type": key[2], "unit": key[3],
-            "value": None, "period_end_unix": None,
-            "filed_at_unix": None, "observed_at_unix": None,
-            "available_at_unix": None, "source_sha256": None,
+            "instrument_id": key[0],
+            "field": key[1],
+            "period_type": key[2],
+            "unit": key[3],
+            "value": None,
+            "period_end_unix": None,
+            "filed_at_unix": None,
+            "observed_at_unix": None,
+            "available_at_unix": None,
+            "source_sha256": None,
         }
         if selected is None:
             blockers.append(f"fundamental_unavailable:{key[0]}:{key[1]}:{key[2]}")
         elif now - selected["period_end_unix"] > age_limit:
             blockers.append(f"fundamental_stale:{key[0]}:{key[1]}:{key[2]}")
         else:
-            row.update({
-                field: selected[field] for field in (
-                    "value", "period_end_unix", "filed_at_unix",
-                    "observed_at_unix", "source_sha256",
-                )
-            })
+            row.update(
+                {
+                    field: selected[field]
+                    for field in (
+                        "value",
+                        "period_end_unix",
+                        "filed_at_unix",
+                        "observed_at_unix",
+                        "source_sha256",
+                    )
+                }
+            )
             row["available_at_unix"] = max(
                 selected["filed_at_unix"], selected["observed_at_unix"]
             )

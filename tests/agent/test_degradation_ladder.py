@@ -238,10 +238,12 @@ def test_validator_crash_isolated_and_fallback_succeeds() -> None:
     def broken_validator(value: str) -> bool:
         raise RuntimeError(f"secret-bearing validation failed: {SECRET_TOKEN}")
 
-    ladder = DegradationLadder[str]([
-        CapabilityMode("rich", lambda _: "bad", broken_validator),
-        CapabilityMode("safe", lambda _: "hold", lambda x: x == "hold"),
-    ])
+    ladder = DegradationLadder[str](
+        [
+            CapabilityMode("rich", lambda _: "bad", broken_validator),
+            CapabilityMode("safe", lambda _: "hold", lambda x: x == "hold"),
+        ]
+    )
     outcome = ladder.run({})
     assert outcome.success
     assert outcome.mode_used == "safe"
@@ -251,16 +253,21 @@ def test_validator_crash_isolated_and_fallback_succeeds() -> None:
 
 def test_preferred_fast_mode_avoids_expensive_rich_path_and_recovers() -> None:
     calls = []
+
     def rich(_):
         calls.append("rich")
         return "richer"
+
     def fast(_):
         calls.append("fast")
         return "quick"
-    ladder = DegradationLadder[str]([
-        CapabilityMode("rich", rich, lambda x: x == "richer"),
-        CapabilityMode("fast", fast, lambda x: x == "quick"),
-    ])
+
+    ladder = DegradationLadder[str](
+        [
+            CapabilityMode("rich", rich, lambda x: x == "richer"),
+            CapabilityMode("fast", fast, lambda x: x == "quick"),
+        ]
+    )
     outcome = ladder.run({}, preferred_mode="fast")
     assert (outcome.value, calls) == ("quick", ["fast"])
     assert ladder.run({}).mode_used == "rich"
@@ -270,10 +277,16 @@ def test_preferred_fast_mode_avoids_expensive_rich_path_and_recovers() -> None:
 
 def test_preferred_mode_failure_recovers_through_validated_rich_path() -> None:
     calls = []
-    ladder = DegradationLadder[int]([
-        CapabilityMode("rich", lambda _: calls.append("rich") or 9, lambda x: x > 0),
-        CapabilityMode("fast", lambda _: calls.append("fast") or -1, lambda x: x > 0),
-    ])
+    ladder = DegradationLadder[int](
+        [
+            CapabilityMode(
+                "rich", lambda _: calls.append("rich") or 9, lambda x: x > 0
+            ),
+            CapabilityMode(
+                "fast", lambda _: calls.append("fast") or -1, lambda x: x > 0
+            ),
+        ]
+    )
     outcome = ladder.run({}, preferred_mode="fast")
     assert outcome.mode_used == "rich"
     assert calls == ["fast", "rich"]

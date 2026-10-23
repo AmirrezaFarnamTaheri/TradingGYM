@@ -33,9 +33,9 @@ def apply_emergency(
 ) -> EmergencyState:
     # Do not reinterpret strings or integers as Boolean controls. A direct
     # caller outside Pydantic must not accidentally clear a durable halt.
-    if type(halt) is not bool:
+    if type(halt) is not bool:  # noqa: E721
         raise ValueError("halt_must_be_boolean")
-    if type(expected_revision) is not int or expected_revision < 0:
+    if type(expected_revision) is not int or expected_revision < 0:  # noqa: E721
         raise ValueError("expected_revision_invalid")
     if state.revision != expected_revision:
         raise RuntimeError("revision_conflict")
@@ -59,6 +59,7 @@ def apply_emergency(
         actor=actor,
         approver=approver,
     )
+
 
 class EmergencyController:
     """Small durable CAS state machine shared by API and live execution."""

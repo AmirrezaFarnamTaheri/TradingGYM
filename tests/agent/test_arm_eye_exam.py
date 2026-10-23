@@ -63,10 +63,13 @@ def assert_well_formed(signal: DecisionSignal) -> None:
     assert signal.action_kind is not None
 
 
-def test_default_roster_is_not_empty() -> None:
+def test_default_roster_has_distinct_local_sources() -> None:
     registry = default_registry()
-    names = [arm.name for arm in registry.arms()]
-    assert len(names) >= 4, f"roster unexpectedly small: {names}"
+    arms = registry.arms()
+    assert {arm.name for arm in arms} == {"rules", "stats", "regime"}
+    sources = [getattr(arm, "source_id", None) for arm in arms]
+    assert set(sources) == {"risk-guard:rules", "stats", "regime"}
+    assert len(sources) == len(set(sources)), "aliases must not duplicate a vote"
 
 
 @pytest.mark.parametrize("context_name", ["calm", "stressed"])

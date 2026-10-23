@@ -16,9 +16,16 @@ DAY = 86400
 def _facts():
     return [
         FundamentalFact(
-            "NASDAQ:AAA", "net_income", "annual",
-            100 * DAY, 465 * DAY, 490 * DAY, 493 * DAY,
-            Decimal("100"), "USD", "a" * 64,
+            "NASDAQ:AAA",
+            "net_income",
+            "annual",
+            100 * DAY,
+            465 * DAY,
+            490 * DAY,
+            493 * DAY,
+            Decimal("100"),
+            "USD",
+            "a" * 64,
         )
     ]
 
@@ -26,8 +33,13 @@ def _facts():
 def _members(included=True, observed=97 * DAY):
     return [
         UniverseMembershipEvent(
-            "SP500", "NASDAQ:AAA", 100 * DAY, 95 * DAY,
-            observed, included, "b" * 64,
+            "SP500",
+            "NASDAQ:AAA",
+            100 * DAY,
+            95 * DAY,
+            observed,
+            included,
+            "b" * 64,
         )
     ]
 
@@ -78,9 +90,7 @@ def test_excluded_or_unobserved_constituent_cannot_qualify_factor(membership):
 def test_unrelated_instrument_query_denied_instead_of_cross_universe_join():
     with pytest.raises(ValueError, match="universe|instrument"):
         _assess(
-            requested=[
-                FundamentalQuery("NYSE:OTHER", "net_income", "annual", "USD")
-            ]
+            requested=[FundamentalQuery("NYSE:OTHER", "net_income", "annual", "USD")]
         )
 
 
@@ -93,6 +103,7 @@ def test_report_receipt_ignores_future_only_revisions():
     future = _members(False, observed=600 * DAY)
     assert _assess(membership=_members() + future) == baseline
     assert _assess(facts=[])["report_sha256"] != baseline["report_sha256"]
+
 
 def test_market_package_exposes_single_canonical_pit_ownership():
     import trading_gym.market as public

@@ -78,8 +78,12 @@ class PortfolioRiskLimits(BaseModel):
     max_daily_loss_fraction: float = Field(default=0.05, gt=0.0, lt=1.0)
 
     @field_validator(
-        "max_gross_leverage", "max_net_leverage", "max_instrument_fraction",
-        "max_sector_fraction", "max_drawdown_fraction", "max_daily_loss_fraction",
+        "max_gross_leverage",
+        "max_net_leverage",
+        "max_instrument_fraction",
+        "max_sector_fraction",
+        "max_drawdown_fraction",
+        "max_daily_loss_fraction",
         mode="before",
     )
     @classmethod

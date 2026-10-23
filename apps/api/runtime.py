@@ -46,9 +46,7 @@ _SECRET_ENV_SUFFIXES = (
 )
 
 _ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-_NUMBERED_SECRET_ENV = re.compile(
-    r"(?:^|_)(?:API_KEY|KEY|TOKEN|SECRET)_[0-9]+$"
-)
+_NUMBERED_SECRET_ENV = re.compile(r"(?:^|_)(?:API_KEY|KEY|TOKEN|SECRET)_[0-9]+$")
 
 _SECRET_ASSIGNMENT = re.compile(
     r"""(?ix)

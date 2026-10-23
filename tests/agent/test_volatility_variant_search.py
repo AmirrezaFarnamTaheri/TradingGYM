@@ -38,6 +38,4 @@ def test_lookback_mutations_are_deterministic_and_do_not_clone_seed():
         mutation_material(item) for item in b
     ]
     assert len({mutation_material(item) for item in a}) == len(a)
-    assert mutation_material(original) not in {
-        mutation_material(item) for item in a
-    }
+    assert mutation_material(original) not in {mutation_material(item) for item in a}

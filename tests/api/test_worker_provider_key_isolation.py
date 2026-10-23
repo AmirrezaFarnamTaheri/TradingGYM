@@ -68,31 +68,29 @@ def test_worker_delegates_selected_fast_and_deep_keys_not_unused_presets():
         ),
         configs,
     )
-    assert selected == frozenset(
-        {"FAST_LLM_KEY_1", "FAST_LLM_KEY_2", "DEEP_LLM_KEY_1"}
-    )
+    assert selected == frozenset({"FAST_LLM_KEY_1", "FAST_LLM_KEY_2", "DEEP_LLM_KEY_1"})
 
 
 def test_legacy_rl_and_rules_never_delegate_llm_keys():
     configs = [_config("fast-one", "FAST_LLM_KEY_1")]
     for mode in ("rl", "rules"):
-        assert selected_provider_credential_refs(
-            IntelligenceConfig(mode=mode), configs
-        ) == frozenset()
+        assert (
+            selected_provider_credential_refs(IntelligenceConfig(mode=mode), configs)
+            == frozenset()
+        )
 
 
 def test_explicit_system1_missing_provider_fails_closed_before_spawn():
     with pytest.raises(ValueError, match="provider.*not found"):
         selected_provider_credential_refs(
-            IntelligenceConfig(
-                mode="system1", system1_provider_ids=("unknown",)
-            ),
+            IntelligenceConfig(mode="system1", system1_provider_ids=("unknown",)),
             [_config("available", "LLM_KEY_1")],
         )
 
 
 def test_auto_mode_does_not_delegate_unconfigured_provider_keys():
     configs = [_config("unused", "UNUSED_LLM_KEY_1")]
-    assert selected_provider_credential_refs(
-        IntelligenceConfig(mode="auto"), configs
-    ) == frozenset()
+    assert (
+        selected_provider_credential_refs(IntelligenceConfig(mode="auto"), configs)
+        == frozenset()
+    )

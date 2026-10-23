@@ -16,7 +16,11 @@ from trading_gym.intelligence.llm_key_pool import (
     request_with_rotation,
 )
 from trading_gym.intelligence.system1_context import build_system1_packet
-from trading_gym.intelligence.types import BackendUnavailable, MarketContext
+from trading_gym.intelligence.types import (
+    BackendUnavailable,
+    MarketContext,
+    UncertainDecision,
+)
 
 
 def _context(**overrides):
@@ -40,7 +44,9 @@ def test_rotation_is_shared_and_never_writes_secret_values(tmp_path: Path):
     first = CredentialPool(tuple(env), state_path=path, env=env)
     second = CredentialPool(tuple(env), state_path=path, env=env)
     assert [pool.acquire().reference for pool in (first, second, first)] == [
-        "LLM_KEY_ONE", "LLM_KEY_TWO", "LLM_KEY_ONE"
+        "LLM_KEY_ONE",
+        "LLM_KEY_TWO",
+        "LLM_KEY_ONE",
     ]
     state = path.read_text(encoding="utf-8")
     assert all(value not in state for value in (*env, *env.values()))
@@ -71,8 +77,9 @@ def test_project_rate_limit_blocks_all_keys_by_default(tmp_path: Path):
     def post(key: str, timeout: float):
         calls.append(key)
         return httpx.Response(
-            429, headers={"Retry-After": "40"},
-            request=httpx.Request("POST", "https://provider.example/v1")
+            429,
+            headers={"Retry-After": "40"},
+            request=httpx.Request("POST", "https://provider.example/v1"),
         )
 
     with pytest.raises(CredentialsUnavailable, match="rate_or_quota"):
@@ -94,20 +101,21 @@ def test_opted_in_per_key_limit_can_rotate_but_hard_quota_cannot(tmp_path: Path)
             request=httpx.Request("POST", "https://provider.example/v1"),
         )
 
-    ok = request_with_rotation(
-        pool, post, timeout_seconds=2, rotate_on_rate_limit=True
-    )
+    ok = request_with_rotation(pool, post, timeout_seconds=2, rotate_on_rate_limit=True)
     assert ok.status_code == 200
     assert calls == ["secret-one", "secret-two"]
 
     path = tmp_path / "another.json"
     new_pool = CredentialPool(tuple(env), state_path=path, env=env)
+
     def hard_quota(key: str, timeout: float):
         calls.append(key)
         return httpx.Response(
-            429, json={"error": {"code": "insufficient_quota"}},
+            429,
+            json={"error": {"code": "insufficient_quota"}},
             request=httpx.Request("POST", "https://provider.example/v1"),
         )
+
     calls.clear()
     with pytest.raises(CredentialsUnavailable, match="rate_or_quota"):
         request_with_rotation(
@@ -169,7 +177,7 @@ def test_live_context_rejects_missing_or_stale_provenance():
                     "bar_open_unix": 1_000,
                     "bar_seconds": 300,
                     "source_sha256": "a" * 64,
-                }
+                },
             ),
             now=lambda: 20_000,
         )
@@ -204,7 +212,8 @@ def test_memory_context_excludes_unsettled_and_historical_hindsight():
     long_memory = LongMemory()
     packet = json.loads(
         build_system1_packet(
-            _context(), working_memory=ShortMemory(),
+            _context(),
+            working_memory=ShortMemory(),
             experience_memory=long_memory,
         )
     )
@@ -230,8 +239,12 @@ def test_system1_rejects_low_confidence_instead_of_acting():
         cfg,
         transport=lambda url, messages: LLMTransportResponse(
             content=json.dumps(
-                {"action": "long", "target_leverage": 0.7,
-                 "confidence": 0.2, "rationale": "weak evidence"}
+                {
+                    "action": "long",
+                    "target_leverage": 0.7,
+                    "confidence": 0.2,
+                    "rationale": "weak evidence",
+                }
             )
         ),
     )
@@ -255,8 +268,12 @@ def test_system1_strict_json_and_leverage_cap():
         cfg,
         transport=lambda url, messages: LLMTransportResponse(
             content=json.dumps(
-                {"action": "long", "target_leverage": 8,
-                 "confidence": 0.9, "rationale": "trend and memory"}
+                {
+                    "action": "long",
+                    "target_leverage": 8,
+                    "confidence": 0.9,
+                    "rationale": "trend and memory",
+                }
             )
         ),
     )
@@ -277,6 +294,7 @@ def test_factory_integrates_system1_without_a_trained_rl_model():
         model="fast",
         base_url="http://127.0.0.1:11434/v1",
     )
+
     class Repository:
         def list(self):
             return [cfg]
@@ -308,13 +326,15 @@ def test_system1_rejects_unadvertised_decision_fields():
     backend = System1DecisionBackend(
         config,
         transport=lambda url, messages: LLMTransportResponse(
-            content=json.dumps({
-                "action": "long",
-                "target_leverage": 0.5,
-                "confidence": 0.9,
-                "rationale": "momentum",
-                "place_order_now": True,
-            })
+            content=json.dumps(
+                {
+                    "action": "long",
+                    "target_leverage": 0.5,
+                    "confidence": 0.9,
+                    "rationale": "momentum",
+                    "place_order_now": True,
+                }
+            )
         ),
     )
     with pytest.raises(PermissionError, match="system1_invalid_structured"):
@@ -367,12 +387,16 @@ def test_system1_working_memory_requires_separate_explicit_consent():
 
         def capture(_url, messages):
             packets.append(json.loads(messages[1]["content"]))
-            return LLMTransportResponse(content=json.dumps({
-                "action": "hold",
-                "target_leverage": 0.0,
-                "confidence": 0.9,
-                "rationale": "insufficient evidence",
-            }))
+            return LLMTransportResponse(
+                content=json.dumps(
+                    {
+                        "action": "hold",
+                        "target_leverage": 0.0,
+                        "confidence": 0.9,
+                        "rationale": "insufficient evidence",
+                    }
+                )
+            )
 
         policy.backend._transport = capture
         policy.backend.decide(_context())
@@ -398,18 +422,23 @@ def test_explicit_weak_system1_hold_does_not_cascade_to_risk_on_fallback():
     )
     backend = System1DecisionBackend(
         config,
-        transport=lambda url, messages: LLMTransportResponse(content=json.dumps({
-            "action": "hold",
-            "target_leverage": 0.0,
-            "confidence": 0.25,
-            "rationale": "inconclusive closed-bar indicators",
-        })),
+        transport=lambda url, messages: LLMTransportResponse(
+            content=json.dumps(
+                {
+                    "action": "hold",
+                    "target_leverage": 0.0,
+                    "confidence": 0.25,
+                    "rationale": "inconclusive closed-bar indicators",
+                }
+            )
+        ),
         confidence_floor=0.65,
     )
     signal = backend.decide(_context())
     assert signal.action_kind is ActionKind.HOLD
     assert signal.target_leverage == 0
     assert signal.confidence == pytest.approx(0.25)
+
 
 @pytest.mark.parametrize("current_time", [1297, 1298, 1299, 1299.999])
 def test_future_bar_close_cannot_claim_verified_live_market(current_time):
@@ -476,7 +505,9 @@ def test_provider_cooldown_survives_model_and_key_roster_changes(tmp_path: Path)
         "provider-a", "https://api.example/v1", "small", ("MODEL_KEY_ONE",)
     )
     two = default_rotation_path(
-        "provider-a", "https://api.example/v1", "large",
+        "provider-a",
+        "https://api.example/v1",
+        "large",
         ("MODEL_KEY_TWO", "MODEL_KEY_THREE"),
     )
     assert one == two
@@ -484,12 +515,15 @@ def test_provider_cooldown_survives_model_and_key_roster_changes(tmp_path: Path)
     clock = [1_000.0]
     state = tmp_path / "shared.json"
     first = CredentialPool(
-        ("MODEL_KEY_ONE",), state_path=state,
-        env={"MODEL_KEY_ONE": "secret-one"}, now=lambda: clock[0],
+        ("MODEL_KEY_ONE",),
+        state_path=state,
+        env={"MODEL_KEY_ONE": "secret-one"},
+        now=lambda: clock[0],
     )
     first.cool_down_all(90.0)
     second = CredentialPool(
-        ("MODEL_KEY_TWO", "MODEL_KEY_THREE"), state_path=state,
+        ("MODEL_KEY_TWO", "MODEL_KEY_THREE"),
+        state_path=state,
         env={"MODEL_KEY_TWO": "secret-two", "MODEL_KEY_THREE": "secret-three"},
         now=lambda: clock[0],
     )
@@ -503,9 +537,7 @@ def test_quota_error_type_stops_rotating_even_when_per_key_opted_in(
     tmp_path: Path,
 ):
     keys = {"MODEL_KEY_ONE": "one-secret", "MODEL_KEY_TWO": "two-secret"}
-    pool = CredentialPool(
-        tuple(keys), state_path=tmp_path / "shared.json", env=keys
-    )
+    pool = CredentialPool(tuple(keys), state_path=tmp_path / "shared.json", env=keys)
     attempts = []
 
     def post(secret: str, remaining: float):
@@ -521,9 +553,7 @@ def test_quota_error_type_stops_rotating_even_when_per_key_opted_in(
         )
 
     with pytest.raises(CredentialsUnavailable, match="rate_or_quota"):
-        request_with_rotation(
-            pool, post, timeout_seconds=2, rotate_on_rate_limit=True
-        )
+        request_with_rotation(pool, post, timeout_seconds=2, rotate_on_rate_limit=True)
     assert attempts == ["one-secret"]
     with pytest.raises(CredentialsUnavailable):
         pool.acquire()
@@ -533,9 +563,7 @@ def test_organization_rate_limit_is_shared_even_when_per_key_opted_in(
     tmp_path: Path,
 ):
     keys = {"MODEL_KEY_ONE": "one-secret", "MODEL_KEY_TWO": "two-secret"}
-    pool = CredentialPool(
-        tuple(keys), state_path=tmp_path / "shared.json", env=keys
-    )
+    pool = CredentialPool(tuple(keys), state_path=tmp_path / "shared.json", env=keys)
     attempts = []
 
     def post(secret: str, remaining: float):
@@ -547,9 +575,7 @@ def test_organization_rate_limit_is_shared_even_when_per_key_opted_in(
         )
 
     with pytest.raises(CredentialsUnavailable, match="rate_or_quota"):
-        request_with_rotation(
-            pool, post, timeout_seconds=2, rotate_on_rate_limit=True
-        )
+        request_with_rotation(pool, post, timeout_seconds=2, rotate_on_rate_limit=True)
     assert attempts == ["one-secret"]
 
 
@@ -559,20 +585,23 @@ def test_credential_rotation_migrates_removed_key_cooldown_without_corruption(
     clock = [5_000.0]
     state = tmp_path / "shared.json"
     original = CredentialPool(
-        ("MODEL_KEY_ONE", "MODEL_KEY_TWO"), state_path=state,
+        ("MODEL_KEY_ONE", "MODEL_KEY_TWO"),
+        state_path=state,
         env={"MODEL_KEY_ONE": "one", "MODEL_KEY_TWO": "two"},
         now=lambda: clock[0],
     )
     original.cool_down("MODEL_KEY_TWO", 30.0)
     replacement = CredentialPool(
-        ("MODEL_KEY_THREE",), state_path=state,
+        ("MODEL_KEY_THREE",),
+        state_path=state,
         env={"MODEL_KEY_THREE": "three"},
         now=lambda: clock[0],
     )
     assert replacement.acquire().reference == "MODEL_KEY_THREE"
     # Reintroducing a previously cooled key cannot skip its cooldown.
     reintroduced = CredentialPool(
-        ("MODEL_KEY_TWO",), state_path=state,
+        ("MODEL_KEY_TWO",),
+        state_path=state,
         env={"MODEL_KEY_TWO": "two"},
         now=lambda: clock[0],
     )
@@ -595,9 +624,7 @@ def test_hard_billing_429_never_rotates_even_with_opt_in(
     tmp_path: Path, billing_code: str
 ) -> None:
     env = {"MODEL_KEY_ONE": "first", "MODEL_KEY_TWO": "second"}
-    pool = CredentialPool(
-        tuple(env), state_path=tmp_path / "pool.json", env=env
-    )
+    pool = CredentialPool(tuple(env), state_path=tmp_path / "pool.json", env=env)
     attempts: list[str] = []
 
     def post(key: str, remaining: float) -> httpx.Response:
@@ -609,9 +636,7 @@ def test_hard_billing_429_never_rotates_even_with_opt_in(
         )
 
     with pytest.raises(CredentialsUnavailable, match="rate_or_quota"):
-        request_with_rotation(
-            pool, post, timeout_seconds=2, rotate_on_rate_limit=True
-        )
+        request_with_rotation(pool, post, timeout_seconds=2, rotate_on_rate_limit=True)
     assert attempts == ["first"]
     with pytest.raises(CredentialsUnavailable):
         pool.acquire()
@@ -627,14 +652,16 @@ def test_broken_rotation_state_cannot_silently_exhaust_fallbacks(
     path = tmp_path / "pool.json"
     path.write_text("{broken", encoding="utf-8")
     pool = CredentialPool(
-        ("MODEL_KEY_ONE",), state_path=path,
+        ("MODEL_KEY_ONE",),
+        state_path=path,
         env={"MODEL_KEY_ONE": "secret"},
     )
     attempts: list[str] = []
 
     with pytest.raises(CredentialStateIntegrityError):
         request_with_rotation(
-            pool, lambda key, deadline: attempts.append(key),
+            pool,
+            lambda key, deadline: attempts.append(key),
             timeout_seconds=2,
         )
     assert attempts == []
@@ -698,9 +725,7 @@ def test_native_systemone_transport_rejects_corrupt_rotation_journal(
 
 def test_remote_protocol_disconnect_can_retry_on_another_key(tmp_path: Path):
     env = {"MODEL_KEY_ONE": "first", "MODEL_KEY_TWO": "second"}
-    pool = CredentialPool(
-        tuple(env), state_path=tmp_path / "pool.json", env=env
-    )
+    pool = CredentialPool(tuple(env), state_path=tmp_path / "pool.json", env=env)
     attempts: list[str] = []
 
     def post(key: str, remaining: float) -> httpx.Response:
@@ -725,8 +750,10 @@ def test_invalid_rotation_clock_denies_key_lease(
     )
 
     pool = CredentialPool(
-        ("MODEL_KEY_ONE",), state_path=tmp_path / "rotation.json",
-        env={"MODEL_KEY_ONE": "test-secret"}, now=lambda: bad_clock,
+        ("MODEL_KEY_ONE",),
+        state_path=tmp_path / "rotation.json",
+        env={"MODEL_KEY_ONE": "test-secret"},
+        now=lambda: bad_clock,
     )
     with pytest.raises(CredentialStateIntegrityError, match="clock"):
         pool.acquire()
@@ -740,7 +767,8 @@ def test_rotation_lock_io_error_must_not_be_recoverable_provider_outage(
     )
 
     pool = CredentialPool(
-        ("MODEL_KEY_ONE",), state_path=tmp_path / "rotation.json",
+        ("MODEL_KEY_ONE",),
+        state_path=tmp_path / "rotation.json",
         env={"MODEL_KEY_ONE": "test-secret"},
     )
 
@@ -765,6 +793,7 @@ def test_provider_hard_spend_limit_is_a_non_degradable_authority_denial(
     wire_protocol: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    mock_httpx_client,
 ) -> None:
     from trading_gym.intelligence.llm_backend import httpx_transport
     from trading_gym.intelligence.systemone_native_backend import (
@@ -784,24 +813,12 @@ def test_provider_hard_spend_limit_is_a_non_degradable_authority_denial(
     )
     calls = []
 
-    class ClientStub:
-        def __enter__(self):
-            return self
+    def respond(request):
+        calls.append(str(request.url))
+        body = json.dumps({"error": {"code": "project_spend_limit_exceeded"}}).encode()
+        return httpx.Response(429, stream=httpx.ByteStream(body))
 
-        def __exit__(self, exc_type, exc_value, traceback):
-            return False
-
-        def post(self, *args, **kwargs):
-            calls.append(args[0])
-            return httpx.Response(
-                429,
-                json={
-                    "error": {"code": "project_spend_limit_exceeded"}
-                },
-                request=httpx.Request("POST", args[0]),
-            )
-
-    monkeypatch.setattr(httpx, "Client", lambda **kwargs: ClientStub())
+    mock_httpx_client(respond)
     with pytest.raises(PermissionError, match="provider_billing_quota_denied"):
         if wire_protocol == "openai_chat":
             httpx_transport(config)(
@@ -850,6 +867,7 @@ def test_auto_escalates_uncertain_system1_to_qualified_deep_review():
         action_low=-2,
         action_high=2,
         provider_repository=Repository(),
+        fallback_admission=lambda signal, context: signal,
     )
     assert policy.backend.name == "system1:fast-auto"
     qualified = [
@@ -861,20 +879,24 @@ def test_auto_escalates_uncertain_system1_to_qualified_deep_review():
     ]
     assert len(qualified) == 1
     policy.backend._transport = lambda _url, _messages: LLMTransportResponse(
-        content=json.dumps({
-            "action": "long",
-            "target_leverage": 0.4,
-            "confidence": 0.2,
-            "rationale": "low confidence",
-        })
+        content=json.dumps(
+            {
+                "action": "long",
+                "target_leverage": 0.4,
+                "confidence": 0.2,
+                "rationale": "low confidence",
+            }
+        )
     )
     qualified[0]._transport = lambda _url, _messages: LLMTransportResponse(
-        content=json.dumps({
-            "action": "long",
-            "target_leverage": 0.35,
-            "confidence": 0.92,
-            "rationale": "independent review",
-        })
+        content=json.dumps(
+            {
+                "action": "long",
+                "target_leverage": 0.35,
+                "confidence": 0.92,
+                "rationale": "independent review",
+            }
+        )
     )
     action, _ = policy.predict(np.zeros(3))
     assert float(action[0]) == pytest.approx(0.35)
@@ -913,16 +935,18 @@ def test_auto_no_deep_reviewer_abstains_after_uncertain_system1():
         provider_repository=Repository(),
     )
     policy.backend._transport = lambda _url, _messages: LLMTransportResponse(
-        content=json.dumps({
-            "action": "short",
-            "target_leverage": -0.4,
-            "confidence": 0.15,
-            "rationale": "low confidence",
-        })
+        content=json.dumps(
+            {
+                "action": "short",
+                "target_leverage": -0.4,
+                "confidence": 0.15,
+                "rationale": "low confidence",
+            }
+        )
     )
-    action, _ = policy.predict(np.zeros(3))
-    assert float(action[0]) == pytest.approx(0.0)
-    assert policy.last_signal.backend == "system1:abstained"
+    with pytest.raises(UncertainDecision, match="no qualified review"):
+        policy.predict(np.zeros(3))
+    assert policy.last_signal is None
 
 
 def test_system1_context_has_net_exposure_and_bar_based_momentum():
@@ -955,7 +979,7 @@ def test_system1_context_rejects_nonphysical_or_nonfinite_return_statistics(
     invalid_returns,
 ):
     context = _context(recent_returns=invalid_returns)
-    with pytest.raises(ValueError, match="market returns"):
+    with pytest.raises(ValueError, match="invalid market(?: returns|/account context)"):
         build_system1_packet(context)
 
 
@@ -971,9 +995,12 @@ def test_system1_context_still_preserves_risk_bounds_on_budget_reduction():
     assert "account" in packet
     assert "freshness" in packet
 
+
 def test_compacted_context_statistics_match_transmitted_returns():
     """Shrinking context must not misrepresent the statistical sample size."""
-    sample = tuple(0.0123456789 * (i + 1) * (-1 if i % 3 == 0 else 1) for i in range(12))
+    sample = tuple(
+        0.0123456789 * (i + 1) * (-1 if i % 3 == 0 else 1) for i in range(12)
+    )
     ctx = _context(recent_returns=sample)
     original = build_system1_packet(ctx)
     # One byte below full context forces return-sample shedding without
@@ -983,7 +1010,9 @@ def test_compacted_context_statistics_match_transmitted_returns():
     stats = packet["market"]["return_stats"]
     assert reported == pytest.approx(sample[:4])
     assert stats["observations"] == len(reported)
-    assert stats["mean_return"] == pytest.approx(sum(reported) / len(reported), abs=1e-11)
+    assert stats["mean_return"] == pytest.approx(
+        sum(reported) / len(reported), abs=1e-11
+    )
     cumulative = 1.0
     for value in reported:
         cumulative *= 1 + value
@@ -1000,10 +1029,12 @@ def test_rotation_rejects_fifo_without_reading_it(tmp_path: Path, monkeypatch):
 
     state_path = tmp_path / "rotation.json"
     os.mkfifo(state_path)
-    pool = CredentialPool(("LLM_KEY_ONE",), state_path=state_path,
-                          env={"LLM_KEY_ONE": "secret"})
+    pool = CredentialPool(
+        ("LLM_KEY_ONE",), state_path=state_path, env={"LLM_KEY_ONE": "secret"}
+    )
     monkeypatch.setattr(
-        Path, "read_text",
+        Path,
+        "read_text",
         lambda self, *args, **kwargs: pytest.fail("FIFO state was read"),
     )
     with pytest.raises(CredentialStateIntegrityError, match="invalid"):

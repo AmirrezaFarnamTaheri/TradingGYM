@@ -12,9 +12,7 @@ from trading_gym.strategy_lab.overfitting import (
 )
 
 
-@pytest.mark.parametrize(
-    "invalid", [float("nan"), float("inf"), float("-inf"), True]
-)
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf"), True])
 def test_invalid_observed_sharpe_cannot_generate_confidence(invalid):
     with pytest.raises(ValueError):
         deflated_sharpe_ratio(invalid, trials=10, observations=250)
@@ -45,32 +43,22 @@ def test_observation_count_must_be_true_sample_size(invalid):
 @pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])
 def test_skewness_cannot_be_missing_or_nonfinite(invalid):
     with pytest.raises(ValueError):
-        sharpe_estimator_variance(
-            0.2, observations=250, skewness=invalid
-        )
+        sharpe_estimator_variance(0.2, observations=250, skewness=invalid)
 
 
-@pytest.mark.parametrize(
-    "invalid", [float("nan"), float("inf"), float("-inf"), 0.5]
-)
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf"), 0.5])
 def test_kurtosis_cannot_be_missing_or_nonfinite(invalid):
     with pytest.raises(ValueError):
-        sharpe_estimator_variance(
-            0.2, observations=250, kurtosis=invalid
-        )
+        sharpe_estimator_variance(0.2, observations=250, kurtosis=invalid)
 
 
 def test_joint_sample_moments_must_satisfy_pearson_inequality():
     with pytest.raises(ValueError, match="kurtosis"):
-        sharpe_estimator_variance(
-            0.2, observations=250, skewness=4.0, kurtosis=2.0
-        )
+        sharpe_estimator_variance(0.2, observations=250, skewness=4.0, kurtosis=2.0)
 
 
 def test_single_trial_zero_sharpe_has_half_probability():
-    assert deflated_sharpe_ratio(
-        0.0, trials=1, observations=250
-    ) == pytest.approx(0.5)
+    assert deflated_sharpe_ratio(0.0, trials=1, observations=250) == pytest.approx(0.5)
 
 
 def test_valid_numpy_scalars_are_accepted():

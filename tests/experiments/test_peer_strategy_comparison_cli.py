@@ -26,7 +26,10 @@ def _run(tmp_path, blob):
     source.write_text(blob, encoding="utf-8")
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--input", str(source)],
-        cwd=ROOT, capture_output=True, text=True, check=False,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 

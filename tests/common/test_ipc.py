@@ -46,6 +46,7 @@ def test_concurrent_update(metrics_file):
 
 def test_reader_rejects_oversized_metrics_without_unbounded_json_parse(metrics_file):
     from apps.common.ipc import MAX_ENVELOPE_BYTES
+
     with open(metrics_file, "wb") as handle:
         handle.write(b"{" + b"x" * (MAX_ENVELOPE_BYTES + 10))
     reader = MetricsReader(metrics_file)
@@ -56,6 +57,7 @@ def test_reader_rejects_oversized_metrics_without_unbounded_json_parse(metrics_f
 @pytest.mark.parametrize("timestamp", ["NaN", "Infinity", "future"])
 def test_reader_rejects_nonfinite_or_future_metric_clock(metrics_file, timestamp):
     import json
+
     writer = MetricsWriter(metrics_file)
     writer.write({"equity": 100})
     with open(metrics_file, "r", encoding="utf-8") as handle:

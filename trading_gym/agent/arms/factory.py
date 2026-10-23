@@ -7,14 +7,12 @@ injects the LLM backend) — so the roster is exactly the platform's
 capability set, and every arm carries concrete, grantable scopes for the
 ADR-028 pre-flight.
 
-Roster (tier order):
-- α ``rules`` (T1): deterministic momentum with defence floor; the
-  always-available decision floor from ADR-023. Votes *through* δ, so a
-  guard veto is the channel's own HOLD.
-- δ ``risk-guard`` (T1): :class:`RiskGuardBackend` wrapping α — veto to
-  HOLD above the drawdown floor or the position cap, halve leverage
-  above the warn level. Shares its guarded backend with α; the two arms
-  are one channel seen twice, once raw-named and once guard-named.
+Roster:
+- ``rules`` (T1): one deterministic momentum channel wrapped by
+  :class:`RiskGuardBackend`. The guard targets zero above the drawdown
+  floor or position cap and halves leverage above the warn level.
+  The guard and underlying rules share one evidence identity and one vote.
+- ``stats`` and ``regime``: statistical evidence and market-regime context.
 - β ``rl`` (T3): present only when an RL model object is injected.
 - γ ``llm`` (T4): present only when an LLM backend is injected; declares
   ``research.llm.invoke`` because it reaches the network.
@@ -23,7 +21,7 @@ Roster (tier order):
 from __future__ import annotations
 
 import math
-from typing import Any, Sequence
+from typing import Any, Sequence, SupportsFloat, SupportsIndex, cast
 
 import numpy as np
 
@@ -45,7 +43,7 @@ def _finite_observation(value: object) -> bool:
     if isinstance(value, (str, bytes, bool)):
         return False
     try:
-        return math.isfinite(float(value))
+        return math.isfinite(float(cast(SupportsFloat | SupportsIndex, value)))
     except (TypeError, ValueError, OverflowError):
         return False
 
@@ -351,12 +349,8 @@ def default_registry(
     registry = ArmRegistry()
     rules = rule_backend or DeterministicRuleBackend()
 
-    # The rules channel votes *through* its guard rather than alongside it.
-    # Registered as two arms sharing one guarded backend, a veto becomes the
-    # channel's own HOLD: both arms report flat, so the guarded vote cannot
-    # reach fusion. Registered side-by-side with the raw backend instead, the
-    # guard's HOLD was a neutral vote while the unguarded rules LONG still
-    # decided the bar — the guard guarded nothing.
+    # One guarded rules channel: the guard constrains the vote rather than
+    # presenting a second alias as independent evidence.
     guarded = RiskGuardBackend(rules)
     registry.register(
         BackendArm(
@@ -364,14 +358,6 @@ def default_registry(
             name="rules",
             tier=ArmTier.T1_RULES,
             cost=_cost(0.1, 0.5),
-            required_scopes=frozenset({"trade.paper.order.submit"}),
-        )
-    )
-    registry.register(
-        BackendArm(
-            backend=guarded,
-            tier=ArmTier.T1_RULES,
-            cost=_cost(0.2, 1.0),
             required_scopes=frozenset({"trade.paper.order.submit"}),
         )
     )

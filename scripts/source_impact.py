@@ -45,9 +45,9 @@ _RS_USE = re.compile(r"(?:^|\n)\s*use\s+crate::([A-Za-z_][A-Za-z0-9_]*)", re.MUL
 def _files(root: Path):
     for folder, dirs, files in os.walk(root, topdown=True, followlinks=False):
         dirs[:] = sorted(
-            name for name in dirs
-            if name not in _EXCLUDED_DIRS
-            and not (Path(folder) / name).is_symlink()
+            name
+            for name in dirs
+            if name not in _EXCLUDED_DIRS and not (Path(folder) / name).is_symlink()
         )
         for name in sorted(files):
             path = Path(folder) / name
@@ -93,7 +93,7 @@ def _python_imports(path: str, content: str, modules: dict[str, str]) -> set[str
                 up = node.level - 1
                 if up > len(package):
                     raise ValueError(f"invalid relative source import: {path}")
-                base = list(package[:len(package) - up])
+                base = list(package[: len(package) - up])
             else:
                 base = []
             if node.module:
@@ -130,7 +130,8 @@ def _javascript_imports(path: str, content: str, paths: set[str]) -> set[str]:
                 segments.append(segment)
         raw = "/".join(segments)
         candidates = [
-            raw, *(raw + ext for ext in (".ts", ".tsx", ".js", ".jsx", ".mjs"))
+            raw,
+            *(raw + ext for ext in (".ts", ".tsx", ".js", ".jsx", ".mjs")),
         ]
         candidates.extend(
             f"{raw}/index{ext}" for ext in (".ts", ".tsx", ".js", ".jsx", ".mjs")

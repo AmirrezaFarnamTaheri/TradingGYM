@@ -114,10 +114,10 @@ def test_upstream_generator_failure_requires_new_snapshot():
 
     def broken():
         yield (99, 1)
-        raise RuntimeError('source stream died')
+        raise RuntimeError("source stream died")
 
-    with pytest.raises(RuntimeError, match='source stream died'):
+    with pytest.raises(RuntimeError, match="source stream died"):
         gate.apply_delta(4, broken(), [(101, 1)])
     assert gate.requires_snapshot and gate.last_sequence is None
-    with pytest.raises(ValueError, match='sequence_gap_requires_snapshot'):
+    with pytest.raises(ValueError, match="sequence_gap_requires_snapshot"):
         gate.apply_delta(5, [(99, 1)], [(101, 1)])

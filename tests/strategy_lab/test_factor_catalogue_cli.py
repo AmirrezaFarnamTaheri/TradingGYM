@@ -49,9 +49,7 @@ def _leaves(node):
 
 
 def test_cli_exposes_every_research_factor_without_execution(tmp_path):
-    process = _run(
-        tmp_path, _records(), options=("--max-fanout", "16")
-    )
+    process = _run(tmp_path, _records(), options=("--max-fanout", "16"))
     assert process.returncode == 0, process.stderr
     report = json.loads(process.stdout)
     assert report["candidate_count"] == 478
