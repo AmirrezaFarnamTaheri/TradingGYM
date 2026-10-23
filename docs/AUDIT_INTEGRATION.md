@@ -91,6 +91,12 @@ outcome; including its source does not close every qualification condition.
   builtin-type admission at validation boundaries, fix scoped type errors, and
   refresh generated schema/module inventories after source changes.
 
+> **Post-publication qualification:** The results immediately below belong to
+> the original frozen implementation tree, not automatically to later PR
+> commits. Follow-up bug fixes, local regression evidence and blocked hosted
+> runs are separately recorded in
+> [post-publication verification](reviews/2026-10-23/post_publication_verification.md).
+
 ## Current verification
 
 The validated source is commit `865beaf83ae067923aa293c1fc8b17b2f0fb8400`, tree
