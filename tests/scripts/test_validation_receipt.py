@@ -58,5 +58,39 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(result["output_bytes"], 8)
 
 
+    def test_null_or_missing_step_metadata_is_not_execution_evidence(self):
+        for optional_fields in ({}, {"steps": None}):
+            with self.subTest(optional_fields=optional_fields):
+                job = {
+                    "head_sha": SHA,
+                    "name": "Bare hosted runner",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "runner_name": None,
+                    **optional_fields,
+                }
+                result = receipt.classify_jobs({"jobs": [job]}, SHA)
+                self.assertEqual(
+                    result["jobs"][0]["evidence"], "no_execution_evidence"
+                )
+                self.assertFalse(result["all_executed_successfully"])
+
+    def test_queued_or_runner_assigned_without_steps_is_not_proven_blocked(self):
+        cases = (
+            {"status": "queued", "conclusion": None, "runner_name": None},
+            {"status": "completed", "conclusion": "failure", "runner_name": "hosted-1"},
+        )
+        for case in cases:
+            with self.subTest(case=case):
+                result = receipt.classify_jobs(
+                    {"jobs": [{"head_sha": SHA, "steps": None, **case}]},
+                    SHA,
+                )
+                self.assertEqual(
+                    result["jobs"][0]["evidence"],
+                    "incomplete_metadata_or_pending",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
