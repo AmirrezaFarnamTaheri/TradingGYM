@@ -69,7 +69,8 @@ outcome; including its source does not close every qualification condition.
 - Settle each replay action through the next valuation timestamp, including the
   last holding interval; use actual elapsed time for financing and evaluate
   interval risk against the next bar. Bind that timing contract into model
-  observation identities, and align replay metrics and charts with valuations.
+  observation identities, and align replay metrics and charts with valuations. Existing policies require retraining and a new
+  bundle; see [valuation timing and model migration](VALUATION_TIMING.md).
 - Give random baselines independent seeded generators so unrelated NumPy calls
   cannot change their replay sequence.
 - Track canonical market scopes and consumed time intervals in evidence-role
@@ -79,6 +80,9 @@ outcome; including its source does not close every qualification condition.
   rotation without confusing authorization denials with expired sessions, read
   risk settings from the API, and display unknown telemetry and unconfirmed
   shutdowns explicitly. Wait for the frontend before opening the launcher URL.
+- Reject custom-backend HOLD signals with nonzero leverage before action
+  construction, and preserve uncertainty as an exception without an admitted
+  signal. Fallback requires explicit admission rather than a fabricated flatten.
 - Add an independent real-dependency contract CI job, optional locked ONNX
   dependencies, explicit Node contract checks, and a required aggregate gate
   that fails on skipped, cancelled or failed prerequisites. The release script
@@ -89,7 +93,43 @@ outcome; including its source does not close every qualification condition.
 
 ## Current verification
 
-Final execution results will be recorded here before publication.
+The validated source is commit `865beaf83ae067923aa293c1fc8b17b2f0fb8400`, tree
+`4afaffb779b0a5c25457faf031ba6ee48d3d602f`. The subsequent documentation commit changes
+only this audit summary and the [machine-readable validation record](reviews/2026-10-23/validation.json).
+The complete Python suite and isolated contract suite retained the same source
+SHA-256 throughout execution:
+`5b16788cb0ea950565a6b318488367dfa1c385eb141ee2b25907cf00422ed32e`.
+
+| Check | Recorded result | Scope |
+| --- | --- | --- |
+| Complete Python suite | **3,461 passed, 43 skipped, 0 failed/errors** | 3,504 collected; normal conftest, real-dependency guard and isolated state |
+| Independent contract gate | **396 passed, 0 skipped/failed/errors** | 55 files under `--noconftest`; real PPO/HPO, ONNX, financial and API/worker contracts |
+| Frontend component gate | **113 passed in 21 files** | Final frozen frontend; before/after hashes match |
+| Native Node contracts | **3 passed across 2 files** | Job-response and wallet contract files |
+| Frontend production build | **Passed** | Final source; build completed after the last frontend edit |
+| Launcher checks | **7 passed** | Mocked service/browser lifecycle and configuration checks |
+| Source quality | **Passed** | Ruff, Black 24.10.0 (849 files), Flake8 error selection and scoped MyPy (36 files) |
+| Generated/release checks | **Passed** | Live OpenAPI, 389-module inventory, release manifest, workflow pins, recovered coverage and permissions |
+| Dependency/configuration checks | **Passed** | Poetry lock consistency and CI/shell configuration checks |
+
+The 43 Python skips comprise 42 checks needing unavailable compiled native
+artifacts and one pre-existing explicitly skipped performance-scaling test. No
+Python-runtime or ONNX dependency was missing from the executed gates. The
+contract tests overlap the complete suite; their counts are separate execution
+evidence, not additional unique test cases.
+
+The complete suite took 306.745 seconds wall time and the independent contract
+gate 131.01 seconds. The final frontend rerun covered 66 source/configuration/test/
+asset files without changes. It supersedes the earlier component run whose last
+trading-panel edit occurred during execution. Existing React `act` warnings and
+dependency deprecation warnings remain non-failing.
+
+These are local Python 3.12.14 results with installed real dependencies. Selected
+core versions differ from the lock: SciPy 1.17.1 versus 1.16.3, PyTorch 2.2.2+cpu
+versus 2.9.1, Stable Baselines3 2.2.1 versus 2.7.0, ONNX 1.17.0 versus 1.16.2 and
+ONNX Runtime 1.21.1 versus 1.18.1. The JSON record includes the captured versions,
+additional recorded differences, result counts and evidence digests. Hosted
+checks for the published PR must be assessed separately.
 
 ## Qualification still required
 
