@@ -1,0 +1,25 @@
+# Diagnostic only. This workflow checks GitHub-hosted runner admission.
+# It does not substitute for any required CI/release verification.
+name: Runner admission probe
+on:
+  push:
+    branches:
+      - fix/audit-integration-2026-10-23
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux:
+    name: Bare Linux runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm Linux runner startup
+        run: echo "linux_runner_started"
+  windows:
+    name: Bare Windows runner
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm Windows runner startup
+        run: Write-Output "windows_runner_started"
