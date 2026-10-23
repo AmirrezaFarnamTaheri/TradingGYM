@@ -8,17 +8,37 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = json.loads(
-    (ROOT / "trading_gym" / "release_manifest.json").read_text(encoding="utf-8")
-)
-VERSION = str(MANIFEST["version"])
+
+
+def committed_release_version() -> str:
+    """Bind the ZIP member prefix to the manifest's immutable HEAD blob."""
+    try:
+        content = subprocess.run(
+            ["git", "-C", str(ROOT), "show", "HEAD:trading_gym/release_manifest.json"],
+            check=True,
+            capture_output=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError("committed release manifest is unavailable") from exc
+    version = json.loads(content)["version"]
+    if not isinstance(version, str) or not re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}", version
+    ):
+        raise ValueError("unsafe source release version")
+    return version
+
+
+VERSION = committed_release_version()
 ARCHIVE_ROOT = f"trading-gym-{VERSION}"
 OUT = (
     Path(sys.argv[1])
@@ -69,7 +89,7 @@ def assert_clean_revision() -> None:
         raise RuntimeError("source release requires unmodified tracked files")
 
 
-def source_files() -> list[tuple[Path, int]]:
+def source_files() -> list[tuple[Path, int, str]]:
     """Preflight every tracked source file before creating the ZIP."""
     try:
         root = subprocess.run(
@@ -94,7 +114,7 @@ def source_files() -> list[tuple[Path, int]]:
 
     assert_clean_revision()
 
-    files: list[tuple[Path, int]] = []
+    files: list[tuple[Path, int, str]] = []
     casefolded: set[str] = set()
     for record in entries:
         metadata, separator, entry = record.partition("\t")
@@ -106,6 +126,9 @@ def source_files() -> list[tuple[Path, int]]:
         if fields[0] not in {"100644", "100755"}:
             raise ValueError(f"unsupported Git source file mode: {record!r}")
         mode = int(fields[0], 8)
+        object_id = fields[1]
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", object_id):
+            raise ValueError(f"invalid source blob identity: {record!r}")
         rel = PurePosixPath(entry)
         if rel.is_absolute() or ".." in rel.parts or not rel.parts:
             raise ValueError(f"unsafe tracked source path: {entry!r}")
@@ -130,43 +153,72 @@ def source_files() -> list[tuple[Path, int]]:
         if name.casefold() in casefolded:
             raise ValueError(f"duplicate/case-colliding release path: {name}")
         casefolded.add(name.casefold())
-        files.append((path, mode))
+        files.append((path, mode, object_id))
     return sorted(files, key=lambda item: item[0])
 
 
-files = source_files()
-with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
-    for path, mode in files:
-        rel = path.relative_to(ROOT).as_posix()
-        # Canonical member metadata must derive from Git, not checkout mtimes
-        # or filesystem permissions. Compression can still vary by zlib build.
-        info = zipfile.ZipInfo(f"{ARCHIVE_ROOT}/{rel}", (1980, 1, 1, 0, 0, 0))
-        info.create_system = 3
-        info.external_attr = mode << 16
-        info.compress_type = zipfile.ZIP_DEFLATED
-        with path.open("rb") as source, archive.open(
-            info, "w", force_zip64=True
-        ) as target:
-            shutil.copyfileobj(source, target, length=1024 * 1024)
+def copy_committed_blob(object_id: str, target) -> None:
+    """Copy immutable Git blob bytes, not a mutable worktree path."""
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", object_id):
+        raise ValueError("invalid source blob identity")
+    try:
+        with subprocess.Popen(
+            ["git", "-C", str(ROOT), "cat-file", "blob", object_id],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        ) as process:
+            if process.stdout is None:
+                raise RuntimeError("Git source blob stream is unavailable")
+            shutil.copyfileobj(process.stdout, target, length=1024 * 1024)
+            process.stdout.close()
+            if process.wait() != 0:
+                raise RuntimeError("Git source blob cannot be read")
+    except OSError as exc:
+        raise RuntimeError("Git source blob cannot be read") from exc
 
-try:
-    assert_clean_revision()
-except RuntimeError:
-    OUT.unlink(missing_ok=True)
-    raise
 
-digest = hashlib.sha256()
-with OUT.open("rb") as handle:
-    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-        digest.update(chunk)
-print(
-    json.dumps(
-        {
-            "archive": str(OUT),
-            "sha256": digest.hexdigest(),
-            "members": len(files),
-            "root": ARCHIVE_ROOT,
-        },
-        sort_keys=True,
+def main() -> None:
+    files = source_files()
+    # The destination is only replaced after a complete successful archive
+    # and a final worktree check. Failed runs must not publish partial ZIPs.
+    descriptor, temporary = tempfile.mkstemp(
+        prefix=".source-", suffix=".zip", dir=OUT.parent
     )
-)
+    os.close(descriptor)
+    temp_path = Path(temporary)
+    try:
+        with zipfile.ZipFile(
+            temp_path, "w", zipfile.ZIP_DEFLATED, allowZip64=True
+        ) as archive:
+            for path, mode, object_id in files:
+                rel = path.relative_to(ROOT).as_posix()
+                # Canonical metadata comes from Git, not local mtimes or modes.
+                info = zipfile.ZipInfo(f"{ARCHIVE_ROOT}/{rel}", (1980, 1, 1, 0, 0, 0))
+                info.create_system = 3
+                info.external_attr = mode << 16
+                info.compress_type = zipfile.ZIP_DEFLATED
+                with archive.open(info, "w", force_zip64=True) as target:
+                    copy_committed_blob(object_id, target)
+        assert_clean_revision()
+        digest = hashlib.sha256()
+        with temp_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        os.replace(temp_path, OUT)
+    finally:
+        temp_path.unlink(missing_ok=True)
+    print(
+        json.dumps(
+            {
+                "archive": str(OUT),
+                "sha256": digest.hexdigest(),
+                "members": len(files),
+                "root": ARCHIVE_ROOT,
+            },
+            sort_keys=True,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()
