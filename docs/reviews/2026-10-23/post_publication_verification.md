@@ -81,3 +81,56 @@ end-to-end admission; exact-lock Linux/Windows, compiled native-kernel parity,
 build-and-run container smoke; real venue/provider costs, order outcomes and
 economic performance; capacity, storage retention and long-running restart
 qualifications. A successful synthetic fixture does not replace those tests.
+
+## Isolated runner-admission experiment: completed
+
+On **23 October 2026**, commit
+[`df1b6d9`](https://github.com/AmirrezaFarnamTaheri/TradingGYM/commit/df1b6d9e687fce0fc7ff415991973df1b44d967f)
+temporarily introduced a minimal
+`runner-admission-probe.yml` workflow triggered on the PR branch.
+Neither probe job checked out the repository, downloaded dependencies,
+invoked actions, or used any application code.
+
+[Runner-admission run #40017711750](https://github.com/AmirrezaFarnamTaheri/TradingGYM/actions/runs/40017711750)
+completed with **failure** in both bare jobs:
+
+| Bare runner | Job ID | Outcome |
+|---|---:|---|
+| `ubuntu-latest` | 120633959071 | failed before a runner or step was recorded |
+| `windows-latest` | 120633958679 | failed before a runner or step was recorded |
+
+The workflow was removed after the experiment to avoid shipping an extra
+per-push workflow. The run and commit remain durable diagnostic evidence.
+
+The connector confirmed that **TradingGYM is a private repository**, whereas
+other owner repositories checked at that time—OpenHuman, HUNTX, Scriptor,
+and Collegeum—were public and had successfully executed Actions jobs on
+23 October 2026. None of the sampled *other private* repositories had
+recent workflow runs, so these results do not isolate the problem to this
+one repository versus private-repository Actions entitlement in general.
+
+**Interpretation:** The same pre-step failure on Linux and Windows in a
+workflow without checkout or any application step is strong evidence against
+a Python/Node/Rust test command, action version or heavy-build-disk problem
+causing the observed failures. It is consistent with a hosted-runner
+provisioning/admission restriction. **A particular cause is not proven.**
+Private-repository minutes, spending budget, unpaid billing, runner
+eligibility/restrictions, and GitHub service provisioning remain live
+possibilities. Do not change repository visibility or waive CI checks as
+a workaround without an explicit owner decision.
+
+**Owner/administrative next action:**
+
+1. Open the bare [runner probe run](https://github.com/AmirrezaFarnamTaheri/TradingGYM/actions/runs/40017711750);
+   inspect each job's top-level annotation for the actual rejection.
+2. Inspect GitHub account **Billing and licensing > Budgets and alerts**
+   and Actions usage/spend controls for *private* repositories.
+3. Check this repository's **Settings > Actions > General** and runner
+   permissions/eligibility.
+4. When the cause is remedied, rerun the latest required CI and collect
+   assigned runners, executed steps, logs and verified source revision.
+   If no annotation explains the outcome, submit the two failing job IDs,
+   run ID and UTC timestamps to GitHub Support.
+
+The visible connector can inspect Actions runs and jobs, but cannot read
+this account's billing settings or the check-run startup annotations.
