@@ -51,6 +51,24 @@ def included(path: Path) -> bool:
     return True
 
 
+def assert_clean_revision() -> None:
+    """Reject changes to tracked source, including staged changes.
+
+    Untracked files cannot enter the Git-indexed source archive.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
+            check=True,
+            capture_output=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError("source release requires a readable Git checkout") from exc
+    if result.stdout:
+        raise RuntimeError("source release requires unmodified tracked files")
+
+
+
 def source_files() -> list[Path]:
     """Preflight every tracked source file before creating the ZIP."""
     try:
@@ -73,6 +91,8 @@ def source_files() -> list[Path]:
     entries = [part.decode("utf-8") for part in inventory.split(b"\0") if part]
     if not entries:
         raise RuntimeError("empty Git source inventory")
+
+    assert_clean_revision()
 
     files: list[Path] = []
     casefolded: set[str] = set()
@@ -110,6 +130,12 @@ with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as archive
     for path in files:
         rel = path.relative_to(ROOT).as_posix()
         archive.write(path, f"{ARCHIVE_ROOT}/{rel}")
+
+try:
+    assert_clean_revision()
+except RuntimeError:
+    OUT.unlink(missing_ok=True)
+    raise
 
 digest = hashlib.sha256()
 with OUT.open("rb") as handle:
