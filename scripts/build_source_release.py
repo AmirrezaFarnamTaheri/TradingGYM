@@ -29,7 +29,7 @@ def committed_release_version() -> str:
             capture_output=True,
         ).stdout
     except (OSError, subprocess.CalledProcessError) as exc:
-        raise RuntimeError("committed release manifest is unavailable") from exc
+        raise RuntimeError("Git committed release manifest is unavailable") from exc
     version = json.loads(content)["version"]
     if not isinstance(version, str) or not re.fullmatch(
         r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}", version

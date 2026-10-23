@@ -1,6 +1,7 @@
 """A source archive must not mix committed inventory with dirty file bytes."""
 
 import json
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -69,6 +70,14 @@ class ReleaseArchiveIdentityTests(unittest.TestCase):
         self.git("add", "payload.txt")
         result = self.build()
         self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertFalse(self.archive.exists())
+
+
+    def test_missing_git_checkout_reports_actionable_git_error(self):
+        shutil.rmtree(self.root / ".git")
+        failure = self.build()
+        self.assertNotEqual(failure.returncode, 0)
+        self.assertIn("Git", failure.stderr)
         self.assertFalse(self.archive.exists())
 
     def test_untracked_dotenv_cannot_enter_release(self):
