@@ -68,7 +68,6 @@ def assert_clean_revision() -> None:
         raise RuntimeError("source release requires unmodified tracked files")
 
 
-
 def source_files() -> list[Path]:
     """Preflight every tracked source file before creating the ZIP."""
     try:

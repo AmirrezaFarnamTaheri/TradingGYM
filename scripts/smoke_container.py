@@ -20,11 +20,7 @@ class _AssetParser(HTMLParser):
         fields = dict(attrs)
         if tag == "script" and fields.get("src"):
             self.scripts.append(fields["src"])
-        if (
-            tag == "link"
-            and fields.get("rel") == "stylesheet"
-            and fields.get("href")
-        ):
+        if tag == "link" and fields.get("rel") == "stylesheet" and fields.get("href"):
             self.stylesheets.append(fields["href"])
 
 
@@ -67,9 +63,7 @@ def verify_installed_service(base: str, key: str) -> None:
 
     for headers in ({}, {"X-API-Key": "intentionally-wrong-key"}):
         try:
-            with urlopen(
-                Request(base + "/api/v1/status", headers=headers), timeout=3
-            ):
+            with urlopen(Request(base + "/api/v1/status", headers=headers), timeout=3):
                 raise RuntimeError("protected status allowed unauthenticated access")
         except HTTPError as exc:
             if exc.code not in {401, 403}:

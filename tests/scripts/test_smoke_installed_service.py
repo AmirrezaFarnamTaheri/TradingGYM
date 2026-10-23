@@ -72,9 +72,7 @@ class InstalledSmokeTests(unittest.TestCase):
         Fixture.include_script = True
         Fixture.auth_required = True
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Fixture)
-        self.thread = threading.Thread(
-            target=self.server.serve_forever, daemon=True
-        )
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.addCleanup(self.server.server_close)
         self.addCleanup(self.server.shutdown)
