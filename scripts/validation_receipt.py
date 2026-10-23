@@ -32,33 +32,51 @@ def digest(path: Path) -> str | None:
 
 
 def source_identity(declared_sha: str) -> dict:
+    """Admit only a clean Git checkout at exactly the declared revision."""
     if not re.fullmatch(r"[0-9a-f]{40}", declared_sha):
         raise ValueError("source SHA must be a full lowercase Git commit hash")
 
-    def git(*args):
-        result = subprocess.run(
-            ["git", *args], cwd=ROOT, capture_output=True, check=False
-        )
-        return result.stdout if result.returncode == 0 else b""
+    def git(*args: str) -> bytes:
+        try:
+            result = subprocess.run(
+                ["git", *args], cwd=ROOT, capture_output=True, check=False
+            )
+        except OSError as exc:
+            raise ValueError("git is required for a revision-bound receipt") from exc
+        if result.returncode != 0:
+            raise ValueError("git source identity is unavailable")
+        return result.stdout
 
+    checkout = Path(git("rev-parse", "--show-toplevel").decode().strip()).resolve()
+    if checkout != ROOT.resolve():
+        raise ValueError("receipt source must be the repository root")
+    observed = git("rev-parse", "--verify", "HEAD^{commit}").decode().strip()
+    if observed != declared_sha:
+        raise ValueError("declared commit does not match checked-out HEAD")
+    status = git(
+        "status", "--porcelain", "--untracked-files=normal"
+    ).decode().splitlines()
+    if status:
+        raise ValueError("dirty checkout cannot produce a revision-bound receipt")
+    inventory = git("ls-files", "--stage")
+    if not inventory:
+        raise ValueError("source Git index is empty")
+    worktree_diff = git("diff", "--binary", "HEAD", "--")
+    if worktree_diff:
+        raise ValueError("dirty checkout cannot produce a revision-bound receipt")
     return {
         "declared_base_sha": declared_sha,
-        "observed_head_sha": git("rev-parse", "--verify", "HEAD").decode().strip()
-        or None,
-        "index_inventory_sha256": hashlib.sha256(
-            git("ls-files", "--stage")
-        ).hexdigest(),
-        "worktree_diff_sha256": hashlib.sha256(git("diff", "--binary")).hexdigest(),
-        "working_tree_status": git("status", "--porcelain").decode().splitlines(),
-        "lockfiles": {
-            name: digest(ROOT / name)
-            for name in (
-                "poetry.lock",
-                "frontend/package-lock.json",
-                "rust/axiom_kernel/Cargo.lock",
-            )
-        },
+        "observed_head_sha": observed,
+        "index_inventory_sha256": hashlib.sha256(inventory).hexdigest(),
+        "worktree_diff_sha256": hashlib.sha256(worktree_diff).hexdigest(),
+        "working_tree_status": status,
     }
+
+
+def verify_unchanged(declared_sha: str, initial: dict) -> None:
+    """The source and index must remain stable through the named command."""
+    if source_identity(declared_sha) != initial:
+        raise ValueError("source changed during validation")
 
 
 def classify_jobs(document: dict, expected_sha: str) -> dict:
@@ -187,6 +205,12 @@ def main(argv=None) -> int:
         command = args.command[1:] if args.command[:1] == ["--"] else args.command
         receipt["execution"] = execute(command, args.timeout)
         code = receipt["execution"]["returncode"]
+        try:
+            verify_unchanged(args.source_sha, receipt["source"])
+        except ValueError as exc:
+            receipt["execution"]["outcome"] = "unqualified"
+            receipt["execution"]["qualification_error"] = str(exc)
+            code = 1
     write_receipt(args.output, receipt)
     return code
 
