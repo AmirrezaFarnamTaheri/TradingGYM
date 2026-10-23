@@ -134,3 +134,47 @@ a workaround without an explicit owner decision.
 
 The visible connector can inspect Actions runs and jobs, but cannot read
 this account's billing settings or the check-run startup annotations.
+
+## Source-release fixture and formatting follow-up (2026-10-23)
+
+A subsequent manual audit found that `tests/platform/test_source_release.py`
+created *staged-only* disposable repositories. Since the stricter source
+archiver correctly rejects dirty Git checkouts, three existing tests were
+failing before their intended security assertions. Commit
+[`30661a6`](https://github.com/AmirrezaFarnamTaheri/TradingGYM/commit/30661a6b6c2d793b5021c1d5cc1c6f1eb10546b5)
+creates an actual fixture commit for the baseline repository and commits
+unsafe tracked symlink/dotenv fixtures as needed. This retains the fail-closed
+archive behavior; it does not relax dirty-tree admission. The commit also
+normalizes formatting in the jobs-receipt classifier and its tests.
+
+A local disposable subset at `/mnt/data/tradinggym_followup` ran:
+
+```text
+python -m pytest -q tests/platform/test_source_release.py \\
+  tests/test_source_archive_integrity.py \\
+  tests/test_validation_receipt_integrity.py \\
+  tests/test_smoke_installed_service.py
+..................... [100%]
+21 passed in 7.72s
+```
+
+**Scope limitation:** That disposable harness contains isolated copies and
+focused analogues, not the entire checked-out current GitHub tree; local
+Python was 3.13.5, outside this project's supported 3.11–3.12 range. This
+is positive targeted regression evidence, **not** a current-head supported-
+runtime or complete-suite qualification. Python compilation for the same
+local subset succeeded.
+
+[CI #40019981549](https://github.com/AmirrezaFarnamTaheri/TradingGYM/actions/runs/40019981549)
+on `30661a6` still terminated without any assigned runner or executed job
+step (**11 failed, 2 skipped**); the first failing job's REST metadata showed
+`runner_id=0`, `runner_name=""`, `steps=[]` and an approximately 3-second
+lifetime. This does **not** establish a defect in the named test command.
+
+The external runner-admission blocker is tracked in
+[P0 issue #7](https://github.com/AmirrezaFarnamTaheri/TradingGYM/issues/7).
+An administrator must establish the exact startup rejection and resolve it
+before the PR can receive its actual required full CI gate. In particular,
+private-repository Actions billing/budget settings require authorized account
+access that this connected GitHub tool cannot inspect or modify. The PR is
+still open and **not release-qualified**.
