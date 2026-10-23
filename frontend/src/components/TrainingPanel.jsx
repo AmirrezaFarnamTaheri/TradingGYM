@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { trainingAPI, createWebSocket } from '../api';
 import useStore from '../store';
 import { parseTrainingLogEvent } from '../logTelemetry';
 
 // Must match TrainingStartRequest.model_version in the FastAPI schema.
 const MODEL_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
+const PROCESS_STATES = new Set(['idle', 'starting', 'running', 'stopping', 'stopped', 'completed', 'failed', 'error']);
 
 export default function TrainingPanel() {
+  const queryClient = useQueryClient();
   const [configName, setConfigName] = useState('training_local.yaml');
   const [modelVersion, setModelVersion] = useState('');
   const validModelVersion = MODEL_VERSION_PATTERN.test(modelVersion);
@@ -18,22 +20,26 @@ export default function TrainingPanel() {
   const clearLogs = useStore(state => state.clearLogs);
 
   // Poll training status
-  const { data: statusData } = useQuery({
+  const { data: statusData, isError: statusError, isLoading: statusLoading, refetch } = useQuery({
     queryKey: ['training-status'],
-    queryFn: () => trainingAPI.getStatus().then(r => r.data),
+    queryFn: async () => {
+      const { data } = await trainingAPI.getStatus();
+      if (!PROCESS_STATES.has(data?.status)) {
+        throw new Error('Invalid training process status');
+      }
+      return data;
+    },
     refetchInterval: 2000,
+    retry: false,
   });
 
-  const status = statusData?.status || 'idle';
+  const status = !statusError && statusData ? statusData.status : 'unknown';
   const isRunning = status === 'running';
+  const isBusy = ['starting', 'running', 'stopping'].includes(status);
 
   // Connect to log WebSocket
   useEffect(() => {
     const ws = createWebSocket('logs');
-
-    ws.onopen = () => {
-      console.log('WebSocket connected to logs');
-    };
 
     ws.onmessage = (event) => {
       // Keep bounded/redacted display fields; never persist raw WebSocket
@@ -44,10 +50,6 @@ export default function TrainingPanel() {
 
     ws.onerror = (err) => {
       console.error('WebSocket error:', err);
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
     };
 
     return () => {
@@ -63,20 +65,15 @@ export default function TrainingPanel() {
   // Start/Stop mutations
   const startMutation = useMutation({
     mutationFn: ({ config, version }) => trainingAPI.start(config, version),
-    onSuccess: () => {
-      clearLogs();
-    },
-    onError: (error) => {
-      alert(`Failed to start training: ${error.response?.data?.detail || error.message}`);
-    }
+    onSuccess: () => clearLogs(),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['training-status'] }),
   });
 
   const stopMutation = useMutation({
     mutationFn: () => trainingAPI.stop(),
-    onError: (error) => {
-      alert(`Failed to stop training: ${error.response?.data?.detail || error.message}`);
-    }
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['training-status'] }),
   });
+  const startDisabled = status === 'unknown' || isBusy || startMutation.isPending || !validModelVersion;
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -90,6 +87,21 @@ export default function TrainingPanel() {
   return (
     <div className="panel training-panel">
       <h2>🤖 Training Lab</h2>
+      {statusLoading && <p role="status">Checking authoritative training status…</p>}
+      {statusError && (
+        <div role="alert" className="error">
+          Training status unavailable. Starting is blocked until status is verified.
+          <button type="button" className="btn btn-secondary" onClick={() => refetch()}>
+            Retry status
+          </button>
+        </div>
+      )}
+      {startMutation.isError && (
+        <p role="alert" className="error">Training could not start. Verify the selected profile, candidate version, and worker availability before retrying.</p>
+      )}
+      {stopMutation.isError && (
+        <p role="alert" className="error">Training stop could not be confirmed. Refresh status before assuming the process has stopped.</p>
+      )}
 
       <div className="status-section">
         <div className="status-indicator">
@@ -97,7 +109,7 @@ export default function TrainingPanel() {
           <strong style={{ color: getStatusColor(status) }}>
             {status.toUpperCase()}
           </strong>
-          {statusData?.pid && (
+          {status !== 'unknown' && statusData?.pid && (
             <span className="pid-badge">PID: {statusData.pid}</span>
           )}
         </div>
@@ -108,7 +120,7 @@ export default function TrainingPanel() {
             id="training-config"
             value={configName}
             onChange={(e) => setConfigName(e.target.value)}
-            disabled={isRunning}
+            disabled={isBusy || startMutation.isPending}
             className="config-select"
             aria-label="Select training configuration file (Local or RTX3050)"
             aria-describedby="config-help"
@@ -133,7 +145,7 @@ export default function TrainingPanel() {
             pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,119}"
             aria-describedby="training-model-version-help"
             aria-invalid={modelVersion.length > 0 && !validModelVersion}
-            disabled={isRunning || startMutation.isPending}
+            disabled={isBusy || startMutation.isPending}
             placeholder="e.g. btc-ppo-v2"
             autoComplete="off"
             required
@@ -150,9 +162,9 @@ export default function TrainingPanel() {
               config: configName,
               version: modelVersion,
             })}
-            disabled={isRunning || startMutation.isPending || !validModelVersion}
-            className={`btn ${isRunning ? 'btn-disabled' : 'btn-success'}`}
-            aria-label={isRunning ? 'Training is running' : 'Start training with selected configuration'}
+            disabled={startDisabled}
+            className={`btn ${startDisabled ? 'btn-disabled' : 'btn-success'}`}
+            aria-label={isBusy ? 'Training process is busy' : status === 'unknown' ? 'Training status is unknown' : 'Start training with selected configuration'}
             aria-busy={startMutation.isPending}
           >
             {startMutation.isPending ? '⏳ Starting...' : '▶️ START TRAINING'}

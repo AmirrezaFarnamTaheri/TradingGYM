@@ -30,6 +30,7 @@ export default function ModelsPanel() {
   const {
     data: activeData,
     isError: activeStatusError,
+    error: activeError,
     isLoading: activeStatusLoading,
     refetch: refetchActiveStatus,
   } = useQuery({
@@ -136,7 +137,7 @@ export default function ModelsPanel() {
     <div className="panel">
       <h2>📈 Model Registry</h2>
 
-      {activeIsError && (
+      {activeStatusError && (
         <div role="alert" className="error">
           Active model status unavailable: {activeError?.message || 'Request failed'}.
           Activation controls are disabled until the active model can be verified.
@@ -153,7 +154,7 @@ export default function ModelsPanel() {
                 ? 'Unable to verify active model status'
                 : activeStatusLoading
                   ? 'Checking active model status'
-                  : `Current active model is ${activeIsError || !activeData ? 'unavailable' : activeData.active_model || 'none selected'}`
+                  : `Current active model is ${activeStatusError || !activeData ? 'unavailable' : activeData.active_model || 'none selected'}`
             }
           >
             {activeStatusError

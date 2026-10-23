@@ -1,10 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import IntelligencePanel from '../IntelligencePanel';
 import { renderWithClient, flushPromises, waitForRendered } from '../../test-utils.jsx';
 
 const { statusSpy } = vi.hoisted(() => ({
   statusSpy: vi.fn(),
 }));
+
+beforeEach(() => {
+  statusSpy.mockReset();
+});
 
 vi.mock('../../api', () => ({
   api: { get: statusSpy },

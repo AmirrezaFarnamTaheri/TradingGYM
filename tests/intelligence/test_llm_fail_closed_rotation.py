@@ -48,9 +48,7 @@ def test_exhausted_authentication_is_not_a_recoverable_model_outage(
         return _response(401)
 
     with pytest.raises(PermissionError, match="provider_authentication"):
-        request_with_rotation(
-            pool, post, timeout_seconds=3.0, monotonic=lambda: 0.0
-        )
+        request_with_rotation(pool, post, timeout_seconds=3.0, monotonic=lambda: 0.0)
     assert calls == ["redacted-one", "redacted-two"]
 
 
@@ -103,7 +101,8 @@ def test_402_billing_error_is_terminal_and_remains_blocked_across_workers(
     ],
 )
 def test_new_quota_codes_are_durable_non_degradable_denials(
-    tmp_path: Path, payload: dict,
+    tmp_path: Path,
+    payload: dict,
 ) -> None:
     path = tmp_path / "rotation.json"
     pool = _pool(path)
@@ -207,9 +206,7 @@ def test_authentication_denial_is_non_degradable_at_transport_boundary(
         with pytest.raises(PermissionError, match="authentication_denied"):
             transport(config.base_url, [{"role": "user", "content": "{}"}])
     else:
-        monkeypatch.setattr(
-            systemone_native_backend, "request_with_rotation", denied
-        )
+        monkeypatch.setattr(systemone_native_backend, "request_with_rotation", denied)
         transport = systemone_native_backend.httpx_systemone_transport(config)
         with pytest.raises(PermissionError, match="authentication_denied"):
             transport({"state": {}, "questions": {}})
@@ -270,10 +267,14 @@ def test_unpooled_direct_http_status_cannot_authorize_rules_fallback(
     )
     if protocol == "openai_chat":
         call = httpx_transport(config)
-        run = lambda: call(config.base_url, [{"role": "user", "content": "{}"}])
+
+        def run():
+            return call(config.base_url, [{"role": "user", "content": "{}"}])
     else:
         call = httpx_systemone_transport(config)
-        run = lambda: call({"state": {}, "questions": {}})
+
+        def run():
+            return call({"state": {}, "questions": {}})
 
     with pytest.raises(PermissionError, match=expected_reason):
         run()

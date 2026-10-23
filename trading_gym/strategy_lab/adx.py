@@ -39,18 +39,8 @@ def compute_adx(
     ):
         raise ValueError("ADX requires coherent high/low/close observations")
     n = len(frame)
-    adx = np.full(n, np.nan)
-    di_plus = np.full(n, np.nan)
-    di_minus = np.full(n, np.nan)
-    dx = np.full(n, np.nan)
     if n <= period:
-        return pd.Series(
-            {"adx": adx, "plus_di": di_plus, "minus_di": di_minus, "dx": dx}[
-                component
-            ],
-            index=frame.index,
-            name=component,
-        )
+        return pd.Series(np.full(n, np.nan), index=frame.index, name=component)
 
     high, low, close = (values[:, i] for i in range(3))
     up = np.diff(high)
@@ -64,6 +54,26 @@ def compute_adx(
             np.abs(low[1:] - close[:-1]),
         )
     )
+    # Lazy import avoids a strategy/playground import cycle and keeps the native
+    # kernel optional. Only this pure recurrence crosses the existing FFI seam.
+    from trading_gym.playground.kernel import KernelError, wilder_adx
+
+    try:
+        native = wilder_adx(
+            true_range=true_range,
+            moves_plus=moves_plus,
+            moves_minus=moves_minus,
+            period=period,
+        )
+    except KernelError as exc:
+        raise ValueError("ADX smoothed observations overflow") from exc
+    if native is not None:
+        return pd.Series(
+            dict(zip(("adx", "plus_di", "minus_di", "dx"), native))[component],
+            index=frame.index,
+            name=component,
+        )
+    adx, di_plus, di_minus, dx = (np.full(n, np.nan) for _ in range(4))
     smoothed_tr = math.fsum(true_range[:period])
     smoothed_plus = math.fsum(moves_plus[:period])
     smoothed_minus = math.fsum(moves_minus[:period])
@@ -96,9 +106,7 @@ def compute_adx(
             adx[i] = last_adx
 
     return pd.Series(
-        {"adx": adx, "plus_di": di_plus, "minus_di": di_minus, "dx": dx}[
-            component
-        ],
+        {"adx": adx, "plus_di": di_plus, "minus_di": di_minus, "dx": dx}[component],
         index=frame.index,
         name=component,
     )

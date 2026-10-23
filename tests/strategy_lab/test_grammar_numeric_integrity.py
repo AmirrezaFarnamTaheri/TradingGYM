@@ -1,6 +1,5 @@
 """Reject implicit boolean coercion and nonfinite strategy grammar inputs."""
 
-import math
 
 import pytest
 

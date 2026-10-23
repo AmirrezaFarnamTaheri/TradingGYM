@@ -224,8 +224,8 @@
           },
           "max_fx_age_seconds": {
             "default": 3600,
-            "maximum": 31536000.0,
-            "minimum": 1.0,
+            "maximum": 31536000,
+            "minimum": 1,
             "title": "Max Fx Age Seconds",
             "type": "integer"
           },
@@ -247,6 +247,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Valued At"
           }
         },
@@ -277,6 +278,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Amount"
           },
           "currency": {
@@ -289,6 +291,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Currency"
           },
           "event_id": {
@@ -322,6 +325,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Fee Currency"
           },
           "instrument_id": {
@@ -334,6 +338,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Instrument Id"
           },
           "mark_price": {
@@ -349,6 +354,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Mark Price"
           },
           "metadata": {
@@ -389,6 +395,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Price"
           },
           "quantity": {
@@ -404,6 +411,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Quantity"
           },
           "quote_currency": {
@@ -416,6 +424,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Quote Currency"
           },
           "side": {
@@ -426,7 +435,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "default": null
           }
         },
         "required": [
@@ -527,8 +537,8 @@
           },
           "maximum_tasks": {
             "default": 100,
-            "maximum": 100000.0,
-            "minimum": 1.0,
+            "maximum": 100000,
+            "minimum": 1,
             "title": "Maximum Tasks",
             "type": "integer"
           },
@@ -663,22 +673,22 @@
         "properties": {
           "maximum_evidence_age_seconds": {
             "default": 31536000,
-            "maximum": 315360000.0,
-            "minimum": 60.0,
+            "maximum": 315360000,
+            "minimum": 60,
             "title": "Maximum Evidence Age Seconds",
             "type": "integer"
           },
           "minimum_independent_evidence": {
             "default": 1,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Minimum Independent Evidence",
             "type": "integer"
           },
           "minimum_supporting_evidence": {
             "default": 2,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Minimum Supporting Evidence",
             "type": "integer"
           },
@@ -899,14 +909,15 @@
           "size_bytes": {
             "anyOf": [
               {
-                "maximum": 1000000000000000.0,
-                "minimum": 0.0,
+                "maximum": 1000000000000000,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Size Bytes"
           },
           "uri": {
@@ -919,6 +930,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Uri"
           }
         },
@@ -1002,8 +1014,8 @@
             "type": "string"
           },
           "size_bytes": {
-            "maximum": 1125899906842624.0,
-            "minimum": 0.0,
+            "maximum": 1125899906842624,
+            "minimum": 0,
             "title": "Size Bytes",
             "type": "integer"
           }
@@ -1179,8 +1191,8 @@
         "properties": {
           "pending": {
             "default": 0,
-            "maximum": 10000000.0,
-            "minimum": 0.0,
+            "maximum": 10000000,
+            "minimum": 0,
             "title": "Pending",
             "type": "integer"
           },
@@ -1255,8 +1267,8 @@
           },
           "warmup_bars": {
             "default": 0,
-            "maximum": 100000.0,
-            "minimum": 0.0,
+            "maximum": 100000,
+            "minimum": 0,
             "title": "Warmup Bars",
             "type": "integer"
           }
@@ -1285,8 +1297,8 @@
           },
           "embargo_bars": {
             "default": 5,
-            "maximum": 100000.0,
-            "minimum": 0.0,
+            "maximum": 100000,
+            "minimum": 0,
             "title": "Embargo Bars",
             "type": "integer"
           },
@@ -1318,29 +1330,29 @@
           },
           "max_attempts": {
             "default": 2,
-            "maximum": 10.0,
-            "minimum": 1.0,
+            "maximum": 10,
+            "minimum": 1,
             "title": "Max Attempts",
             "type": "integer"
           },
           "priority": {
             "default": 50,
-            "maximum": 100.0,
-            "minimum": 0.0,
+            "maximum": 100,
+            "minimum": 0,
             "title": "Priority",
             "type": "integer"
           },
           "purge_bars": {
             "default": 20,
-            "maximum": 100000.0,
-            "minimum": 0.0,
+            "maximum": 100000,
+            "minimum": 0,
             "title": "Purge Bars",
             "type": "integer"
           },
           "randomized_baselines": {
             "default": 200,
-            "maximum": 10000.0,
-            "minimum": 20.0,
+            "maximum": 10000,
+            "minimum": 20,
             "title": "Randomized Baselines",
             "type": "integer"
           },
@@ -1360,15 +1372,15 @@
           },
           "test_bars": {
             "default": 500,
-            "maximum": 500000.0,
-            "minimum": 10.0,
+            "maximum": 500000,
+            "minimum": 10,
             "title": "Test Bars",
             "type": "integer"
           },
           "train_bars": {
             "default": 2000,
-            "maximum": 1000000.0,
-            "minimum": 50.0,
+            "maximum": 1000000,
+            "minimum": 50,
             "title": "Train Bars",
             "type": "integer"
           },
@@ -1382,6 +1394,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Venue"
           }
         },
@@ -1557,8 +1570,8 @@
           },
           "minimum_cases_per_donor": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Cases Per Donor",
             "type": "integer"
           }
@@ -1590,8 +1603,8 @@
             "type": "string"
           },
           "sample_count": {
-            "maximum": 1000000000000.0,
-            "minimum": 1.0,
+            "maximum": 1000000000000,
+            "minimum": 1,
             "title": "Sample Count",
             "type": "integer"
           },
@@ -1706,7 +1719,7 @@
             "title": "Actual Amount"
           },
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           }
@@ -1786,6 +1799,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Soft Limit"
           },
           "unit": {
@@ -1822,7 +1836,7 @@
         "additionalProperties": false,
         "properties": {
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           },
@@ -1868,8 +1882,8 @@
           },
           "expires_in_seconds": {
             "default": 900,
-            "maximum": 86400.0,
-            "minimum": 30.0,
+            "maximum": 86400,
+            "minimum": 30,
             "title": "Expires In Seconds",
             "type": "integer"
           },
@@ -1938,7 +1952,7 @@
         "additionalProperties": false,
         "properties": {
           "active_reservations": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Active Reservations",
             "type": "integer"
           },
@@ -2007,7 +2021,7 @@
             "$ref": "#/components/schemas/BudgetResource"
           },
           "revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Revision",
             "type": "integer"
           },
@@ -2028,6 +2042,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Soft Limit"
           },
           "soft_limit_exceeded": {
@@ -2093,8 +2108,8 @@
           },
           "expires_in_seconds": {
             "default": 3600,
-            "maximum": 86400.0,
-            "minimum": 30.0,
+            "maximum": 86400,
+            "minimum": 30,
             "title": "Expires In Seconds",
             "type": "integer"
           },
@@ -2166,21 +2181,21 @@
             "type": "string"
           },
           "tests_failed": {
-            "maximum": 10000000.0,
-            "minimum": 0.0,
+            "maximum": 10000000,
+            "minimum": 0,
             "title": "Tests Failed",
             "type": "integer"
           },
           "tests_passed": {
-            "maximum": 10000000.0,
-            "minimum": 0.0,
+            "maximum": 10000000,
+            "minimum": 0,
             "title": "Tests Passed",
             "type": "integer"
           },
           "tests_skipped": {
             "default": 0,
-            "maximum": 10000000.0,
-            "minimum": 0.0,
+            "maximum": 10000000,
+            "minimum": 0,
             "title": "Tests Skipped",
             "type": "integer"
           }
@@ -2217,6 +2232,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Closes At"
           },
           "local_date": {
@@ -2234,6 +2250,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Opens At"
           },
           "reason": {
@@ -2372,8 +2389,8 @@
           },
           "minimum_samples": {
             "default": 30,
-            "maximum": 1000000.0,
-            "minimum": 5.0,
+            "maximum": 1000000,
+            "minimum": 5,
             "title": "Minimum Samples",
             "type": "integer"
           }
@@ -2398,8 +2415,8 @@
           },
           "burst_size": {
             "default": 0,
-            "maximum": 10000000.0,
-            "minimum": 0.0,
+            "maximum": 10000000,
+            "minimum": 0,
             "title": "Burst Size",
             "type": "integer"
           },
@@ -2411,14 +2428,14 @@
           },
           "priority": {
             "default": 0,
-            "maximum": 1000.0,
-            "minimum": -1000.0,
+            "maximum": 1000,
+            "minimum": -1000,
             "title": "Priority",
             "type": "integer"
           },
           "queue_limit": {
-            "maximum": 10000000.0,
-            "minimum": 0.0,
+            "maximum": 10000000,
+            "minimum": 0,
             "title": "Queue Limit",
             "type": "integer"
           }
@@ -2557,8 +2574,8 @@
           },
           "maximum_total_queue": {
             "default": 100000,
-            "maximum": 100000000.0,
-            "minimum": 0.0,
+            "maximum": 100000000,
+            "minimum": 0,
             "title": "Maximum Total Queue",
             "type": "integer"
           },
@@ -2570,8 +2587,8 @@
             "type": "number"
           },
           "workers": {
-            "maximum": 100000.0,
-            "minimum": 1.0,
+            "maximum": 100000,
+            "minimum": 1,
             "title": "Workers",
             "type": "integer"
           }
@@ -2918,8 +2935,8 @@
             "type": "string"
           },
           "seed": {
-            "maximum": 4294967295.0,
-            "minimum": 0.0,
+            "maximum": 4294967295,
+            "minimum": 0,
             "title": "Seed",
             "type": "integer"
           },
@@ -3036,6 +3053,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Approved Proposal Id"
           },
           "canary_fraction": {
@@ -3182,8 +3200,8 @@
             "type": "boolean"
           },
           "duration_seconds": {
-            "maximum": 86400.0,
-            "minimum": 1.0,
+            "maximum": 86400,
+            "minimum": 1,
             "title": "Duration Seconds",
             "type": "integer"
           },
@@ -3383,22 +3401,22 @@
           },
           "maximum_sample_age_seconds": {
             "default": 300,
-            "maximum": 86400.0,
-            "minimum": 1.0,
+            "maximum": 86400,
+            "minimum": 1,
             "title": "Maximum Sample Age Seconds",
             "type": "integer"
           },
           "minimum_samples": {
             "default": 3,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Minimum Samples",
             "type": "integer"
           },
           "minimum_sources": {
             "default": 2,
-            "maximum": 100.0,
-            "minimum": 1.0,
+            "maximum": 100,
+            "minimum": 1,
             "title": "Minimum Sources",
             "type": "integer"
           },
@@ -3827,15 +3845,15 @@
         "properties": {
           "maximum_evidence_age_seconds": {
             "default": 86400,
-            "maximum": 315360000.0,
-            "minimum": 60.0,
+            "maximum": 315360000,
+            "minimum": 60,
             "title": "Maximum Evidence Age Seconds",
             "type": "integer"
           },
           "maximum_future_skew_seconds": {
             "default": 60,
-            "maximum": 86400.0,
-            "minimum": 0.0,
+            "maximum": 86400,
+            "minimum": 0,
             "title": "Maximum Future Skew Seconds",
             "type": "integer"
           },
@@ -4020,44 +4038,44 @@
             "type": "string"
           },
           "protocol_max": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "Protocol Max",
             "type": "integer"
           },
           "protocol_min": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "Protocol Min",
             "type": "integer"
           },
           "release_major": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "Release Major",
             "type": "integer"
           },
           "release_minor": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "Release Minor",
             "type": "integer"
           },
           "schema_version": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "Schema Version",
             "type": "integer"
           },
           "supported_schema_max": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "Supported Schema Max",
             "type": "integer"
           },
           "supported_schema_min": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "Supported Schema Min",
             "type": "integer"
           }
@@ -4141,7 +4159,7 @@
             "type": "string"
           },
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           }
@@ -4331,15 +4349,15 @@
           },
           "maximum_test_age_seconds": {
             "default": 7776000,
-            "maximum": 63072000.0,
-            "minimum": 1.0,
+            "maximum": 63072000,
+            "minimum": 1,
             "title": "Maximum Test Age Seconds",
             "type": "integer"
           },
           "minimum_sample_size": {
             "default": 1,
-            "maximum": 10000000.0,
-            "minimum": 1.0,
+            "maximum": 10000000,
+            "minimum": 1,
             "title": "Minimum Sample Size",
             "type": "integer"
           },
@@ -4391,11 +4409,12 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Evidence Sha256"
           },
           "exceptions": {
-            "maximum": 10000000.0,
-            "minimum": 0.0,
+            "maximum": 10000000,
+            "minimum": 0,
             "title": "Exceptions",
             "type": "integer"
           },
@@ -4409,8 +4428,8 @@
             "type": "string"
           },
           "sample_size": {
-            "maximum": 10000000.0,
-            "minimum": 0.0,
+            "maximum": 10000000,
+            "minimum": 0,
             "title": "Sample Size",
             "type": "integer"
           },
@@ -4490,6 +4509,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Quantity Increment"
           },
           "quote_currency": {
@@ -4627,6 +4647,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Cash Consideration Per Unit"
           },
           "cash_in_lieu_price": {
@@ -4642,6 +4663,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Cash In Lieu Price"
           },
           "cash_per_unit": {
@@ -4657,6 +4679,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Cash Per Unit"
           },
           "effective_at": {
@@ -4684,6 +4707,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Ratio"
           },
           "source_sha256": {
@@ -4702,6 +4726,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Successor Instrument Id"
           },
           "withholding_rate": {
@@ -4800,6 +4825,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Netting Set Id"
           },
           "overdue_receivable": {
@@ -5296,6 +5322,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expires At"
           },
           "fingerprint_sha256": {
@@ -5326,6 +5353,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Successor Key Id"
           }
         },
@@ -5345,22 +5373,22 @@
         "properties": {
           "expiry_warning_days": {
             "default": 14,
-            "maximum": 3650.0,
-            "minimum": 1.0,
+            "maximum": 3650,
+            "minimum": 1,
             "title": "Expiry Warning Days",
             "type": "integer"
           },
           "maximum_active_age_days": {
             "default": 90,
-            "maximum": 3650.0,
-            "minimum": 1.0,
+            "maximum": 3650,
+            "minimum": 1,
             "title": "Maximum Active Age Days",
             "type": "integer"
           },
           "minimum_overlap_seconds": {
             "default": 3600,
-            "maximum": 31536000.0,
-            "minimum": 0.0,
+            "maximum": 31536000,
+            "minimum": 0,
             "title": "Minimum Overlap Seconds",
             "type": "integer"
           },
@@ -5403,7 +5431,7 @@
             "type": "array"
           },
           "credential_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Credential Count",
             "type": "integer"
           },
@@ -5427,7 +5455,7 @@
             "type": "string"
           },
           "retiring_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Retiring Count",
             "type": "integer"
           },
@@ -5437,7 +5465,7 @@
             "type": "boolean"
           },
           "revoked_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Revoked Count",
             "type": "integer"
           },
@@ -5547,8 +5575,8 @@
             "type": "boolean"
           },
           "size_bytes": {
-            "maximum": 21990232555520.0,
-            "minimum": 0.0,
+            "maximum": 21990232555520,
+            "minimum": 0,
             "title": "Size Bytes",
             "type": "integer"
           },
@@ -5685,6 +5713,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Last Accessed At"
           },
           "legal_hold": {
@@ -5704,8 +5733,8 @@
             "type": "boolean"
           },
           "retention_days": {
-            "maximum": 36500.0,
-            "minimum": 0.0,
+            "maximum": 36500,
+            "minimum": 0,
             "title": "Retention Days",
             "type": "integer"
           },
@@ -5747,7 +5776,7 @@
             "type": "array"
           },
           "age_days": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Age Days",
             "type": "integer"
           },
@@ -5769,6 +5798,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Purge Eligible At"
           },
           "reasons": {
@@ -5788,6 +5818,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Review Eligible At"
           }
         },
@@ -5961,8 +5992,8 @@
             "type": "string"
           },
           "row_count": {
-            "maximum": 1000000000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000000000,
+            "minimum": 0,
             "title": "Row Count",
             "type": "integer"
           },
@@ -6119,8 +6150,8 @@
           },
           "maximum_staleness_seconds": {
             "default": 86400,
-            "maximum": 315360000.0,
-            "minimum": 1.0,
+            "maximum": 315360000,
+            "minimum": 1,
             "title": "Maximum Staleness Seconds",
             "type": "integer"
           },
@@ -6160,7 +6191,7 @@
         "additionalProperties": false,
         "properties": {
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           },
@@ -6200,14 +6231,15 @@
           "expected_rows": {
             "anyOf": [
               {
-                "maximum": 2000000000.0,
-                "minimum": 1.0,
+                "maximum": 2000000000,
+                "minimum": 1,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Rows"
           },
           "instrument_id": {
@@ -6228,8 +6260,8 @@
             "type": "string"
           },
           "row_count": {
-            "maximum": 2000000000.0,
-            "minimum": 1.0,
+            "maximum": 2000000000,
+            "minimum": 1,
             "title": "Row Count",
             "type": "integer"
           },
@@ -6243,6 +6275,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Schema Sha256"
           },
           "start": {
@@ -6266,6 +6299,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Supersedes Dataset Id"
           },
           "timeframe": {
@@ -6305,13 +6339,14 @@
           "expected_catalog_revision": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Catalog Revision"
           }
         },
@@ -6349,7 +6384,7 @@
             "type": "string"
           },
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           },
@@ -6479,8 +6514,8 @@
           },
           "maximum_critical_blast_radius": {
             "default": 0,
-            "maximum": 10000.0,
-            "minimum": 0.0,
+            "maximum": 10000,
+            "minimum": 0,
             "title": "Maximum Critical Blast Radius",
             "type": "integer"
           },
@@ -6647,6 +6682,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Liquidation Price"
           },
           "maintenance_margin_rate": {
@@ -6687,8 +6723,8 @@
           },
           "remaining_funding_intervals": {
             "default": 0,
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "Remaining Funding Intervals",
             "type": "integer"
           }
@@ -7288,17 +7324,17 @@
         "additionalProperties": false,
         "properties": {
           "accessible_surface_count": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Accessible Surface Count",
             "type": "integer"
           },
           "accounted_surface_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Accounted Surface Count",
             "type": "integer"
           },
           "benchmark_case_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Benchmark Case Count",
             "type": "integer"
           },
@@ -7320,38 +7356,38 @@
             "type": "boolean"
           },
           "mapped_symbol_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Mapped Symbol Count",
             "type": "integer"
           },
           "mapped_workflow_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Mapped Workflow Count",
             "type": "integer"
           },
           "public_symbol_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Public Symbol Count",
             "type": "integer"
           },
           "residual_new_units_last_pass": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Residual New Units Last Pass",
             "type": "integer"
           },
           "runtime_benchmark_case_count": {
             "default": 0,
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Runtime Benchmark Case Count",
             "type": "integer"
           },
           "unresolved_high_risk_units": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Unresolved High Risk Units",
             "type": "integer"
           },
           "workflow_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Workflow Count",
             "type": "integer"
           }
@@ -7434,6 +7470,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Required Sections"
           },
           "subject": {
@@ -7454,8 +7491,8 @@
         "properties": {
           "bins": {
             "default": 10,
-            "maximum": 100.0,
-            "minimum": 2.0,
+            "maximum": 100,
+            "minimum": 2,
             "title": "Bins",
             "type": "integer"
           },
@@ -7478,6 +7515,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Source Sha256"
           },
           "values": {
@@ -7513,13 +7551,14 @@
           "expected_store_revision": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Store Revision"
           }
         },
@@ -7662,8 +7701,8 @@
           },
           "minimum_samples": {
             "default": 100,
-            "maximum": 1000000.0,
-            "minimum": 10.0,
+            "maximum": 1000000,
+            "minimum": 10,
             "title": "Minimum Samples",
             "type": "integer"
           },
@@ -7710,7 +7749,7 @@
       "EmergencyTransitionRequest": {
         "properties": {
           "expected_revision": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Expected Revision",
             "type": "integer"
           },
@@ -7775,8 +7814,8 @@
           },
           "maximum_unowned_exposures": {
             "default": 0,
-            "maximum": 100000.0,
-            "minimum": 0.0,
+            "maximum": 100000,
+            "minimum": 0,
             "title": "Maximum Unowned Exposures",
             "type": "integer"
           }
@@ -7996,7 +8035,7 @@
             "type": "string"
           },
           "sequence": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Sequence",
             "type": "integer"
           },
@@ -8049,7 +8088,7 @@
             "type": "string"
           },
           "sequence": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Sequence",
             "type": "integer"
           },
@@ -8138,6 +8177,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Published At"
           },
           "quality": {
@@ -8154,6 +8194,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Raw Payload Sha256"
           },
           "source": {
@@ -8180,6 +8221,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Url"
           }
         },
@@ -8326,6 +8368,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Observed Execution Price"
           },
           "observed_fee_cost": {
@@ -8343,8 +8386,8 @@
           },
           "observed_latency_ms": {
             "default": 0,
-            "maximum": 3600000.0,
-            "minimum": 0.0,
+            "maximum": 3600000,
+            "minimum": 0,
             "title": "Observed Latency Ms",
             "type": "integer"
           },
@@ -8640,6 +8683,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Decision Price"
           },
           "fills": {
@@ -8664,6 +8708,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Post Trade Price"
           },
           "side": {
@@ -8733,8 +8778,8 @@
         "properties": {
           "base_latency_ms": {
             "default": 100,
-            "maximum": 3600000.0,
-            "minimum": 0.0,
+            "maximum": 3600000,
+            "minimum": 0,
             "title": "Base Latency Ms",
             "type": "integer"
           },
@@ -8761,8 +8806,8 @@
           },
           "latency_jitter_ms": {
             "default": 25,
-            "maximum": 3600000.0,
-            "minimum": 0.0,
+            "maximum": 3600000,
+            "minimum": 0,
             "title": "Latency Jitter Ms",
             "type": "integer"
           },
@@ -8789,8 +8834,8 @@
           },
           "seed": {
             "default": 0,
-            "maximum": 9.223372036854776e+18,
-            "minimum": 0.0,
+            "maximum": 9223372036854775807,
+            "minimum": 0,
             "title": "Seed",
             "type": "integer"
           },
@@ -8843,6 +8888,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Limit Price"
           },
           "order_id": {
@@ -8884,6 +8930,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Visible Liquidity Units"
           },
           "volatility_fraction": {
@@ -8974,6 +9021,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Rejection Reason"
           },
           "requested_quantity": {
@@ -9108,8 +9156,8 @@
           },
           "maximum_duration_seconds": {
             "default": 86400,
-            "maximum": 31536000.0,
-            "minimum": 1.0,
+            "maximum": 31536000,
+            "minimum": 1,
             "title": "Maximum Duration Seconds",
             "type": "integer"
           },
@@ -9137,155 +9185,155 @@
         "properties": {
           "maximum_evidence_age_seconds": {
             "default": 3600,
-            "maximum": 31536000.0,
-            "minimum": 1.0,
+            "maximum": 31536000,
+            "minimum": 1,
             "title": "Maximum Evidence Age Seconds",
             "type": "integer"
           },
           "maximum_future_skew_seconds": {
             "default": 30,
-            "maximum": 3600.0,
-            "minimum": 0.0,
+            "maximum": 3600,
+            "minimum": 0,
             "title": "Maximum Future Skew Seconds",
             "type": "integer"
           },
           "minimum_active_leases": {
             "default": 1,
-            "maximum": 100000.0,
-            "minimum": 1.0,
+            "maximum": 100000,
+            "minimum": 1,
             "title": "Minimum Active Leases",
             "type": "integer"
           },
           "minimum_capacity_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Capacity Reports",
             "type": "integer"
           },
           "minimum_change_control_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Change Control Reports",
             "type": "integer"
           },
           "minimum_collateral_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Collateral Reports",
             "type": "integer"
           },
           "minimum_control_effectiveness_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Control Effectiveness Reports",
             "type": "integer"
           },
           "minimum_counterparty_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Counterparty Reports",
             "type": "integer"
           },
           "minimum_dependency_impact_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Dependency Impact Reports",
             "type": "integer"
           },
           "minimum_factor_risk_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Factor Risk Reports",
             "type": "integer"
           },
           "minimum_failover_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Failover Reports",
             "type": "integer"
           },
           "minimum_forensic_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Forensic Reports",
             "type": "integer"
           },
           "minimum_liquidity_forecast_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Liquidity Forecast Reports",
             "type": "integer"
           },
           "minimum_liquidity_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Liquidity Reports",
             "type": "integer"
           },
           "minimum_model_challenge_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Model Challenge Reports",
             "type": "integer"
           },
           "minimum_policy_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Policy Reports",
             "type": "integer"
           },
           "minimum_privacy_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Privacy Reports",
             "type": "integer"
           },
           "minimum_replay_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Replay Reports",
             "type": "integer"
           },
           "minimum_runbook_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Runbook Reports",
             "type": "integer"
           },
           "minimum_schema_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Schema Reports",
             "type": "integer"
           },
           "minimum_sequential_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Sequential Reports",
             "type": "integer"
           },
           "minimum_surveillance_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Surveillance Reports",
             "type": "integer"
           },
@@ -9605,7 +9653,7 @@
         "additionalProperties": false,
         "properties": {
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           },
@@ -9640,12 +9688,13 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Accepted Types"
           },
           "lease_seconds": {
             "default": 120,
-            "maximum": 3600.0,
-            "minimum": 30.0,
+            "maximum": 3600,
+            "minimum": 30,
             "title": "Lease Seconds",
             "type": "integer"
           },
@@ -9666,7 +9715,7 @@
         "additionalProperties": false,
         "properties": {
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           },
@@ -9716,8 +9765,8 @@
           },
           "max_attempts": {
             "default": 1,
-            "maximum": 10.0,
-            "minimum": 1.0,
+            "maximum": 10,
+            "minimum": 1,
             "title": "Max Attempts",
             "type": "integer"
           },
@@ -9729,8 +9778,8 @@
           },
           "priority": {
             "default": 50,
-            "maximum": 100.0,
-            "minimum": 0.0,
+            "maximum": 100,
+            "minimum": 0,
             "title": "Priority",
             "type": "integer"
           }
@@ -9753,7 +9802,7 @@
             "type": "string"
           },
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           },
@@ -9781,14 +9830,14 @@
         "additionalProperties": false,
         "properties": {
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           },
           "lease_seconds": {
             "default": 120,
-            "maximum": 3600.0,
-            "minimum": 30.0,
+            "maximum": 3600,
+            "minimum": 30,
             "title": "Lease Seconds",
             "type": "integer"
           },
@@ -10239,7 +10288,7 @@
             "type": "number"
           },
           "portfolio_equity": {
-            "exclusiveMinimum": 0.0,
+            "exclusiveMinimum": 0,
             "title": "Portfolio Equity",
             "type": "number"
           },
@@ -10336,8 +10385,8 @@
           },
           "maximum_observation_age_seconds": {
             "default": 60,
-            "maximum": 86400.0,
-            "minimum": 1.0,
+            "maximum": 86400,
+            "minimum": 1,
             "title": "Maximum Observation Age Seconds",
             "type": "integer"
           },
@@ -10359,15 +10408,15 @@
           },
           "required_healthy_regions": {
             "default": 2,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Required Healthy Regions",
             "type": "integer"
           },
           "required_witnesses": {
             "default": 0,
-            "maximum": 1000.0,
-            "minimum": 0.0,
+            "maximum": 1000,
+            "minimum": 0,
             "title": "Required Witnesses",
             "type": "integer"
           }
@@ -10401,8 +10450,8 @@
             "type": "string"
           },
           "maximum_age_seconds": {
-            "maximum": 315360000.0,
-            "minimum": 1.0,
+            "maximum": 315360000,
+            "minimum": 1,
             "title": "Maximum Age Seconds",
             "type": "integer"
           },
@@ -10472,8 +10521,8 @@
         "properties": {
           "availability_delay_seconds": {
             "default": 0,
-            "maximum": 315360000.0,
-            "minimum": 0.0,
+            "maximum": 315360000,
+            "minimum": 0,
             "title": "Availability Delay Seconds",
             "type": "integer"
           },
@@ -10776,6 +10825,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Preferred Zone"
           },
           "required_capabilities": {
@@ -10789,8 +10839,8 @@
             "type": "array"
           },
           "required_units": {
-            "maximum": 1000000.0,
-            "minimum": 1.0,
+            "maximum": 1000000,
+            "minimum": 1,
             "title": "Required Units",
             "type": "integer"
           },
@@ -10965,8 +11015,8 @@
         "properties": {
           "horizon_days": {
             "default": 1,
-            "maximum": 3660.0,
-            "minimum": 1.0,
+            "maximum": 3660,
+            "minimum": 1,
             "title": "Horizon Days",
             "type": "integer"
           },
@@ -11045,6 +11095,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Inventory Limit"
           },
           "mark_price": {
@@ -11141,6 +11192,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Previous Receipt Sha256"
           },
           "receipt_sha256": {
@@ -11153,8 +11205,8 @@
             "type": "boolean"
           },
           "size_bytes": {
-            "maximum": 1000000000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000000000,
+            "minimum": 0,
             "title": "Size Bytes",
             "type": "integer"
           },
@@ -11283,8 +11335,8 @@
           },
           "maximum_collection_age_seconds": {
             "default": 86400,
-            "maximum": 31536000.0,
-            "minimum": 1.0,
+            "maximum": 31536000,
+            "minimum": 1,
             "title": "Maximum Collection Age Seconds",
             "type": "integer"
           },
@@ -11401,8 +11453,8 @@
             "type": "array"
           },
           "ttl_hours": {
-            "maximum": 43800.0,
-            "minimum": 1.0,
+            "maximum": 43800,
+            "minimum": 1,
             "title": "Ttl Hours",
             "type": "integer"
           }
@@ -11549,6 +11601,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Completed At"
           },
           "description": {
@@ -11585,7 +11638,7 @@
             "$ref": "#/components/schemas/IncidentEvent"
           },
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           }
@@ -11668,6 +11721,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Action Id"
           },
           "action_item": {
@@ -11678,7 +11732,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "default": null
           },
           "actor": {
             "maxLength": 120,
@@ -11696,6 +11751,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Assignee"
           },
           "event_id": {
@@ -11720,6 +11776,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Note"
           },
           "occurred_at": {
@@ -11735,7 +11792,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "default": null
           }
         },
         "required": [
@@ -11862,6 +11920,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Evaluated At"
           },
           "incident_ids": {
@@ -11877,6 +11936,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Incident Ids"
           }
         },
@@ -11980,6 +12040,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Artifact Id"
           },
           "domain": {
@@ -12000,13 +12061,14 @@
           "expected_revision": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Revision"
           },
           "idempotency_key": {
@@ -12047,13 +12109,14 @@
           "expected_revision": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Revision"
           },
           "instrument": {
@@ -12096,6 +12159,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Base Asset"
           },
           "instrument_id": {
@@ -12145,6 +12209,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Min Notional"
           },
           "min_quantity": {
@@ -12157,6 +12222,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Min Quantity"
           },
           "price_increment": {
@@ -12169,6 +12235,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Price Increment"
           },
           "quantity_increment": {
@@ -12181,6 +12248,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Quantity Increment"
           },
           "quote_asset": {
@@ -12193,6 +12261,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Quote Asset"
           },
           "short_allowed": {
@@ -12210,6 +12279,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Short Borrow Cap"
           },
           "symbol": {
@@ -12326,8 +12396,8 @@
           },
           "maximum_nodes": {
             "default": 10000,
-            "maximum": 100000.0,
-            "minimum": 1.0,
+            "maximum": 100000,
+            "minimum": 1,
             "title": "Maximum Nodes",
             "type": "integer"
           },
@@ -12404,6 +12474,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Valid Until"
           }
         },
@@ -12479,8 +12550,8 @@
           },
           "ttl_seconds": {
             "default": 60,
-            "maximum": 86400.0,
-            "minimum": 5.0,
+            "maximum": 86400,
+            "minimum": 5,
             "title": "Ttl Seconds",
             "type": "integer"
           }
@@ -12499,7 +12570,7 @@
         "additionalProperties": false,
         "properties": {
           "fencing_token": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Fencing Token",
             "type": "integer"
           },
@@ -12527,7 +12598,7 @@
         "additionalProperties": false,
         "properties": {
           "fencing_token": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Fencing Token",
             "type": "integer"
           },
@@ -12543,8 +12614,8 @@
             "type": "string"
           },
           "ttl_seconds": {
-            "maximum": 86400.0,
-            "minimum": 5.0,
+            "maximum": 86400,
+            "minimum": 5,
             "title": "Ttl Seconds",
             "type": "integer"
           }
@@ -12582,7 +12653,7 @@
             "type": "string"
           },
           "fencing_token": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Fencing Token",
             "type": "integer"
           },
@@ -12599,7 +12670,7 @@
             "type": "string"
           },
           "revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Revision",
             "type": "integer"
           },
@@ -12666,6 +12737,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expires At"
           },
           "hold_id": {
@@ -12836,8 +12908,8 @@
           },
           "maximum_evidence_age_seconds": {
             "default": 7776000,
-            "maximum": 315360000.0,
-            "minimum": 60.0,
+            "maximum": 315360000,
+            "minimum": 60,
             "title": "Maximum Evidence Age Seconds",
             "type": "integer"
           },
@@ -12944,13 +13016,14 @@
           "expected_revision": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Revision"
           }
         },
@@ -13017,6 +13090,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Uri"
           }
         },
@@ -13055,13 +13129,14 @@
           "expected_revision": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Revision"
           },
           "node": {
@@ -13093,7 +13168,7 @@
         "additionalProperties": false,
         "properties": {
           "edge_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Edge Count",
             "type": "integer"
           },
@@ -13103,12 +13178,12 @@
             "type": "string"
           },
           "node_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Node Count",
             "type": "integer"
           },
           "revision": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Revision",
             "type": "integer"
           },
@@ -13122,6 +13197,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Updated At"
           }
         },
@@ -13306,8 +13382,8 @@
           },
           "maximum_fx_age_seconds": {
             "default": 3600,
-            "maximum": 604800.0,
-            "minimum": 1.0,
+            "maximum": 604800,
+            "minimum": 1,
             "title": "Maximum Fx Age Seconds",
             "type": "integer"
           },
@@ -13769,8 +13845,8 @@
           },
           "weekdays": {
             "items": {
-              "maximum": 6.0,
-              "minimum": 0.0,
+              "maximum": 6,
+              "minimum": 0,
               "type": "integer"
             },
             "maxItems": 7,
@@ -13863,6 +13939,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Fee Currency"
           },
           "fee_to_base_rate": {
@@ -13878,6 +13955,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Fee To Base Rate"
           },
           "fill_id": {
@@ -13947,6 +14025,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Strategy Id"
           }
         },
@@ -14318,6 +14397,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Final State Sha256"
           }
         },
@@ -14424,8 +14504,8 @@
           },
           "maximum_results": {
             "default": 100,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Maximum Results",
             "type": "integer"
           },
@@ -14454,6 +14534,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Subject Prefix"
           }
         },
@@ -14557,6 +14638,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expires At"
           },
           "failure_lesson": {
@@ -14592,6 +14674,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Supersedes Memory Id"
           }
         },
@@ -14843,8 +14926,8 @@
           },
           "maximum_levels": {
             "default": 1000,
-            "maximum": 100000.0,
-            "minimum": 1.0,
+            "maximum": 100000,
+            "minimum": 1,
             "title": "Maximum Levels",
             "type": "integer"
           },
@@ -14960,8 +15043,8 @@
             "type": "array"
           },
           "current_schema": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "Current Schema",
             "type": "integer"
           },
@@ -14972,8 +15055,8 @@
             "type": "string"
           },
           "target_schema": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "Target Schema",
             "type": "integer"
           }
@@ -14997,8 +15080,8 @@
             "type": "string"
           },
           "from_schema": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "From Schema",
             "type": "integer"
           },
@@ -15028,8 +15111,8 @@
             "type": "string"
           },
           "to_schema": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "To Schema",
             "type": "integer"
           }
@@ -15225,15 +15308,15 @@
           },
           "minimum_regimes": {
             "default": 2,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Regimes",
             "type": "integer"
           },
           "minimum_unique_seeds": {
             "default": 3,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Unique Seeds",
             "type": "integer"
           },
@@ -15410,12 +15493,12 @@
             "type": "string"
           },
           "account_revision": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Account Revision",
             "type": "integer"
           },
           "already_checkpointed": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Already Checkpointed",
             "type": "integer"
           },
@@ -15434,7 +15517,7 @@
             "type": "boolean"
           },
           "expected_fill_events": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Expected Fill Events",
             "type": "integer"
           },
@@ -15443,7 +15526,7 @@
             "type": "boolean"
           },
           "newly_checkpointed": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Newly Checkpointed",
             "type": "integer"
           },
@@ -15473,7 +15556,7 @@
             "$ref": "#/components/schemas/OrderEvent"
           },
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           }
@@ -15504,6 +15587,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Broker Status"
           },
           "cumulative_filled_quantity": {
@@ -15519,6 +15603,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Cumulative Filled Quantity"
           },
           "event_id": {
@@ -15539,6 +15624,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "External Order Id"
           },
           "fee_amount": {
@@ -15564,6 +15650,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Fee Currency"
           },
           "fill_id": {
@@ -15576,6 +15663,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Fill Id"
           },
           "fill_price": {
@@ -15591,6 +15679,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Fill Price"
           },
           "fill_quantity": {
@@ -15606,6 +15695,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Fill Quantity"
           },
           "metadata": {
@@ -15633,6 +15723,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Reason"
           }
         },
@@ -15693,6 +15784,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "External Client Id"
           },
           "instrument_id": {
@@ -15714,6 +15806,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Limit Price"
           },
           "metadata": {
@@ -15777,6 +15870,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Stop Price"
           },
           "strategy_id": {
@@ -15789,6 +15883,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Strategy Id"
           },
           "time_in_force": {
@@ -15827,6 +15922,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Average Fill Price"
           },
           "cumulative_filled_quantity": {
@@ -15852,6 +15948,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "External Order Id"
           },
           "observed_at": {
@@ -15869,6 +15966,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Reason"
           },
           "state": {
@@ -16133,13 +16231,13 @@
         "properties": {
           "fee_bps": {
             "default": 10.0,
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Fee Bps",
             "type": "number"
           },
           "initial_capital": {
             "default": 10000.0,
-            "exclusiveMinimum": 0.0,
+            "exclusiveMinimum": 0,
             "title": "Initial Capital",
             "type": "number"
           },
@@ -16153,8 +16251,8 @@
           },
           "position_fraction": {
             "default": 1.0,
-            "exclusiveMinimum": 0.0,
-            "maximum": 1.0,
+            "exclusiveMinimum": 0,
+            "maximum": 1,
             "title": "Position Fraction",
             "type": "number"
           },
@@ -16398,6 +16496,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Decision"
           },
           "risk_tier": {
@@ -16663,6 +16762,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Parent Sha256"
           },
           "policy_id": {
@@ -16678,8 +16778,8 @@
             "type": "object"
           },
           "version": {
-            "maximum": 1000000.0,
-            "minimum": 1.0,
+            "maximum": 1000000,
+            "minimum": 1,
             "title": "Version",
             "type": "integer"
           }
@@ -16954,8 +17054,8 @@
           },
           "maximum_iterations": {
             "default": 2000,
-            "maximum": 100000.0,
-            "minimum": 10.0,
+            "maximum": 100000,
+            "minimum": 10,
             "title": "Maximum Iterations",
             "type": "integer"
           },
@@ -17557,6 +17657,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Min Notional"
           },
           "min_quantity": {
@@ -17569,6 +17670,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Min Quantity"
           },
           "observed_volatility": {
@@ -17582,6 +17684,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Observed Volatility"
           },
           "payoff_ratio": {
@@ -17595,6 +17698,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Payoff Ratio"
           },
           "price": {
@@ -17613,6 +17717,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Quantity Increment"
           },
           "risk_fraction": {
@@ -17626,6 +17731,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Risk Fraction"
           },
           "stop_distance_fraction": {
@@ -17639,6 +17745,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Stop Distance Fraction"
           },
           "target_volatility": {
@@ -17652,6 +17759,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Target Volatility"
           },
           "win_rate": {
@@ -17665,6 +17773,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Win Rate"
           }
         },
@@ -17770,8 +17879,8 @@
           },
           "maximum_sensitive_retention_days": {
             "default": 365,
-            "maximum": 36500.0,
-            "minimum": 1.0,
+            "maximum": 36500,
+            "minimum": 1,
             "title": "Maximum Sensitive Retention Days",
             "type": "integer"
           },
@@ -17786,6 +17895,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Subject Id"
           }
         },
@@ -17912,8 +18022,8 @@
           },
           "maximum_review_age_seconds": {
             "default": 2592000,
-            "maximum": 315360000.0,
-            "minimum": 60.0,
+            "maximum": 315360000,
+            "minimum": 60,
             "title": "Maximum Review Age Seconds",
             "type": "integer"
           },
@@ -17927,8 +18037,8 @@
           },
           "required_review_approvals": {
             "default": 2,
-            "maximum": 100.0,
-            "minimum": 1.0,
+            "maximum": 100,
+            "minimum": 1,
             "title": "Required Review Approvals",
             "type": "integer"
           },
@@ -17964,8 +18074,8 @@
         "properties": {
           "expires_in_seconds": {
             "default": 900,
-            "maximum": 86400.0,
-            "minimum": 60.0,
+            "maximum": 86400,
+            "minimum": 60,
             "title": "Expires In Seconds",
             "type": "integer"
           },
@@ -18095,8 +18205,8 @@
           "max_requests_per_hour": {
             "anyOf": [
               {
-                "maximum": 100000.0,
-                "minimum": 1.0,
+                "maximum": 100000,
+                "minimum": 1,
                 "type": "integer"
               },
               {
@@ -18171,13 +18281,14 @@
           "expected_revision": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Revision"
           }
         },
@@ -18209,15 +18320,15 @@
           },
           "minimum_drift_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 0.0,
+            "maximum": 10000,
+            "minimum": 0,
             "title": "Minimum Drift Reports",
             "type": "integer"
           },
           "minimum_execution_scenarios": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 0.0,
+            "maximum": 10000,
+            "minimum": 0,
             "title": "Minimum Execution Scenarios",
             "type": "integer"
           },
@@ -18230,15 +18341,15 @@
           },
           "minimum_reconciliations": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 0.0,
+            "maximum": 10000,
+            "minimum": 0,
             "title": "Minimum Reconciliations",
             "type": "integer"
           },
           "minimum_slo_evaluations": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 0.0,
+            "maximum": 10000,
+            "minimum": 0,
             "title": "Minimum Slo Evaluations",
             "type": "integer"
           },
@@ -19101,20 +19212,20 @@
         "properties": {
           "maximum_drill_age_seconds": {
             "default": 2592000,
-            "maximum": 31536000.0,
-            "minimum": 1.0,
+            "maximum": 31536000,
+            "minimum": 1,
             "title": "Maximum Drill Age Seconds",
             "type": "integer"
           },
           "maximum_rpo_seconds": {
-            "maximum": 31536000.0,
-            "minimum": 1.0,
+            "maximum": 31536000,
+            "minimum": 1,
             "title": "Maximum Rpo Seconds",
             "type": "integer"
           },
           "maximum_rto_seconds": {
-            "maximum": 31536000.0,
-            "minimum": 1.0,
+            "maximum": 31536000,
+            "minimum": 1,
             "title": "Maximum Rto Seconds",
             "type": "integer"
           },
@@ -19359,8 +19470,8 @@
           },
           "minimum_observations": {
             "default": 60,
-            "maximum": 100000.0,
-            "minimum": 20.0,
+            "maximum": 100000,
+            "minimum": 20,
             "title": "Minimum Observations",
             "type": "integer"
           },
@@ -19428,11 +19539,12 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Previous Event Sha256"
           },
           "sequence": {
-            "maximum": 1000000000000.0,
-            "minimum": 1.0,
+            "maximum": 1000000000000,
+            "minimum": 1,
             "title": "Sequence",
             "type": "integer"
           }
@@ -19472,7 +19584,7 @@
             "type": "array"
           },
           "event_count": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Event Count",
             "type": "integer"
           },
@@ -19520,7 +19632,7 @@
             "type": "boolean"
           },
           "last_sequence": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Last Sequence",
             "type": "integer"
           },
@@ -19744,12 +19856,12 @@
         "additionalProperties": false,
         "properties": {
           "bytes_verified": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Bytes Verified",
             "type": "integer"
           },
           "duration_ms": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Duration Ms",
             "type": "integer"
           },
@@ -19761,7 +19873,7 @@
             "type": "array"
           },
           "files_verified": {
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Files Verified",
             "type": "integer"
           },
@@ -19819,19 +19931,20 @@
           "purge_after_days": {
             "anyOf": [
               {
-                "maximum": 36500.0,
-                "minimum": 1.0,
+                "maximum": 36500,
+                "minimum": 1,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Purge After Days"
           },
           "review_after_days": {
-            "maximum": 36500.0,
-            "minimum": 1.0,
+            "maximum": 36500,
+            "minimum": 1,
             "title": "Review After Days",
             "type": "integer"
           }
@@ -19947,14 +20060,15 @@
           "max_holding_bars": {
             "anyOf": [
               {
-                "maximum": 100000.0,
-                "minimum": 1.0,
+                "maximum": 100000,
+                "minimum": 1,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Max Holding Bars"
           },
           "max_leverage": {
@@ -19996,6 +20110,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Risk Per Trade Fraction"
           },
           "sizing_method": {
@@ -20020,6 +20135,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Stop Loss Fraction"
           },
           "take_profit_fraction": {
@@ -20033,6 +20149,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Take Profit Fraction"
           },
           "target_volatility": {
@@ -20046,6 +20163,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Target Volatility"
           }
         },
@@ -20172,8 +20290,8 @@
           },
           "maximum_venues": {
             "default": 10,
-            "maximum": 100.0,
-            "minimum": 1.0,
+            "maximum": 100,
+            "minimum": 1,
             "title": "Maximum Venues",
             "type": "integer"
           },
@@ -20455,6 +20573,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Parent Manifest Id"
           },
           "schema_version": {
@@ -20534,6 +20653,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Parent Manifest Id"
           },
           "seeds": {
@@ -20646,12 +20766,13 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Last Rehearsed At"
           },
           "maximum_rehearsal_age_seconds": {
             "default": 7776000,
-            "maximum": 63072000.0,
-            "minimum": 1.0,
+            "maximum": 63072000,
+            "minimum": 1,
             "title": "Maximum Rehearsal Age Seconds",
             "type": "integer"
           },
@@ -20689,8 +20810,8 @@
             "type": "array"
           },
           "version": {
-            "maximum": 1000000.0,
-            "minimum": 1.0,
+            "maximum": 1000000,
+            "minimum": 1,
             "title": "Version",
             "type": "integer"
           }
@@ -20732,8 +20853,8 @@
             "type": "string"
           },
           "order": {
-            "maximum": 100000.0,
-            "minimum": 1.0,
+            "maximum": 100000,
+            "minimum": 1,
             "title": "Order",
             "type": "integer"
           },
@@ -20759,6 +20880,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Rollback Step Id"
           },
           "step_id": {
@@ -20774,8 +20896,8 @@
             "type": "string"
           },
           "timeout_seconds": {
-            "maximum": 86400.0,
-            "minimum": 1.0,
+            "maximum": 86400,
+            "minimum": 1,
             "title": "Timeout Seconds",
             "type": "integer"
           }
@@ -20922,14 +21044,14 @@
             "type": "array"
           },
           "successful_events": {
-            "maximum": 10000000.0,
-            "minimum": 0.0,
+            "maximum": 10000000,
+            "minimum": 0,
             "title": "Successful Events",
             "type": "integer"
           },
           "total_events": {
-            "maximum": 10000000.0,
-            "minimum": 0.0,
+            "maximum": 10000000,
+            "minimum": 0,
             "title": "Total Events",
             "type": "integer"
           }
@@ -21047,15 +21169,15 @@
             "type": "string"
           },
           "interval_seconds": {
-            "maximum": 31536000.0,
-            "minimum": 60.0,
+            "maximum": 31536000,
+            "minimum": 60,
             "title": "Interval Seconds",
             "type": "integer"
           },
           "max_catch_up_runs": {
             "default": 1,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Max Catch Up Runs",
             "type": "integer"
           },
@@ -21076,14 +21198,15 @@
           "stale_after_seconds": {
             "anyOf": [
               {
-                "maximum": 31536000.0,
-                "minimum": 60.0,
+                "maximum": 31536000,
+                "minimum": 60,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Stale After Seconds"
           },
           "weekdays_only": {
@@ -21247,6 +21370,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Event Time Field"
           },
           "fields": {
@@ -21267,8 +21391,8 @@
             "type": "array"
           },
           "version": {
-            "maximum": 1000000.0,
-            "minimum": 1.0,
+            "maximum": 1000000,
+            "minimum": 1,
             "title": "Version",
             "type": "integer"
           }
@@ -21424,9 +21548,11 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Mutation Gene Id"
           },
           "mutation_value": {
+            "default": null,
             "title": "Mutation Value"
           },
           "operation": {
@@ -21490,6 +21616,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Principal"
           },
           "scope": {
@@ -21511,39 +21638,41 @@
           "environment": {
             "anyOf": [
               {
-                "maximum": 9.223372036854776e+18,
-                "minimum": 0.0,
+                "maximum": 9223372036854775807,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Environment"
           },
           "numpy": {
-            "maximum": 9.223372036854776e+18,
-            "minimum": 0.0,
+            "maximum": 9223372036854775807,
+            "minimum": 0,
             "title": "Numpy",
             "type": "integer"
           },
           "python": {
-            "maximum": 9.223372036854776e+18,
-            "minimum": 0.0,
+            "maximum": 9223372036854775807,
+            "minimum": 0,
             "title": "Python",
             "type": "integer"
           },
           "torch": {
             "anyOf": [
               {
-                "maximum": 9.223372036854776e+18,
-                "minimum": 0.0,
+                "maximum": 9223372036854775807,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Torch"
           }
         },
@@ -21662,8 +21791,8 @@
             "type": "array"
           },
           "maximum_looks": {
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Maximum Looks",
             "type": "integer"
           }
@@ -21687,14 +21816,14 @@
             "type": "number"
           },
           "look": {
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Look",
             "type": "integer"
           },
           "sample_size": {
-            "maximum": 10000000000.0,
-            "minimum": 1.0,
+            "maximum": 10000000000,
+            "minimum": 1,
             "title": "Sample Size",
             "type": "integer"
           },
@@ -21718,7 +21847,7 @@
         "additionalProperties": false,
         "properties": {
           "capacity_units": {
-            "exclusiveMinimum": 0.0,
+            "exclusiveMinimum": 0,
             "maximum": 1000000000000.0,
             "title": "Capacity Units",
             "type": "number"
@@ -21743,7 +21872,7 @@
           },
           "observed_load_units": {
             "maximum": 1000000000000.0,
-            "minimum": 0.0,
+            "minimum": 0,
             "title": "Observed Load Units",
             "type": "number"
           },
@@ -21786,8 +21915,8 @@
           },
           "minimum_events": {
             "default": 100,
-            "maximum": 10000000.0,
-            "minimum": 1.0,
+            "maximum": 10000000,
+            "minimum": 1,
             "title": "Minimum Events",
             "type": "integer"
           },
@@ -21835,6 +21964,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Exception Reason"
           },
           "local_date": {
@@ -21865,8 +21995,8 @@
         "additionalProperties": false,
         "properties": {
           "business_days": {
-            "maximum": 30.0,
-            "minimum": 0.0,
+            "maximum": 30,
+            "minimum": 0,
             "title": "Business Days",
             "type": "integer"
           },
@@ -21976,6 +22106,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Observed Settlement At"
           },
           "state": {
@@ -22461,6 +22592,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Snapshot Id"
           }
         },
@@ -22572,8 +22704,8 @@
           },
           "minimum_semantic_units_per_donor": {
             "default": 1,
-            "maximum": 1000000.0,
-            "minimum": 1.0,
+            "maximum": 1000000,
+            "minimum": 1,
             "title": "Minimum Semantic Units Per Donor",
             "type": "integer"
           },
@@ -22633,13 +22765,14 @@
           "observed_rto_seconds": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "number"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Observed Rto Seconds"
           },
           "off_host_copy": {
@@ -22653,13 +22786,14 @@
           "rpo_seconds": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Rpo Seconds"
           },
           "store": {
@@ -22728,13 +22862,14 @@
           "expected_revision": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Revision"
           },
           "spec": {
@@ -22749,6 +22884,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Strategy Id"
           }
         },
@@ -22841,6 +22977,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "End"
           },
           "market": {
@@ -22853,6 +22990,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Market"
           },
           "spec": {
@@ -22868,6 +23006,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Start"
           }
         },
@@ -23200,8 +23339,8 @@
           },
           "self_trade_window_seconds": {
             "default": 60,
-            "maximum": 86400.0,
-            "minimum": 1.0,
+            "maximum": 86400,
+            "minimum": 1,
             "title": "Self Trade Window Seconds",
             "type": "integer"
           },
@@ -23231,176 +23370,176 @@
           },
           "maximum_evidence_age_seconds": {
             "default": 3600,
-            "maximum": 31536000.0,
-            "minimum": 1.0,
+            "maximum": 31536000,
+            "minimum": 1,
             "title": "Maximum Evidence Age Seconds",
             "type": "integer"
           },
           "maximum_future_skew_seconds": {
             "default": 30,
-            "maximum": 3600.0,
-            "minimum": 0.0,
+            "maximum": 3600,
+            "minimum": 0,
             "title": "Maximum Future Skew Seconds",
             "type": "integer"
           },
           "minimum_account_valuations": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Account Valuations",
             "type": "integer"
           },
           "minimum_attestations": {
             "default": 1,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Minimum Attestations",
             "type": "integer"
           },
           "minimum_budgets": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Budgets",
             "type": "integer"
           },
           "minimum_calibration_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Calibration Reports",
             "type": "integer"
           },
           "minimum_clock_health_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Clock Health Reports",
             "type": "integer"
           },
           "minimum_corporate_action_plans": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Corporate Action Plans",
             "type": "integer"
           },
           "minimum_credential_rotation_reports": {
             "default": 1,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Minimum Credential Rotation Reports",
             "type": "integer"
           },
           "minimum_data_lifecycle_reports": {
             "default": 1,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Minimum Data Lifecycle Reports",
             "type": "integer"
           },
           "minimum_deployment_health_reports": {
             "default": 1,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Minimum Deployment Health Reports",
             "type": "integer"
           },
           "minimum_derivative_risk_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Derivative Risk Reports",
             "type": "integer"
           },
           "minimum_identity_health_reports": {
             "default": 1,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Minimum Identity Health Reports",
             "type": "integer"
           },
           "minimum_incident_readiness_reports": {
             "default": 1,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Minimum Incident Readiness Reports",
             "type": "integer"
           },
           "minimum_market_windows": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Market Windows",
             "type": "integer"
           },
           "minimum_migration_plans": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Migration Plans",
             "type": "integer"
           },
           "minimum_order_accounting_syncs": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Order Accounting Syncs",
             "type": "integer"
           },
           "minimum_order_reconciliations": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Order Reconciliations",
             "type": "integer"
           },
           "minimum_portfolio_stress_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Portfolio Stress Reports",
             "type": "integer"
           },
           "minimum_rebalance_plans": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Rebalance Plans",
             "type": "integer"
           },
           "minimum_recovery_objective_reports": {
             "default": 1,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Minimum Recovery Objective Reports",
             "type": "integer"
           },
           "minimum_restore_drills": {
             "default": 1,
-            "maximum": 1000.0,
-            "minimum": 1.0,
+            "maximum": 1000,
+            "minimum": 1,
             "title": "Minimum Restore Drills",
             "type": "integer"
           },
           "minimum_settlement_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Settlement Reports",
             "type": "integer"
           },
           "minimum_temporal_leakage_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Temporal Leakage Reports",
             "type": "integer"
           },
           "minimum_version_skew_reports": {
             "default": 1,
-            "maximum": 10000.0,
-            "minimum": 1.0,
+            "maximum": 10000,
+            "minimum": 1,
             "title": "Minimum Version Skew Reports",
             "type": "integer"
           },
@@ -24035,22 +24174,22 @@
         "properties": {
           "embargo_seconds": {
             "default": 0,
-            "maximum": 31536000.0,
-            "minimum": 0.0,
+            "maximum": 31536000,
+            "minimum": 0,
             "title": "Embargo Seconds",
             "type": "integer"
           },
           "label_horizon_seconds": {
             "default": 0,
-            "maximum": 31536000.0,
-            "minimum": 0.0,
+            "maximum": 31536000,
+            "minimum": 0,
             "title": "Label Horizon Seconds",
             "type": "integer"
           },
           "purge_seconds": {
             "default": 0,
-            "maximum": 31536000.0,
-            "minimum": 0.0,
+            "maximum": 31536000,
+            "minimum": 0,
             "title": "Purge Seconds",
             "type": "integer"
           },
@@ -24261,13 +24400,14 @@
           "expected_revision": {
             "anyOf": [
               {
-                "minimum": 1.0,
+                "minimum": 1,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Revision"
           },
           "mode": {
@@ -24296,6 +24436,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Proposal Id"
           }
         },
@@ -24499,8 +24640,8 @@
         "properties": {
           "cooldown_seconds": {
             "default": 300,
-            "maximum": 604800.0,
-            "minimum": 60.0,
+            "maximum": 604800,
+            "minimum": 60,
             "title": "Cooldown Seconds",
             "type": "integer"
           },
@@ -24514,19 +24655,21 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Event Name"
           },
           "interval_seconds": {
             "anyOf": [
               {
-                "maximum": 2592000.0,
-                "minimum": 60.0,
+                "maximum": 2592000,
+                "minimum": 60,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Interval Seconds"
           },
           "kind": {
@@ -24542,6 +24685,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Metric"
           },
           "operation": {
@@ -24557,7 +24701,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "default": null
           },
           "payload_template": {
             "additionalProperties": true,
@@ -24583,6 +24728,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Threshold"
           },
           "trigger_id": {
@@ -24613,6 +24759,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Evaluated At"
           },
           "evaluation_key": {
@@ -24631,6 +24778,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Event Name"
           },
           "event_payload": {
@@ -24683,7 +24831,7 @@
         "additionalProperties": false,
         "properties": {
           "expected_revision": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Expected Revision",
             "type": "integer"
           },
@@ -25039,29 +25187,29 @@
         "properties": {
           "count": {
             "default": 3,
-            "maximum": 16.0,
-            "minimum": 1.0,
+            "maximum": 16,
+            "minimum": 1,
             "title": "Count",
             "type": "integer"
           },
           "max_period": {
             "default": 50,
-            "maximum": 50.0,
-            "minimum": 2.0,
+            "maximum": 50,
+            "minimum": 2,
             "title": "Max Period",
             "type": "integer"
           },
           "min_period": {
             "default": 2,
-            "maximum": 50.0,
-            "minimum": 2.0,
+            "maximum": 50,
+            "minimum": 2,
             "title": "Min Period",
             "type": "integer"
           },
           "seed": {
             "default": 0,
-            "maximum": 2147483647.0,
-            "minimum": 0.0,
+            "maximum": 2147483647,
+            "minimum": 0,
             "title": "Seed",
             "type": "integer"
           },
@@ -25209,6 +25357,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Counterparty Limit"
           },
           "expected_price": {
@@ -25372,15 +25521,15 @@
           },
           "max_release_major_gap": {
             "default": 0,
-            "maximum": 1000.0,
-            "minimum": 0.0,
+            "maximum": 1000,
+            "minimum": 0,
             "title": "Max Release Major Gap",
             "type": "integer"
           },
           "max_release_minor_gap": {
             "default": 2,
-            "maximum": 1000.0,
-            "minimum": 0.0,
+            "maximum": 1000,
+            "minimum": 0,
             "title": "Max Release Minor Gap",
             "type": "integer"
           }
@@ -25492,6 +25641,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Spread Bps"
           },
           "timestamps": {
@@ -25574,13 +25724,13 @@
             "type": "array"
           },
           "capacity_units": {
-            "maximum": 1000000.0,
-            "minimum": 0.0,
+            "maximum": 1000000,
+            "minimum": 0,
             "title": "Capacity Units",
             "type": "integer"
           },
           "fencing_token": {
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Fencing Token",
             "type": "integer"
           },
@@ -25720,6 +25870,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Compensation Step Id"
           },
           "depends_on": {
@@ -25741,8 +25892,8 @@
           },
           "maximum_attempts": {
             "default": 1,
-            "maximum": 100.0,
-            "minimum": 1.0,
+            "maximum": 100,
+            "minimum": 1,
             "title": "Maximum Attempts",
             "type": "integer"
           },
@@ -25885,13 +26036,14 @@
           "expected_revision": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Revision"
           },
           "note_id": {
@@ -25904,6 +26056,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Note Id"
           },
           "subject": {
@@ -25948,13 +26101,14 @@
           "expected_revision": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "title": "Expected Revision"
           }
         },
@@ -38095,6 +38249,18 @@
         "operationId": "status_api_v1_intelligence_status_get",
         "parameters": [
           {
+            "in": "query",
+            "name": "probe_limit",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 32,
+              "minimum": 0,
+              "title": "Probe Limit",
+              "type": "integer"
+            }
+          },
+          {
             "in": "header",
             "name": "X-API-Key",
             "required": false,
@@ -38712,6 +38878,51 @@
           }
         },
         "summary": "Set Emergency State",
+        "tags": [
+          "production"
+        ]
+      }
+    },
+    "/api/v1/production/reconciliation": {
+      "get": {
+        "description": "Read-only, deliberately non-authoritative venue mutation hold.\n\nNever return broker IDs, proposal identifiers, payload hashes or\nfree-form journal details to the browser. A clear local journal is\nNOT proof of cleared exchange orders, settled fees or collateral.",
+        "operationId": "reconciliation_state_api_v1_production_reconciliation_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reconciliation State Api V1 Production Reconciliation Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reconciliation State",
         "tags": [
           "production"
         ]

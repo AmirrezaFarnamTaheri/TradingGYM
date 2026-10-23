@@ -30,6 +30,7 @@ parity test), or ``AXIOM_KERNEL_PATH`` to point at a specific artifact.
 from __future__ import annotations
 
 import ctypes
+import math
 import os
 import sys
 from dataclasses import dataclass
@@ -45,6 +46,7 @@ __all__ = [
     "kernel_status",
     "load_kernel",
     "simulate",
+    "wilder_adx",
 ]
 
 _ABI_VERSION = 1
@@ -140,6 +142,15 @@ def load_kernel() -> Any | None:
                 ctypes.c_uint64,  # trade_capacity
                 ctypes.POINTER(ctypes.c_uint64),  # out_bars_in_position
             ]
+            adx_entrypoint = getattr(library, "axiom_wilder_adx", None)
+            if adx_entrypoint is not None:
+                adx_entrypoint.restype = ctypes.c_int64
+                adx_entrypoint.argtypes = (
+                    [ctypes.POINTER(ctypes.c_double)] * 3
+                    + [ctypes.c_uint64] * 2
+                    + [ctypes.c_double] * 3
+                    + [ctypes.POINTER(ctypes.c_double)] * 4
+                )
             _CACHE = (library, f"loaded {path}")
             return library
         except OSError as exc:
@@ -249,3 +260,59 @@ def simulate(
         trades=trades,
         bars_in_position=int(bars_in_position.value),
     )
+
+
+def wilder_adx(
+    *,
+    true_range: np.ndarray,
+    moves_plus: np.ndarray,
+    moves_minus: np.ndarray,
+    period: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
+    """Run the optional ADX recurrence, preserving Python fsum seeds and warmup.
+
+    Old ABI-1 libraries without this additive symbol use the Python reference.
+    Native errors invalidate all outputs and never silently fall back.
+    """
+    library = load_kernel()
+    function = getattr(library, "axiom_wilder_adx", None)
+    if function is None:
+        return None
+    if type(period) is not int or not 2 <= period <= 10_000:
+        raise KernelError("invalid ADX period")
+    buffers = tuple(
+        np.require(values, dtype=np.float64, requirements=["C", "A"])
+        for values in (true_range, moves_plus, moves_minus)
+    )
+    if any(values.ndim != 1 for values in buffers):
+        raise KernelError("ADX inputs must be one-dimensional")
+    n = len(buffers[0]) + 1
+    if n <= period or any(len(values) + 1 != n for values in buffers):
+        raise KernelError("ADX inputs must share a length and contain the seed period")
+    if any(not np.isfinite(values).all() or (values < 0).any() for values in buffers):
+        raise KernelError(
+            "ADX smoothed observations overflow or contain invalid values"
+        )
+    seeds = tuple(math.fsum(values[:period]) for values in buffers)
+    outputs = tuple(np.empty(n, dtype=np.float64) for _ in range(4))
+    status = int(
+        function(
+            *(
+                values.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+                for values in buffers
+            ),
+            ctypes.c_uint64(n),
+            ctypes.c_uint64(period),
+            *(ctypes.c_double(seed) for seed in seeds),
+            *(
+                values.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+                for values in outputs
+            ),
+        )
+    )
+    if status != 0:
+        raise KernelError(
+            f"ADX smoothed observations overflow or kernel rejected inputs ({status})"
+        )
+    adx, plus_di, minus_di, dx = outputs
+    return adx, plus_di, minus_di, dx

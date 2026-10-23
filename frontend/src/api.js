@@ -541,11 +541,16 @@ export function hasApiKey() {
 // Default Export
 // =============================================================================
 
+export { api };
 export default api;
 
 // =============================================================================
 // AXIOM-1: Wildcard Grants (authz) and Playground APIs
 // =============================================================================
+
+function actorHeaders(actor, actorKey) {
+  return { 'X-Actor': actor, 'X-Actor-Key': actorKey };
+}
 
 /**
  * Wildcard capability grant endpoints (ADR-028)
@@ -557,11 +562,11 @@ export const authzAPI = {
   health: () => api.get('/authz/health'),
   issue: (payload, actor, actorKey) =>
     api.post('/authz/grants', payload, {
-      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+      headers: actorHeaders(actor, actorKey),
     }),
   revoke: (grantId, actor, actorKey) =>
     api.post('/authz/grants/' + grantId + '/revoke', null, {
-      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+      headers: actorHeaders(actor, actorKey),
     }),
 };
 
@@ -571,7 +576,7 @@ export const authzAPI = {
 export const playgroundAPI = {
   run: (payload, actor, actorKey) =>
     api.post('/playground/runs', payload, {
-      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+      headers: actorHeaders(actor, actorKey),
       timeout: 120000,
     }),
 };
@@ -594,34 +599,34 @@ export const forgeAPI = {
         // FastAPI reads repeated `tags=` query parameters, not `tags[]=`
         indexes: null,
       },
-      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+      headers: actorHeaders(actor, actorKey),
     }),
   recordExperience: (payload, actor, actorKey) =>
     api.post('/forge/memory/records', payload, {
-      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+      headers: actorHeaders(actor, actorKey),
     }),
   templates: (actor, actorKey, detail = false) =>
     api.get('/forge/strategies/templates', {
       params: { detail },
-      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+      headers: actorHeaders(actor, actorKey),
     }),
   strategyVariants: (payload, actor, actorKey) =>
     api.post('/forge/strategies/variants', payload, {
-      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+      headers: actorHeaders(actor, actorKey),
     }),
   nominations: (actor, actorKey) =>
     api.get('/forge/nominations', {
-      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+      headers: actorHeaders(actor, actorKey),
     }),
   nominate: (payload, actor, actorKey) =>
     api.post('/forge/nominations', payload, {
-      headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey },
+      headers: actorHeaders(actor, actorKey),
     }),
   resolveNomination: (toolName, payload, actor, actorKey) =>
     api.post(
       '/forge/nominations/' + encodeURIComponent(toolName) + '/resolve',
       payload,
-      { headers: { 'X-Actor': actor, 'X-Actor-Key': actorKey } }
+      { headers: actorHeaders(actor, actorKey) }
     ),
 };
 

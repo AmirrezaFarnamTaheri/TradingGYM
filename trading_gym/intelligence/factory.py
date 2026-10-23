@@ -23,7 +23,7 @@ from trading_gym.common.intelligence_config import IntelligenceConfig, Intellige
 from trading_gym.intelligence.fusion_backend import FusionBackend
 from trading_gym.intelligence.llm_backend import LLMDecisionBackend
 from trading_gym.intelligence.policy_adapter import IntelligencePolicyAdapter
-from trading_gym.intelligence.registry import BackendRegistry
+from trading_gym.intelligence.registry import BackendRegistry as BackendRegistry
 from trading_gym.intelligence.rl_backend import RLPolicyBackend
 from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
 

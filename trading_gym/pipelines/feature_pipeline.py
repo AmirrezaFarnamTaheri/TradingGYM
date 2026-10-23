@@ -17,7 +17,11 @@ from filelock import FileLock
 from tqdm import tqdm
 
 from trading_gym.common.config import AppConfig
-from trading_gym.common.persistence import atomic_write_json, atomic_write_text
+from trading_gym.common.persistence import (
+    _fsync_directory,
+    atomic_write_json,
+    atomic_write_text,
+)
 from trading_gym.common.security import bounded_json_dumps, confined_child
 from trading_gym.data.data_loader import (
     _normalise_timestamp_index,
@@ -200,27 +204,6 @@ def load_raw_data(
     return _normalise_legacy_frame(
         frame, source=source, symbol=symbol, timeframe=timeframe
     )
-
-
-def _fsync_directory(path: Path) -> None:
-    if os.name != "posix":
-        # Windows has no directory file descriptor to open, so the
-        # returned handle is invalid and closing it raised EBADF, which
-        # broke every atomic write; off POSIX os.replace is already
-        # atomic, so this durability step is a safe no-op there.
-        return
-    flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
-    try:
-        descriptor = os.open(path, flags)
-    except OSError:
-        return
-    try:
-        os.fsync(descriptor)
-    except OSError:
-        pass
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
 
 
 def _feature_config_hash(cfg: AppConfig) -> str:

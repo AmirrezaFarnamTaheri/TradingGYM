@@ -8,7 +8,7 @@ slower configured backend or the deterministic rules floor.
 from __future__ import annotations
 
 import math
-from typing import Any, Callable
+from typing import Any
 
 from trading_gym.agent.providers import ProviderConfig
 from trading_gym.intelligence.llm_backend import (
@@ -21,7 +21,7 @@ from trading_gym.intelligence.system1_risk import (
     system1_risk_window,
 )
 from trading_gym.intelligence.types import (
-    BackendUnavailable,
+    BackendUnavailable as BackendUnavailable,
     UncertainDecision,
     DecisionSignal,
     MarketContext,

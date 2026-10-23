@@ -51,23 +51,27 @@ def test_same_gross_returns_penalize_high_turnover_after_fees():
 
 def test_replay_receipt_is_order_invariant_and_evidence_sensitive():
     base, candidate = replay("baseline"), replay("candidate")
-    left = compare([base, candidate]); right = compare([candidate, base])
+    left = compare([base, candidate])
+    right = compare([candidate, base])
     assert left == right
     changed = replace(candidate, turnover_notional=tuple([0.75] * 40))
     assert compare([base, changed])["report_sha256"] != left["report_sha256"]
 
 
-@pytest.mark.parametrize("changed", [
-    {"bar_close_unix": tuple([2039] + list(range(2001, 2040)))},
-    {"bar_close_unix": tuple(range(3000, 3040))},
-    {"market_sha256": "e" * 64},
-    {"split": "train"},
-    {"strategy_sha256": "not-a-hash"},
-    {"gross_return_bps": tuple([math.nan] + [10.0] * 39)},
-    {"gross_return_bps": tuple([False] + [10.0] * 39)},
-    {"turnover_notional": tuple([-0.1] + [0.5] * 39)},
-    {"turnover_notional": tuple([math.inf] + [0.5] * 39)},
-])
+@pytest.mark.parametrize(
+    "changed",
+    [
+        {"bar_close_unix": tuple([2039] + list(range(2001, 2040)))},
+        {"bar_close_unix": tuple(range(3000, 3040))},
+        {"market_sha256": "e" * 64},
+        {"split": "train"},
+        {"strategy_sha256": "not-a-hash"},
+        {"gross_return_bps": tuple([math.nan] + [10.0] * 39)},
+        {"gross_return_bps": tuple([False] + [10.0] * 39)},
+        {"turnover_notional": tuple([-0.1] + [0.5] * 39)},
+        {"turnover_notional": tuple([math.inf] + [0.5] * 39)},
+    ],
+)
 def test_unsealed_or_incomparable_candidate_is_rejected(changed):
     base = replay("baseline")
     candidate = replace(replay("candidate"), **changed)
@@ -89,8 +93,11 @@ def test_duplicate_id_no_baseline_and_bad_fee_fail_closed():
         compare([replay("candidate"), replay("other")])
     with pytest.raises(ValueError):
         compare_strategy_replays(
-            [replay("baseline"), replay("candidate")], baseline_id="baseline",
-            train_end_unix=1999, as_of_unix=2200, fee_bps=True,
+            [replay("baseline"), replay("candidate")],
+            baseline_id="baseline",
+            train_end_unix=1999,
+            as_of_unix=2200,
+            fee_bps=True,
         )
 
 
@@ -141,16 +148,24 @@ def test_invalid_integer_as_of_and_oversized_workload_denied():
 def test_mixed_costs_change_ranking_but_not_source_data():
     base, candidate = replay("baseline"), replay("candidate")
     zero = compare([base, candidate], fee_bps=0.0, slippage_bps=0.0)
-    expensive = compare([base, replace(candidate, turnover_notional=tuple([2.0]*40))])
+    expensive = compare([base, replace(candidate, turnover_notional=tuple([2.0] * 40))])
     assert zero["report_sha256"] != expensive["report_sha256"]
     assert base.gross_return_bps == tuple([10.0] * 40)
 
 
 def test_unbounded_aggregate_return_is_rejected_without_overflow():
     timestamps = tuple(range(2000, 2400))
-    winner = replay("candidate", gross=tuple([100000.0] * 400),
-                    turnover=tuple([0.0] * 400), times=timestamps)
-    baseline = replay("baseline", gross=tuple([10.0] * 400),
-                      turnover=tuple([0.5] * 400), times=timestamps)
+    winner = replay(
+        "candidate",
+        gross=tuple([100000.0] * 400),
+        turnover=tuple([0.0] * 400),
+        times=timestamps,
+    )
+    baseline = replay(
+        "baseline",
+        gross=tuple([10.0] * 400),
+        turnover=tuple([0.5] * 400),
+        times=timestamps,
+    )
     with pytest.raises(ValueError, match="compounded"):
         compare([baseline, winner], as_of_unix=2500)

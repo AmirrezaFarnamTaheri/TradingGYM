@@ -25,6 +25,14 @@ vi.mock('../../api', () => ({
   },
 }));
 
+beforeEach(() => {
+  startSpy.mockReset().mockResolvedValue({ data: { status: 'started' } });
+  statusSpy.mockReset().mockResolvedValue({ data: { status: 'idle' } });
+  closeSpy.mockClear();
+  socketRef.current = null;
+  useStore.getState().clearLogs();
+});
+
 function setValue(element, value) {
   act(() => {
     const setter = Object.getOwnPropertyDescriptor(
@@ -37,13 +45,6 @@ function setValue(element, value) {
 }
 
 describe('TrainingPanel model-version submission', () => {
-  beforeEach(() => {
-    startSpy.mockClear();
-    statusSpy.mockClear();
-    closeSpy.mockClear();
-    socketRef.current = null;
-  });
-
   it('requires a safe version before enabling training', async () => {
     const { container, cleanup } = renderWithClient(<TrainingPanel />);
     const versionField = container.querySelector('#training-model-version');
@@ -68,7 +69,7 @@ describe('TrainingPanel model-version submission', () => {
     const start = await waitForRendered(
       container,
       'button',
-      (button) => button.textContent.includes('START TRAINING')
+      (button) => button.textContent.includes('START TRAINING') && !button.disabled
     );
     expect(start.disabled).toBe(false);
     start.click();
@@ -97,6 +98,79 @@ it('ignores malformed or invalid WebSocket logs without crashing', async () => {
   cleanup();
 });
 
+
+it('blocks starting while authoritative training status is unknown', async () => {
+  statusSpy.mockReturnValueOnce(new Promise(() => {}));
+  const { container, cleanup } = renderWithClient(<TrainingPanel />);
+  setValue(container.querySelector('#training-model-version'), 'candidate-unknown');
+  const start = await waitForRendered(container, 'button', node => node.textContent.includes('START TRAINING'));
+  expect(start.disabled).toBe(true);
+  expect(container.textContent).toContain('UNKNOWN');
+  expect(startSpy).not.toHaveBeenCalled();
+  cleanup();
+});
+
+it('shows failed status as unavailable and recovers through a read-only retry', async () => {
+  statusSpy.mockRejectedValueOnce(new Error('offline'));
+  const { container, cleanup } = renderWithClient(<TrainingPanel />);
+  setValue(container.querySelector('#training-model-version'), 'candidate-retry');
+  const alert = await waitForRendered(container, '[role="alert"]');
+  expect(alert.textContent).toContain('Training status unavailable');
+  const start = Array.from(container.querySelectorAll('button')).find(node => node.textContent.includes('START TRAINING'));
+  expect(start.disabled).toBe(true);
+  statusSpy.mockResolvedValueOnce({ data: { status: 'idle' } });
+  const retry = await waitForRendered(container, 'button', node => node.textContent.includes('Retry status'));
+  await act(async () => retry.click());
+  await waitForRendered(container, 'button', node => node.textContent.includes('START TRAINING') && !node.disabled);
+  expect(startSpy).not.toHaveBeenCalled();
+  cleanup();
+});
+
+it.each(['starting', 'stopping'])('does not start a competing job during %s', async (state) => {
+  statusSpy.mockResolvedValueOnce({ data: { status: state } });
+  const { container, cleanup } = renderWithClient(<TrainingPanel />);
+  setValue(container.querySelector('#training-model-version'), 'candidate-busy');
+  await waitForRendered(container, 'strong', node => node.textContent === state.toUpperCase());
+  const start = Array.from(container.querySelectorAll('button')).find(node => node.textContent.includes('START TRAINING'));
+  expect(start.disabled).toBe(true);
+  cleanup();
+});
+
+it('rejects malformed process status instead of assuming idle', async () => {
+  statusSpy.mockResolvedValueOnce({ data: { status: 'not-a-process-state' } });
+  const { container, cleanup } = renderWithClient(<TrainingPanel />);
+  await waitForRendered(container, '[role="alert"]');
+  expect(container.textContent).toContain('UNKNOWN');
+  cleanup();
+});
+
+it('holds the start control until the post-mutation status check completes', async () => {
+  let resolveStatus;
+  statusSpy.mockResolvedValueOnce({ data: { status: 'idle' } })
+    .mockReturnValueOnce(new Promise(resolve => { resolveStatus = resolve; }));
+  const { container, cleanup } = renderWithClient(<TrainingPanel />);
+  setValue(container.querySelector('#training-model-version'), 'candidate-check');
+  const start = await waitForRendered(container, 'button', node => node.textContent.includes('START TRAINING') && !node.disabled);
+  await act(async () => start.click());
+  await waitForRendered(container, 'button', node => node.textContent.includes('Starting') || !node.disabled);
+  expect(start.disabled).toBe(true);
+  await act(async () => resolveStatus({ data: { status: 'running' } }));
+  await waitForRendered(container, 'strong', node => node.textContent === 'RUNNING');
+  expect(start.disabled).toBe(true);
+  cleanup();
+});
+
+it('retains failed-start feedback in the panel', async () => {
+  statusSpy.mockResolvedValueOnce({ data: { status: 'idle' } });
+  startSpy.mockRejectedValueOnce(new Error('worker unavailable'));
+  const { container, cleanup } = renderWithClient(<TrainingPanel />);
+  setValue(container.querySelector('#training-model-version'), 'candidate-failure');
+  const start = await waitForRendered(container, 'button', node => node.textContent.includes('START TRAINING') && !node.disabled);
+  await act(async () => start.click());
+  const alert = await waitForRendered(container, '[role="alert"]');
+  expect(alert.textContent).toContain('Training could not start');
+  cleanup();
+});
 
 it('never stores opaque WebSocket metadata or prints labeled credentials', async () => {
   useStore.getState().clearLogs();

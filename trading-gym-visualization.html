@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Gym - Interactive Codebase Guide</title>
+<style>
+  /* === DARK THEME (starry night) === */
+  :root, [data-theme="dark"] {
+    --bg: #0f172a;
+    --bg-gradient: linear-gradient(170deg, #1e3a5f 0%, #0f172a 35%, #312e81 65%, #0f172a 100%);
+    --card: rgba(75, 85, 160, 0.45);
+    --accent: #FFD700;
+    --accent2: #FBBF24;
+    --accent3: #4F46E5;
+    --accent4: #10B981;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --border: rgba(255, 255, 255, 0.15);
+    --glow: rgba(255, 215, 0, 0.12);
+    --nav-bg: rgba(15, 23, 42, 0.88);
+    --node-fill: rgba(75, 85, 160, 0.5);
+    --node-label: #ffffff;
+    --node-sublabel: #94a3b8;
+    --panel-shadow: rgba(0, 0, 0, 0.5);
+    --conn-bg: rgba(255, 255, 255, 0.03);
+    --danger: #EF4444;
+  }
+  /* === LIGHT THEME === */
+  [data-theme="light"] {
+    --bg: #f5f5fa;
+    --bg-gradient: none;
+    --card: #ffffff;
+    --accent: #b8860b;
+    --accent2: #d4a017;
+    --accent3: #4338ca;
+    --accent4: #16a34a;
+    --text: #1a1a2e;
+    --text-dim: #64748b;
+    --border: #e2e8f0;
+    --glow: rgba(184, 134, 11, 0.08);
+    --nav-bg: rgba(245, 245, 250, 0.95);
+    --node-fill: #ffffff;
+    --node-label: #1a1a2e;
+    --node-sublabel: #64748b;
+    --panel-shadow: rgba(0, 0, 0, 0.1);
+    --conn-bg: rgba(0, 0, 0, 0.03);
+    --danger: #dc2626;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    background-image: var(--bg-gradient);
+    background-attachment: fixed;
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* === NAV === */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: var(--nav-bg);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; height: 56px;
+  }
+  nav .logo {
+    font-size: 1.2rem; font-weight: 700;
+    color: var(--accent);
+    text-shadow: 0 0 12px rgba(255,215,0,0.3);
+    white-space: nowrap;
+  }
+  nav .tabs { display: flex; gap: 0.4rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  nav .tabs button {
+    background: none; border: none; color: var(--text-dim);
+    padding: 0.45rem 0.9rem; cursor: pointer; border-radius: 8px;
+    font-size: 0.88rem; transition: all 0.3s; white-space: nowrap;
+  }
+  nav .tabs button:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  nav .tabs button.active {
+    color: var(--accent); background: var(--glow);
+    box-shadow: 0 0 12px rgba(255,215,0,0.08);
+  }
+  nav .nav-controls { display: flex; gap: 0.4rem; align-items: center; }
+  nav .ctrl-btn {
+    background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+    color: var(--text); padding: 0.35rem 0.7rem; border-radius: 6px;
+    cursor: pointer; font-size: 0.82rem; transition: all 0.3s;
+  }
+  nav .ctrl-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* === MAIN === */
+  main { margin-top: 56px; padding: 2rem; max-width: 1200px; margin-left: auto; margin-right: auto; position: relative; z-index: 1; }
+  section { display: none; animation: fadeIn 0.4s ease; }
+  section.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* === HERO (Story Mode) === */
+  .hero {
+    text-align: center; padding: 3rem 1rem 2rem;
+    background: radial-gradient(ellipse at center, var(--glow) 0%, transparent 70%);
+    border-radius: 20px; margin-bottom: 2.5rem;
+  }
+  .hero .mascot { font-size: 4rem; margin-bottom: 0.8rem; }
+  .hero h1 { font-size: 2.4rem; margin-bottom: 0.8rem; color: var(--accent); }
+  .hero .subtitle { color: var(--text-dim); font-size: 1.15rem; line-height: 1.8; max-width: 700px; margin: 0 auto; }
+
+  /* === STORY TIMELINE === */
+  .story-timeline { position: relative; padding-left: 3rem; max-width: 900px; margin: 0 auto; }
+  .story-timeline::before {
+    content: ''; position: absolute; left: 1rem; top: 0; bottom: 0;
+    width: 3px; background: linear-gradient(to bottom, var(--accent), var(--accent3), var(--accent4));
+    border-radius: 3px;
+  }
+  .story-step {
+    position: relative; margin-bottom: 1.5rem;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.4rem 1.8rem;
+    cursor: pointer; transition: all 0.3s;
+  }
+  .story-step:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 20px rgba(255,215,0,0.08);
+    transform: translateX(4px);
+  }
+  .story-step::before {
+    content: attr(data-icon); position: absolute; left: -2.5rem; top: 1.4rem;
+    font-size: 1.4rem; width: 2rem; text-align: center;
+  }
+  .story-step .step-num {
+    display: inline-block; background: var(--glow); color: var(--accent);
+    padding: 0.15rem 0.55rem; border-radius: 4px; font-size: 0.72rem;
+    font-weight: 600; margin-bottom: 0.4rem; letter-spacing: 0.5px;
+  }
+  .story-step h3 { margin-bottom: 0.4rem; font-size: 1.05rem; }
+  .story-step p { color: var(--text-dim); line-height: 1.7; font-size: 0.92rem; }
+  .story-step .detail {
+    display: none; margin-top: 0.8rem; padding-top: 0.8rem;
+    border-top: 1px solid var(--border); color: var(--text); line-height: 1.8; font-size: 0.92rem;
+    white-space: pre-line;
+  }
+  .story-step.expanded .detail { display: block; animation: fadeIn 0.3s; }
+
+  /* === ARCHITECTURE === */
+  .arch-container { display: flex; flex-direction: column; gap: 1.5rem; }
+  .arch-diagram {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.5rem; min-height: 380px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+  }
+  .arch-diagram svg { width: 100%; height: auto; }
+  .arch-legend {
+    display: flex; flex-wrap: wrap; gap: 1rem;
+    padding: 0.8rem 1rem; background: var(--card); border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .arch-legend .legend-item {
+    display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text);
+  }
+  .arch-legend .legend-dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 6px currentColor; }
+
+  /* === COMPONENT NODES === */
+  .node-group { cursor: pointer; transition: transform 0.2s; }
+  .node-group:hover { transform: scale(1.05); }
+  .node-group:hover .node-rect { stroke-width: 2.5; filter: brightness(1.2); }
+  .node-rect { rx: 12; ry: 12; stroke-width: 2; transition: all 0.3s; }
+  .node-label { fill: var(--node-label); font-size: 17px; font-weight: 600; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .node-sublabel { fill: var(--node-sublabel); font-size: 12px; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+
+  /* === FLOW ARROWS === */
+  .flow-path { fill: none; stroke-width: 2; stroke-dasharray: 8 4; animation: flowDash 1.5s linear infinite; }
+  @keyframes flowDash { to { stroke-dashoffset: -24; } }
+  .flow-label { font-size: 11px; fill: var(--text-dim); text-anchor: middle; dominant-baseline: central; }
+  .flow-particle { opacity: 0.8; }
+
+  /* === INLINE DETAIL CARD === */
+  .inline-detail {
+    display: none; margin-top: 1rem;
+    background: var(--card); border: 1px solid var(--accent);
+    border-radius: 14px; padding: 1.5rem; position: relative;
+    animation: slideDown 0.3s ease;
+    box-shadow: 0 4px 24px rgba(255,215,0,0.08);
+  }
+  .inline-detail.open { display: block; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+  .inline-detail .close-btn {
+    position: absolute; top: 0.6rem; right: 0.8rem;
+    background: none; border: none; color: var(--text-dim);
+    font-size: 1.4rem; cursor: pointer; line-height: 1;
+  }
+  .inline-detail .close-btn:hover { color: var(--text); }
+  .inline-detail h2 { margin-bottom: 0.4rem; color: var(--accent); font-size: 1.2rem; }
+  .inline-detail .tag {
+    display: inline-block; background: var(--glow); color: var(--accent);
+    padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem;
+    margin-right: 0.25rem; margin-bottom: 0.25rem;
+  }
+  .inline-detail .desc { color: var(--text-dim); line-height: 1.8; margin: 0.8rem 0; font-size: 0.92rem; }
+  .inline-detail .connections { margin-top: 0.8rem; }
+  .inline-detail .connections h4 { color: var(--accent3); margin-bottom: 0.4rem; font-size: 0.92rem; }
+  .inline-detail .conn-item {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.4rem 0.6rem; border-radius: 6px; margin-bottom: 0.25rem;
+    background: var(--conn-bg); font-size: 0.88rem;
+  }
+
+  /* === HOW-TO === */
+  .howto-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.2rem; }
+  .howto-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.4rem; transition: all 0.3s;
+  }
+  .howto-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 4px 16px rgba(255,215,0,0.06); }
+  .howto-card .card-icon { font-size: 2rem; margin-bottom: 0.6rem; }
+  .howto-card h3 { margin-bottom: 0.4rem; font-size: 1rem; }
+  .howto-card p { color: var(--text-dim); line-height: 1.7; font-size: 0.88rem; }
+  .howto-card .steps {
+    margin-top: 0.8rem; padding-left: 1.2rem;
+    list-style: none; counter-reset: step;
+  }
+  .howto-card .steps li {
+    counter-increment: step; position: relative;
+    padding: 0.25rem 0; color: var(--text-dim); font-size: 0.88rem;
+  }
+  .howto-card .steps li::before {
+    content: counter(step); position: absolute; left: -1.4rem;
+    color: var(--accent); font-weight: 700; font-size: 0.78rem;
+  }
+
+  /* === SEARCH === */
+  .search-bar {
+    display: flex; align-items: center; gap: 0.5rem;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.5rem 0.8rem; margin-bottom: 1.2rem;
+  }
+  .search-bar input {
+    flex: 1; background: none; border: none; color: var(--text);
+    font-size: 0.9rem; outline: none;
+  }
+  .search-bar input::placeholder { color: var(--text-dim); }
+
+  /* === STARRY BG === */
+  .starry-bg {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 0; pointer-events: none; overflow: hidden;
+  }
+  .starry-bg .star {
+    position: absolute; width: 2px; height: 2px;
+    background: #ffd43b; border-radius: 50%;
+    animation: twinkle var(--dur, 3s) ease-in-out infinite alternate;
+  }
+  .starry-bg .star.dim { background: rgba(255,255,255,0.5); width: 1px; height: 1px; }
+  @keyframes twinkle { from { opacity: 0.2; transform: scale(0.8); } to { opacity: 1; transform: scale(1.2); } }
+  .starry-bg .nebula { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.15; }
+  [data-theme="light"] .starry-bg { display: none; }
+  [data-theme="light"] body { background-image: none; }
+
+  /* === TOOLTIP === */
+  .tooltip {
+    position: fixed; background: var(--nav-bg); border: 1px solid var(--accent);
+    border-radius: 8px; padding: 0.5rem 0.8rem; font-size: 0.82rem;
+    pointer-events: none; z-index: 200; opacity: 0; transition: opacity 0.2s;
+    max-width: 240px; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    backdrop-filter: blur(12px);
+  }
+  .tooltip.visible { opacity: 1; }
+
+  /* === FOOTER === */
+  footer {
+    padding: 2rem; text-align: center; margin-top: 3rem;
+    border-top: 1px solid var(--border); color: var(--text-dim); font-size: 0.88rem;
+    position: relative; z-index: 1;
+  }
+  footer .brand { color: var(--accent); font-weight: 700; font-size: 1.05rem; margin-bottom: 0.3rem; }
+  footer a { color: var(--accent); text-decoration: none; font-weight: 600; border-bottom: 1px dashed var(--accent); }
+  footer a:hover { opacity: 0.8; }
+
+  /* === TRANSITIONS === */
+  body, nav, .story-step, .arch-diagram, .howto-card, .inline-detail,
+  .search-bar, .arch-legend, .tooltip, footer {
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s, box-shadow 0.3s;
+  }
+  [data-theme="light"] .arch-diagram { box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+
+  /* === QUALITY TAB === */
+  .quality-section { margin-bottom: 2rem; }
+  .quality-section h3 {
+    color: var(--accent); font-size: 1.1rem; margin-bottom: 1rem;
+    padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+  }
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem; margin-bottom: 1.5rem;
+  }
+  .stat-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.2rem; text-align: center;
+    transition: all 0.3s;
+  }
+  .stat-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(255,215,0,0.06); }
+  .stat-card .stat-value { font-size: 2rem; font-weight: 700; color: var(--accent); }
+  .stat-card .stat-label { color: var(--text-dim); font-size: 0.88rem; margin-top: 0.3rem; }
+  .security-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem; margin-bottom: 1.5rem;
+  }
+  .security-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.2rem; transition: all 0.3s;
+  }
+  .security-card:hover { border-color: var(--accent4); transform: translateY(-2px); }
+  .security-card .sec-icon { font-size: 1.5rem; margin-bottom: 0.4rem; }
+  .security-card h4 { font-size: 0.95rem; margin-bottom: 0.3rem; }
+  .security-card p { color: var(--text-dim); font-size: 0.85rem; line-height: 1.6; }
+  .badge-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .quality-badge {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    background: var(--glow); color: var(--accent); border: 1px solid rgba(255,215,0,0.2);
+    padding: 0.35rem 0.8rem; border-radius: 20px; font-size: 0.82rem; font-weight: 600;
+  }
+
+  /* === FEATURES TAB === */
+  .features-section { margin-bottom: 2rem; }
+  .feature-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.2rem; margin-bottom: 1.5rem;
+  }
+  .feature-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.4rem; transition: all 0.3s;
+  }
+  .feature-card:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 4px 16px rgba(255,215,0,0.06); }
+  .feature-card .feature-icon { font-size: 2rem; margin-bottom: 0.6rem; }
+  .feature-card h4 { font-size: 1rem; margin-bottom: 0.3rem; }
+  .feature-card p { color: var(--text-dim); line-height: 1.6; font-size: 0.88rem; }
+
+  /* === DATABASE TAB === */
+  #schema-tables {
+    display: flex; gap: 12px; align-items: flex-start;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .db-table {
+    background: rgba(13,17,23,0.8); border: 1px solid rgba(16,185,129,0.25);
+    border-radius: 12px; min-width: 140px; overflow: hidden;
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.82rem;
+    transition: all 0.2s;
+  }
+  .db-table:hover { border-color: rgba(255,215,0,0.4); box-shadow: 0 0 16px rgba(255,215,0,0.1); }
+  .db-table.view-table { border: 2px solid rgba(255,215,0,0.5); box-shadow: 0 0 20px rgba(255,215,0,0.1); }
+  .db-table-header {
+    padding: 8px 12px; background: rgba(16,185,129,0.12);
+    border-bottom: 1px solid rgba(16,185,129,0.2);
+    font-weight: 700; color: var(--accent4); font-size: 0.85rem;
+  }
+  .db-table.view-table .db-table-header { background: rgba(255,215,0,0.1); color: var(--accent); }
+  .db-table-row {
+    padding: 5px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: var(--text-dim); display: flex; align-items: center; gap: 6px;
+    transition: all 0.3s;
+  }
+  .db-table-row:last-child { border-bottom: none; }
+  .db-table-row.pk { color: var(--accent2); }
+  .db-table-row.fk { color: #a5b4fc; }
+  .col-icon { font-size: 0.78rem; opacity: 0.7; }
+  .db-rls-banner {
+    padding: 12px 20px; background: rgba(79,70,229,0.15);
+    border: 1px solid rgba(79,70,229,0.3); border-radius: 12px;
+    font-size: 0.85rem; color: #a5b4fc; text-align: center; margin-top: 1rem;
+  }
+  #db-demo { display: flex; flex-direction: column; gap: 16px; margin-top: 1.5rem; }
+  #db-demo-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+  .db-demo-btn {
+    padding: 10px 22px; border-radius: 12px; font-size: 0.9rem;
+    font-weight: 600; cursor: pointer; border: none; transition: all 0.2s;
+  }
+  .db-demo-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .db-demo-btn-insert {
+    background: linear-gradient(135deg, rgba(16,185,129,0.3), rgba(5,150,105,0.2));
+    border: 1px solid rgba(16,185,129,0.5); color: var(--accent4);
+  }
+  .db-demo-btn-approve {
+    background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(251,191,36,0.1));
+    border: 1px solid rgba(255,215,0,0.4); color: var(--accent);
+  }
+  .db-demo-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  .db-demo-btn:active:not(:disabled) { transform: translateY(0); }
+  #db-live-table {
+    background: rgba(13,17,23,0.8); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; overflow: hidden;
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.85rem;
+  }
+  #db-live-table-header {
+    display: grid; grid-template-columns: 1fr;
+    padding: 8px 12px; background: rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    color: var(--text-dim); font-weight: 700; font-size: 0.82rem;
+  }
+  .db-live-row {
+    display: grid; grid-template-columns: 1fr;
+    padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: var(--text-dim); transition: all 0.3s;
+  }
+  .db-live-row:last-child { border-bottom: none; }
+  .db-live-row .id-col { color: #a5b4fc; }
+  .db-live-row .desc-col { color: var(--text); }
+  .db-live-row .stars-col { color: var(--accent); }
+  .badge-pending {
+    background: rgba(251,191,36,0.15); color: #FBBF24;
+    padding: 2px 8px; border-radius: 8px; font-size: 0.78rem; font-weight: 600;
+  }
+  .badge-approved {
+    background: rgba(16,185,129,0.15); color: var(--accent4);
+    padding: 2px 8px; border-radius: 8px; font-size: 0.78rem; font-weight: 600;
+  }
+  #db-balance-display {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px; background: rgba(255,215,0,0.08);
+    border: 1px solid rgba(255,215,0,0.2); border-radius: 12px;
+  }
+  #db-balance-label { color: var(--text-dim); font-size: 0.85rem; }
+  #db-balance-value { font-size: 1.6rem; font-weight: 900; color: var(--accent); font-family: monospace; }
+  @keyframes rowInsert { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes goldFlash { 0% { background: transparent; } 50% { background: rgba(255,215,0,0.3); } 100% { background: transparent; } }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 768px) {
+    nav { padding: 0 0.8rem; }
+    nav .tabs button { padding: 0.35rem 0.5rem; font-size: 0.78rem; }
+    nav .logo { font-size: 1rem; }
+    main { padding: 1rem; }
+    .hero h1 { font-size: 1.7rem; }
+    .howto-grid { grid-template-columns: 1fr; }
+    .security-grid { grid-template-columns: 1fr; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    #schema-tables { overflow-x: auto; }
+  }
+  @media (max-width: 480px) {
+    nav .logo { display: none; }
+    nav .tabs button { padding: 0.3rem 0.4rem; font-size: 0.72rem; }
+    .hero h1 { font-size: 1.3rem; }
+    .hero .subtitle { font-size: 0.95rem; }
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+    .badge-row { gap: 0.4rem; }
+    .quality-badge { font-size: 0.72rem; padding: 0.25rem 0.6rem; }
+  }
+
+:root { --diagram-accent: #3987e5; --viz-surface: #1a1a19; }
+[data-theme="light"] { --diagram-accent: #2a78d6; --viz-surface: #fcfcfb; }
+.arch-diagram { background: var(--viz-surface); }
+.node-group:focus { outline: 3px solid var(--accent); }
+table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+th, td { padding: .75rem; border-bottom: 1px solid var(--border); text-align: left; overflow-wrap: anywhere; }
+a { color: var(--text); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+
+<div class="starry-bg" id="starry-bg"></div>
+
+<nav>
+  <div class="logo">Trading Gym</div>
+  <div class="tabs">
+    <button class="active" data-tab="story" onclick="switchTab('story')">
+      <span data-en="Story" data-zh="故事">Story</span>
+    </button>
+    <button data-tab="architecture" onclick="switchTab('architecture')">
+      <span data-en="Architecture" data-zh="架构">Architecture</span>
+    </button>
+    <button data-tab="howto" onclick="switchTab('howto')">
+      <span data-en="How to Use" data-zh="使用指南">How to Use</span>
+    </button>
+    <button data-tab="dataflow" onclick="switchTab('dataflow')">
+      <span data-en="Data Flow" data-zh="数据流">Data Flow</span>
+    </button>
+    <button data-tab="quality" onclick="switchTab('quality')">
+      <span data-en="Quality" data-zh="质量">Quality</span>
+    </button>
+    <button data-tab="features" onclick="switchTab('features')" >
+      <span data-en="Key Features" data-zh="关键能力">Key Features</span>
+    </button>
+    <button data-tab="database" onclick="switchTab('database')" style="display:none">
+      <span data-en="Database" data-zh="数据库">Database</span>
+    </button>
+  </div>
+  <div class="nav-controls">
+    <button class="ctrl-btn" onclick="toggleTheme()" id="theme-btn" title="Toggle theme">🌙</button>
+    <button class="ctrl-btn" onclick="toggleLang()">EN / 中文</button>
+  </div>
+</nav>
+
+<main>
+<!-- ========== TAB 1: STORY MODE ========== -->
+<section id="tab-story" class="active">
+  <div class="hero">
+    <div class="mascot">🦉</div>
+    <h1><span data-en="Inside the Trading Gym workshop" data-zh="走进 Trading Gym 工坊">Inside the Trading Gym workshop</span></h1>
+    <p class="subtitle"><span data-en="A responsibility map, not a claim of production readiness." data-zh="这是职责地图，不是生产就绪证明。">A responsibility map, not a claim of production readiness.</span></p>
+  </div>
+  <div class="story-timeline" id="story-timeline">
+    <div class="story-step" data-icon="🦉" role="button" tabindex="0"><span class="step-num">ACT 1 — WHAT</span><h3><span data-en="A guarded research workshop" data-zh="有安全护栏的研究工坊">A guarded research workshop</span></h3><p><span data-en="Explore trading ideas without confusing evidence with permission." data-zh="研究交易想法，但不把证据当作授权。">Explore trading ideas without confusing evidence with permission.</span></p><div class="detail"><span data-en="Read source paths in the Architecture view." data-zh="在架构视图中查看源码路径。">Read source paths in the Architecture view.</span></div></div><div class="story-step" data-icon="🧩" role="button" tabindex="0"><span class="step-num">ACT 2 — WHO</span><h3><span data-en="Seven cooperating teams" data-zh="七个协作团队">Seven cooperating teams</span></h3><p><span data-en="The screen, gateway, guards, library, lab, ledger, and toolbox cooperate." data-zh="界面、网关、守卫、资料库、实验室、账本和工具箱一起工作。">The screen, gateway, guards, library, lab, ledger, and toolbox cooperate.</span></p><div class="detail"><span data-en="Read source paths in the Architecture view." data-zh="在架构视图中查看源码路径。">Read source paths in the Architecture view.</span></div></div><div class="story-step" data-icon="🔎" role="button" tabindex="0"><span class="step-num">ACT 3 — CHECK</span><h3><span data-en="Check your tools" data-zh="检查工具">Check your tools</span></h3><p><span data-en="Run doctor before loading the numerical stack." data-zh="先运行 doctor，再加载数值计算环境。">Run doctor before loading the numerical stack.</span></p><div class="detail"><span data-en="Read source paths in the Architecture view." data-zh="在架构视图中查看源码路径。">Read source paths in the Architecture view.</span></div></div><div class="story-step" data-icon="🔬" role="button" tabindex="0"><span class="step-num">ACT 4 — RESEARCH</span><h3><span data-en="Test bounded ideas" data-zh="测试有界策略">Test bounded ideas</span></h3><p><span data-en="Validated data feeds reproducible research and simulation." data-zh="已校验的数据支持可复现研究与模拟。">Validated data feeds reproducible research and simulation.</span></p><div class="detail"><span data-en="Read source paths in the Architecture view." data-zh="在架构视图中查看源码路径。">Read source paths in the Architecture view.</span></div></div><div class="story-step" data-icon="🛡️" role="button" tabindex="0"><span class="step-num">ACT 5 — REVIEW</span><h3><span data-en="Review before authority" data-zh="先审查再授权">Review before authority</span></h3><p><span data-en="Independent approval and runtime barriers govern live trading." data-zh="独立审批与运行屏障约束真实交易。">Independent approval and runtime barriers govern live trading.</span></p><div class="detail"><span data-en="Read source paths in the Architecture view." data-zh="在架构视图中查看源码路径。">Read source paths in the Architecture view.</span></div></div><div class="story-step" data-icon="🤝" role="button" tabindex="0"><span class="step-num">ACT 6 — COLLABORATE</span><h3><span data-en="Follow the handoffs" data-zh="跟随协作链路">Follow the handoffs</span></h3><p><span data-en="Arrows describe responsibilities, not separate deployment processes." data-zh="箭头表示职责交接，不代表独立部署进程。">Arrows describe responsibilities, not separate deployment processes.</span></p><div class="detail"><span data-en="Read source paths in the Architecture view." data-zh="在架构视图中查看源码路径。">Read source paths in the Architecture view.</span></div></div><div class="story-step" data-icon="✨" role="button" tabindex="0"><span class="step-num">ACT 7 — SUPERPOWERS</span><h3><span data-en="Reuse the trusted parts" data-zh="复用可信能力">Reuse the trusted parts</span></h3><p><span data-en="Shared durability and unchanged API contracts reduce maintenance drift." data-zh="共享持久化逻辑与稳定接口减少维护偏差。">Shared durability and unchanged API contracts reduce maintenance drift.</span></p><div class="detail"><span data-en="Read source paths in the Architecture view." data-zh="在架构视图中查看源码路径。">Read source paths in the Architecture view.</span></div></div>
+  </div>
+</section>
+
+<!-- ========== TAB 2: ARCHITECTURE ========== -->
+<section id="tab-architecture">
+  <h2 style="margin-bottom:1.2rem;color:var(--accent);font-size:1.5rem">
+    <span data-en="System Architecture" data-zh="系统架构">System Architecture</span>
+  </h2>
+  <div class="search-bar">
+    <span>🔍</span>
+    <input type="text" id="arch-search" placeholder="Search components..."
+           data-en-placeholder="Search components..."
+           data-zh-placeholder="搜索组件..."
+           oninput="filterComponents(this.value)">
+  </div>
+  <div class="arch-container">
+    <div class="arch-diagram" id="arch-svg-container">
+      <svg viewBox="0 0 960 550" role="img" aria-label="Trading Gym responsibility map"><defs><marker id="arch-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6" fill="var(--diagram-accent)"/></marker></defs>
+<path id="arch-0" class="flow-path" stroke="var(--diagram-accent)" d="M260,90 L370,90" marker-end="url(#arch-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#arch-0" startOffset="50%" data-en="requests" data-zh="请求">requests</textPath></text>
+<path id="arch-1" class="flow-path" stroke="var(--diagram-accent)" d="M570,90 L680,90" marker-end="url(#arch-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#arch-1" startOffset="50%" data-en="authority checks" data-zh="权限检查">authority checks</textPath></text>
+<path id="arch-2" class="flow-path" stroke="var(--diagram-accent)" d="M260,280 L370,280" marker-end="url(#arch-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#arch-2" startOffset="50%" data-en="validated features" data-zh="已校验特征">validated features</textPath></text>
+<path id="arch-3" class="flow-path" stroke="var(--diagram-accent)" d="M570,280 L680,280" marker-end="url(#arch-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#arch-3" startOffset="50%" data-en="candidate evidence" data-zh="候选证据">candidate evidence</textPath></text>
+<path id="arch-4" class="flow-path" stroke="var(--diagram-accent)" d="M780,130 L780,240" marker-end="url(#arch-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#arch-4" startOffset="50%" data-en="gated authorization" data-zh="有条件授权">gated authorization</textPath></text>
+<path id="arch-5" class="flow-path" stroke="var(--diagram-accent)" d="M470,130 L470,240" marker-end="url(#arch-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#arch-5" startOffset="50%" data-en="bounded evaluation" data-zh="有界评估">bounded evaluation</textPath></text>
+<path id="arch-6" class="flow-path" stroke="var(--diagram-accent)" d="M470,430 L470,320" marker-end="url(#arch-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#arch-6" startOffset="50%" data-en="local tests" data-zh="本地测试">local tests</textPath></text>
+<g class="node-group" data-id="ui" data-name="Operator UI" role="button" tabindex="0" aria-label="Operator UI"><rect class="node-rect" x="60" y="50" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="160" y="80" data-en="🖥️ Operator UI" data-zh="🖥️ 操作界面">🖥️ Operator UI</text><text class="node-sublabel" x="160" y="104" data-en="frontend" data-zh="组件">frontend</text></g>
+<g class="node-group" data-id="api" data-name="API Gateway" role="button" tabindex="0" aria-label="API Gateway"><rect class="node-rect" x="370" y="50" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="470" y="80" data-en="🚪 API Gateway" data-zh="🚪 接口网关">🚪 API Gateway</text><text class="node-sublabel" x="470" y="104" data-en="backend" data-zh="组件">backend</text></g>
+<g class="node-group" data-id="governance" data-name="Governance" role="button" tabindex="0" aria-label="Governance"><rect class="node-rect" x="680" y="50" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="780" y="80" data-en="🛡️ Governance" data-zh="🛡️ 治理审批">🛡️ Governance</text><text class="node-sublabel" x="780" y="104" data-en="middleware" data-zh="组件">middleware</text></g>
+<g class="node-group" data-id="data" data-name="Market and Features" role="button" tabindex="0" aria-label="Market and Features"><rect class="node-rect" x="60" y="240" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="160" y="270" data-en="📚 Market and Features" data-zh="📚 行情与特征">📚 Market and Features</text><text class="node-sublabel" x="160" y="294" data-en="backend" data-zh="组件">backend</text></g>
+<g class="node-group" data-id="research" data-name="Research Lab" role="button" tabindex="0" aria-label="Research Lab"><rect class="node-rect" x="370" y="240" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="470" y="270" data-en="🔬 Research Lab" data-zh="🔬 研究与模拟">🔬 Research Lab</text><text class="node-sublabel" x="470" y="294" data-en="backend" data-zh="组件">backend</text></g>
+<g class="node-group" data-id="execution" data-name="Execution Ledger" role="button" tabindex="0" aria-label="Execution Ledger"><rect class="node-rect" x="680" y="240" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="780" y="270" data-en="⚖️ Execution Ledger" data-zh="⚖️ 执行与记账">⚖️ Execution Ledger</text><text class="node-sublabel" x="780" y="294" data-en="backend" data-zh="组件">backend</text></g>
+<g class="node-group" data-id="tooling" data-name="Developer Tools" role="button" tabindex="0" aria-label="Developer Tools"><rect class="node-rect" x="370" y="430" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="470" y="460" data-en="🧰 Developer Tools" data-zh="🧰 开发工具">🧰 Developer Tools</text><text class="node-sublabel" x="470" y="484" data-en="config" data-zh="组件">config</text></g></svg>
+    </div>
+    <div class="inline-detail" id="inline-detail">
+      <button class="close-btn" onclick="closePanel()">&times;</button>
+      <h2 id="panel-title"></h2>
+      <div id="panel-tags"></div>
+      <div class="desc" id="panel-desc"></div>
+      <div class="connections" id="panel-connections"></div>
+    </div>
+    <div class="arch-legend" id="arch-legend">
+      <span data-en="Labeled boxes are components; arrows show handoffs. Select a box for source paths." data-zh="有标签的方框表示组件，箭头表示交接。选择方框查看源码路径。">Labeled boxes are components; arrows show handoffs. Select a box for source paths.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========== TAB 3: HOW TO USE ========== -->
+<section id="tab-howto">
+  <h2 style="margin-bottom:1.2rem;color:var(--accent);font-size:1.5rem">
+    <span data-en="How to Use This Project" data-zh="如何使用这个项目">How to Use This Project</span>
+  </h2>
+  <div class="howto-grid" id="howto-grid">
+    <div class="howto-card"><h3><span data-en="Install" data-zh="安装">Install</span></h3><p><span data-en="Use Python 3.11 or 3.12 and poetry install --with dev." data-zh="使用 Python 3.11 或 3.12，执行 poetry install --with dev。">Use Python 3.11 or 3.12 and poetry install --with dev.</span></p></div><div class="howto-card"><h3><span data-en="Diagnose" data-zh="诊断">Diagnose</span></h3><p><span data-en="Run poetry run python scripts/project.py doctor." data-zh="执行 poetry run python scripts/project.py doctor。">Run poetry run python scripts/project.py doctor.</span></p></div><div class="howto-card"><h3><span data-en="Validate" data-zh="验证">Validate</span></h3><p><span data-en="Run project.py test, lint, and typecheck inside your Poetry environment." data-zh="在 Poetry 环境中运行 project.py test、lint 和 typecheck。">Run project.py test, lint, and typecheck inside your Poetry environment.</span></p></div><div class="howto-card"><h3><span data-en="Operate" data-zh="操作">Operate</span></h3><p><span data-en="Use authenticated operator flows; no shortcut grants live authority." data-zh="使用已认证的操作流程；快捷命令不授予真实交易权限。">Use authenticated operator flows; no shortcut grants live authority.</span></p></div>
+  </div>
+</section>
+
+<!-- ========== TAB 4: DATA FLOW ========== -->
+<section id="tab-dataflow">
+  <h2 style="margin-bottom:1.2rem;color:var(--accent);font-size:1.5rem">
+    <span data-en="How Data Flows Through the System" data-zh="数据如何在系统中流动">How Data Flows Through the System</span>
+  </h2>
+  <div class="arch-diagram" id="dataflow-svg-container">
+    <svg viewBox="0 0 960 550" role="img" aria-label="Trading Gym responsibility map"><defs><marker id="flow-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0 0 L8 3 L0 6" fill="var(--diagram-accent)"/></marker></defs>
+<path id="flow-0" class="flow-path" stroke="var(--diagram-accent)" d="M260,90 L370,90" marker-end="url(#flow-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#flow-0" startOffset="50%" data-en="requests" data-zh="请求">requests</textPath></text>
+<path id="flow-1" class="flow-path" stroke="var(--diagram-accent)" d="M570,90 L680,90" marker-end="url(#flow-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#flow-1" startOffset="50%" data-en="authority checks" data-zh="权限检查">authority checks</textPath></text>
+<path id="flow-2" class="flow-path" stroke="var(--diagram-accent)" d="M260,280 L370,280" marker-end="url(#flow-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#flow-2" startOffset="50%" data-en="validated features" data-zh="已校验特征">validated features</textPath></text>
+<path id="flow-3" class="flow-path" stroke="var(--diagram-accent)" d="M570,280 L680,280" marker-end="url(#flow-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#flow-3" startOffset="50%" data-en="candidate evidence" data-zh="候选证据">candidate evidence</textPath></text>
+<path id="flow-4" class="flow-path" stroke="var(--diagram-accent)" d="M780,130 L780,240" marker-end="url(#flow-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#flow-4" startOffset="50%" data-en="gated authorization" data-zh="有条件授权">gated authorization</textPath></text>
+<path id="flow-5" class="flow-path" stroke="var(--diagram-accent)" d="M470,130 L470,240" marker-end="url(#flow-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#flow-5" startOffset="50%" data-en="bounded evaluation" data-zh="有界评估">bounded evaluation</textPath></text>
+<path id="flow-6" class="flow-path" stroke="var(--diagram-accent)" d="M470,430 L470,320" marker-end="url(#flow-arrow)"/><text class="flow-label" fill="var(--text-dim)"><textPath href="#flow-6" startOffset="50%" data-en="local tests" data-zh="本地测试">local tests</textPath></text>
+<g ><rect class="node-rect" x="60" y="50" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="160" y="80" data-en="🖥️ Operator UI" data-zh="🖥️ 操作界面">🖥️ Operator UI</text><text class="node-sublabel" x="160" y="104" data-en="frontend" data-zh="组件">frontend</text></g>
+<g ><rect class="node-rect" x="370" y="50" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="470" y="80" data-en="🚪 API Gateway" data-zh="🚪 接口网关">🚪 API Gateway</text><text class="node-sublabel" x="470" y="104" data-en="backend" data-zh="组件">backend</text></g>
+<g ><rect class="node-rect" x="680" y="50" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="780" y="80" data-en="🛡️ Governance" data-zh="🛡️ 治理审批">🛡️ Governance</text><text class="node-sublabel" x="780" y="104" data-en="middleware" data-zh="组件">middleware</text></g>
+<g ><rect class="node-rect" x="60" y="240" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="160" y="270" data-en="📚 Market and Features" data-zh="📚 行情与特征">📚 Market and Features</text><text class="node-sublabel" x="160" y="294" data-en="backend" data-zh="组件">backend</text></g>
+<g ><rect class="node-rect" x="370" y="240" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="470" y="270" data-en="🔬 Research Lab" data-zh="🔬 研究与模拟">🔬 Research Lab</text><text class="node-sublabel" x="470" y="294" data-en="backend" data-zh="组件">backend</text></g>
+<g ><rect class="node-rect" x="680" y="240" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="780" y="270" data-en="⚖️ Execution Ledger" data-zh="⚖️ 执行与记账">⚖️ Execution Ledger</text><text class="node-sublabel" x="780" y="294" data-en="backend" data-zh="组件">backend</text></g>
+<g ><rect class="node-rect" x="370" y="430" width="200" height="80" fill="var(--node-fill)" stroke="var(--diagram-accent)"/><text class="node-label" x="470" y="460" data-en="🧰 Developer Tools" data-zh="🧰 开发工具">🧰 Developer Tools</text><text class="node-sublabel" x="470" y="484" data-en="config" data-zh="组件">config</text></g></svg>
+  </div>
+</section>
+
+<!-- ========== TAB 5: QUALITY & SECURITY ========== -->
+<section id="tab-quality">
+  <h2 style="margin-bottom:1.2rem;color:var(--accent);font-size:1.5rem">
+    <span data-en="Quality &amp; Security" data-zh="质量与安全">Quality &amp; Security</span>
+  </h2>
+  <p><span data-en="Scope matters: focused checks are not full-suite or live-venue qualification." data-zh="验证范围很重要：局部检查不等于全套测试或实盘资格。">Scope matters: focused checks are not full-suite or live-venue qualification.</span> <a href="docs/architecture/EVOLUTION_PASS.md"><span data-en="Current pass evidence" data-zh="本轮验证证据">Current pass evidence</span></a></p>
+  <div class="quality-section">
+    <h3><span data-en="Test Coverage" data-zh="测试覆盖">Test Coverage</span></h3>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-value">pytest + Vitest</div><div class="stat-label"><span data-en="Test frameworks" data-zh="测试框架">Test frameworks</span></div></div><div class="stat-card"><div class="stat-value">Not measured</div><div class="stat-label"><span data-en="Full-project coverage" data-zh="全项目覆盖率">Full-project coverage</span></div></div><div class="stat-card"><div class="stat-value">Scoped checks</div><div class="stat-label"><span data-en="Validation scope" data-zh="验证范围">Validation scope</span></div></div>
+    </div>
+  </div>
+  <div class="quality-section">
+    <h3><span data-en="Security Features" data-zh="安全特性">Security Features</span></h3>
+    <div class="security-grid">
+      <div class="security-card"><h3><span data-en="Independent authority" data-zh="独立权限">Independent authority</span></h3><p><span data-en="Gateway, actor, approval, and worker credentials serve different roles." data-zh="网关、操作者、审批和工作进程凭据各有职责。">Gateway, actor, approval, and worker credentials serve different roles.</span></p></div><div class="security-card"><h3><span data-en="No implied readiness" data-zh="不隐含上线资格">No implied readiness</span></h3><p><span data-en="This map does not certify broker behavior, load, recovery, or real-funds readiness." data-zh="本图不证明券商行为、负载、恢复能力或实盘就绪。">This map does not certify broker behavior, load, recovery, or real-funds readiness.</span></p></div>
+    </div>
+  </div>
+  <div class="quality-section">
+    <h3><span data-en="Code Quality" data-zh="代码质量">Code Quality</span></h3>
+    <div class="badge-row">
+      <span data-en="Ruff · CI type gate · no live authority shortcuts" data-zh="Ruff · CI 类型检查 · 无实盘授权捷径">Ruff · CI type gate · no live authority shortcuts</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========== TAB 6: KEY FEATURES ========== -->
+<section id="tab-features" >
+  <h2 style="margin-bottom:1.2rem;color:var(--accent);font-size:1.5rem">
+    <span data-en="Boundaries and source map" data-zh="职责边界与源码索引">Boundaries and source map</span>
+  </h2>
+  <p style="color:var(--text-dim);margin-bottom:1.5rem;font-size:0.95rem">
+    <span data-en="Read the code to verify each responsibility." data-zh="通过源码核验每项职责。">Read the code to verify each responsibility.</span>
+  </p>
+  <div class="feature-grid"><div class="feature-card"><h3><span data-en="Separate concerns" data-zh="分离职责">Separate concerns</span></h3><p><span data-en="Request contracts, pure evaluations, and stateful workflows have distinct homes." data-zh="请求契约、纯评估与状态工作流各归其位。">Request contracts, pure evaluations, and stateful workflows have distinct homes.</span></p></div><div class="feature-card"><h3><span data-en="Shared durability" data-zh="共享持久化">Shared durability</span></h3><p><span data-en="The poller and feature pipeline reuse the same directory-sync helper." data-zh="行情采集与特征管道复用同一个目录同步函数。">The poller and feature pipeline reuse the same directory-sync helper.</span></p></div><div class="feature-card"><h3><span data-en="Optional acceleration" data-zh="可选加速">Optional acceleration</span></h3><p><span data-en="Rust accelerates the reference simulation; it adds no execution authority." data-zh="Rust 加速参考模拟，不增加交易执行权限。">Rust accelerates the reference simulation; it adds no execution authority.</span></p></div></div><h3><span data-en="Source map" data-zh="源码索引">Source map</span></h3><table><thead><tr><th><span data-en="Component" data-zh="组件">Component</span></th><th><span data-en="Files" data-zh="文件">Files</span></th></tr></thead><tbody><tr><td><span data-en="Operator UI" data-zh="操作界面">Operator UI</span></td><td><a href="frontend/src/App.jsx">frontend/src/App.jsx</a><br><a href="frontend/src/api.js">frontend/src/api.js</a></td></tr><tr><td><span data-en="API Gateway" data-zh="接口网关">API Gateway</span></td><td><a href="apps/api/main.py">apps/api/main.py</a><br><a href="apps/api/openapi.py">apps/api/openapi.py</a><br><a href="scripts/export_openapi.py">scripts/export_openapi.py</a><br><a href="apps/api/convergence.py">apps/api/convergence.py</a><br><a href="apps/api/convergence_models.py">apps/api/convergence_models.py</a><br><a href="apps/api/convergence_evaluations.py">apps/api/convergence_evaluations.py</a></td></tr><tr><td><span data-en="Governance" data-zh="治理审批">Governance</span></td><td><a href="trading_gym/governance/service.py">trading_gym/governance/service.py</a><br><a href="trading_gym/authz/grants.py">trading_gym/authz/grants.py</a><br><a href="trading_gym/governance/runtime_authorization.py">trading_gym/governance/runtime_authorization.py</a></td></tr><tr><td><span data-en="Market and Features" data-zh="行情与特征">Market and Features</span></td><td><a href="apps/poller/main.py">apps/poller/main.py</a><br><a href="trading_gym/pipelines/feature_pipeline.py">trading_gym/pipelines/feature_pipeline.py</a><br><a href="trading_gym/common/persistence.py">trading_gym/common/persistence.py</a></td></tr><tr><td><span data-en="Research Lab" data-zh="研究与模拟">Research Lab</span></td><td><a href="trading_gym/research/dossier.py">trading_gym/research/dossier.py</a><br><a href="trading_gym/playground/runner.py">trading_gym/playground/runner.py</a><br><a href="rust/axiom_kernel/src/lib.rs">rust/axiom_kernel/src/lib.rs</a></td></tr><tr><td><span data-en="Execution Ledger" data-zh="执行与记账">Execution Ledger</span></td><td><a href="trading_gym/execution/live_execution_adapter.py">trading_gym/execution/live_execution_adapter.py</a><br><a href="trading_gym/orders/repository.py">trading_gym/orders/repository.py</a><br><a href="trading_gym/accounting/ledger.py">trading_gym/accounting/ledger.py</a></td></tr><tr><td><span data-en="Developer Tools" data-zh="开发工具">Developer Tools</span></td><td><a href="scripts/project.py">scripts/project.py</a><br><a href="Makefile">Makefile</a><br><a href="Invoke-Project.ps1">Invoke-Project.ps1</a><br><a href=".github/workflows/ci.yml">.github/workflows/ci.yml</a></td></tr></tbody></table>
+</section>
+
+<!-- ========== TAB 7: DATABASE ========== -->
+<section id="tab-database" style="display:none">
+  <h2 style="margin-bottom:1.2rem;color:var(--accent);font-size:1.5rem">
+    <span data-en="Database Schema" data-zh="数据库架构">Database Schema</span> 🗄️
+  </h2>
+  <p style="color:var(--text-dim);margin-bottom:1.5rem;font-size:0.95rem">
+    <span data-en="Everything is saved in a database. Tables hold the data, and arrows show how they connect!" data-zh="一切都保存在数据库中。表格存储数据，箭头显示它们如何连接！">Everything is saved in a database. Tables hold the data, and arrows show how they connect!</span>
+  </p>
+  <div id="schema-tables"><!-- Filled by JS --></div>
+  
+  
+</section>
+</main>
+
+<div class="tooltip" id="tooltip"></div>
+
+<!-- Footer -->
+<footer>
+  <div class="brand">🦉 Trading Gym</div>
+  <div><span data-en="Evidence is not authority. Local files are not a relational database." data-zh="证据不等于权限。本地文件存储不等于关系数据库。">Evidence is not authority. Local files are not a relational database.</span></div>
+  <div style="margin-top:8px">
+    <a id="try-cta" href="README.md" target="_blank"><span data-en="Try it now!" data-zh="现在就试试吧">Try it now!</span></a>
+  </div>
+</footer>
+
+<script>
+var currentLang = 'en';
+function toggleLang() {
+  currentLang = currentLang === 'en' ? 'zh' : 'en';
+  document.querySelectorAll('[data-en]').forEach(function(el) {
+    el.textContent = el.getAttribute('data-' + currentLang);
+  });
+  document.querySelectorAll('[data-en-placeholder]').forEach(function(el) {
+    el.placeholder = el.getAttribute('data-' + currentLang + '-placeholder');
+  });
+}
+
+function toggleTheme() {
+  var html = document.documentElement;
+  var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  document.getElementById('theme-btn').textContent = next === 'dark' ? '🌙' : '☀️';
+}
+
+function createStars() {
+  var c = document.getElementById('starry-bg');
+  if (!c) return;
+  while (c.firstChild) c.removeChild(c.firstChild);
+  for (var i = 0; i < 55; i++) {
+    var s = document.createElement('div');
+    s.className = Math.random() > 0.3 ? 'star dim' : 'star';
+    s.style.left = Math.random() * 100 + '%';
+    s.style.top = Math.random() * 100 + '%';
+    s.style.setProperty('--dur', (2 + Math.random() * 4) + 's');
+    s.style.animationDelay = Math.random() * 3 + 's';
+    c.appendChild(s);
+  }
+  [{x:'20%',y:'15%',sz:'300px',col:'#5a4a9a'},{x:'70%',y:'60%',sz:'350px',col:'#4a3a8a'},{x:'50%',y:'85%',sz:'250px',col:'#5a5aa0'}].forEach(function(n) {
+    var el = document.createElement('div');
+    el.className = 'nebula';
+    el.style.cssText = 'left:'+n.x+';top:'+n.y+';width:'+n.sz+';height:'+n.sz+';background:'+n.col;
+    c.appendChild(el);
+  });
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('section').forEach(function(s) { s.classList.remove('active'); });
+  document.querySelectorAll('nav .tabs button').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.querySelector('[data-tab="' + tab + '"]').classList.add('active');
+  closePanel();
+}
+
+document.addEventListener('click', function(e) {
+  var step = e.target.closest('.story-step');
+  if (step) step.classList.toggle('expanded');
+});
+
+// === COMPONENT DATA (populated by Claude) ===
+var COMPONENTS = {"ui": {"name": "Operator UI", "name_zh": "操作界面", "type": "frontend", "tooltip": "Explicit process status and recovery feedback; browser state grants no authority.", "tooltip_zh": "明确展示进程状态和恢复提示；浏览器状态不授予权限。", "desc": "Explicit process status and recovery feedback; browser state grants no authority. Files: frontend/src/App.jsx, frontend/src/api.js, frontend/src/components/TrainingPanel.jsx, frontend/src/components/ModelsPanel.jsx", "desc_zh": "明确展示进程状态和恢复提示；浏览器状态不授予权限。 文件：frontend/src/App.jsx、frontend/src/api.js、frontend/src/components/TrainingPanel.jsx、frontend/src/components/ModelsPanel.jsx", "tags": ["frontend"], "key_files": ["frontend/src/App.jsx", "frontend/src/api.js", "frontend/src/components/TrainingPanel.jsx", "frontend/src/components/ModelsPanel.jsx"], "connections": [{"target": "api", "direction": "out", "label": "requests", "label_zh": "请求"}]}, "api": {"name": "API Gateway", "name_zh": "接口网关", "type": "backend", "tooltip": "Authenticates requests and publishes schemas preserving explicit defaults and separate input/output contracts.", "tooltip_zh": "验证请求并发布保留显式默认值及独立输入输出契约的接口文档。", "desc": "Authenticates requests and publishes schemas preserving explicit defaults and separate input/output contracts. Files: apps/api/main.py, apps/api/convergence.py, apps/api/convergence_models.py, apps/api/convergence_evaluations.py, apps/api/openapi.py, scripts/export_openapi.py", "desc_zh": "验证请求并发布保留显式默认值及独立输入输出契约的接口文档。 文件：apps/api/main.py、apps/api/convergence.py、apps/api/convergence_models.py、apps/api/convergence_evaluations.py、apps/api/openapi.py、scripts/export_openapi.py", "tags": ["backend"], "key_files": ["apps/api/main.py", "apps/api/convergence.py", "apps/api/convergence_models.py", "apps/api/convergence_evaluations.py", "apps/api/openapi.py", "scripts/export_openapi.py"], "connections": [{"target": "governance", "direction": "out", "label": "authority checks", "label_zh": "权限检查"}, {"target": "research", "direction": "out", "label": "bounded evaluation", "label_zh": "有界评估"}]}, "governance": {"name": "Governance", "name_zh": "治理审批", "type": "middleware", "tooltip": "Binds principals, approvals, audit evidence, and runtime authorization.", "tooltip_zh": "绑定身份、独立审批、审计证据和运行授权。", "desc": "Binds principals, approvals, audit evidence, and runtime authorization. Files: trading_gym/governance/service.py, trading_gym/authz/grants.py, trading_gym/governance/runtime_authorization.py", "desc_zh": "绑定身份、独立审批、审计证据和运行授权。 文件：trading_gym/governance/service.py、trading_gym/authz/grants.py、trading_gym/governance/runtime_authorization.py", "tags": ["middleware"], "key_files": ["trading_gym/governance/service.py", "trading_gym/authz/grants.py", "trading_gym/governance/runtime_authorization.py"], "connections": [{"target": "execution", "direction": "out", "label": "gated authorization", "label_zh": "有条件授权"}]}, "data": {"name": "Market and Features", "name_zh": "行情与特征", "type": "backend", "tooltip": "Validates candles and publishes bounded, provenance-bearing feature artifacts.", "tooltip_zh": "校验行情并发布有界、可追溯的特征文件。", "desc": "Validates candles and publishes bounded, provenance-bearing feature artifacts. Files: apps/poller/main.py, trading_gym/pipelines/feature_pipeline.py, trading_gym/common/persistence.py", "desc_zh": "校验行情并发布有界、可追溯的特征文件。 文件：apps/poller/main.py、trading_gym/pipelines/feature_pipeline.py、trading_gym/common/persistence.py", "tags": ["backend"], "key_files": ["apps/poller/main.py", "trading_gym/pipelines/feature_pipeline.py", "trading_gym/common/persistence.py"], "connections": [{"target": "research", "direction": "out", "label": "validated features", "label_zh": "已校验特征"}]}, "research": {"name": "Research Lab", "name_zh": "研究与模拟", "type": "backend", "tooltip": "Strategies and advisory providers produce research evidence, not funded trading authority.", "tooltip_zh": "策略与辅助模型生成研究证据，而非实盘交易权限。", "desc": "Strategies and advisory providers produce research evidence, not funded trading authority. Files: trading_gym/research/dossier.py, trading_gym/playground/runner.py, rust/axiom_kernel/src/lib.rs, trading_gym/intelligence/system1_backend.py, trading_gym/intelligence/systemone_native_backend.py", "desc_zh": "策略与辅助模型生成研究证据，而非实盘交易权限。 文件：trading_gym/research/dossier.py、trading_gym/playground/runner.py、rust/axiom_kernel/src/lib.rs、trading_gym/intelligence/system1_backend.py、trading_gym/intelligence/systemone_native_backend.py", "tags": ["backend"], "key_files": ["trading_gym/research/dossier.py", "trading_gym/playground/runner.py", "rust/axiom_kernel/src/lib.rs", "trading_gym/intelligence/system1_backend.py", "trading_gym/intelligence/systemone_native_backend.py"], "connections": [{"target": "execution", "direction": "out", "label": "candidate evidence", "label_zh": "候选证据"}]}, "execution": {"name": "Execution Ledger", "name_zh": "执行与记账", "type": "backend", "tooltip": "Applies trading gates, reconciles venue outcomes, and replays Decimal accounting records.", "tooltip_zh": "执行交易检查、核对成交结果，并重放 Decimal 账本。", "desc": "Applies trading gates, reconciles venue outcomes, and replays Decimal accounting records. Files: trading_gym/execution/live_execution_adapter.py, trading_gym/orders/repository.py, trading_gym/accounting/ledger.py", "desc_zh": "执行交易检查、核对成交结果，并重放 Decimal 账本。 文件：trading_gym/execution/live_execution_adapter.py、trading_gym/orders/repository.py、trading_gym/accounting/ledger.py", "tags": ["backend"], "key_files": ["trading_gym/execution/live_execution_adapter.py", "trading_gym/orders/repository.py", "trading_gym/accounting/ledger.py"], "connections": []}, "tooling": {"name": "Developer Tools", "name_zh": "开发工具", "type": "config", "tooltip": "Shares task definitions across Make, PowerShell, CMD, and the CI type gate.", "tooltip_zh": "让 Make、PowerShell、CMD 和 CI 类型检查共用任务定义。", "desc": "Shares task definitions across Make, PowerShell, CMD, and the CI type gate. Files: scripts/project.py, Makefile, Invoke-Project.ps1, .github/workflows/ci.yml", "desc_zh": "让 Make、PowerShell、CMD 和 CI 类型检查共用任务定义。 文件：scripts/project.py、Makefile、Invoke-Project.ps1、.github/workflows/ci.yml", "tags": ["config"], "key_files": ["scripts/project.py", "Makefile", "Invoke-Project.ps1", ".github/workflows/ci.yml"], "connections": [{"target": "research", "direction": "out", "label": "local tests", "label_zh": "本地测试"}]}};
+
+// === INLINE DETAIL PANEL ===
+var currentNodeId = null;
+function openPanel(data, nodeId) {
+  var panel = document.getElementById('inline-detail');
+  if (currentNodeId === nodeId) {
+    closePanel();
+    return;
+  }
+  currentNodeId = nodeId;
+  document.getElementById('panel-title').textContent = currentLang === 'zh' ? (data.name_zh || data.name) : data.name;
+  var tagsEl = document.getElementById('panel-tags');
+  tagsEl.textContent = '';
+  (data.tags || []).forEach(function(t) {
+    var span = document.createElement('span');
+    span.className = 'tag';
+    span.textContent = t;
+    tagsEl.appendChild(span);
+  });
+  var descEl = document.getElementById('panel-desc');
+  descEl.textContent = currentLang === 'zh' ? (data.desc_zh || data.desc) : data.desc;
+  var connEl = document.getElementById('panel-connections');
+  connEl.textContent = '';
+  if (data.connections && data.connections.length) {
+    var h4 = document.createElement('h4');
+    h4.textContent = currentLang === 'zh' ? '关联' : 'Connections';
+    connEl.appendChild(h4);
+    data.connections.forEach(function(c) {
+      var div = document.createElement('div');
+      div.className = 'conn-item';
+      div.textContent = (c.direction === 'out' ? '→ ' : '← ') + c.target + ': ' + (currentLang === 'zh' ? (c.label_zh || c.label) : c.label);
+      connEl.appendChild(div);
+    });
+  }
+  panel.classList.remove('open');
+  void panel.offsetWidth;
+  panel.classList.add('open');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function closePanel() {
+  var panel = document.getElementById('inline-detail');
+  panel.classList.remove('open');
+  currentNodeId = null;
+}
+
+// === TOOLTIP ===
+var tooltip = document.getElementById('tooltip');
+function showTooltip(e, text) {
+  tooltip.textContent = text;
+  tooltip.style.left = e.clientX + 10 + 'px';
+  tooltip.style.top = e.clientY + 10 + 'px';
+  tooltip.classList.add('visible');
+}
+function hideTooltip() { tooltip.classList.remove('visible'); }
+
+// === SEARCH ===
+function filterComponents(query) {
+  var q = query.toLowerCase();
+  document.querySelectorAll('.node-group').forEach(function(node) {
+    var name = (node.getAttribute('data-name') || '').toLowerCase();
+    node.style.opacity = !q || name.includes(q) ? '1' : '0.2';
+  });
+}
+
+// === ANIMATE COUNTER ===
+function animateCounter(el, from, to, duration) {
+  var start = performance.now();
+  function tick(now) {
+    var elapsed = now - start;
+    var progress = Math.min(elapsed / duration, 1);
+    var eased = 1 - Math.pow(1 - progress, 3);
+    var value = Math.round(from + (to - from) * eased);
+    el.textContent = value;
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// === DATABASE SCHEMA RENDERER ===
+
+
+function renderSchema() {
+  var container = document.getElementById('schema-tables');
+  if (!container || typeof DB_TABLES === 'undefined') return;
+  container.textContent = '';
+  DB_TABLES.forEach(function(table) {
+    var box = document.createElement('div');
+    box.className = 'db-table' + (table.isView ? ' view-table' : '');
+    var header = document.createElement('div');
+    header.className = 'db-table-header';
+    if (table.isView) {
+      var viewLabel = currentLang === 'zh' ? '视图' : 'VIEW';
+      header.textContent = '👁️ ' + table.name + ' ';
+      var viewSpan = document.createElement('span');
+      viewSpan.style.cssText = 'font-size:0.6rem;opacity:0.7';
+      viewSpan.textContent = viewLabel;
+      header.appendChild(viewSpan);
+    } else {
+      header.textContent = table.name;
+    }
+    box.appendChild(header);
+    table.cols.forEach(function(col) {
+      var row = document.createElement('div');
+      row.className = 'db-table-row ' + col.type;
+      var iconSpan = document.createElement('span');
+      iconSpan.className = 'col-icon';
+      iconSpan.textContent = col.type === 'pk' ? '🔑' : col.type === 'fk' ? '🔗' : '·';
+      row.appendChild(iconSpan);
+      row.appendChild(document.createTextNode(col.label));
+      box.appendChild(row);
+    });
+    container.appendChild(box);
+    if (table.isView) {
+      var note = document.createElement('div');
+      note.style.cssText = 'font-size:0.82rem;color:var(--accent);text-align:center;margin-top:4px';
+      note.textContent = currentLang === 'zh' ? '✨ 自动计算！' : '✨ Computed!';
+      note.setAttribute('data-en', '✨ Computed!');
+      note.setAttribute('data-zh', '✨ 自动计算！');
+      container.appendChild(note);
+    }
+  });
+}
+
+// === DATABASE DEMO (populated by Claude) ===
+
+
+// === FEATURES JS (populated by Claude) ===
+
+
+// === AUTO-LOCALE CTA ===
+(function() {
+  var zh = /^zh/i.test(navigator.language);
+  var a = document.getElementById('try-cta');
+  if (a && a.href) {
+    var url = a.href.replace(/\/(en|zh(-CN)?)(\/?$)/, '/' + (zh ? 'zh-CN' : 'en') + '/');
+    a.href = url;
+  }
+})();
+
+document.addEventListener('keydown', function(event) {
+  var node = event.target.closest('.node-group, .story-step');
+  if (node && (event.key === 'Enter' || event.key === ' ')) {
+    event.preventDefault();
+    node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  }
+});
+var originalToggleLang = toggleLang;
+toggleLang = function() {
+  originalToggleLang();
+  document.documentElement.lang = currentLang;
+  if (currentNodeId) {
+    var selected = currentNodeId;
+    currentNodeId = null;
+    openPanel(COMPONENTS[selected], selected);
+  }
+};
+// === INIT ===
+document.addEventListener('DOMContentLoaded', function() {
+  createStars();
+  renderSchema();
+  document.querySelectorAll('.node-group').forEach(function(node) {
+    var id = node.getAttribute('data-id');
+    if (id && COMPONENTS[id]) {
+      node.addEventListener('click', function() { openPanel(COMPONENTS[id], id); });
+      node.addEventListener('mouseenter', function(e) {
+        showTooltip(e, currentLang === 'zh' ? (COMPONENTS[id].tooltip_zh || COMPONENTS[id].name) : (COMPONENTS[id].tooltip || COMPONENTS[id].name));
+      });
+      node.addEventListener('mouseleave', hideTooltip);
+    }
+  });
+  document.querySelectorAll('.flow-path').forEach(function(path) {
+    var particle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    particle.classList.add('flow-particle');
+    particle.setAttribute('r', '3');
+    particle.setAttribute('fill', path.getAttribute('stroke') || '#FFD700');
+    var anim = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+    anim.setAttribute('dur', (2 + Math.random() * 2) + 's');
+    anim.setAttribute('repeatCount', 'indefinite');
+    var mpath = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
+    mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#' + path.id);
+    anim.appendChild(mpath);
+    particle.appendChild(anim);
+    path.parentNode.appendChild(particle);
+  });
+});
+</script>
+</body>
+</html>

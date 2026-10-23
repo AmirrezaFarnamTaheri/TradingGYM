@@ -38,7 +38,7 @@ from trading_gym.intelligence.llm_key_pool import (
     reject_terminal_provider_status,
 )
 from trading_gym.intelligence.system1_context import (
-    MAX_CONTEXT_CHARS,
+    MAX_CONTEXT_CHARS as MAX_CONTEXT_CHARS,
     build_system1_packet,
 )
 from trading_gym.agent.degradation_ladder import (

@@ -175,11 +175,31 @@ cd rust/axiom_kernel && cargo build --release
 
 `AXIOM_KERNEL_PATH` points the loader at a specific artifact; `AXIOM_KERNEL_DISABLE=1` forces the Python path. `trading_gym.playground.kernel.kernel_status()` reports availability plus the reason. `tests/playground/test_kernel_parity.py` asserts bitwise parity when an artifact exists and skips the comparison when it does not — the loader-contract tests always run.
 
+The same optional library now accelerates the causal ADX/DMI recurrence, preserving the Python reference bit for bit and falling back when an older artifact lacks the new symbol. See the [measured native-port evidence](docs/architecture/NATIVE_ADX.md) and use `scripts/benchmark_adx.py` to reproduce the synthetic benchmark; this is research acceleration, not additional live authority or a whole-bot performance guarantee.
+
 ## Installation
 
 ```bash
 poetry install --with dev
 ```
+
+### Consistent developer tasks
+
+The shared task entry point is `scripts/project.py`; Make, PowerShell, and CMD delegate to it. Setup uses Poetry's isolated environment without changing global Poetry settings. Child commands run from the repository root and preserve their exit codes.
+
+```bash
+python scripts/project.py doctor
+```
+
+After installing dependencies, diagnose the Poetry environment:
+
+```bash
+poetry run python scripts/project.py doctor
+```
+
+Use `python scripts/project.py test`, `lint`, or `typecheck`, with additional arguments after the task. `make test ARGS="tests/api -x"` and `Invoke-Project.ps1 Test tests/api -x` use the same definitions. Diagnostics check Python compatibility and package presence, not dependency-version compatibility or live readiness. `typecheck-full` preserves failures, including pre-existing peripheral typing debt.
+
+No developer task invents a model path, confirms live-data access, or grants live execution. `live` directs operators to the governed API. Recursive cache cleanup and missing-manifest observability shortcuts are explicitly disabled. See the [upstream integration record](docs/architecture/UPSTREAM_SYNC.md) for retained and superseded local changes, and the [offline architecture guide](trading-gym-visualization.html) for a responsibility map.
 
 Create secrets outside source control. At minimum, set a strong gateway key:
 

@@ -1,6 +1,6 @@
 import pytest
 import pandas as pd
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from apps.poller.main import Poller
 from trading_gym.adapters.enhanced_aban_client import EnhancedAbanClient
 
@@ -35,27 +35,20 @@ def test_poller_retry_logic(mock_client):
 
     poller = Poller(symbol="BTC", timeframe="5m", client=mock_client)
 
-    # Mock sleep to speed up test
-    with patch("time.sleep", return_value=None):
-        # Retry logic logic is not yet implemented in fetch_batch directly (assumes client handles it?)
-        # Ah, Poller code I wrote earlier: "try ... except ... logger.error; raise"
-        # It doesn't retry *inside* fetch_batch. The client retries.
-        # But wait, test_poller.py calls fetch_batch.
-        # If fetch_batch raises, the outer loop in `download` catches it.
-
-        # Let's adjust the test to expect an exception OR fix Poller to retry.
-        # The EnhancedAbanClient *already* has retry logic in `_make_request`.
-        # So if get_klines fails, it means retries exhausted.
-        # So fetch_batch raises.
-
-        with pytest.raises(Exception, match="API Error"):
-            poller.fetch_batch(start_ts=1600000000, end_ts=1600000600)
+    # The client owns retries; exhausted failures propagate from the poller.
+    with pytest.raises(Exception, match="API Error"):
+        poller.fetch_batch(start_ts=1600000000, end_ts=1600000600)
 
 
 def test_poller_save(tmp_path, mock_client):
     pytest.importorskip("pyarrow")
-    poller = Poller(symbol="BTC", timeframe="5m", client=mock_client)
-    poller.data_dir = tmp_path
+    poller = Poller(
+        symbol="BTC",
+        timeframe="5m",
+        client=mock_client,
+        data_dir=tmp_path,
+        manifests_dir=tmp_path / "manifests",
+    )
 
     df = pd.DataFrame(
         {

@@ -26,6 +26,8 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+from functools import partial
+from apps.api.openapi import build_openapi
 from datetime import date
 from pathlib import Path
 from typing import Dict, Any, Literal, Callable, TypeVar, cast
@@ -314,6 +316,7 @@ app = FastAPI(
     description="Governed RL trading API with evidence-first research and declarative strategy tooling",
     lifespan=lifespan,
 )
+app.openapi = partial(build_openapi, app)
 
 T = TypeVar("T")
 

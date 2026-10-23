@@ -26,6 +26,8 @@
 
 use core::slice;
 
+mod adx;
+
 /// Position intent for a bar: `1` opens, `-1` closes, `0` holds.
 pub type Intent = i8;
 

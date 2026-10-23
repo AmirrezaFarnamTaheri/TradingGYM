@@ -95,7 +95,7 @@ jobs:
           poetry install --only dev
 
       - name: Run MyPy
-        run: poetry run mypy trading_gym/accounting trading_gym/production trading_gym/authz trading_gym/agent/arms trading_gym/agent/fusion.py trading_gym/agent/planner.py trading_gym/agent/autonomy_ladder.py trading_gym/agent/revision.py trading_gym/agent/budget_gate.py trading_gym/agent/working_memory.py trading_gym/agent/persistent_experience.py trading_gym/agent/experience_memory.py trading_gym/agent/strategy_variants.py trading_gym/agent/forge.py trading_gym/playground/kernel.py --ignore-missing-imports --follow-imports=silent
+        run: python scripts/project.py typecheck
         # Scoped type gate: the money/authority modules plus the ADR-034/035
         # memory, forge, and kernel modules must type-check cleanly. Tree-wide
         # mypy remains advisory (65 pre-existing errors in peripheral modules)
@@ -384,7 +384,7 @@ jobs:
           poetry install --with dev
 
       - name: Parity suite against the compiled kernel
-        run: poetry run pytest tests/playground/test_kernel_parity.py -v --tb=short
+        run: poetry run pytest tests/playground/test_kernel_parity.py tests/strategy_lab/test_adx_native_parity.py -v --tb=short
         env:
           PYTHONPATH: .
           AXIOM_KERNEL_PATH: rust/axiom_kernel/target/release/libaxiom_kernel.so

@@ -4,39 +4,15 @@ from __future__ import annotations
 
 import os
 import secrets
-from decimal import Decimal
 from pathlib import Path
 from collections.abc import Callable
 from datetime import datetime
-from dataclasses import asdict
-from typing import Annotated, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from pydantic import BaseModel, ConfigDict, Field
 
 from apps.api.runtime import public_error_detail
-from trading_gym.assurance import (
-    ExpandedQualificationRequest,
-    QualificationRequest,
-    SystemQualificationRequest,
-    qualify_candidate,
-    qualify_expanded_system,
-    qualify_system,
-)
-from trading_gym.compliance import SurveillanceRequest, evaluate_surveillance
-from trading_gym.contracts import (
-    SchemaCompatibilityRequest,
-    evaluate_schema_compatibility,
-)
 from trading_gym.coordination import LeaseAcquire, LeaseConflict, LeaseRepository
-from trading_gym.events import EventEnvelope, replay_events
-from trading_gym.privacy import PrivacyAssessmentRequest, evaluate_privacy
-from trading_gym.treasury import (
-    CollateralAllocationRequest,
-    LiquidityForecastRequest,
-    allocate_collateral,
-    evaluate_liquidity_forecast,
-)
 from trading_gym.budgets import (
     BudgetConflict,
     BudgetCreate,
@@ -46,17 +22,12 @@ from trading_gym.budgets import (
 from trading_gym.accounting import (
     CorporateActionRequest,
     AccountingEvent,
-    FXQuote,
     AccountingRepository,
-    ObservedAccountState,
-    ReconciliationTolerance,
-    SettlementObligation,
     evaluate_settlement,
     plan_corporate_action,
     value_account,
 )
 from trading_gym.agent.providers import (
-    ProviderConfig,
     ProviderRepository,
     provider_status,
 )
@@ -70,57 +41,23 @@ from trading_gym.convergence.budgeted_backtest import (
 )
 from trading_gym.convergence.order_accounting import OrderAccountingSyncService
 from trading_gym.execution.calibration import (
-    CalibrationThresholds,
-    ExecutionObservation,
-    QueueSimulationRequest,
     calibrate_execution,
-    simulate_queue,
-)
-from trading_gym.execution.simulation import (
-    ExecutionSimulationPolicy,
-    ExecutionSimulationRequest,
-    simulate_execution,
-    simulate_scenarios,
 )
 from trading_gym.experiments import (
-    SequentialEvidenceRequest,
-    ModelChallengeRequest,
-    evaluate_model_challenge,
-    evaluate_sequential_evidence,
     ExperimentConflict,
     ExperimentCreate,
     ExperimentRepository,
     ExperimentState,
-    TemporalLeakageRequest,
     RunManifestCreate,
     RunManifestRepository,
     verify_manifest,
-    audit_temporal_leakage,
-)
-from trading_gym.governance.policy_change import (
-    PolicyImpactRequest,
-    evaluate_policy_change,
-)
-from trading_gym.governance.controls import (
-    ControlEffectivenessRequest,
-    evaluate_control_effectiveness,
-)
-from trading_gym.governance.data_lifecycle import (
-    DataLifecycleRequest,
-    evaluate_data_lifecycle,
-)
-from trading_gym.governance.credential_rotation import (
-    CredentialRotationRequest,
-    evaluate_credential_rotation,
 )
 from trading_gym.governance.identity import (
     ActorAuthenticationError,
     ActorIdentityConfigurationError,
     ActorValidationError,
-    actor_identity_health,
     require_actor_identity,
 )
-from trading_gym.governance.deployment import deployment_isolation_health
 from trading_gym.governance.models import (
     ConsumeRequest,
     DecisionRequest,
@@ -141,117 +78,61 @@ from trading_gym.governance.triggers import (
 )
 from trading_gym.lineage import (
     LineageConflict,
-    LineageEdgeCreate,
-    LineageNodeCreate,
     LineageNodeKind,
     LineageRepository,
 )
 from trading_gym.market import (
     BacktestLimitError,
     ExecutionWindowRequest,
-    MarketCalendarSpec,
     inspect_market_session,
     plan_execution_window,
     DatasetCatalog,
     DatasetConflict,
-    DatasetRegistration,
     DatasetState,
     InstrumentConflict,
     InstrumentRegistry,
-    InstrumentSpec,
     validate_backtest_window,
 )
 from trading_gym.monitoring.drift import (
-    DriftBaselineCreate,
     DriftBaselineRepository,
     DriftEvaluationRequest,
     evaluate_drift,
 )
 from trading_gym.operations import (
-    CapacityPlanRequest,
-    DependencyImpactRequest,
-    ForensicReadinessRequest,
-    RunbookReadinessRequest,
-    ChangeControlRequest,
-    ClockHealthRequest,
-    FailoverReadinessRequest,
-    RecoveryObjectiveRequest,
     IncidentConflict,
     IncidentCreate,
-    IncidentEvent,
     IncidentRepository,
     MigrationPlanRequest,
-    SignedBuildAttestation,
-    VersionSkewRequest,
-    evaluate_capacity,
-    evaluate_dependency_impact,
-    evaluate_forensic_readiness,
-    evaluate_runbook_readiness,
-    evaluate_change_control,
-    evaluate_clock_health,
-    evaluate_failover_readiness,
-    evaluate_recovery_objectives,
     evaluate_incident_readiness,
-    evaluate_version_skew,
     plan_migration,
     verify_attestation,
-    SLOObservationWindow,
-    ServiceLevelObjective,
     SnapshotService,
-    evaluate_slo,
 )
 from trading_gym.common.supply_chain import verify_dependency_policy
 from trading_gym.orders import (
     OrderConflict,
-    OrderEvent,
     OrderIntent,
-    OrderObservation,
     OrderRepository,
     OrderState,
 )
-from trading_gym.performance import LotFill, LotMethod, MarkValue, analyse_lots
+from trading_gym.performance import analyse_lots
 from trading_gym.portfolio import (
-    RebalanceHolding,
-    RebalancePolicy,
-    RebalanceTarget,
     plan_rebalance,
 )
-from trading_gym.scheduling import SchedulePlanRequest, plan_schedule
 from trading_gym.research.debate import debate_prompt_pack
 from trading_gym.research.dossier import build_dossier
-from trading_gym.research.models import EvidenceItem, ResearchDossier
 from trading_gym.research.quality import assess_dossier
-from trading_gym.research.reflection import audit_claims
 from trading_gym.research.sources import source_catalogue
 from trading_gym.research.workspace import (
     ResearchWorkspace,
-    WatchlistEntry,
     WorkspaceConflict,
 )
-from trading_gym.risk.liquidity import LiquidityRiskRequest, evaluate_liquidity_risk
-from trading_gym.risk.factor import FactorRiskRequest, evaluate_factor_risk
-from trading_gym.treasury.counterparty import (
-    CounterpartyRiskRequest,
-    evaluate_counterparty_risk,
-)
-from trading_gym.risk.portfolio import (
-    PortfolioRiskLimits,
-    PortfolioSnapshot,
-    evaluate_portfolio_risk,
-)
-from trading_gym.risk.sizing import PositionSizingRequest, size_position
 from trading_gym.risk.derivatives import (
-    DerivativePosition,
-    DerivativeRiskPolicy,
     analyze_derivative_risk,
 )
 from trading_gym.risk.stress import (
-    PortfolioStressPolicy,
-    StressPosition,
-    StressScenario,
     evaluate_portfolio_stress,
 )
-from trading_gym.strategy_lab.models import StrategySpec
 from trading_gym.strategy_lab.repository import (
     StrategyConflictError,
     StrategyRepository,
@@ -260,360 +141,54 @@ from trading_gym.strategy_lab.templates import template_catalogue
 from trading_gym.strategy_lab.validation import validate_strategy_spec
 
 
-class StrategySaveRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    spec: StrategySpec
-    strategy_id: str | None = None
-    expected_revision: int | None = Field(default=None, ge=0)
-    actor: str = Field(default="api-operator", min_length=1, max_length=120)
-
-
-class StrategyValidateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    spec: StrategySpec
-    market: str | None = Field(default=None, max_length=80)
-    start: datetime | None = None
-    end: datetime | None = None
-
-
-class DossierRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    subject: str = Field(min_length=1, max_length=200)
-    evidence: list[EvidenceItem] = Field(default_factory=list, max_length=500)
-    required_sections: list[str] | None = Field(default=None, max_length=30)
-
-
-class ReflectionRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    dossier: ResearchDossier
-    claims: list[Annotated[str, Field(max_length=4000)]] = Field(max_length=500)
-
-
-class PortfolioStressRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    equity: float = Field(gt=0.0, le=1e30)
-    positions: list[StressPosition] = Field(default_factory=list, max_length=100_000)
-    scenario: StressScenario
-    policy: PortfolioStressPolicy = Field(default_factory=PortfolioStressPolicy)
-
-
-class ProviderSaveRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    config: ProviderConfig
-    expected_revision: int | None = Field(default=None, ge=0)
-
-
-class InstrumentSaveRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    instrument: InstrumentSpec
-    expected_revision: int | None = Field(default=None, ge=0)
-
-
-class LeaseRenewRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    owner_id: str = Field(min_length=8, max_length=200)
-    fencing_token: int = Field(ge=1)
-    now: datetime
-    ttl_seconds: int = Field(ge=5, le=86_400)
-
-
-class LeaseReleaseRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    owner_id: str = Field(min_length=8, max_length=200)
-    fencing_token: int = Field(ge=1)
-    now: datetime
-
-
-class EventReplayRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    events: list[EventEnvelope] = Field(max_length=1_000_000)
-    genesis_hash: str = Field(default="0" * 64, pattern=r"^[0-9a-f]{64}$")
-    initial_projection: dict[str, Any] = Field(default_factory=dict)
-
-
-class BacktestWindowRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    market: str = Field(min_length=1, max_length=80)
-    timeframe: str = Field(pattern=r"^(1m|3m|5m|15m|30m|1h|4h|1d|1w)$")
-    start: datetime
-    end: datetime
-    warmup_bars: int = Field(default=0, ge=0, le=100_000)
-
-
-class DatasetSaveRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    dataset: DatasetRegistration
-    expected_catalog_revision: int | None = Field(default=None, ge=0)
-
-
-class DatasetQuarantineRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    expected_revision: int = Field(ge=1)
-    reason: str = Field(min_length=1, max_length=2000)
-
-
-class WorkspaceWatchlistRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    entry: WatchlistEntry
-    expected_revision: int | None = Field(default=None, ge=0)
-
-
-class WorkspaceNoteRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    subject: str = Field(min_length=1, max_length=200)
-    body: str = Field(max_length=50_000)
-    evidence_ids: list[str] = Field(default_factory=list, max_length=500)
-    note_id: str | None = Field(default=None, max_length=120)
-    expected_revision: int | None = Field(default=None, ge=0)
-
-
-class WorkspaceReportRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    dossier: ResearchDossier
-    label: str = Field(default="", max_length=200)
-
-
-class ExperimentClaimRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    worker_id: str = Field(min_length=1, max_length=120)
-    accepted_types: set[str] | None = Field(default=None, max_length=20)
-    lease_seconds: int = Field(default=120, ge=30, le=3600)
-
-
-class ExperimentHeartbeatRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    worker_id: str = Field(min_length=1, max_length=120)
-    expected_revision: int = Field(ge=1)
-    lease_seconds: int = Field(default=120, ge=30, le=3600)
-
-
-class ExperimentCompleteRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    worker_id: str = Field(min_length=1, max_length=120)
-    expected_revision: int = Field(ge=1)
-    result: dict[str, Any] = Field(default_factory=dict)
-
-
-class ExperimentFailRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    worker_id: str = Field(min_length=1, max_length=120)
-    expected_revision: int = Field(ge=1)
-    error: str = Field(min_length=1, max_length=4000)
-    retryable: bool = False
-
-
-class ExperimentCancelRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    expected_revision: int = Field(ge=1)
-    reason: str = Field(min_length=1, max_length=1000)
-
-
-class AccountCreateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    initial_cash: dict[str, Decimal] = Field(default_factory=dict, max_length=200)
-
-
-class AccountValuationRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    base_currency: str = Field(pattern=r"^[A-Z0-9]{2,20}$")
-    quotes: list[FXQuote] = Field(default_factory=list, max_length=100_000)
-    valued_at: datetime | None = None
-    max_fx_age_seconds: int = Field(default=3600, ge=1, le=31_536_000)
-
-
-class AccountReconciliationRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    observed: ObservedAccountState
-    tolerance: ReconciliationTolerance = Field(default_factory=ReconciliationTolerance)
-
-
-class ExecutionSimulationEnvelope(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    request: ExecutionSimulationRequest
-    policy: ExecutionSimulationPolicy = Field(default_factory=ExecutionSimulationPolicy)
-
-
-class DriftBaselineSaveRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    baseline: DriftBaselineCreate
-    expected_store_revision: int | None = Field(default=None, ge=0)
-
-
-class SnapshotCreateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    relative_paths: list[Annotated[str, Field(min_length=1, max_length=500)]] = Field(
-        min_length=1, max_length=1000
-    )
-    snapshot_id: str | None = Field(default=None, max_length=120)
-
-
-class SLOEvaluationRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    objective: ServiceLevelObjective
-    window: SLOObservationWindow
-
-
-class OrderAppendRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    event: OrderEvent
-    expected_revision: int = Field(ge=1)
-
-
-class OrderReconciliationRequestEnvelope(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    observation: OrderObservation
-
-
-class LotAnalysisRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    fills: list[LotFill] = Field(max_length=1_000_000)
-    base_currency: str = Field(min_length=1, max_length=20)
-    method: LotMethod = LotMethod.FIFO
-    marks: list[MarkValue] = Field(default_factory=list, max_length=100_000)
-
-
-class ExecutionCalibrationRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    observations: list[ExecutionObservation] = Field(max_length=1_000_000)
-    base_policy: ExecutionSimulationPolicy = Field(
-        default_factory=ExecutionSimulationPolicy
-    )
-    thresholds: CalibrationThresholds = Field(default_factory=CalibrationThresholds)
-
-
-class LineageNodeSaveRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    node: LineageNodeCreate
-    expected_revision: int | None = Field(default=None, ge=0)
-
-
-class LineageEdgeSaveRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    edge: LineageEdgeCreate
-    expected_revision: int | None = Field(default=None, ge=0)
-
-
-class BudgetCommitRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    actual_amount: Decimal = Field(ge=0)
-    expected_revision: int = Field(ge=1)
-
-
-class BudgetReleaseRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    expected_revision: int = Field(ge=1)
-    reason: str = Field(min_length=1, max_length=1000)
-
-
-class AttestationVerifyRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    attestation: SignedBuildAttestation
-
-
-class MarketSessionInspectionRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    calendar: MarketCalendarSpec
-    observed_at: datetime
-
-
-class DerivativeRiskRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    equity: Decimal
-    free_collateral: Decimal
-    positions: list[DerivativePosition] = Field(
-        default_factory=list, max_length=100_000
-    )
-    policy: DerivativeRiskPolicy = Field(default_factory=DerivativeRiskPolicy)
-
-
-class RebalanceRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    base_currency: str = Field(pattern=r"^[A-Z0-9]{2,20}$")
-    cash_base: Decimal
-    holdings: list[RebalanceHolding] = Field(default_factory=list, max_length=100_000)
-    targets: list[RebalanceTarget] = Field(default_factory=list, max_length=100_000)
-    policy: RebalancePolicy = Field(default_factory=RebalancePolicy)
-
-
-class SettlementEvaluationRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    as_of: datetime
-    settled_cash: dict[str, Decimal] = Field(default_factory=dict, max_length=200)
-    obligations: list[SettlementObligation] = Field(
-        default_factory=list, max_length=1_000_000
-    )
-
-
-class IncidentAppendRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    event: IncidentEvent
-    expected_revision: int = Field(ge=1)
-
-
-class IncidentReadinessRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    incident_ids: list[str] | None = Field(default=None, max_length=100_000)
-    evaluated_at: datetime | None = None
-
-
-class TriggerStateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    state: TriggerState
-    expected_revision: int = Field(ge=1)
-
-
-class TriggerEvaluationRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    evaluation_key: str = Field(min_length=1, max_length=200)
-    metrics: dict[str, Any] = Field(default_factory=dict)
-    event_name: str | None = Field(default=None, max_length=120)
-    event_payload: dict[str, Any] = Field(default_factory=dict)
-    evaluated_at: datetime | None = None
+from apps.api.convergence_evaluations import create_evaluation_router
+from apps.api.convergence_models import (
+    StrategySaveRequest as StrategySaveRequest,
+    StrategyValidateRequest as StrategyValidateRequest,
+    DossierRequest as DossierRequest,
+    ReflectionRequest as ReflectionRequest,
+    PortfolioStressRequest as PortfolioStressRequest,
+    ProviderSaveRequest as ProviderSaveRequest,
+    InstrumentSaveRequest as InstrumentSaveRequest,
+    LeaseRenewRequest as LeaseRenewRequest,
+    LeaseReleaseRequest as LeaseReleaseRequest,
+    EventReplayRequest as EventReplayRequest,
+    BacktestWindowRequest as BacktestWindowRequest,
+    DatasetSaveRequest as DatasetSaveRequest,
+    DatasetQuarantineRequest as DatasetQuarantineRequest,
+    WorkspaceWatchlistRequest as WorkspaceWatchlistRequest,
+    WorkspaceNoteRequest as WorkspaceNoteRequest,
+    WorkspaceReportRequest as WorkspaceReportRequest,
+    ExperimentClaimRequest as ExperimentClaimRequest,
+    ExperimentHeartbeatRequest as ExperimentHeartbeatRequest,
+    ExperimentCompleteRequest as ExperimentCompleteRequest,
+    ExperimentFailRequest as ExperimentFailRequest,
+    ExperimentCancelRequest as ExperimentCancelRequest,
+    AccountCreateRequest as AccountCreateRequest,
+    AccountValuationRequest as AccountValuationRequest,
+    AccountReconciliationRequest as AccountReconciliationRequest,
+    ExecutionSimulationEnvelope as ExecutionSimulationEnvelope,
+    DriftBaselineSaveRequest as DriftBaselineSaveRequest,
+    SnapshotCreateRequest as SnapshotCreateRequest,
+    SLOEvaluationRequest as SLOEvaluationRequest,
+    OrderAppendRequest as OrderAppendRequest,
+    OrderReconciliationRequestEnvelope as OrderReconciliationRequestEnvelope,
+    LotAnalysisRequest as LotAnalysisRequest,
+    ExecutionCalibrationRequest as ExecutionCalibrationRequest,
+    LineageNodeSaveRequest as LineageNodeSaveRequest,
+    LineageEdgeSaveRequest as LineageEdgeSaveRequest,
+    BudgetCommitRequest as BudgetCommitRequest,
+    BudgetReleaseRequest as BudgetReleaseRequest,
+    AttestationVerifyRequest as AttestationVerifyRequest,
+    MarketSessionInspectionRequest as MarketSessionInspectionRequest,
+    DerivativeRiskRequest as DerivativeRiskRequest,
+    RebalanceRequest as RebalanceRequest,
+    SettlementEvaluationRequest as SettlementEvaluationRequest,
+    IncidentAppendRequest as IncidentAppendRequest,
+    IncidentReadinessRequest as IncidentReadinessRequest,
+    TriggerStateRequest as TriggerStateRequest,
+    TriggerEvaluationRequest as TriggerEvaluationRequest,
+)
 
 
 def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
@@ -1310,16 +885,6 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 status_code=422, detail=public_error_detail(exc)
             ) from exc
 
-    @router.post("/risk/size")
-    def calculate_position_size(request: PositionSizingRequest) -> dict[str, Any]:
-        return size_position(request).model_dump(mode="json")
-
-    @router.post("/risk/portfolio")
-    def assess_portfolio(
-        snapshot: PortfolioSnapshot, limits: PortfolioRiskLimits
-    ) -> dict[str, Any]:
-        return evaluate_portfolio_risk(snapshot, limits).model_dump(mode="json")
-
     @router.post("/risk/stress")
     def stress_portfolio(request: PortfolioStressRequest) -> dict[str, Any]:
         try:
@@ -1333,10 +898,6 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
             raise HTTPException(
                 status_code=422, detail=public_error_detail(exc)
             ) from exc
-
-    @router.get("/research/sources")
-    def research_sources() -> list[dict[str, object]]:
-        return source_catalogue()
 
     @router.post("/research/dossier")
     def create_dossier(request: DossierRequest) -> dict[str, Any]:
@@ -1355,14 +916,6 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
             "quality": assess_dossier(dossier).model_dump(mode="json"),
             "debate_prompts": debate_prompt_pack(dossier),
         }
-
-    @router.post("/research/quality")
-    def research_quality(dossier: ResearchDossier) -> dict[str, Any]:
-        return assess_dossier(dossier).model_dump(mode="json")
-
-    @router.post("/research/reflect")
-    def reflect(request: ReflectionRequest) -> dict[str, object]:
-        return audit_claims(request.claims, request.dossier)
 
     @router.get("/research/workspace")
     def research_workspace() -> dict[str, Any]:
@@ -1530,12 +1083,6 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
         return [
             item.model_dump(mode="json") for item in values[offset : offset + limit]
         ]
-
-    @router.post("/experiments/temporal-leakage/audit")
-    def audit_temporal_leakage_endpoint(
-        request: TemporalLeakageRequest,
-    ) -> dict[str, Any]:
-        return audit_temporal_leakage(request).model_dump(mode="json")
 
     @router.post("/experiments")
     def create_experiment(
@@ -1806,10 +1353,6 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 status_code=422, detail=public_error_detail(exc)
             ) from exc
 
-    @router.post("/execution/queue")
-    def simulate_queue_endpoint(request: QueueSimulationRequest) -> dict[str, Any]:
-        return simulate_queue(request).model_dump(mode="json")
-
     @router.post("/execution/calibrate")
     def calibrate_execution_endpoint(
         request: ExecutionCalibrationRequest,
@@ -2002,7 +1545,7 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
 
     @router.post("/budgets/reconcile-expired")
     def reconcile_expired_budgets(
-        actor: str = Header(default="budget-reconciler", alias="X-Actor")
+        actor: str = Header(default="budget-reconciler", alias="X-Actor"),
     ) -> dict[str, Any]:
         return budgets.reconcile_expired(actor=actor)
 
@@ -2012,18 +1555,6 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
             return budgets.get_budget(budget_id).model_dump(mode="json")
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Budget not found") from exc
-
-    @router.post("/scheduling/plan")
-    def plan_schedule_endpoint(request: SchedulePlanRequest) -> dict[str, Any]:
-        return plan_schedule(request).model_dump(mode="json")
-
-    @router.post("/assurance/system-qualify")
-    def qualify_system_endpoint(request: SystemQualificationRequest) -> dict[str, Any]:
-        return qualify_system(request).model_dump(mode="json")
-
-    @router.post("/assurance/qualify")
-    def qualify_candidate_endpoint(request: QualificationRequest) -> dict[str, Any]:
-        return qualify_candidate(request).model_dump(mode="json")
 
     @router.post("/accounting/corporate-actions/plan")
     def plan_corporate_action_endpoint(
@@ -2154,22 +1685,6 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
             raise HTTPException(
                 status_code=422, detail=public_error_detail(exc)
             ) from exc
-
-    @router.post("/execution/simulate")
-    def simulate_execution_endpoint(
-        request: ExecutionSimulationEnvelope,
-    ) -> dict[str, Any]:
-        return simulate_execution(request.request, request.policy).model_dump(
-            mode="json"
-        )
-
-    @router.post("/execution/scenarios")
-    def simulate_execution_scenarios(
-        request: ExecutionSimulationEnvelope,
-    ) -> dict[str, Any]:
-        return simulate_scenarios(request.request, request.policy).model_dump(
-            mode="json"
-        )
 
     @router.post("/reproducibility/manifests")
     def create_run_manifest(
@@ -2385,24 +1900,6 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 status_code=422, detail=public_error_detail(exc)
             ) from exc
 
-    @router.post("/operations/version-skew/evaluate")
-    def evaluate_version_skew_endpoint(request: VersionSkewRequest) -> dict[str, Any]:
-        return evaluate_version_skew(request).model_dump(mode="json")
-
-    @router.post("/operations/clock/evaluate")
-    def evaluate_clock_endpoint(request: ClockHealthRequest) -> dict[str, Any]:
-        return evaluate_clock_health(request).model_dump(mode="json")
-
-    @router.post("/operations/recovery-objectives/evaluate")
-    def evaluate_recovery_objectives_endpoint(
-        request: RecoveryObjectiveRequest,
-    ) -> dict[str, Any]:
-        return evaluate_recovery_objectives(request).model_dump(mode="json")
-
-    @router.post("/operations/slo/evaluate")
-    def evaluate_slo_endpoint(request: SLOEvaluationRequest) -> dict[str, Any]:
-        return evaluate_slo(request.objective, request.window).model_dump(mode="json")
-
     @router.get("/operations/supply-chain")
     def supply_chain_status() -> dict[str, Any]:
         root = Path(__file__).resolve().parents[2]
@@ -2586,26 +2083,6 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 status_code=503, detail=public_error_detail(exc)
             ) from exc
 
-    @router.get("/governance/identity/health")
-    def identity_health() -> dict[str, Any]:
-        return asdict(actor_identity_health())
-
-    @router.get("/governance/deployment/health")
-    def deployment_health() -> dict[str, Any]:
-        return asdict(deployment_isolation_health())
-
-    @router.post("/governance/data-lifecycle/evaluate")
-    def evaluate_data_lifecycle_endpoint(
-        request: DataLifecycleRequest,
-    ) -> dict[str, Any]:
-        return evaluate_data_lifecycle(request).model_dump(mode="json")
-
-    @router.post("/governance/credentials/rotation/evaluate")
-    def evaluate_credential_rotation_endpoint(
-        request: CredentialRotationRequest,
-    ) -> dict[str, Any]:
-        return evaluate_credential_rotation(request).model_dump(mode="json")
-
     @router.get("/coordination/leases")
     def list_coordination_leases(now: datetime | None = None) -> list[dict[str, Any]]:
         return [item.model_dump(mode="json") for item in leases.list(now=now)]
@@ -2660,108 +2137,6 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
                 status_code=409, detail=public_error_detail(exc)
             ) from exc
 
-    @router.post("/events/replay")
-    def replay_events_endpoint(request: EventReplayRequest) -> dict[str, Any]:
-        return replay_events(
-            request.events,
-            genesis_hash=request.genesis_hash,
-            initial_projection=request.initial_projection,
-        ).model_dump(mode="json")
-
-    @router.post("/treasury/collateral/allocate")
-    def allocate_collateral_endpoint(
-        request: CollateralAllocationRequest,
-    ) -> dict[str, Any]:
-        return allocate_collateral(request).model_dump(mode="json")
-
-    @router.post("/governance/policies/impact")
-    def evaluate_policy_change_endpoint(request: PolicyImpactRequest) -> dict[str, Any]:
-        return evaluate_policy_change(request).model_dump(mode="json")
-
-    @router.post("/operations/capacity/evaluate")
-    def evaluate_capacity_endpoint(request: CapacityPlanRequest) -> dict[str, Any]:
-        return evaluate_capacity(request).model_dump(mode="json")
-
-    @router.post("/compliance/surveillance/evaluate")
-    def evaluate_surveillance_endpoint(request: SurveillanceRequest) -> dict[str, Any]:
-        return evaluate_surveillance(request).model_dump(mode="json")
-
-    @router.post("/privacy/minimisation/evaluate")
-    def evaluate_privacy_endpoint(request: PrivacyAssessmentRequest) -> dict[str, Any]:
-        return evaluate_privacy(request).model_dump(mode="json")
-
-    @router.post("/risk/liquidity/evaluate")
-    def evaluate_liquidity_endpoint(request: LiquidityRiskRequest) -> dict[str, Any]:
-        return evaluate_liquidity_risk(request).model_dump(mode="json")
-
-    @router.post("/treasury/counterparty/evaluate")
-    def evaluate_counterparty_endpoint(
-        request: CounterpartyRiskRequest,
-    ) -> dict[str, Any]:
-        return evaluate_counterparty_risk(request).model_dump(mode="json")
-
-    @router.post("/operations/change-control/evaluate")
-    def evaluate_change_control_endpoint(
-        request: ChangeControlRequest,
-    ) -> dict[str, Any]:
-        return evaluate_change_control(request).model_dump(mode="json")
-
-    @router.post("/operations/failover/evaluate")
-    def evaluate_failover_endpoint(request: FailoverReadinessRequest) -> dict[str, Any]:
-        return evaluate_failover_readiness(request).model_dump(mode="json")
-
-    @router.post("/experiments/sequential/evaluate")
-    def evaluate_sequential_endpoint(
-        request: SequentialEvidenceRequest,
-    ) -> dict[str, Any]:
-        return evaluate_sequential_evidence(request).model_dump(mode="json")
-
-    @router.post("/contracts/schemas/compatibility")
-    def schema_compatibility_endpoint(
-        request: SchemaCompatibilityRequest,
-    ) -> dict[str, Any]:
-        return evaluate_schema_compatibility(request).model_dump(mode="json")
-
-    @router.post("/treasury/liquidity/forecast")
-    def liquidity_forecast_endpoint(
-        request: LiquidityForecastRequest,
-    ) -> dict[str, Any]:
-        return evaluate_liquidity_forecast(request).model_dump(mode="json")
-
-    @router.post("/risk/factors/evaluate")
-    def factor_risk_endpoint(request: FactorRiskRequest) -> dict[str, Any]:
-        return evaluate_factor_risk(request).model_dump(mode="json")
-
-    @router.post("/experiments/model-risk/evaluate")
-    def model_challenge_endpoint(request: ModelChallengeRequest) -> dict[str, Any]:
-        return evaluate_model_challenge(request).model_dump(mode="json")
-
-    @router.post("/operations/forensics/evaluate")
-    def forensic_readiness_endpoint(
-        request: ForensicReadinessRequest,
-    ) -> dict[str, Any]:
-        return evaluate_forensic_readiness(request).model_dump(mode="json")
-
-    @router.post("/governance/controls/evaluate")
-    def control_effectiveness_endpoint(
-        request: ControlEffectivenessRequest,
-    ) -> dict[str, Any]:
-        return evaluate_control_effectiveness(request).model_dump(mode="json")
-
-    @router.post("/operations/dependencies/impact")
-    def dependency_impact_endpoint(request: DependencyImpactRequest) -> dict[str, Any]:
-        return evaluate_dependency_impact(request).model_dump(mode="json")
-
-    @router.post("/operations/runbooks/evaluate")
-    def runbook_readiness_endpoint(request: RunbookReadinessRequest) -> dict[str, Any]:
-        return evaluate_runbook_readiness(request).model_dump(mode="json")
-
-    @router.post("/assurance/expanded-qualify")
-    def expanded_qualification_endpoint(
-        request: ExpandedQualificationRequest,
-    ) -> dict[str, Any]:
-        return qualify_expanded_system(request).model_dump(mode="json")
-
     @router.get("/governance/audit/verify")
     def verify_audit() -> dict[str, Any]:
         health = reconcile_all_audit(fail_closed=False)
@@ -2783,8 +2158,9 @@ def create_convergence_router(auth_dependency: Callable[..., Any]) -> APIRouter:
 
     @router.get("/governance/audit")
     def audit_tail(
-        limit: int = Query(default=100, ge=1, le=1000)
+        limit: int = Query(default=100, ge=1, le=1000),
     ) -> list[dict[str, Any]]:
         return governance.ledger.tail(limit)
 
+    router.include_router(create_evaluation_router())
     return router

@@ -17,7 +17,7 @@ from filelock import FileLock
 
 from apps.lake.manifest import write_daily_merkle, write_partition_manifest
 from trading_gym.adapters.enhanced_aban_client import EnhancedAbanClient
-from trading_gym.common.persistence import atomic_write_text
+from trading_gym.common.persistence import _fsync_directory, atomic_write_text
 from trading_gym.common.security import confined_child
 from trading_gym.data.data_loader import (
     _normalise_timestamp_index,
@@ -50,27 +50,6 @@ def _timeframe_seconds(value: str) -> int:
     if seconds > 31 * 86_400:
         raise ValueError("timeframe exceeds 31 days")
     return seconds
-
-
-def _fsync_directory(path: Path) -> None:
-    # Directory fsync is a POSIX durability primitive. Windows has no
-    # directory file descriptor to open, so the returned handle is
-    # invalid and closing it raised EBADF, failing every batch save; off
-    # POSIX the step is a no-op because os.replace is already atomic.
-    if os.name != "posix":
-        return
-    flags = getattr(os, "O_DIRECTORY", 0) | os.O_RDONLY
-    try:
-        descriptor = os.open(path, flags)
-    except OSError:
-        return
-    try:
-        os.fsync(descriptor)
-    except OSError:
-        pass
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
 
 
 class Poller:

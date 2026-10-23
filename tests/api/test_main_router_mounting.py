@@ -39,7 +39,11 @@ def test_main_app_mounts_authz_and_playground_routers(
     ) as client:
         health = client.get("/api/v1/authz/health")
         assert health.status_code == 200
-        assert health.json() == {"ledger_valid": True, "entries": 0}
+        assert health.json() == {
+            "ledger_valid": True,
+            "entries": 0,
+            "legacy_high_risk_wildcard_grants": 0,
+        }
 
         grants = client.get("/api/v1/authz/grants")
         assert grants.status_code == 200
