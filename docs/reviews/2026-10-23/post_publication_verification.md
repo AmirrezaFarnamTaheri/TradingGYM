@@ -178,3 +178,26 @@ before the PR can receive its actual required full CI gate. In particular,
 private-repository Actions billing/budget settings require authorized account
 access that this connected GitHub tool cannot inspect or modify. The PR is
 still open and **not release-qualified**.
+
+## Source ZIP metadata reproducibility hardening (2026-10-24)
+
+Commit [`0cc44b4`](https://github.com/AmirrezaFarnamTaheri/TradingGYM/commit/0cc44b435fa829b28cf648aff2fee53acd258256)
+fixes a reproducibility failure: before the change, touching a tracked
+file (without modifying its content or Git commit) changed the source
+archive's SHA-256, and a clean checkout that disabled Git filesystem
+mode tracking could drop the executable bit from an indexed script.
+
+The archive builder now obtains modes from `git ls-files --stage -z`,
+rejects symlink entries, uses deterministic ZIP member timestamps,
+preserves Git executable bits, and streams source contents. Different
+zlib implementations may still produce different compressed bytes.
+The fixture explicitly forces executable index mode on Windows using
+`git update-index --chmod=+x`.
+
+**Red/green evidence:** Two isolated tests reproduced the bugs before
+the fix and passed afterward; nine focused source-archive/release
+checks passed in the local fixture workspace, including the existing
+symlink and dotenv exclusions. Separately, 18 inherited script-level
+unittest checks passed (these results are not a full Python 3.11/3.12
+Poetry-locked repository suite). Required CI continues failing before
+runner assignment; see [issue #7](https://github.com/AmirrezaFarnamTaheri/TradingGYM/issues/7).

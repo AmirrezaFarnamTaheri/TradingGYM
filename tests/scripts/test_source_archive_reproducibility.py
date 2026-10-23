@@ -34,6 +34,8 @@ class ReproducibleArchiveTests(unittest.TestCase):
         self.git("config", "user.name", "Fixture")
         self.git("config", "user.email", "fixture@example.invalid")
         self.git("add", ".")
+        # Git index modes are authoritative even on Windows checkouts.
+        self.git("update-index", "--chmod=+x", "launch.sh")
         self.git("commit", "-qm", "fixture")
 
     def git(self, *args):
