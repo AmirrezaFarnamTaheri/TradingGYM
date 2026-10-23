@@ -201,3 +201,39 @@ symlink and dotenv exclusions. Separately, 18 inherited script-level
 unittest checks passed (these results are not a full Python 3.11/3.12
 Poetry-locked repository suite). Required CI continues failing before
 runner assignment; see [issue #7](https://github.com/AmirrezaFarnamTaheri/TradingGYM/issues/7).
+
+## Immutable-object release archive hardening
+
+Commit [c2c4de3](https://github.com/AmirrezaFarnamTaheri/TradingGYM/commit/c2c4de30ab32191fcee5b6d7ad4578672feb1b6e)
+fixes a release-integrity race that survives both worktree cleanliness checks:
+the former archive writer read files from mutable filesystem paths, so a
+short-lived file substitution could affect ZIP contents and be restored
+before the final Git status check. The revised writer takes each entry's blob
+identity from the verified Git index, streams it with git cat-file blob,
+derives the release root version from the committed manifest, and atomically
+replaces the final ZIP only after all reads and a final clean-revision check.
+It also rejects path-unsafe manifest versions and retains the previous good
+archive when an object read fails.
+
+Commit [5510423](https://github.com/AmirrezaFarnamTaheri/TradingGYM/commit/55104237e185b64e6f72bf950bb33895ad537df1)
+preserves the existing error-message contract when the Git checkout is
+missing, with an additional targeted regression.
+
+Focused verification used a disposable real-Git fixture and local Python
+3.13.5. The tests demonstrated a red-before/green-after cycle for the
+transient worktree read and spoofed manifest versions, invalid path versions,
+and a missing-Git error. A subsequent local run of
+test_source_archive_integrity.py and
+test_source_archive_reproducibility.py reported **12 passed, 0 failures**,
+including reproducible ZIP bytes, committed executable permissions,
+staged/unstaged source rejection, and temporary output cleanup. These are
+fixture-scoped checks, **not** the full checkout, exact-lock Python 3.11/3.12,
+Windows, built container or Rust native parity.
+
+The latest observed [required CI run #40031336699](https://github.com/AmirrezaFarnamTaheri/TradingGYM/actions/runs/40031336699)
+on commit 55104237e185b64e6f72bf950bb33895ad537df1
+again completed with **11 failed, 2 skipped**, **zero assigned runners and
+zero executed steps**. GitHub runner admission remains an external blocker.
+See [P0 issue #7](https://github.com/AmirrezaFarnamTaheri/TradingGYM/issues/7).
+Do **not** treat the archive-focused test evidence or CodeRabbit's scoped
+walkthrough as substitute qualification for merge or release.
