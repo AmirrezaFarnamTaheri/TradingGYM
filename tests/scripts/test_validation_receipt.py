@@ -385,7 +385,11 @@ class ReceiptCompletenessTests(unittest.TestCase):
                 frontend = next(job for job in jobs if job["name"] == "Frontend Tests")
                 if missing:
                     frontend["steps"] = [
-                        {"name": "Set up Node.js", "status": "completed", "conclusion": "success"}
+                        {
+                            "name": "Set up Node.js",
+                            "status": "completed",
+                            "conclusion": "success",
+                        }
                     ]
                 else:
                     frontend["steps"][0].update(
