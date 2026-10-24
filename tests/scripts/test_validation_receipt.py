@@ -199,7 +199,6 @@ class ReceiptOptionalSkipTests(unittest.TestCase):
         self.assertFalse(result["all_executed_successfully"])
 
 
-
 class ReceiptCompletenessTests(unittest.TestCase):
     def successful(self, name):
         return {
@@ -212,10 +211,7 @@ class ReceiptCompletenessTests(unittest.TestCase):
         }
 
     def all_required(self):
-        return [
-            self.successful(name)
-            for name in sorted(receipt.REQUIRED_CI_JOBS)
-        ]
+        return [self.successful(name) for name in sorted(receipt.REQUIRED_CI_JOBS)]
 
     def test_partial_successful_page_does_not_certify_workflow(self):
         result = receipt.classify_jobs(

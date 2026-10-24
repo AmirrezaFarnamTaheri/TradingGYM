@@ -80,10 +80,8 @@ def verify_unchanged(declared_sha: str, initial: dict) -> None:
         raise ValueError("source changed during validation")
 
 
-# This is the only intentionally skipped, non-gating job in the PR CI workflow.
-# Keep in sync with .github/workflows/ci.yml if the weekly scan is renamed.
-# Fail closed on truncated job exports and newly added, unreviewed CI gates.
-# Keep this list in sync with .github/workflows/ci.yml (checked by tests).
+# Require every CI job, including each matrix cell; keep in sync with
+# .github/workflows/ci.yml. The inventory test detects workflow drift.
 REQUIRED_CI_JOBS = frozenset(
     {
         "Lint & Format",
@@ -101,6 +99,7 @@ REQUIRED_CI_JOBS = frozenset(
     }
 )
 
+# Only this completed, scheduled informational skip is non-gating.
 OPTIONAL_SKIPPED_JOBS = frozenset({"Dependency Scan (weekly, informational)"})
 
 
