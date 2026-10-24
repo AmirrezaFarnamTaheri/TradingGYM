@@ -58,6 +58,7 @@ from trading_gym.intelligence.types import (
     MarketContext,
 )
 
+
 @dataclass(frozen=True)
 class LLMTransportResponse:
     content: str
@@ -119,15 +120,34 @@ def httpx_transport(
 
         if config.metadata.get("supports_json_schema") is True:
             body["response_format"] = {
-                "type": "json_schema", "json_schema": {
-                    "name": "trading_advice", "strict": True,
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "trading_advice",
+                    "strict": True,
                     "schema": {
-                        "type": "object", "additionalProperties": False,
-                        "required": ["action", "target_leverage", "confidence", "rationale"],
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "action",
+                            "target_leverage",
+                            "confidence",
+                            "rationale",
+                        ],
                         "properties": {
-                            "action": {"type": "string", "enum": ["hold", "long", "short"]},
-                            "target_leverage": {"type": "number", "minimum": -20, "maximum": 20},
-                            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                            "action": {
+                                "type": "string",
+                                "enum": ["hold", "long", "short"],
+                            },
+                            "target_leverage": {
+                                "type": "number",
+                                "minimum": -20,
+                                "maximum": 20,
+                            },
+                            "confidence": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1,
+                            },
                             "rationale": {"type": "string", "maxLength": 200},
                         },
                     },
@@ -160,9 +180,11 @@ def httpx_transport(
                 timeout=remaining, follow_redirects=False, trust_env=False
             ) as client:
                 return bounded_post(
-                    client, urljoin(base.rstrip("/") + "/", "chat/completions"),
+                    client,
+                    urljoin(base.rstrip("/") + "/", "chat/completions"),
                     headers=headers,
-                    json=body, timeout=remaining,
+                    json=body,
+                    timeout=remaining,
                 )
 
         try:
@@ -194,11 +216,12 @@ def httpx_transport(
             message = item.get("message") if isinstance(item, dict) else None
             if isinstance(message, dict) and message.get("refusal"):
                 raise PermissionError("llm_provider_refusal")
-            if isinstance(item, dict) and item.get("finish_reason") not in (None, "stop"):
+            if isinstance(item, dict) and item.get("finish_reason") not in (
+                None,
+                "stop",
+            ):
                 raise InvalidDecisionSignal("llm_incomplete_response")
-            content = (
-                message.get("content") if isinstance(message, dict) else None
-            )
+            content = message.get("content") if isinstance(message, dict) else None
             if not isinstance(content, str):
                 raise PermissionError("llm_invalid_response_envelope")
             return LLMTransportResponse(content=content)
@@ -230,6 +253,7 @@ def httpx_transport(
             return execute(base_url, messages)
 
     return call
+
 
 _SYSTEM_PROMPT = (
     "You are the governance analyst of a trading system. You receive a compact "
@@ -319,8 +343,10 @@ def _normalise_decision(obj: dict[str, Any]) -> tuple[ActionKind, float, float, 
     kind = ActionKind(obj["action"])
     leverage, confidence = float(obj["target_leverage"]), float(obj["confidence"])
     if (
-        not math.isfinite(leverage) or not -20 <= leverage <= 20
-        or not math.isfinite(confidence) or not 0 <= confidence <= 1
+        not math.isfinite(leverage)
+        or not -20 <= leverage <= 20
+        or not math.isfinite(confidence)
+        or not 0 <= confidence <= 1
         or (kind is ActionKind.HOLD and leverage != 0)
         or (kind is ActionKind.LONG and leverage <= 0)
         or (kind is ActionKind.SHORT and leverage >= 0)
@@ -419,7 +445,9 @@ class LLMDecisionBackend(IntelligenceBackend):
             status = provider_status(self.config, timeout_seconds=3.0)
         except Exception as exc:
             return BackendHealth(
-                name=self.name, available=False, device=None,
+                name=self.name,
+                available=False,
+                device=None,
                 detail=f"probe_failed:{type(exc).__name__}",
             )
         return BackendHealth(

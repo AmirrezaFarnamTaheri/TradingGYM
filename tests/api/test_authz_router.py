@@ -166,7 +166,6 @@ class TestGrantIssuance:
         assert response.status_code == 422
         assert "wildcard" in response.json()["detail"]
 
-
     def test_issue_reserved_scope_rejected(self, auth_env) -> None:  # type: ignore[no-untyped-def]
         response = _client().post(
             "/api/v1/authz/grants",

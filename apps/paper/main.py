@@ -25,12 +25,18 @@ app = typer.Typer()
 logger = logging.getLogger(__name__)
 
 
-def _admit_opening_equity(cfg, override: Optional[float], *, needs_model: bool) -> Decimal:
-    opening = Decimal(str(cfg.training.initial_equity if override is None else override))
+def _admit_opening_equity(
+    cfg, override: Optional[float], *, needs_model: bool
+) -> Decimal:
+    opening = Decimal(
+        str(cfg.training.initial_equity if override is None else override)
+    )
     if not opening.is_finite() or opening <= 0:
         raise ValueError("paper initial equity must be finite and positive")
     if needs_model and opening != Decimal(str(cfg.training.initial_equity)):
-        raise ValueError("paper initial equity differs from the RL observation contract; retrain or use the admitted value")
+        raise ValueError(
+            "paper initial equity differs from the RL observation contract; retrain or use the admitted value"
+        )
     # A non-RL paper account still needs one explicit reference in config/env.
     if not needs_model:
         cfg.training.initial_equity = float(opening)
@@ -64,8 +70,14 @@ def run(
     timeframe: str = typer.Option(
         "5m", "--timeframe", "-t", help="The timeframe to use for trading"
     ),
-    paper_account: Optional[Path] = typer.Option(None, "--paper-account", help="Durable virtual account .json path"),
-    initial_equity: Optional[float] = typer.Option(None, "--initial-equity", help="Opening virtual equity; must match when resuming"),
+    paper_account: Optional[Path] = typer.Option(
+        None, "--paper-account", help="Durable virtual account .json path"
+    ),
+    initial_equity: Optional[float] = typer.Option(
+        None,
+        "--initial-equity",
+        help="Opening virtual equity; must match when resuming",
+    ),
     live: bool = typer.Option(
         False, "--live", help="Confirmation flag to use live API data"
     ),
@@ -125,7 +137,9 @@ def run(
 
     env = None
     try:
-        opening_equity = _admit_opening_equity(cfg, initial_equity, needs_model=needs_model)
+        opening_equity = _admit_opening_equity(
+            cfg, initial_equity, needs_model=needs_model
+        )
         all_data = load_environment_inputs(cfg, timeframe)
         bundle = None
         if needs_model:
@@ -148,20 +162,32 @@ def run(
                 cfg.intelligence.mode.value,
             )
 
-        account_path = paper_account or (resolve_data_home() / "paper" / cfg.env.symbol / "account.json")
+        account_path = paper_account or (
+            resolve_data_home() / "paper" / cfg.env.symbol / "account.json"
+        )
         _configure_account_breaker(cfg, account_path)
-        adapter = PaperExecutionAdapter(cfg, api_key,
-            account_path=account_path,
-            initial_equity=opening_equity)
+        adapter = PaperExecutionAdapter(
+            cfg, api_key, account_path=account_path, initial_equity=opening_equity
+        )
         bundle_id = model_sha256 if bundle is not None else "no-model"
-        anchor = adapter.bind_observation_contract(model_bundle_id=bundle_id,
-            reference_price=Decimal(str(all_data["prices_mid"][-1])))
-        stats = bundle.training_stats if bundle is not None else {
-            "method": "provided", "center": {c:0.0 for c in all_data["features"]},
-            "scale": {c:1.0 for c in all_data["features"]}}
+        anchor = adapter.bind_observation_contract(
+            model_bundle_id=bundle_id,
+            reference_price=Decimal(str(all_data["prices_mid"][-1])),
+        )
+        stats = (
+            bundle.training_stats
+            if bundle is not None
+            else {
+                "method": "provided",
+                "center": {c: 0.0 for c in all_data["features"]},
+                "scale": {c: 1.0 for c in all_data["features"]},
+            }
+        )
         env = create_environment(cfg, all_data, live_mode=True, training_stats=stats)
-        env.bind_account_observation_anchor(initial_equity=float(anchor["initial_equity"]),
-                                             initial_price=float(anchor["initial_price"]))
+        env.bind_account_observation_anchor(
+            initial_equity=float(anchor["initial_equity"]),
+            initial_price=float(anchor["initial_price"]),
+        )
         env.model_bundle_id = bundle_id
         from trading_gym.intelligence.wiring import build_trading_policy
 

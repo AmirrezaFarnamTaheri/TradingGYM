@@ -53,14 +53,20 @@ def test_setup_script_has_shebang(setup_script):
 def test_setup_script_check_flag(setup_script):
     if os.name == "nt":
         pytest.skip("Bash wrapper is not the Windows entrypoint")
-    result = subprocess.run(["bash", str(setup_script), "--help"], capture_output=True, text=True)
+    result = subprocess.run(
+        ["bash", str(setup_script), "--help"], capture_output=True, text=True
+    )
     assert result.returncode == 0
     assert "--check" in result.stdout
     assert "--dry-run" in result.stdout
 
 
 def test_canonical_bootstrap_help(project_root):
-    result = subprocess.run([sys.executable, str(project_root / "scripts/gui.py"), "--help"], capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, str(project_root / "scripts/gui.py"), "--help"],
+        capture_output=True,
+        text=True,
+    )
     assert result.returncode == 0
     assert "Poetry" in result.stdout and "npm" in result.stdout
 
@@ -109,6 +115,16 @@ def test_apps_api_main_exists(project_root):
 
 
 def test_script_rejects_bad_ports_before_launch(project_root):
-    result = subprocess.run([sys.executable, str(project_root / "scripts/gui.py"), "start", "--api-port", "70000"], capture_output=True, text=True)
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(project_root / "scripts/gui.py"),
+            "start",
+            "--api-port",
+            "70000",
+        ],
+        capture_output=True,
+        text=True,
+    )
     assert result.returncode == 2
     assert "between 1 and 65535" in result.stderr

@@ -32,6 +32,14 @@ Trading Gym is a governed reinforcement-learning trading platform that combines:
 
 > **Qualification status:** source-hardened and extensively validated in the supplied environment. It is **not represented as universally production-ready**. Live exchange behaviour, credentials, deployment isolation, disaster recovery, sustained load, the complete dependency-qualified suite, and the frontend production build must be validated in the intended environment before real funds are used.
 
+## October 2026 audit integration
+
+See [the audit integration record](docs/AUDIT_INTEGRATION.md) for the 40-item
+patch map, current verification, and remaining qualification conditions.
+Replay timing now settles actions at the next valuation timestamp; existing
+policies must be retrained under that contract. See
+[valuation timing and model migration](docs/VALUATION_TIMING.md).
+
 ## Source archive confidentiality
 
 The source ZIP builder uses **tracked Git source files only**, rather than

@@ -97,18 +97,21 @@ def test_duplicate_fill_or_missing_readback_is_denied():
 
 
 def test_fill_quantity_and_fee_must_equal_broker_readback():
-    assert "quantity_mismatch:order001" in report(
-        readbacks=[readback(executed_quantity=D("1.2"))]
-    ).blockers
-    assert "fee_mismatch:order001" in report(
-        readbacks=[readback(total_fee_quote=D("0.09"))]
-    ).blockers
+    assert (
+        "quantity_mismatch:order001"
+        in report(readbacks=[readback(executed_quantity=D("1.2"))]).blockers
+    )
+    assert (
+        "fee_mismatch:order001"
+        in report(readbacks=[readback(total_fee_quote=D("0.09"))]).blockers
+    )
 
 
 def test_position_and_cash_snapshot_provenance_required():
-    assert "position_delta_mismatch:BTC-USD" in report(
-        position={"BTC-USD": D("0")}
-    ).blockers
+    assert (
+        "position_delta_mismatch:BTC-USD"
+        in report(position={"BTC-USD": D("0")}).blockers
+    )
     assert "cash_delta_mismatch:USD" in report(cash={"USD": D("0")}).blockers
     assert "position_readback_missing" in report(position={}).blockers
     assert "cash_readback_missing" in report(cash={}).blockers
@@ -120,24 +123,25 @@ def test_post_only_cannot_have_taker_execution():
 
 
 def test_fok_partial_execution_is_inconsistent_even_if_canceled():
-    assert "fok_partial_execution:order001" in report(
-        order=intent(time_in_force="fok")
-    ).blockers
+    assert (
+        "fok_partial_execution:order001"
+        in report(order=intent(time_in_force="fok")).blockers
+    )
 
 
 def test_ioc_cannot_remain_open_after_readback():
-    assert "nonterminal_ioc:order001" in report(
-        readbacks=[readback(state="open")]
-    ).blockers
+    assert (
+        "nonterminal_ioc:order001"
+        in report(readbacks=[readback(state="open")]).blockers
+    )
 
 
 def test_wrong_venue_or_price_tick_blocks_reconciliation():
-    assert "venue_mismatch:fill001" in report(
-        fills=[fill(venue_id="VENUE2")]
-    ).blockers
-    assert "invalid_price_tick:fill001" in report(
-        fills=[fill(price=D("100.001"))]
-    ).blockers
+    assert "venue_mismatch:fill001" in report(fills=[fill(venue_id="VENUE2")]).blockers
+    assert (
+        "invalid_price_tick:fill001"
+        in report(fills=[fill(price=D("100.001"))]).blockers
+    )
 
 
 def test_quote_fee_ceiling_rejects_unexplained_commission():

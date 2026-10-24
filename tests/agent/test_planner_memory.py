@@ -355,6 +355,7 @@ class TestDeterminismWithMemory:
             item.fused_summary for item in second_memory.recent(8)
         ]
 
+
 def test_caution_leverage_multiplier_applies_once_at_configured_cap(
     tmp_path: Path,
 ) -> None:

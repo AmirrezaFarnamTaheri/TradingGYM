@@ -262,7 +262,9 @@ class ExecutionEngine:
                     return None
                 px = self._round_price(fill.average_price, price_decimals)
             else:
-                px = self._round_price(mid_price + direction * half_spread, price_decimals)
+                px = self._round_price(
+                    mid_price + direction * half_spread, price_decimals
+                )
             if not px.is_finite() or px <= ZERO:
                 raise ValueError("computed execution price must be positive")
             notional = amount * px
@@ -271,8 +273,13 @@ class ExecutionEngine:
                 slippage, crossing = amount * abs(px - mid_price), ZERO
             else:
                 slip_vol = self._vol_lambda * amount * vol_hint
-                slip_liq = self._liq_lambda * (amount * mid_price / liquidity_cap).sqrt()
-                slippage, crossing = amount * px * (slip_vol + slip_liq), amount * half_spread
+                slip_liq = (
+                    self._liq_lambda * (amount * mid_price / liquidity_cap).sqrt()
+                )
+                slippage, crossing = (
+                    amount * px * (slip_vol + slip_liq),
+                    amount * half_spread,
+                )
             equity = state.equity - fee - slippage - crossing
             position = state.position + d
             return px, fee, slippage, crossing, equity, position
@@ -288,8 +295,12 @@ class ExecutionEngine:
                 return False
             limit = self._max_lev if position >= ZERO else self._max_short_lev
             margin_price = max(mid_price, px)
-            within_margin = abs(position) * margin_price * self._margin_multiplier <= equity * limit
-            short_allowed = position >= ZERO or abs(position) <= self._enforce_short_rules(abs(position))
+            within_margin = (
+                abs(position) * margin_price * self._margin_multiplier <= equity * limit
+            )
+            short_allowed = position >= ZERO or abs(
+                position
+            ) <= self._enforce_short_rules(abs(position))
             if within_margin and short_allowed:
                 return True
             # An already over-limit account may reduce risk partially when the
@@ -317,18 +328,29 @@ class ExecutionEngine:
             return self._no_trade_result(state, mid_price, liquidity_capped)
         execution_quote = quote(amount)
         assert execution_quote is not None
-        executed_price, fee_cost, slippage_cost, crossing_cost, equity_after_trade, new_position = execution_quote
+        (
+            executed_price,
+            fee_cost,
+            slippage_cost,
+            crossing_cost,
+            equity_after_trade,
+            new_position,
+        ) = execution_quote
         delta = direction * amount
         trade_notional = amount * executed_price
         if trade_notional < self._min_notional or amount < self._min_qty:
             return self._no_trade_result(state, mid_price, liquidity_capped)
         # This is an explicit invariant guard, independent of solver convergence.
         if abs(delta) > abs(requested_delta) or trade_notional > liquidity_cap:
-            raise ArithmeticError("execution projection exceeded admitted quantity/liquidity")
+            raise ArithmeticError(
+                "execution projection exceeded admitted quantity/liquidity"
+            )
         final_limit = self._max_lev if new_position >= ZERO else self._max_short_lev
-        risk_reduction_only = (
-            abs(new_position) * max(mid_price, executed_price) * self._margin_multiplier > equity_after_trade * final_limit
-            or (new_position < ZERO and abs(new_position) > self._enforce_short_rules(abs(new_position)))
+        risk_reduction_only = abs(new_position) * max(
+            mid_price, executed_price
+        ) * self._margin_multiplier > equity_after_trade * final_limit or (
+            new_position < ZERO
+            and abs(new_position) > self._enforce_short_rules(abs(new_position))
         )
         prev_position = state.position
 
@@ -419,8 +441,12 @@ class ExecutionEngine:
         side = "buy" if delta > 0 else "sell"
         levels = book.asks if side == "buy" else book.bids
         for level in levels:
-            if (not level.price.is_finite() or not level.quantity.is_finite()
-                    or level.price <= ZERO or level.quantity <= ZERO):
+            if (
+                not level.price.is_finite()
+                or not level.quantity.is_finite()
+                or level.price <= ZERO
+                or level.quantity <= ZERO
+            ):
                 raise ValueError("book levels must carry positive price and quantity")
         if book_total_liquidity(levels) <= ZERO:
             return None, True

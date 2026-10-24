@@ -114,10 +114,7 @@ class Operand(BaseModel):
     def reject_invalid_raw_constant(cls, value: object, info: object) -> object:
         if getattr(info, "data", {}).get("kind") == "constant" and (
             isinstance(value, bool)
-            or (
-                isinstance(value, (int, float))
-                and not math.isfinite(float(value))
-            )
+            or (isinstance(value, (int, float)) and not math.isfinite(float(value)))
         ):
             raise ValueError("constant requires finite non-boolean value")
         return value
@@ -219,9 +216,7 @@ class StrategySpec(BaseModel):
         if len(aliases) != len(set(aliases)):
             raise ValueError("indicator aliases must be unique")
         allowed_fields = {"open", "high", "low", "close", "volume"}
-        reserved = allowed_fields | {
-            "entry_signal", "exit_signal", "position_intent"
-        }
+        reserved = allowed_fields | {"entry_signal", "exit_signal", "position_intent"}
         if reserved.intersection(aliases):
             raise ValueError("indicator alias uses a reserved market or output field")
         alias_set = set(aliases)

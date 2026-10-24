@@ -8,7 +8,10 @@ import optuna
 
 from trading_gym.common.config import AppConfig, SearchSpaceItem, load_app_config
 from trading_gym.common.persistence import atomic_write_text
-from trading_gym.experiments.no_trade_prune import NoTradePrunePolicy, OptunaNoTradePruneGate
+from trading_gym.experiments.no_trade_prune import (
+    NoTradePrunePolicy,
+    OptunaNoTradePruneGate,
+)
 from trading_gym.pipelines.evaluation import run_walkforward
 from trading_gym.pipelines.training import train
 from trading_gym.pipelines.environment import load_environment_inputs
@@ -69,10 +72,13 @@ def _objective(
         trial_cfg.training.log_dir = str(tmp_path / "logs")
 
         results = run_walkforward(
-            trial_cfg, timeframe, strategy_factories=[], inputs=inputs,
+            trial_cfg,
+            timeframe,
+            strategy_factories=[],
+            inputs=inputs,
             trainer=lambda fold_cfg, training_inputs: train(
                 fold_cfg, inputs=training_inputs, timeframe=timeframe
-            )
+            ),
         )
         rl_results = results.get("RLModel", [])
         if not rl_results:
@@ -88,13 +94,19 @@ def _objective(
         sharpe_scores = [res.sharpe for res in rl_results]
         if not np.isfinite(sharpe_scores).all():
             raise optuna.TrialPruned("nonfinite fold score")
-        trial.set_user_attr("folds", [
-            {"training_data_sha256": res.training_data_sha256,
-             "evaluation_data_sha256": res.evaluation_data_sha256,
-             "sharpe": float(res.sharpe), "evidence_role": res.evidence_role,
-             "manifest": res.fold_manifest}
-            for res in rl_results
-        ])
+        trial.set_user_attr(
+            "folds",
+            [
+                {
+                    "training_data_sha256": res.training_data_sha256,
+                    "evaluation_data_sha256": res.evaluation_data_sha256,
+                    "sharpe": float(res.sharpe),
+                    "evidence_role": res.evidence_role,
+                    "manifest": res.fold_manifest,
+                }
+                for res in rl_results
+            ],
+        )
         mean_sharpe = float(np.mean(sharpe_scores))
         std_sharpe = float(np.std(sharpe_scores))
         score = mean_sharpe - std_sharpe
@@ -107,7 +119,7 @@ def run_optuna(
     config: AppConfig,
     timeframe: str = "5m",
     *,
-    final_fraction: float = .2,
+    final_fraction: float = 0.2,
     inputs: dict | None = None,
 ) -> optuna.Study:
     if config.optuna is None:
@@ -116,17 +128,29 @@ def run_optuna(
     # Reserve final evidence BEFORE any candidate is fit or scored. Every
     # candidate receives the same fixed development snapshot.
     admitted = load_environment_inputs(config, timeframe) if inputs is None else inputs
-    protocol, development = reserve_final_segment(admitted, candidate_budget=config.optuna.n_trials,
-                                                  final_fraction=final_fraction)
-    study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=config.seed))
+    protocol, development = reserve_final_segment(
+        admitted, candidate_budget=config.optuna.n_trials, final_fraction=final_fraction
+    )
+    study = optuna.create_study(
+        direction="maximize", sampler=optuna.samplers.TPESampler(seed=config.seed)
+    )
     study.set_user_attr("protocol", protocol.specification)
     study.set_user_attr("protocol_id", protocol.seal_id)
     try:
         study.optimize(
-            lambda trial: _objective(trial, config, timeframe, inputs=development,
-                                     protocol_id=protocol.seal_id),
+            lambda trial: _objective(
+                trial,
+                config,
+                timeframe,
+                inputs=development,
+                protocol_id=protocol.seal_id,
+            ),
             n_trials=config.optuna.n_trials,
-            timeout=(config.optuna.timeout_minutes * 60 if config.optuna.timeout_minutes else None),
+            timeout=(
+                config.optuna.timeout_minutes * 60
+                if config.optuna.timeout_minutes
+                else None
+            ),
         )
     finally:
         study.set_user_attr("actual_candidate_count", len(study.trials))
@@ -155,6 +179,7 @@ def run_from_cli(
         atomic_write_text(
             report_path.with_name(f"{report_path.stem}.protocol.json"),
             json.dumps(study.user_attrs, sort_keys=True, indent=2, allow_nan=False),
-            max_bytes=2 * 1024 * 1024, mode=0o600,
+            max_bytes=2 * 1024 * 1024,
+            mode=0o600,
         )
     return study

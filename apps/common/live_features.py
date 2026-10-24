@@ -23,8 +23,11 @@ from trading_gym.common.config import AppConfig, TimeframeConfig
 from trading_gym.features.feature_assembler import FeatureAssembler
 from trading_gym.features.feature_fusion import fuse_features, preserve_base_context
 from trading_gym.pipelines.availability import (
-    SETTLEMENT_DELAY_SECONDS, active_timeframes, available_index,
-    closed_feature_frame, feature_history_rows,
+    SETTLEMENT_DELAY_SECONDS,
+    active_timeframes,
+    available_index,
+    closed_feature_frame,
+    feature_history_rows,
 )
 
 _INTERVAL = re.compile(r"^[1-9][0-9]{0,4}[mhd]$")
@@ -198,8 +201,6 @@ def build_live_feature_snapshot(
     source_frames: dict[str, list[dict[str, Any]]] = {}
     base_values: tuple[int, float, float, float] | None = None
     base_closed_closes: tuple[float, ...] = ()
-    available_at: int = 0
-    timeframe_available_at: dict[str, int] = field(default_factory=dict)
     min_rows = feature_history_rows(cfg.features)
     available_times: dict[str, int] = {}
     decision_time: pd.Timestamp | None = None
@@ -235,9 +236,12 @@ def build_live_feature_snapshot(
         feature_available = available_index(frame.index, bar_seconds)[-1]
         max_age = bar_seconds + timeframe.roll_fill_cap * timeframes[0].bar_minutes * 60
         if (decision_time - feature_available).total_seconds() >= max_age:
-            raise ValueError("required live timeframe is stale at the base decision time")
-        features = closed_feature_frame(frame, assembler, cfg.env.symbol,
-                                        bar_seconds=bar_seconds)
+            raise ValueError(
+                "required live timeframe is stale at the base decision time"
+            )
+        features = closed_feature_frame(
+            frame, assembler, cfg.env.symbol, bar_seconds=bar_seconds
+        )
         available_times[timeframe.name] = int(feature_available.timestamp())
         columns = tuple(str(column) for column in features.columns)
         if feature_columns is None:

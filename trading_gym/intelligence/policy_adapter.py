@@ -16,12 +16,18 @@ from typing import Any, Callable, Sequence
 import numpy as np
 
 from trading_gym.intelligence.base import IntelligenceBackend
-from trading_gym.intelligence.deadlines import decision_budget, check_deadline, DecisionDeadlineExceeded
-from trading_gym.intelligence.fusion_backend import FusionBackend
-from trading_gym.intelligence.rl_backend import RLPolicyBackend
+from trading_gym.intelligence.deadlines import (
+    decision_budget,
+    check_deadline,
+    DecisionDeadlineExceeded,
+)
 from trading_gym.intelligence.types import (
-    ActionKind, BackendUnavailable, DecisionSignal, InvalidDecisionSignal,
-    MarketContext, UncertainDecision
+    ActionKind,
+    BackendUnavailable,
+    DecisionSignal,
+    InvalidDecisionSignal,
+    MarketContext,
+    UncertainDecision,
 )
 
 
@@ -37,7 +43,9 @@ class IntelligencePolicyAdapter:
         fallback_backend: IntelligenceBackend | None = None,
         fallback_backends: Sequence[IntelligenceBackend] | None = None,
         context_builder: Callable[[Any], dict[str, Any]] | None = None,
-        fallback_admission: Callable[[DecisionSignal, MarketContext], DecisionSignal] | None = None,
+        fallback_admission: (
+            Callable[[DecisionSignal, MarketContext], DecisionSignal] | None
+        ) = None,
         decision_timeout_seconds: float = 20.0,
         monotonic: Callable[[], float] = time.monotonic,
     ):
@@ -92,6 +100,7 @@ class IntelligencePolicyAdapter:
             or not isinstance(signal.confidence, (int, float, np.number))
             or not np.isfinite(signal.confidence)
             or not 0 <= signal.confidence <= 1
+            or (signal.action_kind is ActionKind.HOLD and signal.target_leverage != 0)
             or (signal.action_kind is ActionKind.LONG and signal.target_leverage < 0)
             or (signal.action_kind is ActionKind.SHORT and signal.target_leverage > 0)
         ):
@@ -183,18 +192,14 @@ class IntelligencePolicyAdapter:
             or context.equity <= 0
             or context.last_close <= 0
             or any(value is not None and not np.isfinite(value) for value in optional)
-            or (
-                context.prev_close is not None
-                and context.prev_close <= 0
-            )
+            or (context.prev_close is not None and context.prev_close <= 0)
             or (
                 context.drawdown_from_peak is not None
                 and not 0 <= context.drawdown_from_peak <= 1
             )
-            or type(context.is_live) is not bool
-            or context.return_basis not in {
-                "unspecified", "historical_bars", "completed_bars", "mark_updates"
-            }
+            or type(context.is_live) is not bool  # noqa: E721
+            or context.return_basis
+            not in {"unspecified", "historical_bars", "completed_bars", "mark_updates"}
             or any(not np.isfinite(value) for value in context.recent_returns)
         ):
             raise ValueError("market/account context is invalid")
@@ -218,13 +223,10 @@ class IntelligencePolicyAdapter:
         limits = context.risk_limits
         max_leverage = limits.get("max_leverage")
         min_leverage = limits.get("min_leverage")
-        if (
-            (max_leverage is not None and max_leverage < 0)
-            or (
-                max_leverage is not None
-                and min_leverage is not None
-                and min_leverage > max_leverage
-            )
+        if (max_leverage is not None and max_leverage < 0) or (
+            max_leverage is not None
+            and min_leverage is not None
+            and min_leverage > max_leverage
         ):
             raise ValueError("market/account context is invalid")
         return context
@@ -234,7 +236,11 @@ class IntelligencePolicyAdapter:
         backend: IntelligenceBackend, context: MarketContext, observation: Any
     ) -> DecisionSignal:
         observed = getattr(backend, "decide_with_observation", None)
-        return observed(context, observation) if callable(observed) else backend.decide(context)
+        return (
+            observed(context, observation)
+            if callable(observed)
+            else backend.decide(context)
+        )
 
     def predict(self, observation: Any, deterministic: bool = True, **kwargs: Any):
         with decision_budget(self.decision_timeout_seconds, clock=self._monotonic):
@@ -286,7 +292,9 @@ class IntelligencePolicyAdapter:
                 )
                 raise PermissionError("invalid_intelligence_decision") from exc
             except DecisionDeadlineExceeded:
-                self.last_failure_types = tuple((*failures, f"{backend.name}:DecisionDeadlineExceeded"))
+                self.last_failure_types = tuple(
+                    (*failures, f"{backend.name}:DecisionDeadlineExceeded")
+                )
                 self.last_signal = None
                 raise
             except BackendUnavailable as exc:
@@ -306,15 +314,21 @@ class IntelligencePolicyAdapter:
             if index:
                 self.last_failure_types = tuple(failures)
                 if self._fallback_admission is None:
-                    raise UncertainDecision("fallback requires explicit operating-state admission")
+                    raise UncertainDecision(
+                        "fallback requires explicit operating-state admission"
+                    )
                 admitted = self._fallback_admission(signal, context)
-                if (not isinstance(admitted, DecisionSignal)
-                        or admitted.source_id != signal.source_id
-                        or admitted.contributing_sources != signal.contributing_sources
-                        or admitted.backend != signal.backend
-                        or admitted.confidence != signal.confidence
-                        or admitted.confidence_semantics != signal.confidence_semantics):
-                    raise PermissionError("fallback admission changed evidence provenance")
+                if (
+                    not isinstance(admitted, DecisionSignal)
+                    or admitted.source_id != signal.source_id
+                    or admitted.contributing_sources != signal.contributing_sources
+                    or admitted.backend != signal.backend
+                    or admitted.confidence != signal.confidence
+                    or admitted.confidence_semantics != signal.confidence_semantics
+                ):
+                    raise PermissionError(
+                        "fallback admission changed evidence provenance"
+                    )
                 check_deadline()
                 signal = admitted
                 action = self._signal_to_action(signal)

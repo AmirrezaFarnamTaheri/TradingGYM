@@ -26,7 +26,9 @@ def test_yaml_intelligence_is_typed_and_rejects_unknown_fields():
 
 def test_cli_override_is_validated_and_preserves_other_fields():
     current = IntelligenceConfig(system1_confidence_floor=0.8)
-    actual = IntelligenceConfig.model_validate({**current.model_dump(), "mode": "system1"})
+    actual = IntelligenceConfig.model_validate(
+        {**current.model_dump(), "mode": "system1"}
+    )
     assert actual.mode is IntelligenceMode.SYSTEM1
     assert actual.system1_confidence_floor == 0.8
     with pytest.raises(ValidationError):

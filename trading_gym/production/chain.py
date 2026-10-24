@@ -12,7 +12,7 @@ def normalize_chain(chain_id):
     In particular ``True``, ``1.9`` and ``" 1"`` must not silently become
     Ethereum chain 1. This function does not authorize chain mutations.
     """
-    if type(chain_id) is int:
+    if type(chain_id) is int:  # noqa: E721
         cid = chain_id
     elif isinstance(chain_id, str) and _CANONICAL_DECIMAL.fullmatch(chain_id):
         cid = int(chain_id)

@@ -48,17 +48,22 @@ def compare_cost_scenarios(
     results = []
     for fee, slip in costs:
         report = compare_strategy_replays(
-            replays, baseline_id=baseline_id,
-            train_end_unix=train_end_unix, as_of_unix=as_of_unix,
-            fee_bps=fee, slippage_bps=slip,
+            replays,
+            baseline_id=baseline_id,
+            train_end_unix=train_end_unix,
+            as_of_unix=as_of_unix,
+            fee_bps=fee,
+            slippage_bps=slip,
         )
-        results.append({
-            "fee_bps": fee,
-            "slippage_bps": slip,
-            "best_net_strategy_id": report["results"][0]["strategy_id"],
-            "strategy_rank": [r["strategy_id"] for r in report["results"]],
-            "paired_report_sha256": report["report_sha256"],
-        })
+        results.append(
+            {
+                "fee_bps": fee,
+                "slippage_bps": slip,
+                "best_net_strategy_id": report["results"][0]["strategy_id"],
+                "strategy_rank": [r["strategy_id"] for r in report["results"]],
+                "paired_report_sha256": report["report_sha256"],
+            }
+        )
     result = {
         "schema": "tradinggym.research.cost-sensitivity.v1",
         "selection_authority": "none",
@@ -69,7 +74,9 @@ def compare_cost_scenarios(
         "scenarios": results,
         "assumptions_are_simulated": True,
     }
-    result["report_sha256"] = hashlib.sha256(json.dumps(
-        result, sort_keys=True, separators=(",", ":"), allow_nan=False
-    ).encode()).hexdigest()
+    result["report_sha256"] = hashlib.sha256(
+        json.dumps(
+            result, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode()
+    ).hexdigest()
     return result

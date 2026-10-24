@@ -87,9 +87,15 @@ async def run_live_trading(
         proposal_id=proposal_id,
     )
 
-    stats = bundle.training_stats if bundle is not None else {
-        "method": "provided", "center": {c:0.0 for c in inputs["features"]},
-        "scale": {c:1.0 for c in inputs["features"]}}
+    stats = (
+        bundle.training_stats
+        if bundle is not None
+        else {
+            "method": "provided",
+            "center": {c: 0.0 for c in inputs["features"]},
+            "scale": {c: 1.0 for c in inputs["features"]},
+        }
+    )
     env = create_environment(cfg, inputs, live_mode=True, training_stats=stats)
     env.model_bundle_id = model_sha256 if bundle is not None else "no-model"
     if dry_run:
@@ -196,9 +202,7 @@ def run(
     if (mode_requires_model(cfg) or not dry_run) and (
         model is None or not model_sha256
     ):
-        raise typer.BadParameter(
-            "This mode requires --model-path and --model-sha256"
-        )
+        raise typer.BadParameter("This mode requires --model-path and --model-sha256")
     try:
         asyncio.run(
             run_live_trading(

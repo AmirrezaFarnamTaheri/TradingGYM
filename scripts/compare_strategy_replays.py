@@ -21,14 +21,27 @@ from trading_gym.experiments.peer_strategy_comparison import (  # noqa: E402
 )
 
 _MAX_BYTES = 8_000_000
-_PACKET = frozenset({
-    "baseline_id", "train_end_unix", "as_of_unix",
-    "fee_bps", "slippage_bps", "replays",
-})
-_ROW = frozenset({
-    "strategy_id", "strategy_sha256", "market_sha256", "bar_close_unix",
-    "gross_return_bps", "turnover_notional", "split",
-})
+_PACKET = frozenset(
+    {
+        "baseline_id",
+        "train_end_unix",
+        "as_of_unix",
+        "fee_bps",
+        "slippage_bps",
+        "replays",
+    }
+)
+_ROW = frozenset(
+    {
+        "strategy_id",
+        "strategy_sha256",
+        "market_sha256",
+        "bar_close_unix",
+        "gross_return_bps",
+        "turnover_notional",
+        "split",
+    }
+)
 
 
 def _unique_object(pairs):
@@ -55,8 +68,10 @@ def load_input(path: Path) -> dict:
         raise ValueError("out of bound replay count")
     if any(not isinstance(row, dict) or set(row) != _ROW for row in rows):
         raise ValueError("untrusted replay fields")
-    return {**{k: v for k, v in packet.items() if k != "replays"},
-            "replays": [StrategyReplay(**r) for r in rows]}
+    return {
+        **{k: v for k, v in packet.items() if k != "replays"},
+        "replays": [StrategyReplay(**r) for r in rows],
+    }
 
 
 def main() -> int:

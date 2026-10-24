@@ -60,15 +60,15 @@ def test_group_limits_follow_assets_not_array_index():
     base = candidate(turnover_penalty=0.001)
     first = solve_turnover_aware(**base)
     permutation = np.array([2, 0, 1])
-    second = solve_turnover_aware(**{
-        **base,
-        "expected_returns": base["expected_returns"][permutation],
-        "covariance": base["covariance"][np.ix_(permutation, permutation)],
-        "previous_weights": base["previous_weights"][permutation],
-        "minimum_weights": base["minimum_weights"][permutation],
-        "maximum_weights": base["maximum_weights"][permutation],
-        "groups": [base["groups"][index] for index in permutation],
-    })
-    np.testing.assert_allclose(
-        first.weights[permutation], second.weights, atol=1e-5
+    second = solve_turnover_aware(
+        **{
+            **base,
+            "expected_returns": base["expected_returns"][permutation],
+            "covariance": base["covariance"][np.ix_(permutation, permutation)],
+            "previous_weights": base["previous_weights"][permutation],
+            "minimum_weights": base["minimum_weights"][permutation],
+            "maximum_weights": base["maximum_weights"][permutation],
+            "groups": [base["groups"][index] for index in permutation],
+        }
     )
+    np.testing.assert_allclose(first.weights[permutation], second.weights, atol=1e-5)

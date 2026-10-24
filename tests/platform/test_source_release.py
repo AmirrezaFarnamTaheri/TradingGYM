@@ -76,6 +76,19 @@ def _isolated_source_checkout(tmp_path: Path) -> Path:
         ],
         check=True,
     )
+    # The source builder intentionally rejects staged, uncommitted inventory.
+    # Keep each test checkout at a real clean Git revision.
+    for field, value in (
+        ("user.email", "fixture@example.invalid"),
+        ("user.name", "Fixture"),
+    ):
+        subprocess.run(
+            ["git", "-C", str(project), "config", field, value], check=True
+        )
+    subprocess.run(
+        ["git", "-C", str(project), "commit", "-qm", "baseline fixture"],
+        check=True,
+    )
     return project
 
 
@@ -102,9 +115,7 @@ def test_source_release_excludes_untracked_secrets(tmp_path: Path) -> None:
         assert not any(name.endswith("/.env") for name in names)
         assert not any(name.endswith("/wallet-secret.pem") for name in names)
         assert not any(name.endswith("/scratch.txt") for name in names)
-        assert not any(
-            b"PRIVATE_API_KEY" in archive.read(name) for name in names
-        )
+        assert not any(b"PRIVATE_API_KEY" in archive.read(name) for name in names)
 
 
 def test_source_release_rejects_external_tracked_symlink(tmp_path: Path) -> None:
@@ -117,8 +128,10 @@ def test_source_release_rejects_external_tracked_symlink(tmp_path: Path) -> None
         (project / "leak.pem").symlink_to(secret)
     except (NotImplementedError, OSError):
         pytest.skip("symlinks unavailable on this platform")
+    subprocess.run(["git", "-C", str(project), "add", "leak.pem"], check=True)
     subprocess.run(
-        ["git", "-C", str(project), "add", "leak.pem"], check=True
+        ["git", "-C", str(project), "commit", "-qm", "tracked unsafe symlink"],
+        check=True,
     )
     destination = tmp_path / "should-not-exist.zip"
     result = subprocess.run(
@@ -159,8 +172,10 @@ def test_source_release_requires_git_index(tmp_path: Path) -> None:
 def test_source_release_rejects_tracked_dotenv_secrets(tmp_path: Path) -> None:
     project = _isolated_source_checkout(tmp_path)
     (project / ".env").write_text("SECRET=unsafe", encoding="utf-8")
+    subprocess.run(["git", "-C", str(project), "add", "-f", ".env"], check=True)
     subprocess.run(
-        ["git", "-C", str(project), "add", "-f", ".env"], check=True
+        ["git", "-C", str(project), "commit", "-qm", "tracked unsafe dotenv"],
+        check=True,
     )
     destination = tmp_path / "tracked-secret.zip"
     result = subprocess.run(

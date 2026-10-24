@@ -23,7 +23,9 @@ def make(
     This function never estimates preprocessing from the data being evaluated.
     """
     if training_stats is None:
-        raise ValueError("frozen training_stats required; use a model bundle or fit a designated training partition")
+        raise ValueError(
+            "frozen training_stats required; use a model bundle or fit a designated training partition"
+        )
 
     from trading_gym.pipelines.environment import (
         create_environment,
@@ -32,9 +34,7 @@ def make(
 
     cfg = load_app_config(config) if not isinstance(config, AppConfig) else config
     inputs = load_environment_inputs(cfg, timeframe)
-    return create_environment(
-        cfg, inputs, training_stats=training_stats
-    )
+    return create_environment(cfg, inputs, training_stats=training_stats)
 
 
 __all__ = [

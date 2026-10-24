@@ -295,12 +295,9 @@ class LiveExecutionAdapter:
                 if not isinstance(positions, list) or any(
                     not isinstance(position, dict) for position in positions
                 ):
-                    raise MutationOutcomeUnknown(
-                        "short_close_confirmation_unavailable"
-                    )
+                    raise MutationOutcomeUnknown("short_close_confirmation_unavailable")
                 if any(
-                    str(position.get("id")) == reference_id
-                    for position in positions
+                    str(position.get("id")) == reference_id for position in positions
                 ):
                     raise MutationOutcomeUnknown("short_close_not_verified")
             elif status is not None:
@@ -761,9 +758,7 @@ class LiveExecutionAdapter:
                         require_flat_verification=True,
                     )
                 else:
-                    short_positions = await self._call_api(
-                        self.api.get_short_positions
-                    )
+                    short_positions = await self._call_api(self.api.get_short_positions)
                     my_shorts = [
                         p for p in short_positions if p.get("symbol") == self.symbol
                     ]

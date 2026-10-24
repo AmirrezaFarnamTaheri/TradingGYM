@@ -5,8 +5,9 @@ import TrainingPanel from '../TrainingPanel';
 import useStore from '../../store';
 import { flushPromises, renderWithClient, waitForRendered } from '../../test-utils.jsx';
 
-const { startSpy, statusSpy, closeSpy, socketRef } = vi.hoisted(() => ({
+const { startSpy, stopSpy, statusSpy, closeSpy, socketRef } = vi.hoisted(() => ({
   startSpy: vi.fn(async () => ({ data: { status: 'started' } })),
+  stopSpy: vi.fn(async () => ({ data: { status: 'stopped', remaining: 0 } })),
   statusSpy: vi.fn(async () => ({ data: { status: 'idle' } })),
   closeSpy: vi.fn(),
   socketRef: { current: null },
@@ -15,7 +16,7 @@ const { startSpy, statusSpy, closeSpy, socketRef } = vi.hoisted(() => ({
 vi.mock('../../api', () => ({
   trainingAPI: {
     start: startSpy,
-    stop: vi.fn(),
+    stop: stopSpy,
     getStatus: statusSpy,
   },
   createWebSocket: () => {
@@ -27,6 +28,7 @@ vi.mock('../../api', () => ({
 
 beforeEach(() => {
   startSpy.mockReset().mockResolvedValue({ data: { status: 'started' } });
+  stopSpy.mockClear();
   statusSpy.mockReset().mockResolvedValue({ data: { status: 'idle' } });
   closeSpy.mockClear();
   socketRef.current = null;
@@ -133,6 +135,16 @@ it.each(['starting', 'stopping'])('does not start a competing job during %s', as
   await waitForRendered(container, 'strong', node => node.textContent === state.toUpperCase());
   const start = Array.from(container.querySelectorAll('button')).find(node => node.textContent.includes('START TRAINING'));
   expect(start.disabled).toBe(true);
+  cleanup();
+});
+
+it('allows another stop request while worker exit is unconfirmed', async () => {
+  statusSpy.mockResolvedValue({ data: { status: 'stopping' } });
+  const { container, cleanup } = renderWithClient(<TrainingPanel />);
+  const stop = await waitForRendered(container, 'button', node => node.textContent === 'Retry stop request');
+  expect(stop.disabled).toBe(false);
+  await act(async () => stop.click());
+  expect(stopSpy).toHaveBeenCalledTimes(1);
   cleanup();
 });
 

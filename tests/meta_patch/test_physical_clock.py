@@ -14,14 +14,26 @@ ROOT = Path(__file__).resolve().parents[2]
 def make_env(*, live=False, timestamps=None, length=4):
     cfg = load_app_config(ROOT / "config/app.yaml")
     cfg.features.rolling_window = 20
-    data = pd.DataFrame({"spread_ratio": np.zeros(length), "volatility": np.zeros(length)})
-    return MarginTradingEnv(data, np.full(length, 100.0), np.full(length, 100.0),
-                            np.full(length, 100.0), cfg.env, cfg.features, live_mode=live,
-                            training_stats={"center": {c: 0 for c in data}, "scale": {c: 1 for c in data}},
-                            timestamps=timestamps)
+    data = pd.DataFrame(
+        {"spread_ratio": np.zeros(length), "volatility": np.zeros(length)}
+    )
+    return MarginTradingEnv(
+        data,
+        np.full(length, 100.0),
+        np.full(length, 100.0),
+        np.full(length, 100.0),
+        cfg.env,
+        cfg.features,
+        live_mode=live,
+        training_stats={"center": {c: 0 for c in data}, "scale": {c: 1 for c in data}},
+        timestamps=timestamps,
+    )
 
 
-@pytest.mark.parametrize("name,seconds", [("1s",1),("5m",300),("1h",3600),("2d",172800),("1w",604800)])
+@pytest.mark.parametrize(
+    "name,seconds",
+    [("1s", 1), ("5m", 300), ("1h", 3600), ("2d", 172800), ("1w", 604800)],
+)
 def test_units(name, seconds):
     assert timeframe_seconds(name) == seconds
 
@@ -55,7 +67,9 @@ def test_live_clock_is_explicit_and_monotone():
         env.update_observation_clock(1299)
 
 
-@pytest.mark.parametrize("times", [[0, 1, 1, 2], [0, 2, 1, 3], [0, float('nan'), 2, 3], [0,1]])
+@pytest.mark.parametrize(
+    "times", [[0, 1, 1, 2], [0, 2, 1, 3], [0, float("nan"), 2, 3], [0, 1]]
+)
 def test_bad_clocks_rejected(times):
     with pytest.raises(ValueError, match="timestamps"):
         make_env(timestamps=np.array(times))

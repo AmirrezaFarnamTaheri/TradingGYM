@@ -10,6 +10,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
+from filelock import FileLock
 
 from apps.api.runtime import (
     BoundedLogBuffer,
@@ -22,6 +23,7 @@ from apps.api.runtime import (
 from apps.api import main as api_main
 from apps.common.ipc import MetricsReader, MetricsWriter
 from apps.common.runtime_files import (
+    _panic_identity_unlocked,
     clear_panic_signal,
     handle_panic_request,
     panic_requested,
@@ -130,8 +132,11 @@ def test_runtime_control_files_are_atomic_and_retryable(tmp_path: Path) -> None:
     atomic_write_json(tmp_path / "unrelated.json", {"ok": True})
     panic.write_text("PANIC_TRIGGERED_AT_123\n")
     assert panic_requested(panic) is True
-    assert clear_panic_signal(panic) is True
-    assert clear_panic_signal(panic) is False
+    with FileLock(str(panic) + ".lock", timeout=5):
+        identity = _panic_identity_unlocked(panic)
+    assert identity is not None
+    assert clear_panic_signal(panic, expected_identity=identity) is True
+    assert clear_panic_signal(panic, expected_identity=identity) is False
 
 
 def test_model_registry_rebuilds_index_and_rejects_tampering(tmp_path: Path) -> None:
@@ -300,6 +305,8 @@ def test_child_environment_does_not_leak_control_plane_secrets(monkeypatch) -> N
 @pytest.mark.asyncio
 async def test_panic_signal_persists_until_flatten_succeeds(tmp_path: Path) -> None:
     class Adapter:
+        can_acknowledge_panic = True
+
         def __init__(self, outcomes: list[bool]) -> None:
             self.outcomes = outcomes
 
@@ -324,6 +331,8 @@ async def test_symlink_panic_is_fail_closed_and_not_cleared(tmp_path: Path) -> N
     panic.symlink_to(target)
 
     class Adapter:
+        can_acknowledge_panic = True
+
         async def flatten(self) -> bool:
             return True
 

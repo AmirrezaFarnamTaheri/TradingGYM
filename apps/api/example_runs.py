@@ -4,6 +4,7 @@ The launch intent is persisted before spawning. Repeating an idempotency key
 returns that run, even after a supervisor restart; uncertain launches are never
 silently retried. The worker owns the existing experiment lease and completion.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -34,12 +35,18 @@ def run_directory(home: Path, run_id: str) -> Path:
 def read_artifact(home: Path, record) -> dict[str, Any]:
     if record.state is not ExperimentState.SUCCEEDED or not record.result:
         raise ExperimentConflict("completed artifact is not available")
-    path = confined_child(run_directory(home, record.experiment_id), "result.json",
-                          must_exist=True, allow_symlinks=False)
+    path = confined_child(
+        run_directory(home, record.experiment_id),
+        "result.json",
+        must_exist=True,
+        allow_symlinks=False,
+    )
     if not path.is_file() or path.stat().st_size > MAX_ARTIFACT_BYTES:
         raise ExperimentConflict("artifact bounds failed")
     raw = path.read_bytes()
-    if len(raw) > MAX_ARTIFACT_BYTES or hashlib.sha256(raw).hexdigest() != record.result.get("sha256"):
+    if len(raw) > MAX_ARTIFACT_BYTES or hashlib.sha256(
+        raw
+    ).hexdigest() != record.result.get("sha256"):
         raise ExperimentConflict("artifact digest failed")
     document = json.loads(raw)
     if document.get("run_id") != record.experiment_id or document.get("kind") != KIND:
@@ -48,8 +55,17 @@ def read_artifact(home: Path, record) -> dict[str, Any]:
 
 
 class ExampleRunService:
-    def __init__(self, home: Path, *, repository: ExperimentRepository,
-                 start, stop, status, identity_matches, stop_identity) -> None:
+    def __init__(
+        self,
+        home: Path,
+        *,
+        repository: ExperimentRepository,
+        start,
+        stop,
+        status,
+        identity_matches,
+        stop_identity,
+    ) -> None:
         self.home, self.repository = home, repository
         self.start_process, self.stop_process, self.process_status = start, stop, status
         self.identity_matches, self.stop_identity = identity_matches, stop_identity
@@ -66,9 +82,15 @@ class ExampleRunService:
         return read_json(directory / "launch.json", {}) if directory.exists() else {}
 
     def _prepare(self, idempotency_key: str) -> tuple[str, bool]:
-        record = self.repository.create(ExperimentCreate(experiment_type="backtest",
-            name="Credential-free reference replay", configuration={"kind": KIND},
-            idempotency_key=idempotency_key, max_attempts=1))
+        record = self.repository.create(
+            ExperimentCreate(
+                experiment_type="backtest",
+                name="Credential-free reference replay",
+                configuration={"kind": KIND},
+                idempotency_key=idempotency_key,
+                max_attempts=1,
+            )
+        )
         if record.state is not ExperimentState.PENDING:
             return record.experiment_id, False
         directory = run_directory(self.home, record.experiment_id)
@@ -76,10 +98,18 @@ class ExampleRunService:
         with FileLock(str(directory / "bridge.lock")):
             if (directory / "launch.json").exists():
                 return record.experiment_id, False
-            atomic_write_json(directory / "launch.json", {
-                "schema_version": 1, "run_id": record.experiment_id, "phase": "launching",
-                "process_key": f"example_{record.experiment_id}", "process": None,
-                "artifact_name": "result.json", "cancellation_requested": False})
+            atomic_write_json(
+                directory / "launch.json",
+                {
+                    "schema_version": 1,
+                    "run_id": record.experiment_id,
+                    "phase": "launching",
+                    "process_key": f"example_{record.experiment_id}",
+                    "process": None,
+                    "artifact_name": "result.json",
+                    "cancellation_requested": False,
+                },
+            )
         return record.experiment_id, True
 
     def _update_manifest(self, run_id: str, **changes) -> None:
@@ -94,15 +124,22 @@ class ExampleRunService:
         if should_spawn:
             command = [sys.executable, "-m", "apps.example_worker", "--run-id", run_id]
             try:
-                process = await self.start_process(f"example_{run_id}", command, source="EXAMPLE",
+                process = await self.start_process(
+                    f"example_{run_id}",
+                    command,
+                    source="EXAMPLE",
                     metadata={"type": "example", "run_id": run_id},
-                    extra_environment={"TRADING_GYM_HOME": str(self.home)})
-                await asyncio.to_thread(self._update_manifest, run_id,
-                                        phase="spawned", process=process)
+                    extra_environment={"TRADING_GYM_HOME": str(self.home)},
+                )
+                await asyncio.to_thread(
+                    self._update_manifest, run_id, phase="spawned", process=process
+                )
             except (Exception, asyncio.CancelledError):
                 # A supervisor exception can follow an observed child start.
                 # Keep the intent unresolved; never infer that no process ran.
-                await asyncio.to_thread(self._update_manifest, run_id, phase="launch_unresolved")
+                await asyncio.to_thread(
+                    self._update_manifest, run_id, phase="launch_unresolved"
+                )
                 raise
         return await self.get(run_id)
 
@@ -114,15 +151,22 @@ class ExampleRunService:
         run_id = record.experiment_id
         manifest = await asyncio.to_thread(self._manifest, run_id)
         process = manifest.get("process")
-        alive = bool(process and await asyncio.to_thread(self.identity_matches, process))
-        return {"run_id": run_id, "state": record.state.value, "revision": record.revision,
-                "phase": manifest.get("phase", "launch_unresolved"),
-                "worker_identity_verified": alive,
-                "cancellation_requested": manifest.get("cancellation_requested", False),
-                "artifact_available": record.state is ExperimentState.SUCCEEDED,
-                "result": record.result, "error": record.error,
-                "audit_delivery_pending": audit_pending,
-                "scope": "synthetic_reference_replay_not_paper_or_live"}
+        alive = bool(
+            process and await asyncio.to_thread(self.identity_matches, process)
+        )
+        return {
+            "run_id": run_id,
+            "state": record.state.value,
+            "revision": record.revision,
+            "phase": manifest.get("phase", "launch_unresolved"),
+            "worker_identity_verified": alive,
+            "cancellation_requested": manifest.get("cancellation_requested", False),
+            "artifact_available": record.state is ExperimentState.SUCCEEDED,
+            "result": record.result,
+            "error": record.error,
+            "audit_delivery_pending": audit_pending,
+            "scope": "synthetic_reference_replay_not_paper_or_live",
+        }
 
     async def _audit_pending(self) -> int:
         try:
@@ -154,31 +198,55 @@ class ExampleRunService:
             identity = manifest.get("process")
             if identity and await asyncio.to_thread(self.identity_matches, identity):
                 recovered[f"example_{record.experiment_id}"] = {
-                    **identity, "status": "running", "type": "example",
-                    "run_id": record.experiment_id, "recovered": True}
+                    **identity,
+                    "status": "running",
+                    "type": "example",
+                    "run_id": record.experiment_id,
+                    "recovered": True,
+                }
         return recovered
 
     async def cancel(self, run_id: str) -> dict:
         record = await asyncio.to_thread(self._record, run_id)
-        if record.state in {ExperimentState.SUCCEEDED, ExperimentState.FAILED, ExperimentState.CANCELLED}:
+        if record.state in {
+            ExperimentState.SUCCEEDED,
+            ExperimentState.FAILED,
+            ExperimentState.CANCELLED,
+        }:
             return await self.get(run_id)
-        await asyncio.to_thread(self._update_manifest, run_id, cancellation_requested=True)
+        await asyncio.to_thread(
+            self._update_manifest, run_id, cancellation_requested=True
+        )
         manifest = await asyncio.to_thread(self._manifest, run_id)
         identity = manifest.get("process")
         if not identity:
-            raise ExperimentConflict("launch outcome is unresolved; no unverified PID will be signalled")
+            raise ExperimentConflict(
+                "launch outcome is unresolved; no unverified PID will be signalled"
+            )
         if await asyncio.to_thread(self.identity_matches, identity):
             current = await self.process_status(manifest["process_key"])
-            if current.get("pid") == identity.get("pid") and current.get("create_time") == identity.get("create_time"):
+            if current.get("pid") == identity.get("pid") and current.get(
+                "create_time"
+            ) == identity.get("create_time"):
                 result = await self.stop_process(manifest["process_key"])
             else:
                 # Restart reconciliation reuses the supervisor's identity check
                 # and tree termination, never a bare PID from a request.
                 result = await asyncio.to_thread(self.stop_identity, identity)
             if result.get("remaining") != 0:
-                raise ExperimentConflict("cancellation requested; worker exit remains unverified")
+                raise ExperimentConflict(
+                    "cancellation requested; worker exit remains unverified"
+                )
         record = await asyncio.to_thread(self._record, run_id)
-        if record.state not in {ExperimentState.SUCCEEDED, ExperimentState.FAILED, ExperimentState.CANCELLED}:
-            await asyncio.to_thread(self.repository.cancel, run_id,
-                expected_revision=record.revision, reason="operator cancelled reference replay")
+        if record.state not in {
+            ExperimentState.SUCCEEDED,
+            ExperimentState.FAILED,
+            ExperimentState.CANCELLED,
+        }:
+            await asyncio.to_thread(
+                self.repository.cancel,
+                run_id,
+                expected_revision=record.revision,
+                reason="operator cancelled reference replay",
+            )
         return await self.get(run_id)

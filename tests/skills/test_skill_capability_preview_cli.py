@@ -52,9 +52,7 @@ def _run(tmp_path, contents, *, consent=True, digest=None):
     ]
     if consent:
         args.append("--consent")
-    return subprocess.run(
-        args, cwd=ROOT, capture_output=True, text=True, check=False
-    )
+    return subprocess.run(args, cwd=ROOT, capture_output=True, text=True, check=False)
 
 
 def test_valid_digest_and_consent_only_produce_a_review_hint(tmp_path):

@@ -100,19 +100,29 @@ class DecisionSignal:
             raise InvalidDecisionSignal("confidence must be within [0, 1]")
         if not isinstance(self.source_id, str) or len(self.source_id) > 300:
             raise InvalidDecisionSignal("invalid evidence source identity")
-        if self.confidence_semantics not in {"advisory_score", "vote_agreement", "model_concentration"}:
+        if self.confidence_semantics not in {
+            "advisory_score",
+            "vote_agreement",
+            "model_concentration",
+        }:
             raise InvalidDecisionSignal("unsupported confidence semantics")
-        if (type(self.contributing_sources) is not tuple
-                or len(self.contributing_sources) > 8
-                or any(not isinstance(value, str) or not value or len(value) > 320
-                       for value in self.contributing_sources)
-                or len(set(self.contributing_sources)) != len(self.contributing_sources)):
+        if (
+            type(self.contributing_sources) is not tuple
+            or len(self.contributing_sources) > 8
+            or any(
+                not isinstance(value, str) or not value or len(value) > 320
+                for value in self.contributing_sources
+            )
+            or len(set(self.contributing_sources)) != len(self.contributing_sources)
+        ):
             raise InvalidDecisionSignal("invalid composite evidence identities")
 
 
 def np_finite(value: float) -> bool:
     """Accept finite real scalars, but never booleans or coercible strings."""
-    return isinstance(value, Real) and not isinstance(value, bool) and math.isfinite(value)
+    return (
+        isinstance(value, Real) and not isinstance(value, bool) and math.isfinite(value)
+    )
 
 
 @dataclass(frozen=True)

@@ -290,7 +290,9 @@ class AttentionConfig(BaseModel):
 class FeatureConfig(BaseModel):
     # A declared research assumption for candle sources lacking quotes. None
     # requires an observed/admitted spread; candle range is never a quote.
-    assumed_spread_bps: Optional[float] = Field(default=None, ge=0, lt=20000, allow_inf_nan=False)
+    assumed_spread_bps: Optional[float] = Field(
+        default=None, ge=0, lt=20000, allow_inf_nan=False
+    )
     timeframes: List[TimeframeConfig]
     standardization: StandardizationConfig
     attention: AttentionConfig

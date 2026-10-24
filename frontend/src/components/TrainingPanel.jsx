@@ -34,7 +34,6 @@ export default function TrainingPanel() {
   });
 
   const status = !statusError && statusData ? statusData.status : 'unknown';
-  const isRunning = status === 'running';
   const isBusy = ['starting', 'running', 'stopping'].includes(status);
 
   // Connect to log WebSocket
@@ -172,12 +171,12 @@ export default function TrainingPanel() {
 
           <button
             onClick={() => stopMutation.mutate()}
-            disabled={!isRunning || stopMutation.isPending}
-            className={`btn ${!isRunning ? 'btn-disabled' : 'btn-danger'}`}
-            aria-label={!isRunning ? 'No training running' : 'Stop the currently running training process'}
+            disabled={!isBusy || stopMutation.isPending}
+            className={`btn ${!isBusy ? 'btn-disabled' : 'btn-danger'}`}
+            aria-label={!isBusy ? 'No training running' : status === 'stopping' ? 'Retry stopping the training process' : 'Stop the currently running training process'}
             aria-busy={stopMutation.isPending}
           >
-            {stopMutation.isPending ? '⏳ Stopping...' : '⏹️ STOP TRAINING'}
+            {stopMutation.isPending ? '⏳ Stopping...' : status === 'stopping' ? 'Retry stop request' : '⏹️ STOP TRAINING'}
           </button>
 
           <button

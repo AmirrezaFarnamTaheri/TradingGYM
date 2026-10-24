@@ -26,11 +26,13 @@ def test_post_fee_concentration_breach_blocks_rebalance():
         base_currency="USD",
         cash_base=Decimal("100"),
         holdings=[_holding()],
-        targets=[RebalanceTarget(
-            instrument_id="ABC-USD",
-            target_weight=Decimal("0.9"),
-            maximum_weight=Decimal("0.95"),
-        )],
+        targets=[
+            RebalanceTarget(
+                instrument_id="ABC-USD",
+                target_weight=Decimal("0.9"),
+                maximum_weight=Decimal("0.95"),
+            )
+        ],
         policy=RebalancePolicy(
             minimum_cash_weight=Decimal("0"),
             maximum_turnover_fraction=Decimal("1"),
@@ -51,11 +53,13 @@ def test_no_fee_case_preserves_target_weights():
         base_currency="USD",
         cash_base=Decimal("100"),
         holdings=[_holding()],
-        targets=[RebalanceTarget(
-            instrument_id="ABC-USD",
-            target_weight=Decimal("0.9"),
-            maximum_weight=Decimal("0.95"),
-        )],
+        targets=[
+            RebalanceTarget(
+                instrument_id="ABC-USD",
+                target_weight=Decimal("0.9"),
+                maximum_weight=Decimal("0.95"),
+            )
+        ],
         policy=RebalancePolicy(
             minimum_cash_weight=Decimal("0"),
             maximum_turnover_fraction=Decimal("1"),
@@ -72,16 +76,20 @@ def test_costs_exhausting_projected_equity_are_rejected():
         plan_rebalance(
             base_currency="USD",
             cash_base=Decimal("0"),
-            holdings=[RebalanceHolding(
-                instrument_id="ABC-USD",
-                quantity=Decimal("100"),
-                price_base=Decimal("1"),
-                quantity_increment=Decimal("1"),
-            )],
-            targets=[RebalanceTarget(
-                instrument_id="ABC-USD",
-                target_weight=Decimal("0"),
-            )],
+            holdings=[
+                RebalanceHolding(
+                    instrument_id="ABC-USD",
+                    quantity=Decimal("100"),
+                    price_base=Decimal("1"),
+                    quantity_increment=Decimal("1"),
+                )
+            ],
+            targets=[
+                RebalanceTarget(
+                    instrument_id="ABC-USD",
+                    target_weight=Decimal("0"),
+                )
+            ],
             policy=RebalancePolicy(
                 minimum_cash_weight=Decimal("0"),
                 maximum_turnover_fraction=Decimal("2"),
@@ -93,12 +101,16 @@ def test_costs_exhausting_projected_equity_are_rejected():
 def test_multileg_post_fee_cash_and_assets_reconcile_to_one():
     holdings = [
         RebalanceHolding(
-            instrument_id="ABC-USD", quantity=Decimal("25"),
-            price_base=Decimal("2"), quantity_increment=Decimal("1"),
+            instrument_id="ABC-USD",
+            quantity=Decimal("25"),
+            price_base=Decimal("2"),
+            quantity_increment=Decimal("1"),
         ),
         RebalanceHolding(
-            instrument_id="XYZ-USD", quantity=Decimal("10"),
-            price_base=Decimal("3"), quantity_increment=Decimal("1"),
+            instrument_id="XYZ-USD",
+            quantity=Decimal("10"),
+            price_base=Decimal("3"),
+            quantity_increment=Decimal("1"),
         ),
     ]
     targets = [
@@ -106,8 +118,10 @@ def test_multileg_post_fee_cash_and_assets_reconcile_to_one():
         RebalanceTarget(instrument_id="XYZ-USD", target_weight=Decimal("0.4")),
     ]
     plan = plan_rebalance(
-        base_currency="USD", cash_base=Decimal("20"),
-        holdings=holdings, targets=targets,
+        base_currency="USD",
+        cash_base=Decimal("20"),
+        holdings=holdings,
+        targets=targets,
         policy=RebalancePolicy(
             minimum_cash_weight=Decimal("0.1"),
             maximum_turnover_fraction=Decimal("2"),

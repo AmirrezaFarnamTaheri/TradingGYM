@@ -62,7 +62,6 @@ from apps.api.runtime import (
 from trading_gym.common.persistence import atomic_write_text, resolve_data_home
 from trading_gym.common.security import (
     bounded_json_dumps,
-    confined_child,
     redact_secrets,
 )
 from trading_gym.governance.health import audit_outbox_health
@@ -826,6 +825,7 @@ async def readiness_check():
 @app.get("/api/v1/storage/health")
 async def get_storage_health(api_key: str = Depends(verify_api_key)):
     from trading_gym.operations.storage_health import storage_health
+
     return await _run_blocking(storage_health, resolve_data_home())
 
 
@@ -1026,9 +1026,13 @@ async def get_config_section(section: str, api_key: str = Depends(verify_api_key
 
 
 def _training_service() -> TrainingService:
-    return TrainingService(config_dir=CONFIG_DIR, registry_dir=CHECKPOINTS_DIR,
-                           start=start_managed_process, stop=stop_managed_process,
-                           status=managed_process_status)
+    return TrainingService(
+        config_dir=CONFIG_DIR,
+        registry_dir=CHECKPOINTS_DIR,
+        start=start_managed_process,
+        stop=stop_managed_process,
+        status=managed_process_status,
+    )
 
 
 @app.post("/api/v1/train/start")
@@ -2160,15 +2164,22 @@ from trading_gym.experiments.repository import ExperimentRepository, ExperimentC
 
 class ExampleRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    idempotency_key: str = Field(min_length=8, max_length=120, pattern=r"^[A-Za-z0-9._-]+$")
+    idempotency_key: str = Field(
+        min_length=8, max_length=120, pattern=r"^[A-Za-z0-9._-]+$"
+    )
 
 
 def _example_service() -> ExampleRunService:
     home = resolve_data_home()
-    return ExampleRunService(home, repository=ExperimentRepository(),
-        start=start_managed_process, stop=stop_managed_process,
-        status=managed_process_status, identity_matches=process_identity_matches,
-        stop_identity=terminate_process_tree)
+    return ExampleRunService(
+        home,
+        repository=ExperimentRepository(),
+        start=start_managed_process,
+        stop=stop_managed_process,
+        status=managed_process_status,
+        identity_matches=process_identity_matches,
+        stop_identity=terminate_process_tree,
+    )
 
 
 async def _example_call(awaitable):
@@ -2179,11 +2190,15 @@ async def _example_call(awaitable):
     except (ExperimentConflict, FileNotFoundError) as exc:
         raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Invalid reference-run request or record") from exc
+        raise HTTPException(
+            status_code=400, detail="Invalid reference-run request or record"
+        ) from exc
 
 
 @app.post("/api/v1/runs/example", status_code=202)
-async def start_example_run(request: ExampleRunRequest, api_key: str = Depends(verify_api_key)):
+async def start_example_run(
+    request: ExampleRunRequest, api_key: str = Depends(verify_api_key)
+):
     return await _example_call(_example_service().start(request.idempotency_key))
 
 

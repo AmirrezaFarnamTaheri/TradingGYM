@@ -175,7 +175,11 @@ def test_fast_market_router_uses_first_valid_provider_to_minimize_latency():
 
 def test_quality_market_router_prefers_best_available_coverage():
     start, request = _router_request()
-    first, better, failed = Provider(frame(start, 2)), Provider(frame(start, 3)), Provider(OSError("down"))
+    first, better, failed = (
+        Provider(frame(start, 2)),
+        Provider(frame(start, 3)),
+        Provider(OSError("down")),
+    )
     router = DataProviderRouter(routing_mode="quality", cache_ttl_seconds=120)
     router.register("failed", failed, priority=1)
     router.register("first", first, priority=2)

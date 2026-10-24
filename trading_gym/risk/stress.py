@@ -94,7 +94,10 @@ class PortfolioStressReport(BaseModel):
 
 def _canonical(value: Any) -> bytes:
     return json.dumps(
-        value, sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+        value,
+        sort_keys=True,
+        ensure_ascii=False,
+        separators=(",", ":"),
         allow_nan=False,
     ).encode("utf-8")
 

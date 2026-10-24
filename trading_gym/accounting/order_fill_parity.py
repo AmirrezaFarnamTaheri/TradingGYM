@@ -4,6 +4,7 @@ Amounts use each order's declared quote currency. This checks arithmetic
 and identity, not source authenticity, settlement, or live safety.
 No order transports, secrets, authority mutations or database writes.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -48,6 +49,7 @@ def _amount(value: Decimal, name: str, *, positive: bool = False) -> None:
     components = value.as_tuple()
     if (
         len(components.digits) > 38
+        or not isinstance(components.exponent, int)
         or not -30 <= components.exponent <= 30
     ):
         raise ValueError(f"{name} exceeds Decimal precision budget")
@@ -257,11 +259,11 @@ def reconcile_order_fills(
                 blockers.append(f"account_mismatch:{fill.fill_id}")
             grouped[order.order_id].append(fill)
 
-    for rb in readbacks:
-        if rb.observed_at > as_of:
+    for readback in readbacks:
+        if readback.observed_at > as_of:
             raise ValueError("future readback relative to as_of")
-        if rb.order_id not in by_id:
-            blockers.append(f"orphan_readback:{rb.order_id}")
+        if readback.order_id not in by_id:
+            blockers.append(f"orphan_readback:{readback.order_id}")
 
     position: dict[str, Decimal] = {}
     cash: dict[str, Decimal] = {}
@@ -280,9 +282,7 @@ def reconcile_order_fills(
             item_blockers.append(f"readback_missing:{order.order_id}")
         else:
             if rb.account_id != order.account_id:
-                item_blockers.append(
-                    f"readback_account_mismatch:{order.order_id}"
-                )
+                item_blockers.append(f"readback_account_mismatch:{order.order_id}")
             if rb.observed_at < order.submitted_at:
                 raise ValueError("readback before submission")
             if current_fills and rb.observed_at < max(
@@ -303,13 +303,11 @@ def reconcile_order_fills(
                 rb.state is OrderState.PARTIALLY_FILLED
                 and not 0 < quantity < order.quantity
             ):
-                item_blockers.append(
-                    f"partial_state_quantity_invalid:{order.order_id}"
-                )
-            if (
-                order.time_in_force in {TimeInForce.IOC, TimeInForce.FOK}
-                and rb.state in {OrderState.OPEN, OrderState.PARTIALLY_FILLED}
-            ):
+                item_blockers.append(f"partial_state_quantity_invalid:{order.order_id}")
+            if order.time_in_force in {
+                TimeInForce.IOC,
+                TimeInForce.FOK,
+            } and rb.state in {OrderState.OPEN, OrderState.PARTIALLY_FILLED}:
                 item_blockers.append(
                     f"nonterminal_{order.time_in_force.value}:{order.order_id}"
                 )
@@ -340,18 +338,24 @@ def reconcile_order_fills(
         # Decimal unary negation uses the ambient context and can silently
         # round exact high-precision aggregates. copy_negate() never rounds.
         signed = quantity if order.side is Side.BUY else quantity.copy_negate()
-        cash_delta = _exact_sum((
-            notional if order.side is Side.SELL else notional.copy_negate(),
-            fee.copy_negate(),
-        ))
-        position[order.instrument_id] = _exact_sum((
-            position.get(order.instrument_id, Decimal(0)),
-            signed,
-        ))
-        cash[order.quote_currency] = _exact_sum((
-            cash.get(order.quote_currency, Decimal(0)),
-            cash_delta,
-        ))
+        cash_delta = _exact_sum(
+            (
+                notional if order.side is Side.SELL else notional.copy_negate(),
+                fee.copy_negate(),
+            )
+        )
+        position[order.instrument_id] = _exact_sum(
+            (
+                position.get(order.instrument_id, Decimal(0)),
+                signed,
+            )
+        )
+        cash[order.quote_currency] = _exact_sum(
+            (
+                cash.get(order.quote_currency, Decimal(0)),
+                cash_delta,
+            )
+        )
         if not item_blockers:
             accepted_count += len(current_fills)
         blockers.extend(item_blockers)
@@ -371,9 +375,7 @@ def reconcile_order_fills(
     if not cash_deltas:
         blockers.append("cash_readback_missing")
     for symbol in sorted(set(position) | set(position_deltas)):
-        if position.get(symbol, Decimal(0)) != position_deltas.get(
-            symbol, Decimal(0)
-        ):
+        if position.get(symbol, Decimal(0)) != position_deltas.get(symbol, Decimal(0)):
             blockers.append(f"position_delta_mismatch:{symbol}")
     for currency in sorted(set(cash) | set(cash_deltas)):
         if cash.get(currency, Decimal(0)) != cash_deltas.get(currency, Decimal(0)):

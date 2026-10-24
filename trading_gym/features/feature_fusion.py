@@ -4,6 +4,7 @@ This is fixed-weight aggregation, not trained attention. Raw feature magnitudes
 must not choose their own routing weights. Learned or fitted challengers belong
 in explicit training-only representation experiments.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -13,8 +14,9 @@ import numpy as np
 BASE_CONTEXT_COLUMNS = frozenset({"spread_ratio", "volatility", "sector", "can_short"})
 
 
-def fuse_features(feature_vectors: np.ndarray, masks: np.ndarray,
-                  *, weights: np.ndarray | None = None) -> np.ndarray:
+def fuse_features(
+    feature_vectors: np.ndarray, masks: np.ndarray, *, weights: np.ndarray | None = None
+) -> np.ndarray:
     """Return fixed weighted features, renormalized over available timeframes.
 
     ``feature_vectors`` is [timeframe, sample, feature]; ``masks`` is a boolean
@@ -32,13 +34,17 @@ def fuse_features(feature_vectors: np.ndarray, masks: np.ndarray,
         declared = np.ones(values.shape[0], dtype=np.float64)
     else:
         declared = np.asarray(weights, dtype=np.float64)
-    if declared.shape != (values.shape[0],) or not np.isfinite(declared).all() or (declared < 0).any():
+    if (
+        declared.shape != (values.shape[0],)
+        or not np.isfinite(declared).all()
+        or (declared < 0).any()
+    ):
         raise ValueError("weights must be finite nonnegative values, one per timeframe")
     active = (~mask) * declared[:, None]
     totals = active.sum(axis=0)
     if (totals <= 0).any() or not np.isfinite(totals).all():
         raise ValueError("each sample needs a positive-weight available timeframe")
-    sanitized = np.where(mask[:, :, None], 0., values)
+    sanitized = np.where(mask[:, :, None], 0.0, values)
     if not np.isfinite(sanitized).all():
         raise ValueError("available features must be finite")
     with np.errstate(over="ignore", invalid="ignore"):

@@ -19,7 +19,7 @@ class OrderBookSnapshot:
     asks: tuple[tuple[float, float], ...]
 
     def validate(self) -> "OrderBookSnapshot":
-        if type(self.sequence) is not int or self.sequence < 0:
+        if type(self.sequence) is not int or self.sequence < 0:  # noqa: E721
             raise ValueError("invalid book sequence")
         if not self.bids or not self.asks:
             raise ValueError("incomplete book")
@@ -55,7 +55,7 @@ def normalized_orderbook_features(
     must separately establish event time, feed identity and closed-bar evidence
     before injecting these into a System-1 decision context.
     """
-    if type(depth) is not int or not 1 <= depth <= 100:
+    if type(depth) is not int or not 1 <= depth <= 100:  # noqa: E721
         raise ValueError("book feature depth must be within 1..100")
     book.validate()
     bids = sorted(book.bids, key=lambda level: level[0], reverse=True)[:depth]

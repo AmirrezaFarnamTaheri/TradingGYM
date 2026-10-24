@@ -124,9 +124,7 @@ class DegradationLadder(Generic[T]):
         if preferred_mode is not None:
             if preferred_mode not in {mode.name for mode in modes}:
                 raise ValueError("unknown preferred capability mode")
-            modes = tuple(
-                sorted(modes, key=lambda mode: mode.name != preferred_mode)
-            )
+            modes = tuple(sorted(modes, key=lambda mode: mode.name != preferred_mode))
         records: list[AttemptRecord] = []
         for mode in modes:
             try:

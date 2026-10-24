@@ -198,9 +198,7 @@ def analyze_derivative_risk(
         # move would breach maintenance margin. Compare both same-direction
         # portfolio shocks and choose the worse portfolio outcome.
         magnitude = abs(policy.stress_price_shock_fraction)
-        down_mark = max(
-            Decimal("0"), position.mark_price * (Decimal("1") - magnitude)
-        )
+        down_mark = max(Decimal("0"), position.mark_price * (Decimal("1") - magnitude))
         up_mark = position.mark_price * (Decimal("1") + magnitude)
         down_pnl = signed_contracts * (down_mark - position.mark_price)
         up_pnl = signed_contracts * (up_mark - position.mark_price)
@@ -246,9 +244,7 @@ def analyze_derivative_risk(
     choose_down = down_total <= up_total
     stressed_total = down_total if choose_down else up_total
     results = [
-        item.model_copy(
-            update={"stressed_pnl": pair[0] if choose_down else pair[1]}
-        )
+        item.model_copy(update={"stressed_pnl": pair[0] if choose_down else pair[1]})
         for item, pair in zip(results, scenarios)
     ]
     leverage = gross / equity if equity > 0 else None

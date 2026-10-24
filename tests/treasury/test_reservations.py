@@ -145,6 +145,7 @@ def test_ledger_rejects_duplicate_currency_after_case_normalization():
     with pytest.raises(ValueError, match="duplicate_normalized_currency"):
         ReservationLedger({"usdt": D("100"), "USDT": D("200")})
 
+
 def test_concurrent_reservations_cannot_overcommit_same_currency():
     from concurrent.futures import ThreadPoolExecutor
     from time import sleep

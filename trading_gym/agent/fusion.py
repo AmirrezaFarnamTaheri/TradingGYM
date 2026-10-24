@@ -212,25 +212,38 @@ class FusionEngine:
         # dependence remains unknown: distinct IDs do not prove independence.
         groups: dict[str, list[ArmProposal]] = {}
         for proposal in proposals:
-            source = proposal.source_id or proposal.signal.source_id or proposal.signal.backend
+            source = (
+                proposal.source_id
+                or proposal.signal.source_id
+                or proposal.signal.backend
+            )
             if not isinstance(source, str) or not source:
-                return _escalation("missing_source", "proposal has no evidence identity")
+                return _escalation(
+                    "missing_source", "proposal has no evidence identity"
+                )
             groups.setdefault(source, []).append(proposal)
         unique: list[ArmProposal] = []
         effective_weights: dict[str, float] = {}
         for source, members in groups.items():
             if len({member.signal.action_kind for member in members}) != 1:
-                return _escalation("source_conflict", f"conflicting aliases for {source}")
+                return _escalation(
+                    "source_conflict", f"conflicting aliases for {source}"
+                )
             representative = min(members, key=lambda p: abs(p.signal.target_leverage))
             representative = replace(
-                representative, source_id=source,
-                signal=replace(representative.signal,
-                    confidence=min(p.signal.confidence for p in members)),
+                representative,
+                source_id=source,
+                signal=replace(
+                    representative.signal,
+                    confidence=min(p.signal.confidence for p in members),
+                ),
             )
             unique.append(representative)
             # Taking the weakest declared alias prevents duplicated aliases
             # with larger weights from raising quorum or effective evidence.
-            effective_weights[source] = min(config.weights.effective(p.arm_name, regime) for p in members)
+            effective_weights[source] = min(
+                config.weights.effective(p.arm_name, regime) for p in members
+            )
         proposals = unique
 
         directional = [
@@ -257,6 +270,9 @@ class FusionEngine:
         total = 0.0
         net = 0.0
         for proposal in directional:
+            assert (
+                proposal.source_id is not None
+            )  # Established when aliases are grouped.
             weight = effective_weights[proposal.source_id]
             magnitude = proposal.signal.confidence * weight
             # Disabled/zero-conviction arms do not carry authority. Active
@@ -323,9 +339,8 @@ class FusionEngine:
         if not math.isfinite(raw_leverage):
             return _escalation("leverage_overflow", "non-finite weighted exposure")
         leverage = max(-config.max_leverage, min(config.max_leverage, raw_leverage))
-        if (
-            (winning is ActionKind.LONG and leverage <= 0.0)
-            or (winning is ActionKind.SHORT and leverage >= 0.0)
+        if (winning is ActionKind.LONG and leverage <= 0.0) or (
+            winning is ActionKind.SHORT and leverage >= 0.0
         ):
             return _escalation(
                 "zero_directional_exposure", "weighted leverage underflowed to zero"

@@ -109,7 +109,10 @@ class AccountingEvent(BaseModel):
         elif self.event_type is AccountingEventType.FEE:
             if self.currency is None or self.amount is None or self.amount <= 0:
                 raise ValueError("fee event requires currency and positive amount")
-        elif self.event_type in {AccountingEventType.MARK, AccountingEventType.OBSERVATION}:
+        elif self.event_type in {
+            AccountingEventType.MARK,
+            AccountingEventType.OBSERVATION,
+        }:
             if self.instrument_id is None or self.mark_price is None:
                 raise ValueError("mark event requires instrument_id and mark_price")
         return self

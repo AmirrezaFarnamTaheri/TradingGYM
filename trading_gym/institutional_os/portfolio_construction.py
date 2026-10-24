@@ -145,17 +145,13 @@ class PortfolioConstructionRequest(BaseModel):
             if n > 64:
                 raise ValueError("turnover-aware construction is limited to 64 assets")
             prior = self.previous_weights
-            if (
-                prior is None
-                or set(prior) != {asset.asset_id for asset in self.assets}
-            ):
+            if prior is None or set(prior) != {asset.asset_id for asset in self.assets}:
                 raise ValueError(
                     "turnover-aware construction requires complete prior holdings"
                 )
-            if (
-                any(value < 0.0 or value > 1.0 for value in prior.values())
-                or not math.isclose(sum(prior.values()), 1.0, abs_tol=1e-8)
-            ):
+            if any(
+                value < 0.0 or value > 1.0 for value in prior.values()
+            ) or not math.isclose(sum(prior.values()), 1.0, abs_tol=1e-8):
                 raise ValueError(
                     "previous holdings must be fully invested and long only"
                 )
@@ -275,7 +271,8 @@ def construct_portfolio(
             tolerance=request.tolerance,
             groups=(
                 [request.asset_groups[item.asset_id] for item in request.assets]
-                if request.asset_groups is not None else None
+                if request.asset_groups is not None
+                else None
             ),
             group_caps=request.group_caps,
         )
@@ -286,25 +283,29 @@ def construct_portfolio(
                 2.0 * request.turnover_penalty * solution.turnover
             ),
             "objective_value": solution.objective_value,
-            "previous_weights_sha256": sha256_payload({
-                "previous_weights": {
-                    key: request.previous_weights[key]
-                    for key in sorted(request.previous_weights)
+            "previous_weights_sha256": sha256_payload(
+                {
+                    "previous_weights": {
+                        key: request.previous_weights[key]
+                        for key in sorted(request.previous_weights)
+                    }
                 }
-            }),
+            ),
         }
         if request.asset_groups is not None:
             group_exposure: dict[str, float] = {}
             for index, item in enumerate(request.assets):
                 group = request.asset_groups[item.asset_id]
-                group_exposure[group] = (
-                    group_exposure.get(group, 0.0) + float(weights[index])
+                group_exposure[group] = group_exposure.get(group, 0.0) + float(
+                    weights[index]
                 )
             turnover_details["group_exposure"] = dict(sorted(group_exposure.items()))
-            turnover_details["group_caps_sha256"] = sha256_payload({
-                "asset_groups": dict(sorted(request.asset_groups.items())),
-                "group_caps": dict(sorted((request.group_caps or {}).items())),
-            })
+            turnover_details["group_caps_sha256"] = sha256_payload(
+                {
+                    "asset_groups": dict(sorted(request.asset_groups.items())),
+                    "group_caps": dict(sorted((request.group_caps or {}).items())),
+                }
+            )
     else:
         weights = _project((1.0 / vol) / (1.0 / vol).sum(), lower, upper)
         step = 0.05

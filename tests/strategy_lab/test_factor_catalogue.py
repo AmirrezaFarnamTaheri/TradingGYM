@@ -94,9 +94,7 @@ def test_invalid_factor_identifiers_paths_and_digests_are_rejected(
     identifier, family, digest
 ):
     with pytest.raises(ValueError):
-        build_factor_catalogue(
-            [FactorCandidate(identifier, family, digest)]
-        )
+        build_factor_catalogue([FactorCandidate(identifier, family, digest)])
 
 
 def test_duplicate_case_variant_factor_id_is_rejected():
@@ -130,12 +128,9 @@ def test_catalogue_options_distinguish_categories_from_leaves():
     assert root[0]["kind"] == "branch"
     categories = options_at(catalogue, ("family:factor_zoo",))
     assert all(item["kind"] == "branch" for item in categories)
-    factors = options_at(
-        catalogue, ("family:factor_zoo", "family:volatility")
-    )
+    factors = options_at(catalogue, ("family:factor_zoo", "family:volatility"))
     assert factors
     assert all(item["kind"] == "factor" for item in factors)
     assert all(
-        item["can_execute"] is False and item["can_trade"] is False
-        for item in factors
+        item["can_execute"] is False and item["can_trade"] is False for item in factors
     )

@@ -8,6 +8,7 @@ survive future calls and processes, not downgrade into 'no eligible key'.
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import httpx
 import pytest
@@ -15,6 +16,7 @@ import pytest
 from trading_gym.intelligence.llm_key_pool import (
     CredentialPool,
     CredentialsUnavailable,
+    ProviderAuthenticationError,
     ProviderHardQuotaError,
     request_with_rotation,
 )
@@ -47,7 +49,7 @@ def test_exhausted_authentication_is_not_a_recoverable_model_outage(
         calls.append(secret)
         return _response(401)
 
-    with pytest.raises(PermissionError, match="provider_authentication"):
+    with pytest.raises(ProviderAuthenticationError):
         request_with_rotation(pool, post, timeout_seconds=3.0, monotonic=lambda: 0.0)
     assert calls == ["redacted-one", "redacted-two"]
 
@@ -230,6 +232,7 @@ def test_authentication_denial_is_non_degradable_at_transport_boundary(
 )
 def test_unpooled_direct_http_status_cannot_authorize_rules_fallback(
     monkeypatch: pytest.MonkeyPatch,
+    mock_httpx_client,
     protocol: str,
     code: int,
     payload: dict,
@@ -242,21 +245,15 @@ def test_unpooled_direct_http_status_cannot_authorize_rules_fallback(
         httpx_systemone_transport,
     )
 
-    class FakeClient:
-        def __init__(self, **kwargs):
-            assert kwargs["trust_env"] is False
-            assert kwargs["follow_redirects"] is False
+    attempted = []
 
-        def __enter__(self):
-            return self
+    def handle(request):
+        attempted.append(request)
+        return httpx.Response(
+            code, stream=httpx.ByteStream(json.dumps(payload).encode())
+        )
 
-        def __exit__(self, *args):
-            return False
-
-        def post(self, url: str, *, headers, json):
-            return _response(code, json=payload)
-
-    monkeypatch.setattr(httpx, "Client", FakeClient)
+    mock_httpx_client(handle)
     config = ProviderConfig(
         provider_id="unauthenticated-local",
         display_name="local test",
@@ -270,6 +267,7 @@ def test_unpooled_direct_http_status_cannot_authorize_rules_fallback(
 
         def run():
             return call(config.base_url, [{"role": "user", "content": "{}"}])
+
     else:
         call = httpx_systemone_transport(config)
 
@@ -278,11 +276,12 @@ def test_unpooled_direct_http_status_cannot_authorize_rules_fallback(
 
     with pytest.raises(PermissionError, match=expected_reason):
         run()
+    assert len(attempted) == 1
 
 
 @pytest.mark.parametrize("protocol", ["openai_chat", "systemone_fixed"])
 def test_unpooled_transient_rate_limit_is_still_provider_unavailable(
-    monkeypatch: pytest.MonkeyPatch, protocol: str
+    monkeypatch: pytest.MonkeyPatch, mock_httpx_client, protocol: str
 ) -> None:
     from trading_gym.agent.providers import ProviderConfig, ProviderKind
     from trading_gym.intelligence.llm_backend import httpx_transport
@@ -291,20 +290,15 @@ def test_unpooled_transient_rate_limit_is_still_provider_unavailable(
     )
     from trading_gym.intelligence.types import BackendUnavailable
 
-    class FakeClient:
-        def __init__(self, **kwargs):
-            pass
+    attempted = []
 
-        def __enter__(self):
-            return self
+    def handle(request):
+        attempted.append(request)
+        return httpx.Response(
+            429, stream=httpx.ByteStream(b'{"error":{"code":"rate_limit_exceeded"}}')
+        )
 
-        def __exit__(self, *args):
-            return False
-
-        def post(self, url, *, headers, json):
-            return _response(429, json={"error": {"code": "rate_limit_exceeded"}})
-
-    monkeypatch.setattr(httpx, "Client", FakeClient)
+    mock_httpx_client(handle)
     config = ProviderConfig(
         provider_id="local-fast",
         display_name="local test",
@@ -320,3 +314,4 @@ def test_unpooled_transient_rate_limit_is_still_provider_unavailable(
             )
         else:
             httpx_systemone_transport(config)({"state": {}, "questions": {}})
+    assert len(attempted) == 1

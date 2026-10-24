@@ -4,6 +4,7 @@ A late result is rejected and no later provider is invoked. This is not CPU,
 DNS or native-library preemption: use an isolated worker for a hard wall-time
 kill. HTTP operations also receive the remaining budget as their timeout.
 """
+
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -28,12 +29,21 @@ class _Deadline:
             raise DecisionDeadlineExceeded("decision_cycle_deadline_exceeded")
         return left
 
-_CURRENT: ContextVar[_Deadline | None] = ContextVar("intelligence_deadline", default=None)
+
+_CURRENT: ContextVar[_Deadline | None] = ContextVar(
+    "intelligence_deadline", default=None
+)
 
 
 @contextmanager
-def decision_budget(seconds: float, *, clock: Callable[[], float] = time.monotonic) -> Iterator[None]:
-    if type(seconds) not in (int, float) or not math.isfinite(seconds) or not 0 < seconds <= 120:
+def decision_budget(
+    seconds: float, *, clock: Callable[[], float] = time.monotonic
+) -> Iterator[None]:
+    if (
+        type(seconds) not in (int, float)
+        or not math.isfinite(seconds)
+        or not 0 < seconds <= 120
+    ):
         raise ValueError("decision budget must be finite within (0,120] seconds")
     outer = _CURRENT.get()
     if outer is not None:
@@ -41,7 +51,8 @@ def decision_budget(seconds: float, *, clock: Callable[[], float] = time.monoton
         seconds = min(seconds, outer.remaining())
         clock = outer.clock
     ends_at = clock() + seconds
-    if outer is not None: ends_at = min(ends_at, outer.ends_at)
+    if outer is not None:
+        ends_at = min(ends_at, outer.ends_at)
     token = _CURRENT.set(_Deadline(ends_at, clock))
     try:
         yield
@@ -56,4 +67,5 @@ def remaining_seconds(maximum: float) -> float:
 
 def check_deadline() -> None:
     deadline = _CURRENT.get()
-    if deadline is not None: deadline.remaining()
+    if deadline is not None:
+        deadline.remaining()

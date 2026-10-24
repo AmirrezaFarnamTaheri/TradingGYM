@@ -10,5 +10,6 @@ def __getattr__(name: str):
     # convergence/research tool stack (and its optional runtime packages).
     if name == "SafeToolRegistry":
         from trading_gym.agent.tools import SafeToolRegistry
+
         return SafeToolRegistry
     raise AttributeError(name)

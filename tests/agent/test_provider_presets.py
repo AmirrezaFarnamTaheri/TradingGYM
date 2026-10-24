@@ -12,7 +12,12 @@ def test_curated_presets_cover_local_native_and_chat_protocols():
     items = list_provider_presets()
     identifiers = {item["preset_id"] for item in items}
     assert {
-        "go-systemone", "openjev-decider", "ollama", "lm-studio", "vllm", "openrouter"
+        "go-systemone",
+        "openjev-decider",
+        "ollama",
+        "lm-studio",
+        "vllm",
+        "openrouter",
     } <= identifiers
     assert all(item["enabled_by_default"] is False for item in items)
     assert all("api_key" not in str(item).lower() for item in items)
@@ -79,13 +84,19 @@ def test_every_disabled_template_is_accepted_by_actual_governed_provider_schema(
     from trading_gym.agent.providers import ProviderConfig
 
     for preset in list_provider_presets():
-        refs = ["OPENROUTER_KEY_REFERENCE"] if preset["kind"] == "openai_compatible" else []
-        config = ProviderConfig.model_validate(render_provider_preset(
-            preset["preset_id"],
-            provider_id="reviewed-" + preset["preset_id"],
-            model="operator-verified-model",
-            credential_refs=refs,
-        ))
+        refs = (
+            ["OPENROUTER_KEY_REFERENCE"]
+            if preset["kind"] == "openai_compatible"
+            else []
+        )
+        config = ProviderConfig.model_validate(
+            render_provider_preset(
+                preset["preset_id"],
+                provider_id="reviewed-" + preset["preset_id"],
+                model="operator-verified-model",
+                credential_refs=refs,
+            )
+        )
         assert config.enabled is False
         assert config.wire_protocol == preset["wire_protocol"]
         assert config.base_url == preset["base_url"]

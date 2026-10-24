@@ -23,10 +23,9 @@ The terminal-accounting tests pin the corrected vs-mark booking; they are the
 regression for the donor-port double-book where ``pos·(exec − prev_mid)`` was
 booked on top of an already-applied ``pos·(mid − prev_mid)`` mark-to-market.
 
-The circuit breaker is fully neutralised here: the env feeds it a ``t*60``
-second clock (one 5-minute bar reads as 60 seconds), which makes the default
-loss-velocity rule trip on any ordinary mark-to-market dip and mask the
-stop-out surface under test.
+The circuit breaker is neutralised here to isolate stop-out accounting.
+Actions execute at completed row t and settle through the next row; future
+OHLC envelopes therefore belong to the action that held inventory into them.
 """
 
 from __future__ import annotations
@@ -161,7 +160,7 @@ def test_graded_cascade_fires_through_step_and_restores_margin():
     worst lot first, trim to the minimal restoring fraction, survive, and keep
     the lot-ledger twin equal to the engine net position.
     """
-    dip_bar, recovery_bar = 203, 204
+    dip_bar, recovery_bar = 204, 205
     tape = _tape(
         {
             200: (100.0, 100.5, 99.5),  # entry bar: action 10x -> lot 1
@@ -187,8 +186,9 @@ def test_graded_cascade_fires_through_step_and_restores_margin():
     assert pre_step_position > 0
     assert len(pre_step_open_lots) == 3, "book must hold one lot per accumulation step"
 
-    # Dip bar: graded cascade must fire before the engine trade.
-    _, _, terminated, truncated, info = env.step(np.array([20.0], dtype=np.float32))
+    # Hold existing units into the next bar; its adverse envelope must fire the cascade.
+    hold_leverage = float(env.position) * env.price[env.t] / float(env.equity)
+    _, _, terminated, truncated, info = env.step(hold_leverage)
 
     # --- Cascade fired, episode survived ---
     assert info["graded_stop_out"] is True
@@ -262,7 +262,7 @@ def test_terminal_forced_liquidation_books_vs_mark_not_vs_prev_mid():
     trips the breaker's invalid-context guard (negative nav) before the
     liquidation path is reached.
     """
-    gap_bar = 201
+    gap_bar = 202
     gap_price = 96.5
     tape = _tape(
         {
@@ -279,7 +279,8 @@ def test_terminal_forced_liquidation_books_vs_mark_not_vs_prev_mid():
     prev_mid = env.prev_mid_price
     assert pre_step_position > 0
 
-    _, _, terminated, truncated, info = env.step(np.array([0.0], dtype=np.float32))
+    hold_leverage = float(env.position) * env.price[env.t] / float(env.equity)
+    _, _, terminated, truncated, info = env.step(hold_leverage)
 
     # --- Terminal forced liquidation ---
     assert info["liquidation"] is True
@@ -311,7 +312,7 @@ def test_terminal_path_with_cascade_disabled_uses_intra_bar_exec_price():
     correct addition is ``pos·(low − mid)`` (the slice from the already-marked
     mid down to the exec/low), *not* ``pos·(low − prev_mid)``.
     """
-    wick_bar = 201
+    wick_bar = 202
     tape = _tape(
         {
             200: (100.0, 100.5, 99.5),
@@ -326,7 +327,8 @@ def test_terminal_path_with_cascade_disabled_uses_intra_bar_exec_price():
     pre_step_position = float(env._state.position)
     prev_mid = env.prev_mid_price
 
-    _, _, terminated, _, info = env.step(np.array([0.0], dtype=np.float32))
+    hold_leverage = float(env.position) * env.price[env.t] / float(env.equity)
+    _, _, terminated, _, info = env.step(hold_leverage)
 
     assert terminated is True
     assert info["liquidation"] is True

@@ -30,6 +30,7 @@ def test_release_identity_keeps_missing_wave18_surface_evidence_explicit() -> No
     manifest = json.loads((root / "trading_gym/release_manifest.json").read_text())
     assert "Trading_Gym_30.0.0_SURFACES.csv" in manifest["evidence_gap"]
 
+
 def test_openapi_training_default_is_a_real_repository_profile() -> None:
     root = Path(__file__).resolve().parents[2]
     openapi = json.loads((root / "docs/contracts/openapi.json").read_text())

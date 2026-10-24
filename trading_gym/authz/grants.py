@@ -522,8 +522,8 @@ class GrantLedger:
         if (
             not isinstance(anchor, dict)
             or set(anchor) != {_ANCHOR_SEQ, _ANCHOR_HEAD}
-            or type(anchor[_ANCHOR_SEQ]) is not int
-            or type(anchor[_ANCHOR_HEAD]) is not str
+            or type(anchor[_ANCHOR_SEQ]) is not int  # noqa: E721
+            or type(anchor[_ANCHOR_HEAD]) is not str  # noqa: E721
             or anchor[_ANCHOR_SEQ] != expected_seq
             or anchor[_ANCHOR_HEAD] != expected_head
         ):
@@ -637,10 +637,7 @@ class GrantLedger:
             if not isinstance(item, (tuple, list)) or len(item) != 2:
                 raise ConstraintViolation("invalid constraint ceiling entry")
             name, ceiling = item
-            if (
-                not isinstance(name, str)
-                or not _CONSTRAINT_NAME_RE.fullmatch(name)
-            ):
+            if not isinstance(name, str) or not _CONSTRAINT_NAME_RE.fullmatch(name):
                 raise ConstraintViolation("invalid constraint ceiling name")
             if name in constraints:
                 raise ConstraintViolation(f"duplicate constraint ceiling {name!r}")

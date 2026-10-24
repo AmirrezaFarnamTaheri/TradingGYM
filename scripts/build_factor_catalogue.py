@@ -37,7 +37,11 @@ def _strict_constant(_token: str) -> object:
 
 
 def read_candidates(path: Path) -> list[FactorCandidate]:
-    if path.is_symlink() or not path.is_file() or path.stat().st_size > _MAX_INPUT_BYTES:
+    if (
+        path.is_symlink()
+        or not path.is_file()
+        or path.stat().st_size > _MAX_INPUT_BYTES
+    ):
         raise ValueError("invalid factor metadata input")
     data = json.loads(
         path.read_text(encoding="utf-8"),

@@ -31,9 +31,7 @@ def test_invalid_profitable_ratio_cannot_approve_research(invalid):
         summarise_walk_forward(TRAIN, TEST, min_profitable_ratio=invalid)
 
 
-@pytest.mark.parametrize(
-    "invalid", [float("nan"), float("inf"), float("-inf"), True]
-)
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf"), True])
 def test_invalid_degradation_limit_does_not_create_a_robust_result(invalid):
     with pytest.raises(ValueError):
         summarise_walk_forward(TRAIN, TEST, max_median_degradation=invalid)
@@ -41,9 +39,7 @@ def test_invalid_degradation_limit_does_not_create_a_robust_result(invalid):
 
 def test_zero_in_sample_windows_do_not_generate_division_warnings():
     with np.errstate(divide="raise", invalid="raise"):
-        report = summarise_walk_forward(
-            [0, 0, 0, 0, 0], [0, 0.1, 0, -0.1, 0]
-        )
+        report = summarise_walk_forward([0, 0, 0, 0, 0], [0, 0.1, 0, -0.1, 0])
     assert report.window_count == 5
 
 

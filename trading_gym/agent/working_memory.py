@@ -53,7 +53,7 @@ class WorkingMemory:
     _next_cycle: int = 1
 
     def __post_init__(self) -> None:
-        if type(self.max_cycles) is not int or self.max_cycles < 1:
+        if type(self.max_cycles) is not int or self.max_cycles < 1:  # noqa: E721
             raise ValueError("max_cycles must be a positive integer")
 
     def next_cycle_id(self) -> str:
@@ -247,7 +247,7 @@ class CautionPolicy:
     def __post_init__(self) -> None:
         for name in ("window", "loss_streak_elevated", "loss_streak_high"):
             value = getattr(self, name)
-            if type(value) is not int or value < 1:
+            if type(value) is not int or value < 1:  # noqa: E721
                 raise ValueError(f"{name} must be a positive integer")
         if not 1 <= self.loss_streak_elevated < self.loss_streak_high:
             raise ValueError("loss streak thresholds must satisfy 1 <= elevated < high")

@@ -27,8 +27,13 @@ _EXECUTABLE_SUFFIXES = frozenset(
 )
 _NESTED_SUFFIXES = frozenset({".zip", ".tar", ".gz", ".tgz", ".7z", ".rar"})
 _RISK_MARKERS = (
-    "subprocess", "os.system", "requests.", "http://", "https://",
-    "private_key", "mnemonic",
+    "subprocess",
+    "os.system",
+    "requests.",
+    "http://",
+    "https://",
+    "private_key",
+    "mnemonic",
 )
 _SECRET = re.compile(
     r"-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----"
@@ -128,9 +133,7 @@ def inspect_skill_archive(path: str | Path) -> dict[str, object]:
                     continue
                 total_size += member.file_size
                 if member.file_size > _MAX_FILE_BYTES or total_size > _MAX_TOTAL_BYTES:
-                    raise ValueError(
-                        "skill archive uncompressed size budget exceeded"
-                    )
+                    raise ValueError("skill archive uncompressed size budget exceeded")
                 if member.file_size and (
                     not member.compress_size
                     or member.file_size > _MAX_RATIO * member.compress_size
@@ -157,12 +160,14 @@ def inspect_skill_archive(path: str | Path) -> dict[str, object]:
                 all_markers.update(markers)
                 if parts[-1].casefold() in _MANIFEST_NAMES:
                     found_manifest = True
-                files.append({
-                    "path": safe_name,
-                    "sha256": hashlib.sha256(content).hexdigest(),
-                    "size_bytes": len(content),
-                    "risk_markers": sorted(markers),
-                })
+                files.append(
+                    {
+                        "path": safe_name,
+                        "sha256": hashlib.sha256(content).hexdigest(),
+                        "size_bytes": len(content),
+                        "risk_markers": sorted(markers),
+                    }
+                )
     except (BadZipFile, LargeZipFile, EOFError, RuntimeError, OSError) as exc:
         raise ValueError("skill archive decoding failed") from exc
     if not found_manifest:

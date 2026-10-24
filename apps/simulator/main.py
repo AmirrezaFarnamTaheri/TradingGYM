@@ -20,8 +20,10 @@ from trading_gym.pipelines.environment import create_environment
 from trading_gym.pipelines.model_bundle import read_model_bundle
 from trading_gym.common.timeframes import periods_per_year, timeframe_seconds
 from trading_gym.pipelines.metrics import (
-    maximum_drawdown, performance_metrics,
-    sortino_ratio as periodic_sortino, validate_regular_decisions,
+    maximum_drawdown,
+    performance_metrics,
+    sortino_ratio as periodic_sortino,
+    validate_regular_decisions,
 )
 from trading_gym.pipelines.replay import replay_episode
 import mplfinance as mpf
@@ -87,7 +89,9 @@ def sortino_ratio(returns: pd.Series, annualization_factor: float) -> float | No
 
 
 def calmar_ratio(equity_curve: pd.Series, annualization_factor: float) -> float | None:
-    return performance_metrics(equity_curve.to_numpy(), periods_per_year=annualization_factor).calmar
+    return performance_metrics(
+        equity_curve.to_numpy(), periods_per_year=annualization_factor
+    ).calmar
 
 
 def _metric_label(value: float | None) -> str:
@@ -119,7 +123,11 @@ def plot_rolling_sharpe_ratio(
     """Atomically plot a bounded rolling annualised Sharpe ratio."""
     if not 2 <= window <= 1_000_000:
         raise ValueError("rolling Sharpe window is out of bounds")
-    if annualization_factor is None or not np.isfinite(annualization_factor) or annualization_factor <= 0:
+    if (
+        annualization_factor is None
+        or not np.isfinite(annualization_factor)
+        or annualization_factor <= 0
+    ):
         raise ValueError("annualization_factor must be finite and positive")
     returns = pd.Series(equity_curve).pct_change().dropna()
     rolling_mean = returns.rolling(window).mean()
@@ -222,34 +230,66 @@ def run(
         equity_curve = list(trace.equity)
         positions = list(trace.positions)
         consumed = list(trace.decision_indices)
-        decision_times = all_data["features"].index[consumed].asi8.astype(np.float64) / 1e9
-        validate_regular_decisions(decision_times, timeframe_seconds(timeframe))
-        df_ohlc = all_data["ohlc"].iloc[consumed].copy()
-        if len(df_ohlc) != len(positions) or df_ohlc.isna().any().any():
-            raise ValueError("plot market data does not align with consumed decision rows")
+        valued = list(trace.valuation_indices)
+        valuation_rows = [consumed[0], *valued]
+        valuation_times = (
+            all_data["features"].index[valuation_rows].asi8.astype(np.float64) / 1e9
+        )
+        validate_regular_decisions(valuation_times, timeframe_seconds(timeframe))
+        df_ohlc = all_data["ohlc"].iloc[valuation_rows].copy()
+        if len(df_ohlc) != len(equity_curve) or df_ohlc.isna().any().any():
+            raise ValueError("plot market data does not align with settled valuations")
         annualization_factor = periods_per_year(timeframe, calendar_days=365.0)
-        metrics = performance_metrics(equity_curve, periods_per_year=annualization_factor)
-        sharpe, sortino, calmar, max_dd = metrics.sharpe, metrics.sortino, metrics.calmar, metrics.max_drawdown
+        metrics = performance_metrics(
+            equity_curve, periods_per_year=annualization_factor
+        )
+        sharpe, sortino, calmar, max_dd = (
+            metrics.sharpe,
+            metrics.sortino,
+            metrics.calmar,
+            metrics.max_drawdown,
+        )
         logger.info("Simulation ended after %d continuous decisions", len(consumed))
-        logger.info("Sharpe=%s Sortino=%s Calmar=%s MaxDrawdown=%.4f periods/year=%.4f",
-                    _metric_label(sharpe), _metric_label(sortino), _metric_label(calmar),
-                    max_dd, annualization_factor)
+        logger.info(
+            "Sharpe=%s Sortino=%s Calmar=%s MaxDrawdown=%.4f periods/year=%.4f",
+            _metric_label(sharpe),
+            _metric_label(sortino),
+            _metric_label(calmar),
+            max_dd,
+            annualization_factor,
+        )
 
         logger.info("Preparing data for plotting.")
         df_plot = df_ohlc.copy()
         df_plot.index.name = "Date"
-        df_plot["equity"] = equity_curve[1:]
+        df_plot["equity"] = equity_curve
 
-        positions_s = pd.Series(positions, index=df_plot.index)
-        trades = pd.Series(np.diff(np.r_[0., positions]), index=df_plot.index)
+        # Position changes shown at their settled valuation, including any
+        # intrabar stop-out; these markers are not fabricated venue fill times.
+        trades = pd.Series(
+            np.r_[0.0, np.diff(np.r_[0.0, positions])], index=df_plot.index
+        )
         buy_signals = np.where(trades > 0, df_plot["low"] * 0.98, np.nan)
         sell_signals = np.where(trades < 0, df_plot["high"] * 1.02, np.nan)
 
-        apds = [mpf.make_addplot(df_plot["equity"], panel=1, color="b", ylabel="Equity")]
-        for signal, marker, color in ((buy_signals, "^", "g"), (sell_signals, "v", "r")):
+        apds = [
+            mpf.make_addplot(df_plot["equity"], panel=1, color="b", ylabel="Equity")
+        ]
+        for signal, marker, color in (
+            (buy_signals, "^", "g"),
+            (sell_signals, "v", "r"),
+        ):
             if np.isfinite(signal).any():
-                apds.append(mpf.make_addplot(signal, type="scatter", marker=marker,
-                                             color=color, panel=0, markersize=50))
+                apds.append(
+                    mpf.make_addplot(
+                        signal,
+                        type="scatter",
+                        marker=marker,
+                        color=color,
+                        panel=0,
+                        markersize=50,
+                    )
+                )
 
         fig, _ = mpf.plot(
             df_plot,
@@ -281,7 +321,8 @@ def run(
 
         if plot_sharpe:
             plot_rolling_sharpe_ratio(
-                equity_curve, output_path.with_name(f"{output_path.stem}_sharpe.png"),
+                equity_curve,
+                output_path.with_name(f"{output_path.stem}_sharpe.png"),
                 annualization_factor=annualization_factor,
             )
 

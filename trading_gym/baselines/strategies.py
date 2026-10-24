@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 import numpy as np
@@ -9,8 +9,8 @@ import numpy as np
 class Strategy(Protocol):
     """Strategy protocol used by the evaluation pipeline."""
 
-    def reset(self) -> None:
-        """Reset the strategy state (e.g., for a new episode)."""
+    def reset(self, *, seed: int | None = None) -> None:
+        """Reset episode state and any private randomness from an explicit seed."""
         ...
 
     def act(self, t: int, prices: np.ndarray) -> float:
@@ -25,7 +25,7 @@ class MomentumStrategy:
     lookback: int = 1
     notional_leverage: float = 1.0
 
-    def reset(self) -> None:
+    def reset(self, *, seed: int | None = None) -> None:
         """No state to reset for this strategy."""
         pass
 
@@ -43,7 +43,7 @@ class MeanReversionStrategy:
     lookback: int = 1
     notional_leverage: float = 1.0
 
-    def reset(self) -> None:
+    def reset(self, *, seed: int | None = None) -> None:
         """No state to reset for this strategy."""
         pass
 
@@ -60,7 +60,7 @@ class BuyAndHoldStrategy:
 
     exposure: float = 1.0
 
-    def reset(self) -> None:
+    def reset(self, *, seed: int | None = None) -> None:
         """No state to reset for this strategy."""
         pass
 
@@ -71,16 +71,27 @@ class BuyAndHoldStrategy:
 
 @dataclass
 class RandomStrategy:
-    """Randomly trades with a given probability."""
+    """Random baseline with an isolated, explicitly reproducible generator."""
 
     notional_leverage: float = 1.0
     trade_prob: float = 0.1
+    seed: int | None = None
+    _rng: np.random.Generator = field(init=False, repr=False)
 
-    def reset(self) -> None:
-        """No state to reset for this strategy."""
-        pass
+    def __post_init__(self) -> None:
+        if not np.isfinite(self.notional_leverage) or self.notional_leverage < 0:
+            raise ValueError("random strategy leverage must be finite and nonnegative")
+        if not np.isfinite(self.trade_prob) or not 0 <= self.trade_prob <= 1:
+            raise ValueError("random strategy trade probability must lie in [0, 1]")
+        self.reset(seed=self.seed)
+
+    def reset(self, *, seed: int | None = None) -> None:
+        """Restart the generator without touching NumPy's process-global RNG."""
+        self._rng = np.random.default_rng(self.seed if seed is None else seed)
 
     def act(self, t: int, prices: np.ndarray) -> float:
-        if np.random.rand() < self.trade_prob:
-            return np.random.uniform(-self.notional_leverage, self.notional_leverage)
+        if self._rng.random() < self.trade_prob:
+            return float(
+                self._rng.uniform(-self.notional_leverage, self.notional_leverage)
+            )
         return 0.0

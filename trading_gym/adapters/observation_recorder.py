@@ -5,6 +5,7 @@ module calls only get_ticker and get_coin_info. It never reads balances, orders,
 fills or credentials and never submits/cancels an order. Admission is research
 data quality, not live authority or proof of executable venue liquidity.
 """
+
 from __future__ import annotations
 
 from collections import Counter
@@ -39,20 +40,30 @@ class ObservationProfile:
     quote_currency: str
     mapping_reference: str | None = None
     fee_unit: str = "unknown"
-    max_quote_age_seconds: float = 30.
-    max_read_duration_seconds: float = 10.
+    max_quote_age_seconds: float = 30.0
+    max_read_duration_seconds: float = 10.0
 
     def __post_init__(self):
-        for value in (self.source, self.source_version, self.symbol, self.quote_currency):
+        for value in (
+            self.source,
+            self.source_version,
+            self.symbol,
+            self.quote_currency,
+        ):
             if not re.fullmatch(r"[A-Za-z0-9._/-]{1,80}", value):
                 raise ValueError("invalid source/profile identifier")
         if self.quote_currency not in {"USDT", "IRT"}:
             raise ValueError("unsupported quote currency profile")
         if self.fee_unit not in {"fraction", "percent", "basis_points", "unknown"}:
             raise ValueError("unsupported fee unit")
-        if not 0 < self.max_quote_age_seconds <= 3600 or not 0 < self.max_read_duration_seconds <= 120:
+        if (
+            not 0 < self.max_quote_age_seconds <= 3600
+            or not 0 < self.max_read_duration_seconds <= 120
+        ):
             raise ValueError("invalid freshness budget")
-        if self.mapping_reference is not None and not re.fullmatch(r"[A-Za-z0-9._:/-]{1,200}", self.mapping_reference):
+        if self.mapping_reference is not None and not re.fullmatch(
+            r"[A-Za-z0-9._:/-]{1,200}", self.mapping_reference
+        ):
             raise ValueError("invalid mapping reference")
 
 
@@ -70,13 +81,20 @@ def _utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
-def capture(client: ReadMarketClient, profile: ObservationProfile, *,
-            observed_quote_currency: str | None = None,
-            source_event_time: datetime | None = None,
-            event_time_source: str | None = None,
-            now=lambda: datetime.now(timezone.utc), monotonic=time.monotonic) -> dict:
-    if source_event_time is not None and (not event_time_source or
-            not re.fullmatch(r"[A-Za-z0-9._/-]{1,80}", event_time_source)):
+def capture(
+    client: ReadMarketClient,
+    profile: ObservationProfile,
+    *,
+    observed_quote_currency: str | None = None,
+    source_event_time: datetime | None = None,
+    event_time_source: str | None = None,
+    now=lambda: datetime.now(timezone.utc),
+    monotonic=time.monotonic,
+) -> dict:
+    if source_event_time is not None and (
+        not event_time_source
+        or not re.fullmatch(r"[A-Za-z0-9._/-]{1,80}", event_time_source)
+    ):
         raise ValueError("a source event timestamp requires its provenance field")
     started = monotonic()
     reasons: list[str] = []
@@ -85,14 +103,33 @@ def capture(client: ReadMarketClient, profile: ObservationProfile, *,
     try:
         ticker = client.get_ticker(profile.symbol)
         received["ticker"] = _utc(now()).isoformat()
-        selected["ticker"] = {name: getattr(ticker, name, None) for name in
-            ("symbol", "buy_price", "sell_price", "buy_max", "sell_max", "active")}
+        selected["ticker"] = {
+            name: getattr(ticker, name, None)
+            for name in (
+                "symbol",
+                "buy_price",
+                "sell_price",
+                "buy_max",
+                "sell_max",
+                "active",
+            )
+        }
         for side in (OrderSide.BUY, OrderSide.SELL):
             info = client.get_coin_info(profile.symbol, side)
             received[f"limits_{side.value}"] = _utc(now()).isoformat()
-            selected["fees_limits"][side.value] = {name: getattr(info, name, None) for name in
-                ("symbol", "exchange_fee", "usdt_min_trade", "usdt_max_trade",
-                 "irt_min_trade", "irt_max_trade", "irt_fee", "tether_fee")}
+            selected["fees_limits"][side.value] = {
+                name: getattr(info, name, None)
+                for name in (
+                    "symbol",
+                    "exchange_fee",
+                    "usdt_min_trade",
+                    "usdt_max_trade",
+                    "irt_min_trade",
+                    "irt_max_trade",
+                    "irt_fee",
+                    "tether_fee",
+                )
+            }
     except Exception as exc:
         reasons.append("read_failed:" + type(exc).__name__)
     elapsed = monotonic() - started
@@ -122,7 +159,9 @@ def capture(client: ReadMarketClient, profile: ObservationProfile, *,
         reasons.append("market_inactive_or_unknown")
     # Existing adapter spread property uses customer buy minus customer sell.
     # Preserve that declared mapping, with provenance required for admission.
-    ask, bid = _decimal(raw_ticker.get("buy_price")), _decimal(raw_ticker.get("sell_price"))
+    ask, bid = _decimal(raw_ticker.get("buy_price")), _decimal(
+        raw_ticker.get("sell_price")
+    )
     spread_bps = None
     if ask is None or bid is None or ask <= 0 or bid <= 0 or bid > ask:
         reasons.append("invalid_or_inverted_quote")
@@ -131,30 +170,52 @@ def capture(client: ReadMarketClient, profile: ObservationProfile, *,
     for side in ("buy", "sell"):
         info = selected["fees_limits"].get(side, {})
         prefix = profile.quote_currency.lower()
-        minimum, maximum = _decimal(info.get(f"{prefix}_min_trade")), _decimal(info.get(f"{prefix}_max_trade"))
+        minimum, maximum = _decimal(info.get(f"{prefix}_min_trade")), _decimal(
+            info.get(f"{prefix}_max_trade")
+        )
         if minimum is None or maximum is None or minimum <= 0 or maximum < minimum:
             reasons.append(f"missing_or_invalid_limits:{side}")
         if info.get("symbol") != profile.symbol:
             reasons.append(f"limits_instrument_mismatch:{side}")
         fee = _decimal(info.get("exchange_fee"))
-        scale = {"fraction": Decimal(10_000), "percent": Decimal(100), "basis_points": Decimal(1)}.get(profile.fee_unit)
+        scale = {
+            "fraction": Decimal(10_000),
+            "percent": Decimal(100),
+            "basis_points": Decimal(1),
+        }.get(profile.fee_unit)
         if fee is None or fee < 0 or (scale is not None and fee * scale >= 10_000):
             reasons.append(f"missing_or_invalid_advertised_fee:{side}")
     # Hash only whitelisted, normalized adapter fields, not an imagined raw HTTP body.
-    normalized = json.loads(json.dumps(selected, default=str, sort_keys=True, allow_nan=False))
-    digest = hashlib.sha256(json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    return {"schema_version": 1, "observation_id": uuid4().hex,
-        "source": profile.source, "source_version": profile.source_version,
-        "symbol": profile.symbol, "quote_currency": profile.quote_currency,
+    normalized = json.loads(
+        json.dumps(selected, default=str, sort_keys=True, allow_nan=False)
+    )
+    digest = hashlib.sha256(
+        json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        "schema_version": 1,
+        "observation_id": uuid4().hex,
+        "source": profile.source,
+        "source_version": profile.source_version,
+        "symbol": profile.symbol,
+        "quote_currency": profile.quote_currency,
         "observed_quote_currency": observed_quote_currency,
-        "mapping_reference": profile.mapping_reference, "fee_unit": profile.fee_unit,
-        "captured_at_utc": captured.isoformat(), "received_at_utc": received,
+        "mapping_reference": profile.mapping_reference,
+        "fee_unit": profile.fee_unit,
+        "captured_at_utc": captured.isoformat(),
+        "received_at_utc": received,
         "source_event_at_utc": event.isoformat() if event else None,
         "event_time_source": event_time_source if event else "not_supplied_by_adapter",
-        "event_age_seconds": age, "read_duration_seconds": elapsed,
-        "normalized_fields_sha256": digest, "normalized_fields": normalized,
-        "spread_bps": spread_bps, "admission": "research_observation" if not reasons else "modeled_cost_required",
-        "reasons": reasons, "own_order_fills_observed": False, "live_authority": False}
+        "event_age_seconds": age,
+        "read_duration_seconds": elapsed,
+        "normalized_fields_sha256": digest,
+        "normalized_fields": normalized,
+        "spread_bps": spread_bps,
+        "admission": "research_observation" if not reasons else "modeled_cost_required",
+        "reasons": reasons,
+        "own_order_fills_observed": False,
+        "live_authority": False,
+    }
 
 
 def persist(root: Path, observation: dict, *, max_records: int = 10_000) -> Path:
@@ -187,10 +248,19 @@ def coverage(observations: list[dict]) -> dict:
     if len(observations) > 1000:
         raise ValueError("coverage batch exceeds 1000 observations")
     reasons = Counter(reason for row in observations for reason in row["reasons"])
-    admitted = [row for row in observations if row["admission"] == "research_observation"]
-    spreads = [float(row["spread_bps"]) for row in admitted if row["spread_bps"] is not None]
-    return {"observations": len(observations), "admitted": len(admitted),
-        "source_time_known": sum(row["source_event_at_utc"] is not None for row in observations),
+    admitted = [
+        row for row in observations if row["admission"] == "research_observation"
+    ]
+    spreads = [
+        float(row["spread_bps"]) for row in admitted if row["spread_bps"] is not None
+    ]
+    return {
+        "observations": len(observations),
+        "admitted": len(admitted),
+        "source_time_known": sum(
+            row["source_event_at_utc"] is not None for row in observations
+        ),
         "downgrade_reasons": dict(reasons),
         "admitted_spread_bps_median": statistics.median(spreads) if spreads else None,
-        "own_order_fill_or_latency_evidence": False}
+        "own_order_fill_or_latency_evidence": False,
+    }

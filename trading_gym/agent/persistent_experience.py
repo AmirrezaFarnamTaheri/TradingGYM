@@ -121,7 +121,8 @@ def memory_advice(tags: Sequence[str], hits: Sequence[Experience]) -> MemoryAdvi
             win_support += hit.support
     total = loss_support + win_support
     return MemoryAdvice(
-        tags=tuple(_normalise_tags(list(tags))), warnings=tuple(warnings),
+        tags=tuple(_normalise_tags(list(tags))),
+        warnings=tuple(warnings),
         confirmations=tuple(confirmations),
         net_signal=0.0 if total == 0 else (win_support - loss_support) / total,
         consulted=len(hits),
@@ -140,7 +141,7 @@ class PersistentExperienceMemory:
         retention_days: float = 180.0,
         read_only: bool = False,
     ) -> None:
-        if type(read_only) is not bool:
+        if type(read_only) is not bool:  # noqa: E721
             raise ValueError("read_only must be a boolean")
         self._read_only = read_only
         self._memory = ExperienceMemory(
@@ -201,8 +202,9 @@ class PersistentExperienceMemory:
         # Consolidation must happen AFTER the time filter. Filtering only the
         # latest consolidated timestamp either leaks future support or hides
         # an earlier valid observation of the same lesson.
-        memory = ExperienceMemory(self._memory.max_entries,
-                                  self._memory.recency_half_life_seconds)
+        memory = ExperienceMemory(
+            self._memory.max_entries, self._memory.recency_half_life_seconds
+        )
         memory.replace_entries(self._projection(as_of=now))
         return memory.query(tags, k=k, now=now)
 
@@ -348,7 +350,7 @@ class PersistentExperienceMemory:
             raise MemoryJournalIntegrityError("experience journal anchor is malformed")
         seq = anchor.get("seq")
         head = anchor.get("head")
-        if type(seq) is not int or not isinstance(head, str):
+        if type(seq) is not int or not isinstance(head, str):  # noqa: E721
             raise MemoryJournalIntegrityError("experience journal anchor is malformed")
         expected_seq = entries[-1]["seq"] if entries else 0
         expected_head = entries[-1]["record_sha256"] if entries else _GENESIS
@@ -376,8 +378,14 @@ class PersistentExperienceMemory:
         order: list[tuple[tuple[str, ...], str, str]] = []
         for entry in self._journal:
             record = entry["record"]
-            if as_of is not None and max(float(record["created_at"]),
-                    float(record.get("recorded_at", record["created_at"]))) > as_of:
+            if (
+                as_of is not None
+                and max(
+                    float(record["created_at"]),
+                    float(record.get("recorded_at", record["created_at"])),
+                )
+                > as_of
+            ):
                 continue
             tags = tuple(record["context_tags"])
             key = (tags, str(record["outcome"]), str(record["lesson"]))

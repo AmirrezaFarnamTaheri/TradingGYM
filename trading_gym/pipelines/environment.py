@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional, List
+from typing import TYPE_CHECKING, Callable, Dict, Optional, List
 import logging
 
 import numpy as np
@@ -12,6 +12,9 @@ from trading_gym.data.data_loader import load_symbol_timeframe
 from trading_gym.features.feature_fusion import fuse_features, preserve_base_context
 from trading_gym.pipelines.model_bundle import FrozenNormalizer
 from trading_gym.common.timeframes import timeframe_seconds
+
+if TYPE_CHECKING:
+    from trading_gym.rl.margin_trading_environment import MarginTradingEnv
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +54,9 @@ def _compute_stats_from_features(
     features_df: pd.DataFrame, feature_cfg
 ) -> Dict[str, Dict[str, float]]:
     """Fallback computation of normalization stats when none are provided."""
-    return FrozenNormalizer.fit(features_df, feature_cfg.standardization.method).to_stats()
+    return FrozenNormalizer.fit(
+        features_df, feature_cfg.standardization.method
+    ).to_stats()
 
 
 def load_environment_inputs(
@@ -69,36 +74,49 @@ def load_environment_inputs(
     """
     from trading_gym.features.feature_assembler import FeatureAssembler
     from trading_gym.pipelines.availability import (
-        FEATURE_RECIPE, SETTLEMENT_DELAY_SECONDS, active_timeframes,
-        align_available_frame, available_index, closed_feature_frame,
-        feature_history_rows, utc_bar_frame,
+        FEATURE_RECIPE,
+        SETTLEMENT_DELAY_SECONDS,
+        active_timeframes,
+        align_available_frame,
+        available_index,
+        closed_feature_frame,
+        feature_history_rows,
+        utc_bar_frame,
     )
 
     assembler = FeatureAssembler(cfg.features)
     timeframes = active_timeframes(cfg.features)
     base_seconds = timeframes[0].bar_minutes * 60
     if timeframe_seconds(timeframe) != base_seconds:
-        raise ValueError("requested timeframe differs from configured base feature duration")
+        raise ValueError(
+            "requested timeframe differs from configured base feature duration"
+        )
     frames = {}
     base_raw = None
     for index, tf_cfg in enumerate(timeframes):
-        candidates = _timeframe_candidates(tf_cfg.name, tf_cfg.bar_minutes,
-                                           timeframe if index == 0 else None)
+        candidates = _timeframe_candidates(
+            tf_cfg.name, tf_cfg.bar_minutes, timeframe if index == 0 else None
+        )
         raw = None
         for candidate in candidates:
             try:
-                raw = load_symbol_timeframe(Path(cfg.data.lake_dir), cfg.env.symbol, candidate)
+                raw = load_symbol_timeframe(
+                    Path(cfg.data.lake_dir), cfg.env.symbol, candidate
+                )
                 break
             except FileNotFoundError:
                 continue
         if raw is None:
-            raise FileNotFoundError(f"missing required timeframe {tf_cfg.name!r}; tried {candidates}")
+            raise FileNotFoundError(
+                f"missing required timeframe {tf_cfg.name!r}; tried {candidates}"
+            )
         raw = utc_bar_frame(raw)
         for column in ("open", "high", "low", "mid"):
             if column not in raw:
                 raw[column] = raw["close"]
-        frames[tf_cfg.name] = closed_feature_frame(raw, assembler, cfg.env.symbol,
-                                                  bar_seconds=tf_cfg.bar_minutes * 60)
+        frames[tf_cfg.name] = closed_feature_frame(
+            raw, assembler, cfg.env.symbol, bar_seconds=tf_cfg.bar_minutes * 60
+        )
         if index == 0:
             base_raw = raw.copy()
             base_raw["bar_open_timestamp"] = raw.index
@@ -114,7 +132,11 @@ def load_environment_inputs(
         if value is None:
             return None
         timestamp = pd.Timestamp(value)
-        return timestamp.tz_localize("UTC") if timestamp.tzinfo is None else timestamp.tz_convert("UTC")
+        return (
+            timestamp.tz_localize("UTC")
+            if timestamp.tzinfo is None
+            else timestamp.tz_convert("UTC")
+        )
 
     start, end = bound(start_at), bound(end_at)
     if start is not None and end is not None and start >= end:
@@ -131,8 +153,9 @@ def load_environment_inputs(
         # roll_fill_cap grants that many EXTRA base bars during a source outage;
         # zero therefore permits no extra outage fill, not no normal as-of reuse.
         maximum_age = tf_cfg.bar_minutes * 60 + tf_cfg.roll_fill_cap * base_seconds
-        aligned = align_available_frame(frames[tf_cfg.name], decisions,
-                                          max_age_seconds=maximum_age)
+        aligned = align_available_frame(
+            frames[tf_cfg.name], decisions, max_age_seconds=maximum_age
+        )
         if ordered and tuple(aligned.columns) != tuple(ordered[0].columns):
             raise ValueError("feature schemas differ across timeframes")
         ordered.append(aligned)
@@ -154,12 +177,14 @@ def load_environment_inputs(
         "timestamps": decisions.asi8.astype(np.float64) / 1e9,
         "bar_open_timestamps": pd.DatetimeIndex(market["bar_open_timestamp"]),
         "ohlc": market[["open", "high", "low", "close"]].copy(),
-        "feature_provenance": {"recipe": FEATURE_RECIPE,
-                               "bar_timestamp_semantics": "open",
-                               "settlement_delay_seconds": SETTLEMENT_DELAY_SECONDS,
-                               "history_rows": feature_history_rows(cfg.features),
-                               "timeframes": [tf.name for tf in timeframes],
-                               "missingness": "complete-asof-fail-stale"},
+        "feature_provenance": {
+            "recipe": FEATURE_RECIPE,
+            "bar_timestamp_semantics": "open",
+            "settlement_delay_seconds": SETTLEMENT_DELAY_SECONDS,
+            "history_rows": feature_history_rows(cfg.features),
+            "timeframes": [tf.name for tf in timeframes],
+            "missingness": "complete-asof-fail-stale",
+        },
     }
 
 

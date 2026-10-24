@@ -3,7 +3,11 @@ import pytest
 
 from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
 from trading_gym.intelligence import build_intelligence_policy
-from trading_gym.intelligence.types import ActionKind, BackendUnavailable, DecisionSignal
+from trading_gym.intelligence.types import (
+    ActionKind,
+    BackendUnavailable,
+    DecisionSignal,
+)
 import trading_gym.intelligence.factory as factory
 
 

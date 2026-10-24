@@ -53,4 +53,41 @@ describe('gateway session HTTP boundary', () => {
     expect(getApiKey()).toBeNull();
     expect(container.textContent).not.toContain('Protected workspaces');
   });
+  it.each([[401, 'Missing X-API-Key header'], [403, 'Invalid API key']])('expires a rejected current session with HTTP %s', async (status, detail) => {
+    api.defaults.adapter = async (config) => ({ status: 200, data: {}, headers: {}, config });
+    await mount();
+    await submit('fixture-current-key');
+    api.defaults.adapter = async (config) => { throw { config, response: { status, data: { detail } } }; };
+    await act(async () => { await api.get('/status').catch(() => {}); });
+    expect(getApiKey()).toBeNull();
+    expect(container.textContent).not.toContain('Protected workspaces');
+    expect(container.textContent).toContain('no longer authorized');
+  });
+  it('keeps the gateway session when an independent approval is denied', async () => {
+    api.defaults.adapter = async (config) => ({ status: 200, data: {}, headers: {}, config });
+    await mount();
+    await submit('fixture-current-key');
+    api.defaults.adapter = async (config) => { throw { config, response: { status: 403, data: { detail: 'Valid X-Approval-Key required' } } }; };
+    await act(async () => { await api.post('/models/activate').catch(() => {}); });
+    expect(getApiKey()).toBe('fixture-current-key');
+    expect(container.textContent).toContain('Protected workspaces');
+  });
+  it('ignores a late authentication failure from a previous session', async () => {
+    let failOldRequest;
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/slow') return new Promise((_resolve, reject) => {
+        failOldRequest = () => reject({ config, response: { status: 403, data: { detail: 'Invalid API key' } } });
+      });
+      return { status: 200, data: {}, headers: {}, config };
+    };
+    await mount();
+    await submit('fixture-old-key');
+    const oldRequest = api.get('/slow').catch(() => {});
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => container.querySelector('button').click());
+    await submit('fixture-new-key');
+    await act(async () => { failOldRequest(); await oldRequest; });
+    expect(getApiKey()).toBe('fixture-new-key');
+    expect(container.textContent).toContain('Protected workspaces');
+  });
 });

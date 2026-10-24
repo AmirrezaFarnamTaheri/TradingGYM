@@ -76,15 +76,13 @@ def build_market_context(
             raise ValueError("invalid completed-bar history")
         prev_close = closed[-1]  # latest completed close before current mark
         returns = tuple(
-            (closed[i] / closed[i - 1]) - 1.0
-            for i in range(len(closed) - 1, 0, -1)
+            (closed[i] / closed[i - 1]) - 1.0 for i in range(len(closed) - 1, 0, -1)
         )
         return_basis = "completed_bars"
     else:
         previous = list(getattr(underlying, "price_history", ())[-9:])
         if any(
-            not np.isfinite(float(value)) or float(value) <= 0
-            for value in previous
+            not np.isfinite(float(value)) or float(value) <= 0 for value in previous
         ):
             raise ValueError("environment historical prices are invalid")
         closes = [float(value) for value in previous]
@@ -92,8 +90,7 @@ def build_market_context(
             closes.append(price)
         prev_close = closes[-2] if len(closes) >= 2 else None
         returns = tuple(
-            (closes[i] / closes[i - 1]) - 1.0
-            for i in range(len(closes) - 1, 0, -1)
+            (closes[i] / closes[i - 1]) - 1.0 for i in range(len(closes) - 1, 0, -1)
         )
         return_basis = "mark_updates" if live else "historical_bars"
     if not all(np.isfinite(value) for value in returns):

@@ -293,6 +293,7 @@ class TestEscalationType:
         fused = engine.fuse([], make_context(), regime="trend")
         assert isinstance(fused, DisagreementEscalated)
 
+
 def test_fusion_weight_snapshots_support_dataclass_projection_and_deepcopy() -> None:
     """Read-only snapshots must remain compatible with audit/copy tooling."""
     import copy
@@ -314,6 +315,7 @@ def test_fusion_weight_snapshots_support_dataclass_projection_and_deepcopy() -> 
     assert cloned.weights == restored.weights == config.weights
     with pytest.raises(TypeError):
         cloned.weights.entries[("rules", "trend")] = 0.0  # type: ignore[index]
+
 
 def test_contradictory_signed_direction_never_produces_an_order() -> None:
     engine = FusionEngine(FusionConfig())

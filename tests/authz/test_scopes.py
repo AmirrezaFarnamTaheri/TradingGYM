@@ -156,6 +156,7 @@ class TestScopeSet:
         with pytest.raises(ScopeError):
             ScopeSet.parse(("**",))
 
+
 class TestHighRiskNewDelegation:
     @pytest.mark.parametrize(
         "pattern",

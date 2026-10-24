@@ -58,7 +58,7 @@ def config():
     cfg.env.decimals.qty_for.return_value = 6
     cfg.env.decimals.price_for.return_value = 2
     cfg.env.decimals.min_qty_for.return_value = 0.001
-    cfg.env.cost.taker_fee_bps = 10.0
+    cfg.env.costs.taker_fee_bps = 10.0
     return cfg
 
 

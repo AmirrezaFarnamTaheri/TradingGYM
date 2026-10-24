@@ -29,9 +29,7 @@ def test_bootstrap_confidence_must_be_valid(invalid):
 @pytest.mark.parametrize("invalid", [True, 0, -1, 2.3])
 def test_bootstrap_annualisation_must_be_positive_integer(invalid):
     with pytest.raises(ValueError, match="periods_per_year"):
-        bootstrap_sharpe_interval(
-            RETURNS, periods_per_year=invalid, samples=100
-        )
+        bootstrap_sharpe_interval(RETURNS, periods_per_year=invalid, samples=100)
 
 
 def test_bootstrap_must_not_pool_distinct_strategies():

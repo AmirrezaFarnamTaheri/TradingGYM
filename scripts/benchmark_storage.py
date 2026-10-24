@@ -3,6 +3,7 @@
 No application home, live journals, financial records or audit anchors are read
 or changed. Results describe this machine/workload; they are not a capacity SLA.
 """
+
 import argparse
 import json
 from pathlib import Path
@@ -20,7 +21,11 @@ def benchmark(counts: list[int], repeats: int = 5) -> dict:
     with tempfile.TemporaryDirectory(prefix="tradinggym-storage-bench-") as temporary:
         path = Path(temporary) / "fixture.json"
         for count in counts:
-            payload = {"records": {str(i): {"state": "succeeded", "revision": 3} for i in range(count)}}
+            payload = {
+                "records": {
+                    str(i): {"state": "succeeded", "revision": 3} for i in range(count)
+                }
+            }
             atomic_write_json(path, payload)
             elapsed = []
             for _ in range(repeats):
@@ -28,11 +33,21 @@ def benchmark(counts: list[int], repeats: int = 5) -> dict:
                 observed = read_json(path, {})
                 elapsed.append((time.perf_counter_ns() - start) / 1_000_000)
                 assert len(observed["records"]) == count
-            rows.append({"records": count, "bytes": path.stat().st_size,
-                         "read_ms_median": statistics.median(elapsed),
-                         "read_ms_max": max(elapsed), "repeats": repeats})
-    return {"scope": "synthetic_single_reader_current_json", "contention_measured": False,
-            "integrity_validation_measured": False, "measurements": rows}
+            rows.append(
+                {
+                    "records": count,
+                    "bytes": path.stat().st_size,
+                    "read_ms_median": statistics.median(elapsed),
+                    "read_ms_max": max(elapsed),
+                    "repeats": repeats,
+                }
+            )
+    return {
+        "scope": "synthetic_single_reader_current_json",
+        "contention_measured": False,
+        "integrity_validation_measured": False,
+        "measurements": rows,
+    }
 
 
 if __name__ == "__main__":

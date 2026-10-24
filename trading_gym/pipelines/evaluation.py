@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+import inspect
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, Iterable, List, Tuple
 
@@ -19,13 +20,21 @@ from trading_gym.common.security import (
 )
 from trading_gym.common.utils import load_app_config
 from trading_gym.common.timeframes import periods_per_year, timeframe_seconds
-from trading_gym.pipelines.metrics import performance_metrics, validate_regular_decisions
+from trading_gym.pipelines.metrics import (
+    performance_metrics,
+    validate_regular_decisions,
+)
 from trading_gym.pipelines.research_protocol import fold_manifest, slice_inputs
 from trading_gym.pipelines.environment import (
     create_environment,
     load_environment_inputs,
 )
-from trading_gym.pipelines.model_bundle import bundle_for_model, read_model_bundle, FrozenNormalizer, feature_data_digest
+from trading_gym.pipelines.model_bundle import (
+    bundle_for_model,
+    read_model_bundle,
+    FrozenNormalizer,
+    feature_data_digest,
+)
 
 if TYPE_CHECKING:
     from stable_baselines3 import PPO
@@ -64,15 +73,16 @@ def _anchored_splits(
         raise ValueError("each training/evaluation partition needs at least two rows")
     # Include the final remainder instead of silently dropping it.
     parts = np.array_split(np.arange(train_end, length), n_splits)
-    return [(slice(0, int(part[0])), slice(int(part[0]), int(part[-1]) + 1)) for part in parts]
-
+    return [
+        (slice(0, int(part[0])), slice(int(part[0]), int(part[-1]) + 1))
+        for part in parts
+    ]
 
 
 def _slice_inputs(
     inputs: Dict[str, np.ndarray | pd.DataFrame], interval: slice
 ) -> Dict[str, np.ndarray | pd.DataFrame]:
     return slice_inputs(inputs, interval)
-
 
 
 def _run_model(
@@ -111,7 +121,9 @@ def _run_model(
         equity_curve = np.asarray(equities, dtype=np.float64)
         rewards_arr = np.asarray(rewards, dtype=np.float64)
 
-        metric = performance_metrics(equity_curve, periods_per_year=annualization_factor)
+        metric = performance_metrics(
+            equity_curve, periods_per_year=annualization_factor
+        )
         sharpe, max_drawdown = metric.sharpe, -metric.max_drawdown
 
         return EvaluationResult(
@@ -137,7 +149,19 @@ def _run_strategy(
     seed: int = 0,
 ) -> EvaluationResult:
     strategy = strategy_factory()
-    strategy.reset()
+    # Legacy deterministic strategies may retain reset(). Stochastic custom
+    # strategies must implement reset(seed=...) and own their RNG; reseeding
+    # global NumPy state would contaminate other comparators and workers.
+    reset_parameters = inspect.signature(strategy.reset).parameters
+    if "seed" in reset_parameters or any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in reset_parameters.values()
+    ):
+        strategy_seed = int(
+            np.random.SeedSequence(seed, spawn_key=(1,)).generate_state(1)[0]
+        )
+        strategy.reset(seed=strategy_seed)
+    else:
+        strategy.reset()
     logger.debug(f"Running strategy {strategy.__class__.__name__}...")
 
     observation, _ = env.reset(seed=seed)
@@ -208,35 +232,64 @@ def run_walkforward(
         raise ValueError("evaluation requires timezone-aware decision timestamps")
     if not features.index.is_unique or not features.index.is_monotonic_increasing:
         raise ValueError("evaluation timestamps must be unique and ordered")
-    splits = _anchored_splits(len(features), config.evaluation.walkforward.min_train_fraction,
-                              config.evaluation.walkforward.n_splits)
+    splits = _anchored_splits(
+        len(features),
+        config.evaluation.walkforward.min_train_fraction,
+        config.evaluation.walkforward.n_splits,
+    )
     if timeframe_seconds(timeframe) != config.features.timeframes[0].bar_minutes * 60:
-        raise ValueError("evaluation timeframe differs from the trained base feature duration")
+        raise ValueError(
+            "evaluation timeframe differs from the trained base feature duration"
+        )
     annualization_factor = periods_per_year(timeframe, calendar_days=365.0)
-    validate_regular_decisions(features.index.asi8.astype(np.float64) / 1e9, timeframe_seconds(timeframe))
+    validate_regular_decisions(
+        features.index.asi8.astype(np.float64) / 1e9, timeframe_seconds(timeframe)
+    )
     factories = list(strategy_factories)
     results = {factory.__name__: [] for factory in factories}
     if model is not None or trainer is not None:
         results["RLModel"] = []
     for index, (train_slice, test_slice) in enumerate(splits):
-        train_slice, provenance = fold_manifest(inputs, train_slice, test_slice, fold=index)
+        train_slice, provenance = fold_manifest(
+            inputs, train_slice, test_slice, fold=index
+        )
         training_inputs = _slice_inputs(inputs, train_slice)
         evaluation_inputs = _slice_inputs(inputs, test_slice)
         train_frame = training_inputs["features"]
         test_frame = evaluation_inputs["features"]
-        stats = FrozenNormalizer.fit(train_frame, config.features.standardization.method).to_stats()
-        train_id, test_id = feature_data_digest(train_frame), feature_data_digest(test_frame)
+        stats = FrozenNormalizer.fit(
+            train_frame, config.features.standardization.method
+        ).to_stats()
+        train_id, test_id = feature_data_digest(train_frame), feature_data_digest(
+            test_frame
+        )
         for factory in factories:
             env = create_environment(config, evaluation_inputs, training_stats=stats)
             try:
-                result = _run_strategy(env, evaluation_inputs, factory, annualization_factor, seed=config.seed)
+                result = _run_strategy(
+                    env,
+                    evaluation_inputs,
+                    factory,
+                    annualization_factor,
+                    seed=config.seed,
+                )
             finally:
                 env.close()
-            result.training_data_sha256, result.evaluation_data_sha256 = train_id, test_id
-            result.fold_manifest = {**provenance,
-                                    "scored_rows": [test_slice.start + i for i in result.decision_indices],
-                                    "fitted_objects": [{"kind": "normalizer", "source_sha256": train_id,
-                                                        "feature_cutoff": provenance["training_feature_cutoff"]}]}
+            result.training_data_sha256, result.evaluation_data_sha256 = (
+                train_id,
+                test_id,
+            )
+            result.fold_manifest = {
+                **provenance,
+                "scored_rows": [test_slice.start + i for i in result.decision_indices],
+                "fitted_objects": [
+                    {
+                        "kind": "normalizer",
+                        "source_sha256": train_id,
+                        "feature_cutoff": provenance["training_feature_cutoff"],
+                    }
+                ],
+            }
             results[factory.__name__].append(result)
         if model is None and trainer is None:
             continue
@@ -244,27 +297,40 @@ def run_walkforward(
         if trainer is not None:
             fold_cfg = config.model_copy(deep=True)
             for field in ("checkpoint_dir", "tensorboard_dir", "log_dir"):
-                setattr(fold_cfg.training, field, str(Path(getattr(config.training, field)) / f"fold_{index}"))
+                setattr(
+                    fold_cfg.training,
+                    field,
+                    str(Path(getattr(config.training, field)) / f"fold_{index}"),
+                )
             fold_model = trainer(fold_cfg, training_inputs)
         bundle = bundle_for_model(fold_model)
         bundle.validate_config(config)
         if pd.Timestamp(bundle.training_last) >= test_frame.index[0]:
             raise ValueError("model training overlaps the evaluation interval")
-        if trainer is not None and (bundle.training_data_sha256 != train_id or
-                bundle.training_market_sha256 != provenance["training_market_sha256"]):
-            raise ValueError("fold trainer expanded or changed its admitted training rows/market tape")
+        if trainer is not None and (
+            bundle.training_data_sha256 != train_id
+            or bundle.training_market_sha256 != provenance["training_market_sha256"]
+        ):
+            raise ValueError(
+                "fold trainer expanded or changed its admitted training rows/market tape"
+            )
         result = _run_model(config, evaluation_inputs, fold_model, annualization_factor)
         result.training_data_sha256 = bundle.training_data_sha256
         result.evaluation_data_sha256 = test_id
-        result.fold_manifest = {**provenance,
-                                "scored_rows": [test_slice.start + i for i in result.decision_indices],
-                                "fitted_objects": [{"kind": "model_and_normalizer",
-                                                    "source_sha256": bundle.training_data_sha256,
-                                                    "market_sha256": bundle.training_market_sha256,
-                                                    "feature_cutoff": bundle.training_last}]}
+        result.fold_manifest = {
+            **provenance,
+            "scored_rows": [test_slice.start + i for i in result.decision_indices],
+            "fitted_objects": [
+                {
+                    "kind": "model_and_normalizer",
+                    "source_sha256": bundle.training_data_sha256,
+                    "market_sha256": bundle.training_market_sha256,
+                    "feature_cutoff": bundle.training_last,
+                }
+            ],
+        }
         results["RLModel"].append(result)
     return results
-
 
 
 def summarize_results(results: Dict[str, List[EvaluationResult]]) -> pd.DataFrame:

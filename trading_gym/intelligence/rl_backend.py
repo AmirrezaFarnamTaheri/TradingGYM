@@ -77,15 +77,20 @@ class RLPolicyBackend(IntelligenceBackend):
             raise InvalidDecisionSignal("RL output must be one finite real target")
         return float(action), None
 
-    def decide_with_observation(self, context: MarketContext, observation: Any) -> DecisionSignal:
+    def decide_with_observation(
+        self, context: MarketContext, observation: Any
+    ) -> DecisionSignal:
         leverage, _ = self.raw_predict(observation)
         if not math.isfinite(leverage):
             raise InvalidDecisionSignal("nonfinite RL model output")
         return DecisionSignal(
-            backend=self.name, action_kind=self.classify(leverage),
-            target_leverage=leverage, confidence=0.7,
+            backend=self.name,
+            action_kind=self.classify(leverage),
+            target_leverage=leverage,
+            confidence=0.7,
             rationale="RL policy on admitted observation",
-            source_id=self.name, confidence_semantics="advisory_score",
+            source_id=self.name,
+            confidence_semantics="advisory_score",
         )
 
     @staticmethod

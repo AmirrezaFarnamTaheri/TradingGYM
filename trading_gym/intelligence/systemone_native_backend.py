@@ -95,9 +95,7 @@ def httpx_systemone_transport(
         # retries must not create independent billable inference requests.
         # Self-hosted fixed-model engines do not need this hosted extension.
         logical_key = (
-            secrets.token_hex(16)
-            if config.wire_protocol == "systemone"
-            else None
+            secrets.token_hex(16) if config.wire_protocol == "systemone" else None
         )
 
         def post(secret: str, remaining: float) -> httpx.Response:
@@ -126,7 +124,9 @@ def httpx_systemone_transport(
                 follow_redirects=False,
                 trust_env=False,
             ) as client:
-                return bounded_post(client, endpoint, headers=headers, json=body, timeout=remaining)
+                return bounded_post(
+                    client, endpoint, headers=headers, json=body, timeout=remaining
+                )
 
         try:
             if pool is None:
@@ -258,7 +258,8 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
 
         self.last_context_sha256 = hashlib.sha256(packet.encode("utf-8")).hexdigest()
         request = build_request(
-            packet, self.config.model,
+            packet,
+            self.config.model,
             include_model=self.config.wire_protocol == "systemone",
         )
         result = self._transport(request)

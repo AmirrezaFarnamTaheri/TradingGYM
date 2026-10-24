@@ -96,9 +96,7 @@ class TestAuthenticationEndpoints:
 
     def test_invalid_api_key_returns_403(self, client):
         """A configured protected API refuses incorrect credentials."""
-        response = client.get(
-            "/api/v1/status", headers={"X-API-Key": "invalid-key"}
-        )
+        response = client.get("/api/v1/status", headers={"X-API-Key": "invalid-key"})
         assert response.status_code == 403
 
     def test_valid_api_key_returns_success(self, client, auth_headers):

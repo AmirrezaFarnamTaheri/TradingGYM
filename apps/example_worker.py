@@ -3,6 +3,7 @@
 Owns the ExperimentRepository lease. Audit events remain in its durable outbox
 for the credential-bearing API to seal; no audit/provider/broker key is needed.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -12,7 +13,11 @@ import os
 import threading
 
 from apps.api.example_runs import KIND, MAX_ARTIFACT_BYTES, run_directory
-from trading_gym.common.persistence import atomic_write_json, read_json, resolve_data_home
+from trading_gym.common.persistence import (
+    atomic_write_json,
+    read_json,
+    resolve_data_home,
+)
 from trading_gym.experiments.repository import ExperimentRepository, ExperimentConflict
 
 
@@ -32,22 +37,57 @@ def reference_replay() -> dict:
     import pandas as pd
     from trading_gym.playground.runner import PlaygroundRunSpec, run_playground
     from trading_gym.strategy_lab.models import StrategySpec
+
     close = [100 + i / 20 + math.sin(i / 5) for i in range(96)]
-    frame = pd.DataFrame({"open": close, "high": [x + .2 for x in close],
-        "low": [x - .2 for x in close], "close": close, "volume": [100.] * 96,
-        "spread_bps": [2.] * 96}, index=pd.date_range("2024-01-01", periods=96, freq="5min", tz="UTC"))
-    strategy = StrategySpec.model_validate({"name": "reference-sma-fixture", "timeframe": "5m",
-        "indicators": [{"name": "sma", "alias": "fast", "params": {"period": 5}}],
-        "entry": {"conditions": [{"left": {"kind": "field", "value": "close"},
-            "operator": "gt", "right": {"kind": "indicator", "value": "fast"}}]},
-        "exit": {"conditions": [{"left": {"kind": "field", "value": "close"},
-            "operator": "lt", "right": {"kind": "indicator", "value": "fast"}}]}})
-    result = run_playground(PlaygroundRunSpec(window=frame, strategy=strategy, fee_bps=10.))
-    return {"manifest": result.manifest, "metrics": result.metrics,
-            "bars": len(frame), "trade_count": len(result.trades),
-            "data_kind": "synthetic_fixture", "costs_kind": "modeled_fee_and_spread",
-            "source_revision": os.getenv("TRADING_GYM_BUILD_REVISION", "unrecorded"),
-            "qualification": "workflow_evidence_only"}
+    frame = pd.DataFrame(
+        {
+            "open": close,
+            "high": [x + 0.2 for x in close],
+            "low": [x - 0.2 for x in close],
+            "close": close,
+            "volume": [100.0] * 96,
+            "spread_bps": [2.0] * 96,
+        },
+        index=pd.date_range("2024-01-01", periods=96, freq="5min", tz="UTC"),
+    )
+    strategy = StrategySpec.model_validate(
+        {
+            "name": "reference-sma-fixture",
+            "timeframe": "5m",
+            "indicators": [{"name": "sma", "alias": "fast", "params": {"period": 5}}],
+            "entry": {
+                "conditions": [
+                    {
+                        "left": {"kind": "field", "value": "close"},
+                        "operator": "gt",
+                        "right": {"kind": "indicator", "value": "fast"},
+                    }
+                ]
+            },
+            "exit": {
+                "conditions": [
+                    {
+                        "left": {"kind": "field", "value": "close"},
+                        "operator": "lt",
+                        "right": {"kind": "indicator", "value": "fast"},
+                    }
+                ]
+            },
+        }
+    )
+    result = run_playground(
+        PlaygroundRunSpec(window=frame, strategy=strategy, fee_bps=10.0)
+    )
+    return {
+        "manifest": result.manifest,
+        "metrics": result.metrics,
+        "bars": len(frame),
+        "trade_count": len(result.trades),
+        "data_kind": "synthetic_fixture",
+        "costs_kind": "modeled_fee_and_spread",
+        "source_revision": os.getenv("TRADING_GYM_BUILD_REVISION", "unrecorded"),
+        "qualification": "workflow_evidence_only",
+    }
 
 
 def execute(run_id: str, *, home=None, replay=reference_replay) -> dict:
@@ -56,13 +96,19 @@ def execute(run_id: str, *, home=None, replay=reference_replay) -> dict:
     manifest = read_json(directory / "launch.json", {})
     if manifest.get("run_id") != run_id or manifest.get("cancellation_requested"):
         raise ExperimentConflict("launch not admitted or cancellation requested")
-    repository = WorkerExperimentRepository(home / "experiments.json", ledger=DeferredAuditSink())
+    repository = WorkerExperimentRepository(
+        home / "experiments.json", ledger=DeferredAuditSink()
+    )
     record = repository.get(run_id)
     if record.configuration.get("kind") != KIND:
         raise ExperimentConflict("unsupported worker configuration")
     worker_id = f"example-{run_id}"
-    record = repository.claim_next(worker_id=worker_id, experiment_id=run_id,
-                                   accepted_types={"backtest"}, lease_seconds=120)
+    record = repository.claim_next(
+        worker_id=worker_id,
+        experiment_id=run_id,
+        accepted_types={"backtest"},
+        lease_seconds=120,
+    )
     if record is None:
         raise ExperimentConflict("run is not claimable")
     state = {"revision": record.revision, "error": None}
@@ -72,8 +118,12 @@ def execute(run_id: str, *, home=None, replay=reference_replay) -> dict:
         while not stopped.wait(15):
             with revision_lock:
                 try:
-                    updated = repository.heartbeat(run_id, worker_id=worker_id,
-                        expected_revision=state["revision"], lease_seconds=120)
+                    updated = repository.heartbeat(
+                        run_id,
+                        worker_id=worker_id,
+                        expected_revision=state["revision"],
+                        lease_seconds=120,
+                    )
                     state["revision"] = updated.revision
                 except Exception as exc:
                     state["error"] = exc
@@ -87,7 +137,9 @@ def execute(run_id: str, *, home=None, replay=reference_replay) -> dict:
             if state["error"]:
                 raise ExperimentConflict("worker lease heartbeat failed")
             if read_json(directory / "launch.json", {}).get("cancellation_requested"):
-                raise ExperimentConflict("cancellation requested before artifact admission")
+                raise ExperimentConflict(
+                    "cancellation requested before artifact admission"
+                )
             path = directory / "result.json"
             if path.exists():
                 raise ExperimentConflict("candidate artifact already exists")
@@ -97,16 +149,29 @@ def execute(run_id: str, *, home=None, replay=reference_replay) -> dict:
             raw = path.read_bytes()
             if len(raw) > MAX_ARTIFACT_BYTES:
                 raise ValueError("artifact too large")
-            result = {"sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw),
-                      "artifact": "result.json", "kind": KIND}
-            repository.complete(run_id, worker_id=worker_id,
-                                expected_revision=state["revision"], result=result)
+            result = {
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "bytes": len(raw),
+                "artifact": "result.json",
+                "kind": KIND,
+            }
+            repository.complete(
+                run_id,
+                worker_id=worker_id,
+                expected_revision=state["revision"],
+                result=result,
+            )
             return result
     except Exception:
         with revision_lock:
             try:
-                repository.fail(run_id, worker_id=worker_id,
-                    expected_revision=state["revision"], error="reference replay did not complete", retryable=False)
+                repository.fail(
+                    run_id,
+                    worker_id=worker_id,
+                    expected_revision=state["revision"],
+                    error="reference replay did not complete",
+                    retryable=False,
+                )
             except ExperimentConflict:
                 pass
         raise

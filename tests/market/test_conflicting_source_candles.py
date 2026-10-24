@@ -1,6 +1,5 @@
 """Conflicting source candles cannot be silently repaired by the data router."""
 
-
 import pandas as pd
 import pytest
 

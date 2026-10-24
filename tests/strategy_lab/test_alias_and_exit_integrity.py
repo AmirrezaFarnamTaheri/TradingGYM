@@ -26,9 +26,16 @@ def _frame() -> pd.DataFrame:
 
 
 @pytest.mark.parametrize(
-    "reserved", [
-        "open", "high", "low", "close", "volume",
-        "entry_signal", "exit_signal", "position_intent",
+    "reserved",
+    [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "entry_signal",
+        "exit_signal",
+        "position_intent",
     ],
 )
 def test_indicator_alias_cannot_shadow_raw_market_or_computed_output(
@@ -99,7 +106,6 @@ def test_exit_takes_priority_when_entry_and_exit_overlap():
     assert evaluated["entry_signal"].all()
     assert evaluated["exit_signal"].all()
     assert (evaluated["position_intent"] == -1).all()
-
 
 
 def test_duplicate_market_column_labels_are_rejected_before_evaluation():

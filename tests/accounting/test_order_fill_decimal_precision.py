@@ -81,34 +81,53 @@ def test_large_decimal_evidence_remains_unauthorized_even_when_matched():
         expected_cash = qty * price
     result = reconcile_order_fills(
         as_of=T + timedelta(seconds=5),
-        orders=[OrderIntent(
-            order_id="order002", account_id="ACC001",
-            instrument_id="BTC-USD", venue_id="VENUE1",
-            quote_currency="USD", side="sell", quantity=qty,
-            quantity_step=D("0.000000001"),
-            price_tick=D("0.000000001"),
-            submitted_at=T, time_in_force="ioc",
-            idempotency_key="b" * 32,
-        )],
-        fills=[FillEvidence(
-            fill_id="fill002", order_id="order002",
-            account_id="ACC001", venue_id="VENUE1",
-            instrument_id="BTC-USD",
-            occurred_at=T + timedelta(seconds=1),
-            quantity=qty, price=price, fee_quote=D("0"),
-            liquidity="taker",
-        )],
-        readbacks=[BrokerReadback(
-            order_id="order002", account_id="ACC001",
-            observed_at=T + timedelta(seconds=2),
-            state="filled", executed_quantity=qty,
-            total_fee_quote=D("0"), source_sha256="e" * 64,
-        )],
+        orders=[
+            OrderIntent(
+                order_id="order002",
+                account_id="ACC001",
+                instrument_id="BTC-USD",
+                venue_id="VENUE1",
+                quote_currency="USD",
+                side="sell",
+                quantity=qty,
+                quantity_step=D("0.000000001"),
+                price_tick=D("0.000000001"),
+                submitted_at=T,
+                time_in_force="ioc",
+                idempotency_key="b" * 32,
+            )
+        ],
+        fills=[
+            FillEvidence(
+                fill_id="fill002",
+                order_id="order002",
+                account_id="ACC001",
+                venue_id="VENUE1",
+                instrument_id="BTC-USD",
+                occurred_at=T + timedelta(seconds=1),
+                quantity=qty,
+                price=price,
+                fee_quote=D("0"),
+                liquidity="taker",
+            )
+        ],
+        readbacks=[
+            BrokerReadback(
+                order_id="order002",
+                account_id="ACC001",
+                observed_at=T + timedelta(seconds=2),
+                state="filled",
+                executed_quantity=qty,
+                total_fee_quote=D("0"),
+                source_sha256="e" * 64,
+            )
+        ],
         position_deltas={"BTC-USD": -qty},
         cash_deltas={"USD": expected_cash},
     )
     assert result.consistent and result.net_cash_by_currency["USD"] == expected_cash
     assert result.execution_authority_granted is False
+
 
 @pytest.mark.parametrize(
     "pathological",
@@ -120,9 +139,16 @@ def test_large_decimal_evidence_remains_unauthorized_even_when_matched():
 def test_decimal_inputs_have_bounded_scale_before_step_modulus(pathological):
     with pytest.raises(ValueError, match="precision"):
         OrderIntent(
-            order_id="order003", account_id="ACC001", instrument_id="BTC-USD",
-            venue_id="VENUE1", quote_currency="USD", side="buy",
-            quantity=pathological, quantity_step=pathological,
-            price_tick=D("0.01"), submitted_at=T, time_in_force="ioc",
+            order_id="order003",
+            account_id="ACC001",
+            instrument_id="BTC-USD",
+            venue_id="VENUE1",
+            quote_currency="USD",
+            side="buy",
+            quantity=pathological,
+            quantity_step=pathological,
+            price_tick=D("0.01"),
+            submitted_at=T,
+            time_in_force="ioc",
             idempotency_key="c" * 32,
         )

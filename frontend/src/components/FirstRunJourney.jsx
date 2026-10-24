@@ -43,15 +43,20 @@ export default function FirstRunJourney({ onNavigate, onClose }) {
       queries.invalidateQueries({ queryKey: ['example-runs'] });
     },
   });
-  const cancel = useMutation({ mutationFn: () => exampleRunsAPI.cancel(selected).then((r) => r.data), retry: false,
-    onSuccess: (value) => {
-      queries.setQueryData(['example-run', selected], value);
+  const cancel = useMutation({ mutationFn: (runId) => exampleRunsAPI.cancel(runId).then((r) => {
+      if (r.data?.run_id !== runId) throw new Error('The cancellation response belongs to a different run. Refresh status.');
+      return r.data;
+    }), retry: false,
+    onSuccess: (value, runId) => {
+      queries.setQueryData(['example-run', runId], value);
       queries.invalidateQueries({ queryKey: ['example-runs'] });
     },
-    onError: () => queries.invalidateQueries({ queryKey: ['example-run', selected] }),
+    onError: (_error, runId) => queries.invalidateQueries({ queryKey: ['example-run', runId] }),
   });
-  const busy = start.isPending || (current && !terminal.has(current.state));
-  const issue = start.error || run.error || cancel.error || artifact.error || comparison.error;
+  const busy = start.isPending || (selected && (!current || !terminal.has(current.state)));
+  const cancellationPending = cancel.isPending && cancel.variables === selected;
+  const issue = start.error || run.error || (cancel.variables === selected && cancel.error) || artifact.error || (compare && comparison.error);
+  const comparisonResult = compare ? comparison.data : undefined;
   return <section className="first-run" aria-labelledby="first-run-title">
     <div className="first-run-heading">
       <h2 id="first-run-title">Start with a reference run</h2>
@@ -62,11 +67,11 @@ export default function FirstRunJourney({ onNavigate, onClose }) {
     <select id="example-data" defaultValue="fixture"><option value="fixture">Included example · 96 five-minute bars</option></select>
     <p>Results demonstrate the workflow. They do not establish market performance or model readiness.</p>
     <div className="first-run-actions">
-      <button className="btn btn-primary" disabled={busy} onClick={() => start.mutate()}>
+      {!current && <button className="btn btn-primary" disabled={busy} onClick={() => start.mutate()}>
         {start.isPending ? 'Starting…' : start.isError ? 'Check / retry the same run' : 'Run example'}
-      </button>
-      {current && !terminal.has(current.state) && <button className="btn" disabled={cancel.isPending}
-        onClick={() => cancel.mutate()}>Request cancellation</button>}
+      </button>}
+      {current && !terminal.has(current.state) && <button className="btn" disabled={cancellationPending}
+        onClick={() => cancel.mutate(selected)}>{cancellationPending ? 'Requesting cancellation…' : 'Request cancellation'}</button>}
       {current && terminal.has(current.state) && <button className="btn" onClick={() => {
         key.current = null; setSelected(null); setCompare(false); start.reset(); cancel.reset();
       }}>Prepare another example</button>}
@@ -93,10 +98,10 @@ export default function FirstRunJourney({ onNavigate, onClose }) {
     {artifact.data && <div>
       <h3>Completed result</h3>
       <p>Artifact admitted by hash. Data: {artifact.data.data_kind}. Costs: {artifact.data.costs_kind}.</p>
-      <table><caption>Reference results{comparison.data ? ' compared with the previous completed example' : ''}</caption>
-        <thead><tr><th scope="col">Measure</th><th scope="col">Selected run</th>{comparison.data && <th scope="col">Previous run</th>}</tr></thead>
+      <table><caption>Reference results{comparisonResult ? ' compared with the previous completed example' : ''}</caption>
+        <thead><tr><th scope="col">Measure</th><th scope="col">Selected run</th>{comparisonResult && <th scope="col">Previous run</th>}</tr></thead>
         <tbody>{metricRows.map(([label, value]) => <tr key={label}><th scope="row">{label}</th>
-          <td>{display(value(artifact.data))}</td>{comparison.data && <td>{display(value(comparison.data))}</td>}</tr>)}</tbody>
+          <td>{display(value(artifact.data))}</td>{comparisonResult && <td>{display(value(comparisonResult))}</td>}</tr>)}</tbody>
       </table>
       {previous && <button className="btn" onClick={() => setCompare(true)}>Compare with previous result</button>}
       <details><summary>Inspect result provenance</summary><pre>{JSON.stringify(artifact.data.manifest, null, 2)}</pre></details>

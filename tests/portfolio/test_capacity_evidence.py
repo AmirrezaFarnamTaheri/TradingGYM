@@ -25,9 +25,7 @@ def _plan():
             ),
         ],
         targets=[
-            RebalanceTarget(
-                instrument_id="BTCUSDT", target_weight=Decimal("0.1")
-            ),
+            RebalanceTarget(instrument_id="BTCUSDT", target_weight=Decimal("0.1")),
         ],
     )
 
@@ -90,7 +88,8 @@ def test_missing_adv_and_capacity_excess_are_explicit_blockers():
 def test_malformed_adv_values_are_invalid_evidence(amount):
     with pytest.raises(ValueError):
         assess_rebalance_capacity(
-            plan=_plan(), observations=[_evidence(amount=amount)],
+            plan=_plan(),
+            observations=[_evidence(amount=amount)],
             as_of_unix=1_700_000_100,
         )
 
@@ -102,7 +101,8 @@ def test_currency_mismatch_and_unverified_hash_fail_closed():
     ):
         with pytest.raises(ValueError):
             assess_rebalance_capacity(
-                plan=_plan(), observations=[evidence],
+                plan=_plan(),
+                observations=[evidence],
                 as_of_unix=1_700_000_100,
             )
 
@@ -111,13 +111,15 @@ def test_duplicate_sources_and_invalid_policy_limit_fail_closed():
     plan = _plan()
     with pytest.raises(ValueError):
         assess_rebalance_capacity(
-            plan=plan, observations=[_evidence(), _evidence()],
+            plan=plan,
+            observations=[_evidence(), _evidence()],
             as_of_unix=1_700_000_100,
         )
     for bad in (Decimal("-0.1"), Decimal("1.1"), Decimal("NaN"), True):
         with pytest.raises(ValueError):
             assess_rebalance_capacity(
-                plan=plan, observations=[_evidence()],
+                plan=plan,
+                observations=[_evidence()],
                 as_of_unix=1_700_000_100,
                 max_participation=bad,
             )
@@ -126,15 +128,18 @@ def test_duplicate_sources_and_invalid_policy_limit_fail_closed():
 def test_receipts_are_deterministic_and_source_bound():
     plan = _plan()
     first = assess_rebalance_capacity(
-        plan=plan, observations=[_evidence()],
+        plan=plan,
+        observations=[_evidence()],
         as_of_unix=1_700_000_100,
     )
     second = assess_rebalance_capacity(
-        plan=plan, observations=[_evidence()],
+        plan=plan,
+        observations=[_evidence()],
         as_of_unix=1_700_000_100,
     )
     third = assess_rebalance_capacity(
-        plan=plan, observations=[_evidence(source="c" * 64)],
+        plan=plan,
+        observations=[_evidence(source="c" * 64)],
         as_of_unix=1_700_000_100,
     )
     assert first == second

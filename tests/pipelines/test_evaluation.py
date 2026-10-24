@@ -6,26 +6,6 @@ from trading_gym.baselines.strategies import BuyAndHoldStrategy
 from trading_gym.pipelines import evaluation
 
 
-class _StubEnv:
-    def __init__(self, length: int, initial_equity: float) -> None:
-        self.length = length
-        self.initial_equity = initial_equity
-        self.equity = initial_equity
-        self._step = 0
-
-    def reset(self):
-        self._step = 0
-        self.equity = self.initial_equity
-        return np.array([0.0]), {}
-
-    def step(self, action, **kwargs):
-        del action, kwargs
-        self._step += 1
-        terminated = self._step >= self.length
-        truncated = False
-        return np.array([0.0]), 0.0, terminated, truncated, {}
-
-
 @pytest.fixture
 def synthetic_inputs() -> dict:
     length = 50
@@ -54,21 +34,24 @@ def test_run_walkforward_with_mocked_inputs(monkeypatch, synthetic_inputs, app_c
         del args, kwargs
         # Return a structure that matches the real load_environment_inputs
         return {
-            "features": pd.DataFrame(synthetic_inputs["close"]),
+            "features": pd.DataFrame(
+                {
+                    "spread_ratio": synthetic_inputs["spread_bps"] / 10000,
+                    "volatility": synthetic_inputs["vol_hint"],
+                },
+                index=pd.date_range(
+                    "2025-01-01",
+                    periods=len(synthetic_inputs["close"]),
+                    freq="5min",
+                    tz="UTC",
+                ),
+            ),
             "prices_mid": synthetic_inputs["close"],
             "prices_high": synthetic_inputs["close"],
             "prices_low": synthetic_inputs["close"],
         }
 
-    def fake_create_environment(_cfg, data):
-        del data
-        return _StubEnv(
-            length=len(synthetic_inputs["close"]),
-            initial_equity=cfg.training.initial_equity,
-        )
-
     monkeypatch.setattr(evaluation, "load_environment_inputs", fake_load_inputs)
-    monkeypatch.setattr(evaluation, "create_environment", fake_create_environment)
 
     results = evaluation.run_walkforward(
         cfg, "5m", [lambda: BuyAndHoldStrategy(exposure=0.0)], model=None

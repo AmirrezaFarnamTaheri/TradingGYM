@@ -1,4 +1,5 @@
 """Explicit elapsed-time and annualization units shared by research and runtime."""
+
 from __future__ import annotations
 
 import math
@@ -11,7 +12,9 @@ _SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 def timeframe_seconds(value: str) -> float:
     match = _TIMEFRAME.fullmatch(value) if isinstance(value, str) else None
     if match is None:
-        raise ValueError("timeframe must be a positive integer followed by s, m, h, d or w")
+        raise ValueError(
+            "timeframe must be a positive integer followed by s, m, h, d or w"
+        )
     try:
         seconds = float(int(match[1]) * _SECONDS[match[2]])
     except (ValueError, OverflowError) as exc:

@@ -35,12 +35,25 @@ _MAX_SEGMENTS = 16
 
 # New standing grants must not confer blanket economic mutation authority.
 # Legacy journal records remain parseable, so they can be audited/revoked.
-_SENSITIVE_SEGMENTS = frozenset({
-    "live", "production", "withdrawal", "x402", "wallet", "capital",
-})
-_SENSITIVE_DOMAINS = frozenset({
-    "economic", "payments", "payment", "broker", "venue",
-})
+_SENSITIVE_SEGMENTS = frozenset(
+    {
+        "live",
+        "production",
+        "withdrawal",
+        "x402",
+        "wallet",
+        "capital",
+    }
+)
+_SENSITIVE_DOMAINS = frozenset(
+    {
+        "economic",
+        "payments",
+        "payment",
+        "broker",
+        "venue",
+    }
+)
 
 
 class ScopeError(ValueError):

@@ -132,7 +132,8 @@ def create_intelligence_router(
         provider_error = None
         try:
             providers = [
-                pc for pc in repo.list()
+                pc
+                for pc in repo.list()
                 if isinstance(pc, ProviderConfig) and pc.kind is not ProviderKind.CLI
             ]
         except Exception as exc:
@@ -145,9 +146,11 @@ def create_intelligence_router(
         # for actual chat completions.
         providers.sort(
             key=lambda pc: (
-                system1_provider_ids.index(pc.provider_id)
-                if pc.provider_id in system1_provider_ids
-                else (5 if pc.provider_id == llm_provider_id else 6),
+                (
+                    system1_provider_ids.index(pc.provider_id)
+                    if pc.provider_id in system1_provider_ids
+                    else (5 if pc.provider_id == llm_provider_id else 6)
+                ),
                 pc.provider_id,
             )
         )
@@ -170,9 +173,7 @@ def create_intelligence_router(
             if pc.max_requests_per_hour is not None:
                 try:
                     admission = ProviderRequestBudget(
-                        default_request_budget_path(
-                            pc.provider_id, pc.base_url or ""
-                        ),
+                        default_request_budget_path(pc.provider_id, pc.base_url or ""),
                         limit=pc.max_requests_per_hour,
                     ).status()
                     budget_state = {
@@ -232,7 +233,8 @@ def create_intelligence_router(
             # Rules are always reachable, but must not preempt a healthy
             # configured model just because they were listed first.
             llms = [
-                entry["name"] for entry in backends
+                entry["name"]
+                for entry in backends
                 if entry["name"].startswith("llm:") and entry["available"] is True
             ]
             fast = [
@@ -243,8 +245,10 @@ def create_intelligence_router(
             selected = fast[0] if fast else llms[0] if llms else "rules"
 
         degraded_providers = sorted(
-            entry["name"] for entry in backends
-            if entry["name"].startswith(("llm:", "native:")) and entry["available"] is False
+            entry["name"]
+            for entry in backends
+            if entry["name"].startswith(("llm:", "native:"))
+            and entry["available"] is False
         )
         return {
             "mode": mode,
@@ -260,7 +264,9 @@ def create_intelligence_router(
             "providers_total": len(providers),
             "providers_probed": min(probe_limit, len(providers)),
             "degraded_providers": degraded_providers,
-            "status": "degraded" if provider_error or degraded_providers else "available",
+            "status": (
+                "degraded" if provider_error or degraded_providers else "available"
+            ),
             "note": "advisory layer; authority unchanged (gate + coordinator)",
         }
 

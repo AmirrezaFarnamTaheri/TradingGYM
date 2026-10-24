@@ -7,14 +7,12 @@ injects the LLM backend) — so the roster is exactly the platform's
 capability set, and every arm carries concrete, grantable scopes for the
 ADR-028 pre-flight.
 
-Roster (tier order):
-- α ``rules`` (T1): deterministic momentum with defence floor; the
-  always-available decision floor from ADR-023. Votes *through* δ, so a
-  guard veto is the channel's own HOLD.
-- δ ``risk-guard`` (T1): :class:`RiskGuardBackend` wrapping α — veto to
-  HOLD above the drawdown floor or the position cap, halve leverage
-  above the warn level. Shares its guarded backend with α; the two arms
-  are one channel seen twice, once raw-named and once guard-named.
+Roster:
+- ``rules`` (T1): one deterministic momentum channel wrapped by
+  :class:`RiskGuardBackend`. The guard targets zero above the drawdown
+  floor or position cap and halves leverage above the warn level.
+  The guard and underlying rules share one evidence identity and one vote.
+- ``stats`` and ``regime``: statistical evidence and market-regime context.
 - β ``rl`` (T3): present only when an RL model object is injected.
 - γ ``llm`` (T4): present only when an LLM backend is injected; declares
   ``research.llm.invoke`` because it reaches the network.
@@ -23,7 +21,7 @@ Roster (tier order):
 from __future__ import annotations
 
 import math
-from typing import Any, Sequence
+from typing import Any, Sequence, SupportsFloat, SupportsIndex, cast
 
 import numpy as np
 
@@ -45,7 +43,7 @@ def _finite_observation(value: object) -> bool:
     if isinstance(value, (str, bytes, bool)):
         return False
     try:
-        return math.isfinite(float(value))
+        return math.isfinite(float(cast(SupportsFloat | SupportsIndex, value)))
     except (TypeError, ValueError, OverflowError):
         return False
 

@@ -2,14 +2,17 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-import numpy as np
 import pandas as pd
 from filelock import FileLock
 
 from trading_gym.common.config import AppConfig, FeatureConfig
 from trading_gym.common.security import redact_secrets
 from trading_gym.models.versioning import ModelRegistry
-from trading_gym.pipelines.model_bundle import FrozenNormalizer, fit_model_bundle, attach_model_bundle
+from trading_gym.pipelines.model_bundle import (
+    FrozenNormalizer,
+    fit_model_bundle,
+    attach_model_bundle,
+)
 from trading_gym.pipelines.environment import (
     create_environment,
     load_environment_inputs,
@@ -69,7 +72,9 @@ def _atomic_model_save(model, destination: str | Path) -> Path:
     return final_path
 
 
-def make_env(cfg: AppConfig, rank: int, training_stats: dict, seed: int = 0, *, inputs=None):
+def make_env(
+    cfg: AppConfig, rank: int, training_stats: dict, seed: int = 0, *, inputs=None
+):
     """
     Factory function for creating environments in subprocesses.
     """
@@ -95,7 +100,9 @@ def make_env(cfg: AppConfig, rank: int, training_stats: dict, seed: int = 0, *, 
 
 def calculate_training_stats(features_df: pd.DataFrame, feature_cfg: FeatureConfig):
     """Calculate normalization statistics based on configured method."""
-    return FrozenNormalizer.fit(features_df, feature_cfg.standardization.method).to_stats()
+    return FrozenNormalizer.fit(
+        features_df, feature_cfg.standardization.method
+    ).to_stats()
 
 
 def train(
@@ -154,7 +161,9 @@ def train(
 
     # 3. Environment Vectorization
     n_envs = cfg.training.n_envs
-    env_factory = [make_env(cfg, i, training_stats, cfg.seed, inputs=inputs) for i in range(n_envs)]
+    env_factory = [
+        make_env(cfg, i, training_stats, cfg.seed, inputs=inputs) for i in range(n_envs)
+    ]
 
     if n_envs > 1:
         logger.info("   Mode: Parallel (SubprocVecEnv)")

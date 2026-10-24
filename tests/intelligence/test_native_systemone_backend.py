@@ -1,5 +1,7 @@
 """Native System-One backend and provider-routing safety tests."""
 
+import json
+
 import httpx
 import pytest
 
@@ -11,7 +13,12 @@ from trading_gym.intelligence.systemone_native_backend import (
     NativeSystemOneDecisionBackend,
     httpx_systemone_transport,
 )
-from trading_gym.intelligence.types import ActionKind, BackendUnavailable, MarketContext
+from trading_gym.intelligence.types import (
+    ActionKind,
+    BackendUnavailable,
+    InvalidDecisionSignal,
+    MarketContext,
+)
 
 
 def _provider(**updates):
@@ -51,7 +58,9 @@ def _answer(*, risk_off=0.1):
                 "type": "choice",
                 "choice": "long",
                 "probabilities": {
-                    "hold": 0.05, "long": 0.90, "short": 0.05,
+                    "hold": 0.05,
+                    "long": 0.90,
+                    "short": 0.05,
                 },
                 "confidence": 0.9,
             },
@@ -119,9 +128,7 @@ def test_risk_off_is_explicit_hold_not_unverified_directional_order():
 def test_malformed_native_distribution_is_terminal_authority_refusal():
     wrong = _answer()
     wrong["answers"]["direction"]["probabilities"]["long"] = float("nan")
-    backend = NativeSystemOneDecisionBackend(
-        _provider(), transport=lambda body: wrong
-    )
+    backend = NativeSystemOneDecisionBackend(_provider(), transport=lambda body: wrong)
     with pytest.raises(PermissionError, match="systemone_invalid_model_output"):
         backend.decide(_context())
 
@@ -129,63 +136,42 @@ def test_malformed_native_distribution_is_terminal_authority_refusal():
 def test_weak_direction_allows_explicit_fallback_without_fabricating_a_trade():
     weak = _answer()
     weak["answers"]["direction"]["confidence"] = 0.2
-    backend = NativeSystemOneDecisionBackend(
-        _provider(), transport=lambda body: weak
-    )
+    backend = NativeSystemOneDecisionBackend(_provider(), transport=lambda body: weak)
     with pytest.raises(BackendUnavailable, match="systemone_low_confidence"):
         backend.decide(_context())
 
 
 def test_native_transport_uses_bounded_budget_and_disables_proxy_redirects(
     monkeypatch,
+    tmp_path,
+    mock_httpx_client,
 ):
     import trading_gym.intelligence.systemone_native_backend as module
 
     seen = []
-    slots = [1]
 
-    class Budget:
-        def __init__(self, *args, **kwargs):
-            pass
+    def handle(request):
+        seen.append((str(request.url), json.loads(request.content)))
+        assert request.method == "POST"
+        assert request.headers["Accept-Encoding"] == "identity"
+        assert all(0 < value <= 5.0 for value in request.extensions["timeout"].values())
+        return httpx.Response(
+            200, stream=httpx.ByteStream(json.dumps(_answer()).encode())
+        )
 
-        def reserve(self):
-            if not slots[0]:
-                from trading_gym.intelligence.llm_request_budget import (
-                    RequestBudgetUnavailable,
-                )
-                raise RequestBudgetUnavailable("exhausted")
-            slots[0] -= 1
-
-    class Client:
-        def __init__(self, **kwargs):
-            assert kwargs["trust_env"] is False
-            assert kwargs["follow_redirects"] is False
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def post(self, url, *, headers, json):
-            seen.append((url, json))
-            return httpx.Response(
-                200,
-                json=_answer(),
-                request=httpx.Request("POST", url),
-            )
-
-    monkeypatch.setattr(module, "ProviderRequestBudget", Budget)
-    monkeypatch.setattr(module, "validate_base_url", lambda url, **kw: url)
-    monkeypatch.setattr(httpx, "Client", Client)
-    transport = httpx_systemone_transport(
-        _provider(max_requests_per_hour=1)
+    monkeypatch.setattr(
+        module, "default_request_budget_path", lambda *args: tmp_path / "budget.json"
     )
+    monkeypatch.setattr(module, "validate_base_url", lambda url, **kw: url)
+    options = mock_httpx_client(handle)
+    transport = httpx_systemone_transport(_provider(max_requests_per_hour=1))
     assert transport({"model": "gemma-fast", "state": {}, "questions": {}})
     assert seen[0][0] == "http://127.0.0.1:8080/v1/systemone"
     with pytest.raises(PermissionError, match="provider_request_budget_denied"):
         transport({"model": "gemma-fast", "state": {}, "questions": {}})
     assert len(seen) == 1
+    assert seen[0][1] == {"model": "gemma-fast", "state": {}, "questions": {}}
+    assert len(options) == 1 and 0 < options[0]["timeout"] <= 5.0
 
 
 def test_system1_factory_selects_native_backend_and_chat_mode_refuses_it():
@@ -243,9 +229,7 @@ def test_post_only_native_endpoint_reports_reachability_on_http_405(monkeypatch)
             )
 
     monkeypatch.setattr(providers.httpx, "Client", Client)
-    monkeypatch.setattr(
-        providers, "validate_base_url", lambda value, **kwargs: value
-    )
+    monkeypatch.setattr(providers, "validate_base_url", lambda value, **kwargs: value)
     config = _provider(health_path="/models")
     report = providers.provider_status(config)
     assert report["status"] == "reachable"
@@ -255,6 +239,7 @@ def test_post_only_native_endpoint_reports_reachability_on_http_405(monkeypatch)
 
 def test_public_intelligence_exports_include_native_adapter_and_errors():
     import trading_gym.intelligence as api
+
     assert api.NativeSystemOneDecisionBackend is NativeSystemOneDecisionBackend
     assert api.httpx_systemone_transport is httpx_systemone_transport
     assert issubclass(api.BackendUnavailable, RuntimeError)
@@ -270,7 +255,8 @@ def test_response_must_be_from_configured_model_not_unqualified_fallback(
     else:
         payload["model"] = wrong_model
     backend = NativeSystemOneDecisionBackend(
-        _provider(), transport=lambda _body: payload,
+        _provider(),
+        transport=lambda _body: payload,
     )
     with pytest.raises(PermissionError, match="model_identity_mismatch"):
         backend.decide(_context())
@@ -279,7 +265,8 @@ def test_response_must_be_from_configured_model_not_unqualified_fallback(
 def test_invalid_max_leverage_rejected_before_native_model_request():
     sent = []
     backend = NativeSystemOneDecisionBackend(
-        _provider(), transport=lambda body: sent.append(body),
+        _provider(),
+        transport=lambda body: sent.append(body),
     )
     with pytest.raises(PermissionError, match="invalid_risk_limit"):
         backend.decide(_context(risk_limits={"max_leverage": -2.0}))
@@ -289,7 +276,6 @@ def test_invalid_max_leverage_rejected_before_native_model_request():
 def test_native_global_busy_rate_limits_cannot_be_bypassed_by_key_rotation():
     with pytest.raises(ValueError, match="rate"):
         _provider(rotate_on_rate_limit=True)
-
 
 
 @pytest.mark.parametrize(
@@ -302,7 +288,9 @@ def test_native_global_busy_rate_limits_cannot_be_bypassed_by_key_rotation():
     ],
 )
 def test_method_not_allowed_only_proves_native_route_when_post_advertised(
-    monkeypatch, allowed, expected,
+    monkeypatch,
+    allowed,
+    expected,
 ):
     import trading_gym.agent.providers as providers
 
@@ -324,7 +312,9 @@ def test_method_not_allowed_only_proves_native_route_when_post_advertised(
 
     monkeypatch.setattr(providers.httpx, "Client", Client)
     monkeypatch.setattr(
-        providers, "validate_base_url", lambda value, **kwargs: value,
+        providers,
+        "validate_base_url",
+        lambda value, **kwargs: value,
     )
     report = providers.provider_status(_provider(health_path="/models"))
     assert report["status"] == expected
@@ -332,43 +322,33 @@ def test_method_not_allowed_only_proves_native_route_when_post_advertised(
 
 
 @pytest.mark.parametrize(
-    "raw_response,denial",
+    "raw_response,error_type,denial",
     [
-        (b"{not-json", "systemone_malformed_http_response"),
-        (b"[]", "systemone_invalid_response_envelope"),
+        (b"{not-json", PermissionError, "systemone_malformed_http_response"),
+        (b"[]", PermissionError, "systemone_invalid_response_envelope"),
         (
             b"0" * (256 * 1024 + 1),
-            "systemone_response_byte_budget_exceeded",
+            InvalidDecisionSignal,
+            "provider_response_byte_budget_exceeded",
         ),
     ],
     ids=["malformed-json", "nonobject-json", "oversized-response"],
 )
 def test_invalid_native_http_payload_is_not_a_recoverable_model_outage(
-    monkeypatch, raw_response, denial,
+    monkeypatch,
+    mock_httpx_client,
+    raw_response,
+    error_type,
+    denial,
 ):
     import trading_gym.intelligence.systemone_native_backend as module
 
-    class Client:
-        def __init__(self, **kwargs):
-            assert kwargs["trust_env"] is False
-            assert kwargs["follow_redirects"] is False
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def post(self, url, *, headers, json):
-            return httpx.Response(
-                200, content=raw_response,
-                request=httpx.Request("POST", url),
-            )
-
     monkeypatch.setattr(module, "validate_base_url", lambda url, **kw: url)
-    monkeypatch.setattr(httpx, "Client", Client)
+    mock_httpx_client(
+        lambda request: httpx.Response(200, stream=httpx.ByteStream(raw_response))
+    )
     transport = httpx_systemone_transport(_provider())
-    with pytest.raises(PermissionError, match=denial):
+    with pytest.raises(error_type, match=denial):
         transport({"model": "gemma-fast", "state": {}, "questions": {}})
 
 
@@ -393,30 +373,35 @@ def test_fixed_native_protocol_cannot_be_misrouted_to_chat_completion():
 def test_native_endpoint_join_handles_versioned_or_unversioned_base():
     from trading_gym.agent.providers import join_provider_endpoint
 
-    assert join_provider_endpoint(
-        "https://api.example.test", "/v1/systemone"
-    ) == "https://api.example.test/v1/systemone"
-    assert join_provider_endpoint(
-        "https://api.example.test/v1", "/v1/systemone"
-    ) == "https://api.example.test/v1/systemone"
-    assert join_provider_endpoint(
-        "https://api.example.test/proxy/v1", "/v1/systemone"
-    ) == "https://api.example.test/proxy/v1/systemone"
-    assert join_provider_endpoint(
-        "http://127.0.0.1:8080", "/v1/systemone"
-    ) == "http://127.0.0.1:8080/v1/systemone"
+    assert (
+        join_provider_endpoint("https://api.example.test", "/v1/systemone")
+        == "https://api.example.test/v1/systemone"
+    )
+    assert (
+        join_provider_endpoint("https://api.example.test/v1", "/v1/systemone")
+        == "https://api.example.test/v1/systemone"
+    )
+    assert (
+        join_provider_endpoint("https://api.example.test/proxy/v1", "/v1/systemone")
+        == "https://api.example.test/proxy/v1/systemone"
+    )
+    assert (
+        join_provider_endpoint("http://127.0.0.1:8080", "/v1/systemone")
+        == "http://127.0.0.1:8080/v1/systemone"
+    )
 
 
 def test_native_endpoint_join_does_not_drop_unrelated_base_path():
     from trading_gym.agent.providers import join_provider_endpoint
 
-    assert join_provider_endpoint(
-        "https://api.example.test/api", "/v1/systemone"
-    ) == "https://api.example.test/api/v1/systemone"
+    assert (
+        join_provider_endpoint("https://api.example.test/api", "/v1/systemone")
+        == "https://api.example.test/api/v1/systemone"
+    )
 
 
 def test_hosted_systemone_retries_reuse_one_idempotency_key(
-    monkeypatch, tmp_path
+    monkeypatch, tmp_path, mock_httpx_client
 ):
     """Billed hosted requests must not become two logical decisions on retry."""
     import trading_gym.intelligence.systemone_native_backend as module
@@ -427,26 +412,14 @@ def test_hosted_systemone_retries_reuse_one_idempotency_key(
     monkeypatch.setattr(module, "validate_base_url", lambda url, **kw: url)
     observed = []
 
-    class Client:
-        def __init__(self, **kwargs):
-            assert not kwargs["trust_env"]
-            assert not kwargs["follow_redirects"]
+    def handle(request):
+        observed.append((str(request.url), httpx.Headers(request.headers)))
+        code = 401 if len(observed) == 1 else 200
+        return httpx.Response(
+            code, stream=httpx.ByteStream(json.dumps(_answer()).encode())
+        )
 
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def post(self, url, *, headers, json):
-            observed.append((url, dict(headers)))
-            code = 401 if len(observed) == 1 else 200
-            return httpx.Response(
-                code, json=_answer(),
-                request=httpx.Request("POST", url)
-            )
-
-    monkeypatch.setattr(httpx, "Client", Client)
+    mock_httpx_client(handle)
     config = ProviderConfig(
         provider_id="hosted-system-one",
         kind=ProviderKind.OPENAI_COMPATIBLE,
@@ -460,45 +433,35 @@ def test_hosted_systemone_retries_reuse_one_idempotency_key(
     result = call({"model": "gemma-fast", "state": {}, "questions": {}})
     assert result["model"] == "gemma-fast"
     assert len(observed) == 2
-    assert all(url == "https://system-one.dev/v1/systemone"
-               for url, _headers in observed)
+    assert all(
+        url == "https://system-one.dev/v1/systemone" for url, _headers in observed
+    )
     first_key = observed[0][1]["Idempotency-Key"]
     second_key = observed[1][1]["Idempotency-Key"]
     assert first_key == second_key
     assert len(first_key) >= 24
+    assert observed[0][1]["Authorization"] == "Bearer first-credential"
+    assert observed[1][1]["Authorization"] == "Bearer second-credential"
 
     call({"model": "gemma-fast", "state": {}, "questions": {}})
     assert len(observed) == 3
     assert observed[2][1]["Idempotency-Key"] != first_key
 
 
-def test_fixed_engine_uses_no_hosted_idempotency_header(monkeypatch):
+def test_fixed_engine_uses_no_hosted_idempotency_header(monkeypatch, mock_httpx_client):
     import trading_gym.intelligence.systemone_native_backend as module
 
     monkeypatch.setattr(module, "validate_base_url", lambda url, **kw: url)
     headers_seen = []
 
-    class Client:
-        def __init__(self, **kwargs):
-            pass
+    def handle(request):
+        headers_seen.append(httpx.Headers(request.headers))
+        return httpx.Response(
+            200, stream=httpx.ByteStream(json.dumps(_answer()).encode())
+        )
 
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            return False
-
-        def post(self, url, *, headers, json):
-            headers_seen.append(headers)
-            return httpx.Response(
-                200, json=_answer(),
-                request=httpx.Request("POST", url)
-            )
-
-    monkeypatch.setattr(httpx, "Client", Client)
-    call = httpx_systemone_transport(
-        _provider(wire_protocol="systemone_fixed")
-    )
+    mock_httpx_client(handle)
+    call = httpx_systemone_transport(_provider(wire_protocol="systemone_fixed"))
     call({"state": {}, "questions": {}})
     assert len(headers_seen) == 1
     assert "Idempotency-Key" not in headers_seen[0]

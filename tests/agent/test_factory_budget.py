@@ -2,7 +2,7 @@
 
 Contract:
 - ``default_registry`` builds the octopus roster from injected backends:
-  α rules (always present, T1), δ risk-guard wrapping rules (T1),
+  α rules through δ risk-guard (one always-present T1 channel),
   β RL policy (T3, only when a model is loaded), γ LLM (T4, only when a
   provider is configured). Every arm carries concrete grantable scopes;
   the LLM arm declares ``research.llm.invoke`` (network access is scoped).
@@ -93,12 +93,41 @@ class TestDefaultRegistry:
         rules_arm = registry.get("rules")
         assert rules_arm.tier is ArmTier.T1_RULES
 
-    def test_risk_guard_wraps_rules_at_t1(self) -> None:
-        registry = default_registry()
-        guard_arm = registry.get("risk-guard:rules")
-        assert guard_arm.tier is ArmTier.T1_RULES
-        signal = guard_arm.propose(make_context())
+    @pytest.mark.parametrize(
+        ("context_overrides", "expected_leverage"),
+        [
+            ({}, 2.0),
+            ({"drawdown_from_peak": 0.12}, 1.0),
+            ({"drawdown_from_peak": 0.25}, 0.0),
+            ({"position_units": 11.0}, 0.0),
+        ],
+    )
+    def test_single_rules_channel_applies_risk_guard_at_t1(
+        self, context_overrides: dict[str, object], expected_leverage: float
+    ) -> None:
+        class _CountingRules(DeterministicRuleBackend):
+            calls = 0
+
+            def decide(self, context: MarketContext) -> DecisionSignal:
+                self.calls += 1
+                return super().decide(context)
+
+        rules = _CountingRules(long_leverage=2.0, defence_drawdown=0.95)
+        registry = default_registry(rule_backend=rules)
+        guarded_rules = registry.get("rules")
+        assert guarded_rules.tier is ArmTier.T1_RULES
+        assert [
+            arm.name
+            for arm in registry.arms()
+            if getattr(arm, "source_id", None) == "risk-guard:rules"
+        ] == ["rules"]
+        signal = guarded_rules.propose(make_context(**context_overrides))
+        assert rules.calls == 1
         assert signal.backend == "risk-guard:rules"
+        assert signal.target_leverage == pytest.approx(expected_leverage)
+        assert signal.action_kind is (
+            ActionKind.LONG if expected_leverage > 0 else ActionKind.HOLD
+        )
 
     def test_rl_arm_only_when_model_injected(self) -> None:
         empty = default_registry()
@@ -108,9 +137,19 @@ class TestDefaultRegistry:
             def predict(self, obs, deterministic: bool = True):  # type: ignore[no-untyped-def]
                 return [0], None
 
-        with_model = default_registry(rl_model=_FakeModel())
-        assert "rl" in [arm.name for arm in with_model.arms()]
+        with_model = default_registry(rl_model=_FakeModel(), llm_backend=_StubLLM())
+        assert {arm.name for arm in with_model.arms()} == {
+            "rules",
+            "stats",
+            "regime",
+            "rl",
+            "llm",
+        }
         assert with_model.get("rl").tier is ArmTier.T3_MODEL
+        assert {
+            getattr(with_model.get(name), "source_id", None)
+            for name in ("rules", "rl", "llm")
+        } == {"risk-guard:rules", "rl", "llm"}
 
     def test_llm_arm_declares_research_scope(self) -> None:
         registry = default_registry(llm_backend=_StubLLM())

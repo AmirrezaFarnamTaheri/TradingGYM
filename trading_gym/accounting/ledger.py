@@ -374,7 +374,10 @@ class PortfolioLedger:
         return result
 
     def apply_events(
-        self, events: list[AccountingEvent], *, actor: str = "accounting-engine",
+        self,
+        events: list[AccountingEvent],
+        *,
+        actor: str = "accounting-engine",
         expected_revision: int | None = None,
     ) -> list[AccountSnapshot]:
         """Apply a sequence of events to this account in one locked pass.

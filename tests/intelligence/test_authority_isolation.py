@@ -5,8 +5,14 @@ import pytest
 
 from trading_gym.intelligence.fusion_backend import FusionBackend
 from trading_gym.intelligence.policy_adapter import IntelligencePolicyAdapter
+from trading_gym.intelligence.operating_state import (
+    OperatingPolicy,
+    OperatingSnapshot,
+    fallback_guard,
+)
 from trading_gym.intelligence.types import (
     ActionKind,
+    BackendUnavailable,
     DecisionSignal,
     MarketContext,
 )
@@ -48,13 +54,14 @@ def context_builder(_observation):
     }
 
 
-def adapter(primary, fallback, builder=context_builder):
+def adapter(primary, fallback, builder=context_builder, *, fallback_admission=None):
     return IntelligencePolicyAdapter(
         primary,
         action_low=-5.0,
         action_high=5.0,
         fallback_backend=fallback,
         context_builder=builder,
+        fallback_admission=fallback_admission,
     )
 
 
@@ -74,8 +81,12 @@ def test_fusion_governor_permission_denial_is_not_degraded_to_ungoverned_rl():
     governor = DecisionBackend(failure=PermissionError("approval revoked"))
     fusion = FusionBackend(rl_backend=executor, llm_backend=governor)
     context = MarketContext(
-        symbol="BTCUSDT", position_units=0, equity=1000,
-        margin_level=None, last_close=100, prev_close=99,
+        symbol="BTCUSDT",
+        position_units=0,
+        equity=1000,
+        margin_level=None,
+        last_close=100,
+        prev_close=99,
     )
     with pytest.raises(PermissionError, match="approval revoked"):
         fusion.decide(context)
@@ -83,9 +94,31 @@ def test_fusion_governor_permission_denial_is_not_degraded_to_ungoverned_rl():
 
 
 def test_optional_provider_outage_degrades_then_recovers_full_capability():
-    primary = DecisionBackend(failure=RuntimeError("provider outage"))
+    primary = DecisionBackend(failure=BackendUnavailable("provider outage"))
     fallback = DecisionBackend(leverage=1.0)
-    engine = adapter(primary, fallback)
+    snapshot = OperatingSnapshot(
+        account_id="paper-fixture",
+        mode="paper",
+        as_of=1000.0,
+        market_observed_at=1000.0,
+        account_observed_at=1000.0,
+        position_units=0.0,
+        equity=1000.0,
+        price=100.0,
+        orders_known=True,
+    )
+    policy = OperatingPolicy(
+        profile_id="explicit-fallback",
+        account_id=snapshot.account_id,
+        mode=snapshot.mode,
+        max_abs_leverage=1.0,
+        max_age_seconds=5.0,
+        allow_risk_increase=True,
+        allow_open_from_flat=True,
+    )
+    engine = adapter(
+        primary, fallback, fallback_admission=fallback_guard(lambda: snapshot, policy)
+    )
     first, _ = engine.predict(np.zeros(6, dtype=float))
     assert float(first[0]) == pytest.approx(1.0)
     assert engine.last_signal.backend.endswith("(degraded)")
@@ -130,7 +163,9 @@ def test_invalid_market_state_blocks_all_fallbacks(overrides):
 def test_nonfinite_action_limits_never_create_a_policy(bounds):
     with pytest.raises(ValueError, match="action bounds"):
         IntelligencePolicyAdapter(
-            DecisionBackend(), action_low=bounds[0], action_high=bounds[1],
+            DecisionBackend(),
+            action_low=bounds[0],
+            action_high=bounds[1],
         )
 
 
@@ -144,8 +179,9 @@ def test_contradictory_direction_denies_instead_of_falling_back_to_a_trade():
     assert engine.last_signal is None
 
 
-def test_unexpected_backend_value_error_is_not_a_recoverable_model_outage():
-    primary = DecisionBackend(failure=ValueError("invalid model signal"))
+@pytest.mark.parametrize("failure_type", [ValueError, RuntimeError, TypeError])
+def test_unexpected_backend_failure_is_not_a_recoverable_model_outage(failure_type):
+    primary = DecisionBackend(failure=failure_type("invalid model signal"))
     secondary = DecisionBackend(action=ActionKind.LONG, leverage=1.0)
     engine = adapter(primary, secondary)
     with pytest.raises(PermissionError, match="intelligence_backend_invalid_failure"):

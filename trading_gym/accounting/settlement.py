@@ -199,7 +199,10 @@ def evaluate_settlement(
     for item in sorted(obligations, key=lambda value: value.obligation_id):
         if item.trade_at > as_of:
             raise ValueError("future_trade_outside_as_of")
-        if item.observed_settlement_at is not None and item.observed_settlement_at > as_of:
+        if (
+            item.observed_settlement_at is not None
+            and item.observed_settlement_at > as_of
+        ):
             raise ValueError("future_settlement_outside_as_of")
         due = contractual_settlement_date(item)
         # Contractual dates belong to the settlement venue, not UTC.

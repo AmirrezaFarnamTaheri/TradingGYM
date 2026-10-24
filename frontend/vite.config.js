@@ -20,8 +20,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
     globals: true,
-    // The wallet node test runs under plain `node`, not vitest.
-    exclude: ['**/node_modules/**', 'src/wallets/trustWallet.node.test.js'],
+    // Node contract tests have their own explicit CI command.
+    exclude: ['**/node_modules/**', '**/*.node.test.*'],
     coverage: {
       reporter: ['text', 'lcov'],
     },

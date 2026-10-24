@@ -30,7 +30,9 @@ class IntelligenceBackend(ABC):
     def decide(self, context: MarketContext) -> DecisionSignal:
         """Produce one bounded advisory signal for the current bar."""
 
-    def decide_with_observation(self, context: MarketContext, observation: Any) -> DecisionSignal:
+    def decide_with_observation(
+        self, context: MarketContext, observation: Any
+    ) -> DecisionSignal:
         """Explicit observation seam; context-only backends ignore the tensor.
 
         Observation-dependent implementations override this method. Callers

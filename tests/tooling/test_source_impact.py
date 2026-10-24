@@ -25,7 +25,9 @@ def test_python_relative_imports_and_dependents(tmp_path):
     assert "trading_gym/market/book.py" in report["impacted"]
     assert "apps/api.py" in report["impacted"]
     assert report["paths"]["apps/api.py"] == [
-        "trading_gym/core.py", "trading_gym/market/book.py", "apps/api.py"
+        "trading_gym/core.py",
+        "trading_gym/market/book.py",
+        "apps/api.py",
     ]
 
 
@@ -40,7 +42,8 @@ def test_typescript_relative_imports_and_stable_digest(tmp_path):
     assert "frontend/src/App.jsx" in first["impacted"]
     assert first["report_sha256"] == second["report_sha256"]
     put(
-        tmp_path, "frontend/src/App.jsx",
+        tmp_path,
+        "frontend/src/App.jsx",
         'import { read } from "./api";\n// comment\n',
     )
     after = evaluate_source_changes(

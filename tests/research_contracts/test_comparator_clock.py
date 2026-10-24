@@ -1,4 +1,5 @@
 """Real environment comparators share seeded starts and causally visible rows."""
+
 from types import SimpleNamespace
 
 import numpy as np
@@ -16,11 +17,17 @@ def test_real_env_baseline_and_policy_use_same_nonzero_decision_rows():
     cfg.env.breaker.stall_check_enabled = False
     n = 260
     index = pd.date_range("2025-01-01", periods=n, freq="5min", tz="UTC")
-    features = pd.DataFrame({"spread_ratio": np.full(n, .0001),
-                             "volatility": np.full(n, .001)}, index=index)
+    features = pd.DataFrame(
+        {"spread_ratio": np.full(n, 0.0001), "volatility": np.full(n, 0.001)},
+        index=index,
+    )
     prices = np.arange(n, dtype=float) + 100
-    inputs = {"features": features, "prices_mid": prices,
-              "prices_high": prices, "prices_low": prices}
+    inputs = {
+        "features": features,
+        "prices_mid": prices,
+        "prices_high": prices,
+        "prices_low": prices,
+    }
     bundle = fit_model_bundle(cfg, features)
     env = create_environment(cfg, inputs, training_stats=bundle.training_stats)
     seen = []
@@ -34,10 +41,12 @@ def test_real_env_baseline_and_policy_use_same_nonzero_decision_rows():
             assert history[-1] == prices[t]
             assert not history.flags.writeable
             seen.append(t)
-            return 0.
+            return 0.0
 
-    model = SimpleNamespace(set_env=lambda value: None,
-                            predict=lambda obs, deterministic: (np.array([0.], dtype=np.float32), None))
+    model = SimpleNamespace(
+        set_env=lambda value: None,
+        predict=lambda obs, deterministic: (np.array([0.0], dtype=np.float32), None),
+    )
     attach_model_bundle(model, bundle)
     try:
         baseline = _run_strategy(env, inputs, Recorder, 365 * 288, seed=cfg.seed)

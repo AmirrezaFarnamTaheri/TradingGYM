@@ -18,12 +18,10 @@ authority, and every output still passes the pre-trade gate and coordinator.
 
 from __future__ import annotations
 
-import math
 import hashlib
 import json
 from typing import Any
 
-from trading_gym.intelligence.rl_backend import RLPolicyBackend
 
 from trading_gym.intelligence.base import IntelligenceBackend
 from trading_gym.intelligence.types import (
@@ -92,7 +90,8 @@ class FusionBackend(IntelligenceBackend):
             raise BackendUnavailable("fusion requires the RL executor backend")
         observed = getattr(self.rl, "decide_with_observation", None)
         rl_signal = (
-            observed(context, observation) if callable(observed)
+            observed(context, observation)
+            if callable(observed)
             else self.rl.decide(context)
         )
         return self._govern(context, rl_signal)
@@ -122,7 +121,8 @@ class FusionBackend(IntelligenceBackend):
             f"governor:{gov.source_id or 'unidentified/' + gov.backend}",
         )
         provenance = {
-            "source_id": "fusion/" + hashlib.sha256(
+            "source_id": "fusion/"
+            + hashlib.sha256(
                 json.dumps(contributors, separators=(",", ":")).encode("utf-8")
             ).hexdigest(),
             "contributing_sources": contributors,

@@ -134,9 +134,11 @@ def test_research_templates_only_depend_on_available_candles(strategy_id):
     assert result["entry_signal"].any()
     for prefix_size in (154, 156, 158):
         subset = evaluate_strategy(frame.iloc[:prefix_size], strategy)
-        assert subset["entry_signal"].iloc[-1] == result["entry_signal"].iloc[
-            prefix_size - 1
-        ]
-        assert subset["exit_signal"].iloc[-1] == result["exit_signal"].iloc[
-            prefix_size - 1
-        ]
+        assert (
+            subset["entry_signal"].iloc[-1]
+            == result["entry_signal"].iloc[prefix_size - 1]
+        )
+        assert (
+            subset["exit_signal"].iloc[-1]
+            == result["exit_signal"].iloc[prefix_size - 1]
+        )

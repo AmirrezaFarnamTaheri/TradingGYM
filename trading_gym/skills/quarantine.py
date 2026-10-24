@@ -42,8 +42,11 @@ class SkillQuarantineRepository:
             raise ValueError("skill quarantine capacity exceeded")
         result = deepcopy(
             {
-                **record, "reviewer": reviewer, "preparer": preparer,
-                "quarantined": True, "activated": False,
+                **record,
+                "reviewer": reviewer,
+                "preparer": preparer,
+                "quarantined": True,
+                "activated": False,
             }
         )
         self._items[name] = result

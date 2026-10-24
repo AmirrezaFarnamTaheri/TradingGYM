@@ -14,9 +14,12 @@ DAY = 86400
 
 def event(**changes):
     row = dict(
-        universe_id="SP500", instrument_id="NYSE:XYZ",
-        effective_at_unix=100 * DAY, published_at_unix=95 * DAY,
-        observed_at_unix=97 * DAY, included=True,
+        universe_id="SP500",
+        instrument_id="NYSE:XYZ",
+        effective_at_unix=100 * DAY,
+        published_at_unix=95 * DAY,
+        observed_at_unix=97 * DAY,
+        included=True,
         source_sha256="a" * 64,
     )
     row.update(changes)
@@ -25,7 +28,8 @@ def event(**changes):
 
 def assess(events, as_of=150 * DAY, instruments=None):
     return assess_universe_asof(
-        events=events, universe_id="SP500",
+        events=events,
+        universe_id="SP500",
         instruments=instruments if instruments is not None else ["NYSE:XYZ"],
         as_of_unix=as_of,
     )
@@ -41,8 +45,11 @@ def test_current_membership_never_backfills_an_earlier_historical_replay():
 
 def test_published_but_unobserved_exclusion_does_not_leak():
     excluded = event(
-        effective_at_unix=200 * DAY, published_at_unix=190 * DAY,
-        observed_at_unix=205 * DAY, included=False, source_sha256="b" * 64,
+        effective_at_unix=200 * DAY,
+        published_at_unix=190 * DAY,
+        observed_at_unix=205 * DAY,
+        included=False,
+        source_sha256="b" * 64,
     )
     before = assess([event(), excluded], as_of=202 * DAY)
     assert before["members"][0]["state"] == "included"
@@ -52,7 +59,8 @@ def test_published_but_unobserved_exclusion_does_not_leak():
 
 def test_future_effective_membership_not_applied_early():
     future = event(
-        effective_at_unix=200 * DAY, published_at_unix=180 * DAY,
+        effective_at_unix=200 * DAY,
+        published_at_unix=180 * DAY,
         observed_at_unix=181 * DAY,
     )
     assert assess([future], as_of=185 * DAY)["members"][0]["state"] == "unknown"
@@ -61,8 +69,11 @@ def test_future_effective_membership_not_applied_early():
 
 def test_old_period_restatement_cannot_override_newer_effective_membership():
     old_restatement = event(
-        effective_at_unix=80 * DAY, published_at_unix=220 * DAY,
-        observed_at_unix=222 * DAY, included=False, source_sha256="b" * 64,
+        effective_at_unix=80 * DAY,
+        published_at_unix=220 * DAY,
+        observed_at_unix=222 * DAY,
+        included=False,
+        source_sha256="b" * 64,
     )
     report = assess([event(), old_restatement], as_of=230 * DAY)
     assert report["members"][0]["state"] == "included"
@@ -70,8 +81,11 @@ def test_old_period_restatement_cannot_override_newer_effective_membership():
 
 def test_same_effective_date_correction_applies_only_when_known():
     corrected = event(
-        effective_at_unix=100 * DAY, published_at_unix=160 * DAY,
-        observed_at_unix=161 * DAY, included=False, source_sha256="b" * 64,
+        effective_at_unix=100 * DAY,
+        published_at_unix=160 * DAY,
+        observed_at_unix=161 * DAY,
+        included=False,
+        source_sha256="b" * 64,
     )
     earlier = assess([event(), corrected], as_of=150 * DAY)
     assert earlier["members"][0]["state"] == "included"
@@ -93,8 +107,11 @@ def test_sorted_replay_receipt_is_content_bound_and_never_grants_trade():
 def test_future_membership_change_never_alters_historical_receipt():
     prior = assess([event()], as_of=150 * DAY)
     future = event(
-        effective_at_unix=200 * DAY, published_at_unix=190 * DAY,
-        observed_at_unix=210 * DAY, included=False, source_sha256="b" * 64,
+        effective_at_unix=200 * DAY,
+        published_at_unix=190 * DAY,
+        observed_at_unix=210 * DAY,
+        included=False,
+        source_sha256="b" * 64,
     )
     assert assess([event(), future], as_of=150 * DAY) == prior
 

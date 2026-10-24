@@ -79,13 +79,11 @@ def probabilistic_sharpe_ratio(
     not the annualized display value. `benchmark_sharpe` is annualized
     for compatibility with `annualised_sharpe`; convert it before comparing.
     """
-    if type(periods_per_year) is not int or periods_per_year <= 0:
+    if type(periods_per_year) is not int or periods_per_year <= 0:  # noqa: E721
         raise ValueError("periods_per_year must be a positive integer")
     if (
         isinstance(benchmark_sharpe, (bool, np.bool_))
-        or not isinstance(
-            benchmark_sharpe, (int, float, np.integer, np.floating)
-        )
+        or not isinstance(benchmark_sharpe, (int, float, np.integer, np.floating))
         or not math.isfinite(float(benchmark_sharpe))
     ):
         raise ValueError("benchmark_sharpe must be finite and non-boolean")
@@ -158,9 +156,8 @@ EULER_MASCHERONI = 0.5772156649015329
 
 
 def _finite_sharpe_input(value: object, label: str) -> float:
-    if (
-        isinstance(value, (bool, np.bool_))
-        or not isinstance(value, (int, float, np.integer, np.floating))
+    if isinstance(value, (bool, np.bool_)) or not isinstance(
+        value, (int, float, np.integer, np.floating)
     ):
         raise ValueError(f"{label} must be a finite real number")
     result = float(value)

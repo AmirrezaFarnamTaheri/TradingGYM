@@ -86,4 +86,28 @@ describe('first-run workflow through Axios envelopes', () => {
     expect(container.textContent).toContain('Cancellation requested; completion of the stop is unverified');
     expect(container.textContent).not.toContain('Run cancelled');
   });
+  it('keeps a delayed cancellation attached to its original run after selection changes', async () => {
+    const otherId = 'b'.repeat(32);
+    const first = { ...base, state: 'running', artifact_available: false };
+    const second = { ...first, run_id: otherId };
+    let completeCancellation;
+    api.defaults.adapter = async (config) => {
+      if (config.url === '/models/active') return response(config, { active_model: null });
+      if (config.url === '/runs/example') return response(config, [first, second]);
+      if (config.url.endsWith('/cancel')) return new Promise((resolve) => {
+        completeCancellation = () => resolve(response(config, { ...first, state: 'cancelled' }));
+      });
+      return response(config, config.url.endsWith(otherId) ? second : first);
+    };
+    await mount();
+    await click(`${ID.slice(0, 12)} · running`);
+    await click('Request cancellation');
+    await click(`${otherId.slice(0, 12)} · running`);
+    await act(async () => completeCancellation());
+    await settle();
+    expect(query.getQueryData(['example-run', ID]).state).toBe('cancelled');
+    expect(query.getQueryData(['example-run', otherId])).toMatchObject({ run_id: otherId, state: 'running' });
+    expect(container.querySelector('[role="status"]').textContent).toContain(otherId);
+    expect(container.querySelector('[role="status"]').textContent).not.toContain('cancelled');
+  });
 });

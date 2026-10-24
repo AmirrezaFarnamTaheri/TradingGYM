@@ -182,15 +182,24 @@ class FeatureAssembler:
         range_ratio = np.array((highs - lows) / np.maximum(prices, 1e-9))
         if "spread_bps" in df:
             spread_bps = df["spread_bps"].to_numpy(dtype=np.float64)
-            spread_source = "assumed" if df.attrs.get("synthetic_spread_bps") else "admitted"
+            spread_source = (
+                "assumed" if df.attrs.get("synthetic_spread_bps") else "admitted"
+            )
         elif self.cfg.assumed_spread_bps is not None:
             spread_bps = np.full(len(df), self.cfg.assumed_spread_bps, dtype=np.float64)
             spread_source = "assumed"
         else:
-            raise ValueError("spread_bps is required unless assumed_spread_bps is explicitly configured")
-        if (not np.isfinite(spread_bps).all() or (spread_bps < 0).any()
-                or (spread_bps >= 20000).any()):
-            raise ValueError("spread_bps must be finite, non-negative and imply a positive bid")
+            raise ValueError(
+                "spread_bps is required unless assumed_spread_bps is explicitly configured"
+            )
+        if (
+            not np.isfinite(spread_bps).all()
+            or (spread_bps < 0).any()
+            or (spread_bps >= 20000).any()
+        ):
+            raise ValueError(
+                "spread_bps must be finite, non-negative and imply a positive bid"
+            )
 
         # 4. Static/Meta Features
         sector = get_asset_sector(symbol)
@@ -225,7 +234,9 @@ class FeatureAssembler:
         # 6. Validate output. Any NaN/Inf is a feature-engineering defect,
         # not a value to silently coerce into a tradable signal.
         output = features.astype(np.float32)
-        output.attrs.update({"spread_source": spread_source, "feature_recipe": "spread-range-v2"})
+        output.attrs.update(
+            {"spread_source": spread_source, "feature_recipe": "spread-range-v2"}
+        )
         if not np.isfinite(output.to_numpy(dtype=np.float32, copy=False)).all():
             raise ValueError(
                 f"Feature generation produced non-finite values for {symbol}"

@@ -4,6 +4,7 @@ Adapts Vibe-Trading's pair-density and hysteresis method, but requires exact
 UTC observation timestamps. Undefined correlations stay UNKNOWN rather than
 being counted as uncorrelated. Never changes weights or authorizes trades.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -28,15 +29,20 @@ def _threshold(v: object, name: str) -> float:
 
 
 def _positive_int(value: object, label: str, minimum: int, maximum: int) -> int:
-    if type(value) is not int or not minimum <= value <= maximum:
+    if type(value) is not int or not minimum <= value <= maximum:  # noqa: E721
         raise ValueError(f"invalid {label}")
     return value
 
 
 def _seal(data: object) -> str:
-    return hashlib.sha256(json.dumps(
-        data, sort_keys=True, separators=(",", ":"), allow_nan=False,
-    ).encode("utf-8")).hexdigest()
+    return hashlib.sha256(
+        json.dumps(
+            data,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def classify_density_timeline(
@@ -65,7 +71,7 @@ def classify_density_timeline(
     regimes: list[str] = []
     latent = False
     for i in range(len(validated)):
-        window = validated[max(0, i + 1 - smooth):i + 1]
+        window = validated[max(0, i + 1 - smooth) : i + 1]
         if len(window) < smooth or any(x is None for x in window):
             smoothed.append(None)
             regimes.append("unknown")
@@ -97,9 +103,11 @@ def correlation_regimes(
     Pair correlations are unknown when any contributing asset lacks a valid
     rolling window. A fused episode describes correlation, not trade alpha.
     """
-    if type(source_sha256) is not str or not _SHA.fullmatch(source_sha256):
+    if type(source_sha256) is not str or not _SHA.fullmatch(  # noqa: E721
+        source_sha256
+    ):
         raise ValueError("missing canonical source SHA-256")
-    if type(as_of_unix) is not int or not 0 <= as_of_unix <= 10**11:
+    if type(as_of_unix) is not int or not 0 <= as_of_unix <= 10**11:  # noqa: E721
         raise ValueError("invalid as_of timestamp")
     window = _positive_int(corr_window, "correlation window", 3, 250)
     threshold = _threshold(edge_threshold, "edge threshold")
@@ -116,23 +124,30 @@ def correlation_regimes(
         raise ValueError("market timestamps require datetime index")
     if returns.index.tz is None:
         raise ValueError("market timestamps must be timezone aware")
-    if (returns.index.hasnans or not returns.index.is_unique
-        or not returns.index.is_monotonic_increasing):
+    if (
+        returns.index.hasnans
+        or not returns.index.is_unique
+        or not returns.index.is_monotonic_increasing
+    ):
         raise ValueError("market timestamps must be unique and increasing")
     if any(t.microsecond or t.nanosecond for t in returns.index):
         raise ValueError("market timestamps must be second-aligned")
     if int(returns.index[-1].value) > as_of_unix * 1_000_000_000:
         raise ValueError("future market return outside as_of")
     columns = list(returns.columns)
-    if (not all(type(x) is str and _ASSET.fullmatch(x) for x in columns)
-        or len(columns) != len(set(columns))):
+    if not all(
+        type(x) is str and _ASSET.fullmatch(x) for x in columns  # noqa: E721
+    ) or len(columns) != len(set(columns)):
         raise ValueError("invalid or duplicate market asset identity")
     matrix = returns.loc[:, sorted(columns)]
     try:
         values = matrix.to_numpy(dtype=float)
     except (TypeError, ValueError) as exc:
         raise ValueError("nonfinite or nonnumeric market returns") from exc
-    if np.isinf(values).any() or (np.isfinite(values) & ((values < -1) | (values > 100))).any():
+    if (
+        np.isinf(values).any()
+        or (np.isfinite(values) & ((values < -1) | (values > 100))).any()
+    ):
         raise ValueError("nonfinite or implausible market returns")
     observed = [int(t.timestamp()) for t in matrix.index]
     dense: list[float | None] = [None] * size
@@ -140,7 +155,7 @@ def correlation_regimes(
     total_pairs = assets * (assets - 1) // 2
     mask = np.triu_indices(assets, k=1)
     for end in range(window, size + 1):
-        block = values[end - window:end, :]
+        block = values[end - window : end, :]
         if not np.isfinite(block).all():
             continue
         with np.errstate(invalid="ignore", divide="ignore"):
@@ -151,16 +166,19 @@ def correlation_regimes(
         counts[end - 1] = count
         dense[end - 1] = count / total_pairs
     series = classify_density_timeline(
-        dense, smooth_window=smooth_window,
-        enter_threshold=enter_threshold, exit_threshold=exit_threshold,
+        dense,
+        smooth_window=smooth_window,
+        enter_threshold=enter_threshold,
+        exit_threshold=exit_threshold,
     )
     # JSON null explicitly records unknown returns; never forward-fill them.
     material = [[None if math.isnan(x) else float(x) for x in row] for row in values]
     report = {
         "schema": "tradinggym.correlation-regimes.v1",
         "source_sha256": source_sha256,
-        "input_sha256": _seal({"asset_ids": sorted(columns),
-                               "timestamps": observed, "returns": material}),
+        "input_sha256": _seal(
+            {"asset_ids": sorted(columns), "timestamps": observed, "returns": material}
+        ),
         "as_of_unix": as_of_unix,
         "timestamps_unix": observed,
         "edge_density": dense,

@@ -47,7 +47,9 @@ class SplitConformalVaR:
     def fit(self, calibration_losses: np.ndarray) -> "SplitConformalVaR":
         scores = np.asarray(calibration_losses, dtype=float)
         if scores.ndim != 1:
-            raise ConformalVaRError("calibration losses must be a one-dimensional sequence")
+            raise ConformalVaRError(
+                "calibration losses must be a one-dimensional sequence"
+            )
         if scores.size < 8:
             raise ConformalVaRError("need >= 8 calibration losses")
         if not np.isfinite(scores).all():
@@ -71,11 +73,14 @@ class SplitConformalVaR:
         """JSON-safe finite-sample status; unbounded is never a finite cap."""
         bound = self.predict_var()
         n = self._scores.size
-        return {"alpha": self.alpha, "calibration_count": int(n),
-                "rank": int(np.ceil((n + 1) * (1.0 - self.alpha))),
-                "bound": float(bound) if np.isfinite(bound) else None,
-                "unbounded": not bool(np.isfinite(bound)),
-                "coverage_assumption": "exchangeable_calibration_and_test_scores"}
+        return {
+            "alpha": self.alpha,
+            "calibration_count": int(n),
+            "rank": int(np.ceil((n + 1) * (1.0 - self.alpha))),
+            "bound": float(bound) if np.isfinite(bound) else None,
+            "unbounded": not bool(np.isfinite(bound)),
+            "coverage_assumption": "exchangeable_calibration_and_test_scores",
+        }
 
     def coverage_report(
         self,

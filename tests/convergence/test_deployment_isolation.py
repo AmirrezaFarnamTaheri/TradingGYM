@@ -57,8 +57,9 @@ def test_http_tenant_boundary_is_enforced(monkeypatch) -> None:
         assert mismatch.status_code == 400
         assert mismatch.json() == {"detail": "Tenant boundary mismatch"}
 
+
 def test_distributed_account_replica_topology_is_denied_without_global_fencing(
-    monkeypatch
+    monkeypatch,
 ) -> None:
     """Local file locks cannot fence a second host or a partitioned account."""
     for name in (

@@ -29,6 +29,7 @@ def sample_df():
             "high": np.linspace(101, 201, 100),
             "low": np.linspace(99, 199, 100),
             "close": np.linspace(100, 200, 100),
+            "spread_bps": np.full(100, 2.0),
             "volume": np.random.rand(100) * 1000,
         },
         index=dates,

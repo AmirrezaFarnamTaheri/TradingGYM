@@ -9,6 +9,11 @@ on:
     # Weekly Monday-morning dependency scan (informational job below).
     - cron: "0 6 * * 1"
 
+permissions:
+  contents: read
+
+env:
+  TRADING_GYM_REQUIRE_REAL_DEPS: "1"
 
 # Keep only the newest verification attempt per PR or branch. Scheduled
 # dependency scans remain independent and are never preempted by PR updates.
@@ -21,23 +26,6 @@ jobs:
     name: Lint & Format
     runs-on: ubuntu-latest
     steps:
-      - name: Free Disk Space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          sudo swapoff -a
-          sudo rm -f /mnt/swapfile
-          # Aggressive cleanup
-          sudo rm -rf /usr/share/swift
-          sudo rm -rf /usr/local/share/powershell
-          sudo rm -rf /usr/lib/jvm
-          sudo rm -rf /usr/local/.ghcup
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf /usr/local/lib/node_modules
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python 3.12
@@ -48,7 +36,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install poetry
+          pip install poetry==2.2.1
           poetry install --only dev --no-root
 
       - name: Run Ruff linter
@@ -64,23 +52,6 @@ jobs:
     name: Type Checking
     runs-on: ubuntu-latest
     steps:
-      - name: Free Disk Space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          sudo swapoff -a
-          sudo rm -f /mnt/swapfile
-          # Aggressive cleanup
-          sudo rm -rf /usr/share/swift
-          sudo rm -rf /usr/local/share/powershell
-          sudo rm -rf /usr/lib/jvm
-          sudo rm -rf /usr/local/.ghcup
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf /usr/local/lib/node_modules
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python 3.12
@@ -91,7 +62,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install poetry
+          pip install poetry==2.2.1
           poetry install --only dev
 
       - name: Run MyPy
@@ -143,7 +114,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install poetry
+          pip install poetry==2.2.1
           poetry install --with dev
 
       # Each matrix cell executes the non-integration suite exactly once.
@@ -168,6 +139,34 @@ jobs:
         with:
           files: ./coverage.xml
           fail_ci_if_error: false
+
+  contracts:
+    name: Research and Paper Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Reclaim space for the locked ML runtime
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install locked application and experiment dependencies
+        run: |
+          python -m pip install poetry==2.2.1
+          poetry install --with dev,experiments
+      - name: Check research, account, provider and API contracts with real dependencies
+        run: poetry run python scripts/run_contract_tests.py --junitxml=artifacts/contracts.xml
+      - name: Upload contract results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: contract-results-${{ github.sha }}
+          path: artifacts/contracts.xml
+          if-no-files-found: warn
 
   integration:
     name: Integration Tests
@@ -201,7 +200,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install poetry
+          pip install poetry==2.2.1
           poetry install --with dev
 
       - name: Run integration tests
@@ -214,29 +213,12 @@ jobs:
     name: Frontend Tests
     runs-on: ubuntu-latest
     steps:
-      - name: Free Disk Space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          sudo swapoff -a
-          sudo rm -f /mnt/swapfile
-          # Aggressive cleanup
-          sudo rm -rf /usr/share/swift
-          sudo rm -rf /usr/local/share/powershell
-          sudo rm -rf /usr/lib/jvm
-          sudo rm -rf /usr/local/.ghcup
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf /usr/local/lib/node_modules
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install dependencies
         run: npm ci
@@ -244,6 +226,10 @@ jobs:
 
       - name: Run tests
         run: npm run test:ci
+        working-directory: frontend
+
+      - name: Run native Node contract tests
+        run: node --test src/wallets/trustWallet.node.test.js src/jobResponse.node.test.mjs
         working-directory: frontend
 
       - name: Build frontend
@@ -254,23 +240,6 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     steps:
-      - name: Free Disk Space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          sudo swapoff -a
-          sudo rm -f /mnt/swapfile
-          # Aggressive cleanup
-          sudo rm -rf /usr/share/swift
-          sudo rm -rf /usr/local/share/powershell
-          sudo rm -rf /usr/lib/jvm
-          sudo rm -rf /usr/local/.ghcup
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf /usr/local/lib/node_modules
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python 3.12
@@ -281,7 +250,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install poetry
+          pip install poetry==2.2.1
           poetry install --only dev --no-root
 
       - name: Run Bandit security linter
@@ -315,7 +284,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install poetry pip-audit
+          pip install poetry==2.2.1 pip-audit
           poetry install --only main
           poetry run pip-audit --skip-editable
 
@@ -380,7 +349,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install poetry
+          pip install poetry==2.2.1
           poetry install --with dev
 
       - name: Parity suite against the compiled kernel
@@ -398,7 +367,19 @@ jobs:
   all-checks:
     name: All Checks Passed
     runs-on: ubuntu-latest
-    needs: [lint, type-check, test, integration, frontend, security, kernel]
+    if: always()
+    needs: [lint, type-check, test, contracts, integration, frontend, security, kernel]
     steps:
-      - name: All checks passed
-        run: echo "All CI checks completed successfully!"
+      - name: Require every verification job to succeed
+        env:
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          results = json.loads(os.environ["JOB_RESULTS"])
+          failed = {name: job["result"] for name, job in results.items() if job["result"] != "success"}
+          if failed:
+              raise SystemExit(f"Required verification jobs did not succeed: {failed}")
+          print("All required verification jobs passed.")
+          PYTHON

@@ -17,7 +17,9 @@ from trading_gym.agent.persistent_experience import (
 )
 from trading_gym.common.persistence import resolve_data_home
 from trading_gym.intelligence.system1_backend import System1DecisionBackend
-from trading_gym.intelligence.systemone_native_backend import NativeSystemOneDecisionBackend
+from trading_gym.intelligence.systemone_native_backend import (
+    NativeSystemOneDecisionBackend,
+)
 from trading_gym.intelligence.base import IntelligenceBackend
 from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
 from trading_gym.intelligence.fusion_backend import FusionBackend
@@ -39,7 +41,9 @@ def build_intelligence_policy(
     context_builder: Callable[[Any], dict[str, Any]] | None = None,
     working_memory: Any | None = None,
     experience_memory: Any | None = None,
-    fallback_admission: Callable[[DecisionSignal, MarketContext], DecisionSignal] | None = None,
+    fallback_admission: (
+        Callable[[DecisionSignal, MarketContext], DecisionSignal] | None
+    ) = None,
 ):
     """Assemble the configured backend stack.
 
@@ -117,7 +121,11 @@ def build_intelligence_policy(
                     raise PermissionError("system1_memory_integrity") from exc
 
         evidence = (
-            (experience_memory if experience_memory is not None else VerifiedMemoryReader())
+            (
+                experience_memory
+                if experience_memory is not None
+                else VerifiedMemoryReader()
+            )
             if config.system1_use_experience_memory
             else None
         )
@@ -191,8 +199,9 @@ def build_intelligence_policy(
             # An explicitly configured but invalid preset is a configuration
             # failure, not permission to silently select a local profile.
             fast_roster = resolve_system1()
-            entries.extend((fast, 80 + index * 5)
-                           for index, fast in enumerate(fast_roster))
+            entries.extend(
+                (fast, 80 + index * 5) for index, fast in enumerate(fast_roster)
+            )
         llm = resolve_llm() if config.llm_provider_id else None
         if fast_roster and llm is not None:
             # A low-confidence System-1 result is *uncertainty*, not a
@@ -203,16 +212,20 @@ def build_intelligence_policy(
             entries.append((resolve_llm(strict_review=True), 99))
         if rl is not None:
             if llm is not None:
-                entries.insert(0, (
-                    FusionBackend(
-                        rl_backend=rl,
-                        llm_backend=llm,
-                        leverage_cap=config.fusion_leverage_cap,
-                        veto_confidence=config.fusion_veto_confidence,
-                        flip_confidence=config.fusion_flip_confidence,
-                        allow_flip=config.fusion_allow_flip,
-                    ), 100,
-                ))
+                entries.insert(
+                    0,
+                    (
+                        FusionBackend(
+                            rl_backend=rl,
+                            llm_backend=llm,
+                            leverage_cap=config.fusion_leverage_cap,
+                            veto_confidence=config.fusion_veto_confidence,
+                            flip_confidence=config.fusion_flip_confidence,
+                            allow_flip=config.fusion_allow_flip,
+                        ),
+                        100,
+                    ),
+                )
             entries.append((rl, 200))
         elif llm is not None:
             # Model-free AUTO still has the configured LLM capability;

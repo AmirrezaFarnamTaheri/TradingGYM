@@ -160,7 +160,8 @@ class TierCascadePlanner:
                     continue
                 try:
                     signal = (
-                        arm.propose(context) if observation is None
+                        arm.propose(context)
+                        if observation is None
                         else arm.propose_with_observation(context, observation)
                     )
                     if not isinstance(signal, DecisionSignal):

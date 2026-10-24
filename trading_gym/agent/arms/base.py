@@ -107,7 +107,9 @@ class Arm(ABC):
         rather than fabricate a signal when they cannot act honestly.
         """
 
-    def propose_with_observation(self, context: MarketContext, observation: Any) -> DecisionSignal:
+    def propose_with_observation(
+        self, context: MarketContext, observation: Any
+    ) -> DecisionSignal:
         """Context-only arms preserve their existing contract."""
         return self.propose(context)
 
@@ -192,8 +194,9 @@ class BackendArm(Arm):
         self._backend = backend
         config = getattr(backend, "config", None)
         self.source_id = source_id or (
-            f"{config.provider_id}/{config.model}" if config is not None
-            and hasattr(config, "provider_id") else backend.name
+            f"{config.provider_id}/{config.model}"
+            if config is not None and hasattr(config, "provider_id")
+            else backend.name
         )
         self.validate_required_scopes()
 
@@ -206,9 +209,15 @@ class BackendArm(Arm):
     def propose(self, context: MarketContext) -> DecisionSignal:
         return self._backend.decide(context)
 
-    def propose_with_observation(self, context: MarketContext, observation: Any) -> DecisionSignal:
+    def propose_with_observation(
+        self, context: MarketContext, observation: Any
+    ) -> DecisionSignal:
         observed = getattr(self._backend, "decide_with_observation", None)
-        return observed(context, observation) if callable(observed) else self._backend.decide(context)
+        return (
+            observed(context, observation)
+            if callable(observed)
+            else self._backend.decide(context)
+        )
 
 
 class ArmRegistry:
