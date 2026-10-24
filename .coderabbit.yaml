@@ -12,3 +12,5 @@ reviews:
     - "Dockerfile"
     - "scripts/gui.py"
     - "scripts/build_source_release.py"
+    - "scripts/validation_receipt.py"
+    - "tests/scripts/test_validation_receipt.py"
