@@ -336,16 +336,34 @@ class ReceiptCompletenessTests(unittest.TestCase):
     def test_jobs_cli_rejects_missing_run_id_before_git_access(self):
         with self.assertRaises(SystemExit) as failure:
             receipt.main(
-                ["--source-sha", SHA, "--output", "/tmp/unused-receipt.json",
-                 "--scope", "ci", "--jobs-json", "/tmp/unused-jobs.json"]
+                [
+                    "--source-sha",
+                    SHA,
+                    "--output",
+                    "/tmp/unused-receipt.json",
+                    "--scope",
+                    "ci",
+                    "--jobs-json",
+                    "/tmp/unused-jobs.json",
+                ]
             )
         self.assertEqual(failure.exception.code, 2)
 
     def test_cli_run_id_only_valid_for_jobs_mode(self):
         with self.assertRaises(SystemExit) as failure:
             receipt.main(
-                ["--source-sha", SHA, "--output", "/tmp/unused-receipt.json",
-                 "--scope", "command", "--run-id", "800", "--", "true"]
+                [
+                    "--source-sha",
+                    SHA,
+                    "--output",
+                    "/tmp/unused-receipt.json",
+                    "--scope",
+                    "command",
+                    "--run-id",
+                    "800",
+                    "--",
+                    "true",
+                ]
             )
         self.assertEqual(failure.exception.code, 2)
 
