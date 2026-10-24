@@ -35,6 +35,14 @@ const api = axios.create({
   timeout: API_TIMEOUT,
 });
 
+export const exampleRunsAPI = {
+  list: () => api.get('/runs/example'),
+  start: (idempotencyKey) => api.post('/runs/example', { idempotency_key: idempotencyKey }),
+  get: (runId) => api.get(`/runs/example/${encodeURIComponent(runId)}`),
+  artifact: (runId) => api.get(`/runs/example/${encodeURIComponent(runId)}/artifact`),
+  cancel: (runId) => api.post(`/runs/example/${encodeURIComponent(runId)}/cancel`),
+};
+
 // =============================================================================
 // Interceptors
 // =============================================================================
@@ -86,6 +94,8 @@ api.interceptors.response.use(
 
     // Handle specific error codes
     if (status === 401) {
+      clearApiKey();
+      window.dispatchEvent(new Event('trading-gym:session-expired'));
       console.error('[API] Authentication failed. Please check your API key.');
     } else if (status === 403) {
       console.error('[API] Access forbidden. Invalid API key.');

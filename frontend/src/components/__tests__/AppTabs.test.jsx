@@ -3,6 +3,10 @@ import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 import App from "../../App";
 
+// This suite exercises navigation after the separately tested session boundary.
+vi.mock("../SessionGate", () => ({ default: ({ children }) => children }));
+vi.mock("../FirstRunJourney", () => ({ default: () => <section>First-run test guide</section> }));
+
 vi.mock("../InstitutionalOSPanel", () => ({
   default: () => <div>Institutional test panel</div>,
 }));

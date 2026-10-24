@@ -89,7 +89,8 @@ class TestPersistentExperienceMemory:
         assert hits[0].outcome == "loss"
         assert "bled fees" in hits[0].lesson
 
-    def test_query_prefers_tag_overlap_over_recency(self, tmp_path: Path) -> None:
+    def test_query_prefers_tag_overlap_over_recency(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setattr("trading_gym.agent.persistent_experience._now", lambda: 1_000_650.0)
         memory = PersistentExperienceMemory.open(tmp_path / "experiences.jsonl")
         memory.record(
             context_tags=["regime:chop"],
@@ -130,7 +131,8 @@ class TestPersistentExperienceMemory:
         assert reopened.observations() == 4
         assert reopened.query(["regime:chop"])[0].support == 4
 
-    def test_support_outranks_a_one_off_of_equal_overlap(self, tmp_path: Path) -> None:
+    def test_support_outranks_a_one_off_of_equal_overlap(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setattr("trading_gym.agent.persistent_experience._now", lambda: 1_000_015.0)
         memory = PersistentExperienceMemory.open(tmp_path / "experiences.jsonl")
         for offset in range(5):
             memory.record(

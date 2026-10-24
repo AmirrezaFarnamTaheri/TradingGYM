@@ -224,7 +224,7 @@ The training CLI composes a base application configuration with one bounded trai
 ```bash
 poetry run python -m apps.trainer.main \
   --base-config config/app.yaml \
-  --config training_t4.yaml \
+  --config training_local.yaml \
   --model-version candidate-2026-07-27 \
   --registry-dir checkpoints
 ```
@@ -367,3 +367,7 @@ The final absorption layer closes the remaining archive-visible semantic classes
 - a final non-authoritative saturation gate.
 
 “Archive saturation” applies only to the exact supplied ZIP contents. The archives contain no Git object databases or issue/PR discussions, and their full runtime dependency environments are unavailable; those limitations are reported rather than inferred away.
+
+### Shared local GUI bootstrap
+
+Use Python 3.11/3.12 with Poetry and npm installed. `python scripts/gui.py setup --check` checks prerequisites without writes or launches. `python scripts/gui.py setup --skip-start` installs the existing locked dependencies and creates a private `.env` only when absent. `python scripts/gui.py start` starts both services using the Poetry environment and `/api/v1/ready`; use `--api-port` / `--frontend-port` for custom ports. Bash/PowerShell launch wrappers delegate to this runner. Dotenv assignments are literal values, never shell code; explicitly exported values take precedence. Enter the configured gateway key in the browser, without storing it there. Independent live approvals remain separate.

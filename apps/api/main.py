@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from functools import partial
 from apps.api.openapi import build_openapi
+from apps.api.training_service import TrainingService, stop_outcome
 from datetime import date
 from pathlib import Path
 from typing import Dict, Any, Literal, Callable, TypeVar, cast
@@ -297,6 +298,9 @@ async def lifespan(app: FastAPI):
         # This supervisor alone may adopt/prune application child processes.
         validate_environment()
         prune_zombies()
+        recovered = await _example_service().recover_identities()
+        async with PROCESS_LOCK:
+            PROCESSES.update(recovered)
         try:
             yield
         finally:
@@ -764,9 +768,10 @@ async def stop_managed_process(process_key: str) -> Dict[str, Any]:
     async with PROCESS_LOCK:
         current = PROCESSES.get(process_key)
         if current and current.get("pid") == snapshot.get("pid"):
-            current["status"] = "stopped"
-            current["stopped_at"] = time.time()
-    return {"status": "stopped", "pid": snapshot.get("pid"), **result}
+            current["status"] = stop_outcome(result)
+            if current["status"] == "stopped":
+                current["stopped_at"] = time.time()
+    return {"status": stop_outcome(result), "pid": snapshot.get("pid"), **result}
 
 
 async def managed_process_status(process_key: str) -> Dict[str, Any]:
@@ -816,6 +821,12 @@ async def readiness_check():
         "tenant_id": isolation.tenant_id,
         "deployment_mode": isolation.deployment_mode,
     }
+
+
+@app.get("/api/v1/storage/health")
+async def get_storage_health(api_key: str = Depends(verify_api_key)):
+    from trading_gym.operations.storage_health import storage_health
+    return await _run_blocking(storage_health, resolve_data_home())
 
 
 @app.get("/api/v1/status")
@@ -1014,50 +1025,21 @@ async def get_config_section(section: str, api_key: str = Depends(verify_api_key
 # ============================================================================
 
 
+def _training_service() -> TrainingService:
+    return TrainingService(config_dir=CONFIG_DIR, registry_dir=CHECKPOINTS_DIR,
+                           start=start_managed_process, stop=stop_managed_process,
+                           status=managed_process_status)
+
+
 @app.post("/api/v1/train/start")
 async def start_training(
     request: TrainingStartRequest, api_key: str = Depends(verify_api_key)
 ):
     """Start training process"""
     try:
-        config_path = confined_child(
-            CONFIG_DIR,
-            request.config_name,
-            must_exist=True,
-            allow_symlinks=False,
+        return await _training_service().start(
+            config_name=request.config_name, model_version=request.model_version
         )
-        if not config_path.is_file():
-            raise HTTPException(status_code=404, detail="Training config not found")
-        command = [
-            sys.executable,
-            "-m",
-            "apps.trainer.main",
-            "--config",
-            str(config_path),
-            "--model-version",
-            request.model_version,
-            "--registry-dir",
-            str(CHECKPOINTS_DIR),
-        ]
-        info = await start_managed_process(
-            "training",
-            command,
-            source="TRAIN",
-            metadata={
-                "config": request.config_name,
-                "type": "training",
-                "model_version": request.model_version,
-            },
-        )
-        logger.info(
-            "Started training with config %s, PID: %s", request.config_name, info["pid"]
-        )
-        return {
-            "status": "started",
-            "pid": info["pid"],
-            "config": request.config_name,
-            "model_version": request.model_version,
-        }
     except (ValueError, FileNotFoundError) as e:
         raise HTTPException(
             status_code=400, detail="Invalid training configuration"
@@ -1073,7 +1055,7 @@ async def start_training(
 async def stop_training(api_key: str = Depends(verify_api_key)):
     """Stop training gracefully"""
     try:
-        return await stop_managed_process("training")
+        return await _training_service().stop()
     except HTTPException:
         raise
     except Exception as e:
@@ -1084,7 +1066,7 @@ async def stop_training(api_key: str = Depends(verify_api_key)):
 @app.get("/api/v1/train/status")
 async def get_training_status(api_key: str = Depends(verify_api_key)):
     """Get training status"""
-    return await managed_process_status("training")
+    return await _training_service().status()
 
 
 # ============================================================================
@@ -2167,6 +2149,67 @@ from apps.api.forge_router import create_forge_router  # noqa: E402
 app.include_router(create_authz_router(verify_api_key), prefix="/api/v1")
 app.include_router(create_playground_router(verify_api_key), prefix="/api/v1")
 app.include_router(create_forge_router(verify_api_key), prefix="/api/v1")
+
+# The installed container serves its built UI on the same origin, after API
+# routes. A source checkout without a build continues using the Vite launcher.
+
+# Reference runs use existing experiment leases and the process supervisor.
+from apps.api.example_runs import ExampleRunService
+from trading_gym.experiments.repository import ExperimentRepository, ExperimentConflict
+
+
+class ExampleRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    idempotency_key: str = Field(min_length=8, max_length=120, pattern=r"^[A-Za-z0-9._-]+$")
+
+
+def _example_service() -> ExampleRunService:
+    home = resolve_data_home()
+    return ExampleRunService(home, repository=ExperimentRepository(),
+        start=start_managed_process, stop=stop_managed_process,
+        status=managed_process_status, identity_matches=process_identity_matches,
+        stop_identity=terminate_process_tree)
+
+
+async def _example_call(awaitable):
+    try:
+        return await awaitable
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Reference run not found") from exc
+    except (ExperimentConflict, FileNotFoundError) as exc:
+        raise HTTPException(status_code=409, detail=public_error_detail(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid reference-run request or record") from exc
+
+
+@app.post("/api/v1/runs/example", status_code=202)
+async def start_example_run(request: ExampleRunRequest, api_key: str = Depends(verify_api_key)):
+    return await _example_call(_example_service().start(request.idempotency_key))
+
+
+@app.get("/api/v1/runs/example")
+async def list_example_runs(api_key: str = Depends(verify_api_key)):
+    return await _example_call(_example_service().list())
+
+
+@app.get("/api/v1/runs/example/{run_id}")
+async def get_example_run(run_id: str, api_key: str = Depends(verify_api_key)):
+    return await _example_call(_example_service().get(run_id))
+
+
+@app.get("/api/v1/runs/example/{run_id}/artifact")
+async def get_example_artifact(run_id: str, api_key: str = Depends(verify_api_key)):
+    return await _example_call(_example_service().artifact(run_id))
+
+
+@app.post("/api/v1/runs/example/{run_id}/cancel")
+async def cancel_example_run(run_id: str, api_key: str = Depends(verify_api_key)):
+    return await _example_call(_example_service().cancel(run_id))
+
+
+from apps.api.ui import mount_built_ui  # noqa: E402
+
+mount_built_ui(app, PROJECT_ROOT / "frontend" / "dist")
 
 
 # ============================================================================

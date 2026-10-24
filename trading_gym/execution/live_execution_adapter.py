@@ -153,7 +153,7 @@ class LiveExecutionAdapter:
     def _taker_fee_rate(self) -> Decimal:
         """Reject missing/invalid fee assumptions rather than under-reserving."""
         try:
-            bps = Decimal(str(self.cfg.env.cost.taker_fee_bps))
+            bps = Decimal(str(self.cfg.env.costs.taker_fee_bps))
         except (ValueError, TypeError, AttributeError) as exc:
             raise ValueError("invalid_taker_fee_configuration") from exc
         if not bps.is_finite() or bps < 0:

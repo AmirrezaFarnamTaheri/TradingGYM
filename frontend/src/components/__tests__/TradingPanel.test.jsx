@@ -12,8 +12,8 @@ const { toastSpies, startSpy, stopSpy, killSpy, getStatusSpy, mockWebSocket } = 
     error: vi.fn(),
     warning: vi.fn(),
   },
-  startSpy: vi.fn(() => Promise.resolve({ pid: 123 })),
-  stopSpy: vi.fn(() => Promise.resolve({ status: 'stopped' })),
+  startSpy: vi.fn(() => Promise.resolve({ data: { pid: 123 } })),
+  stopSpy: vi.fn(() => Promise.resolve({ data: { status: 'stopped' } })),
   killSpy: vi.fn(() => Promise.resolve({ processes_killed: [] })),
   getStatusSpy: vi.fn(() => Promise.resolve({ data: { status: 'idle' } })),
   mockWebSocket: { close: vi.fn(), connect: vi.fn(), disconnect: vi.fn() },
@@ -100,8 +100,19 @@ describe('TradingPanel', () => {
     // Paper mode carries no authorisation payload; only live mode does.
     expect(startSpy).toHaveBeenCalledWith('paper', 'model-42');
     // Success toast fires from the mutation's onSuccess handler.
-    expect(toastSpies.success).toHaveBeenCalledWith('PAPER trading started!');
+    expect(toastSpies.success).toHaveBeenCalledWith('PAPER worker started. Check session status for readiness.');
 
+    cleanup();
+  });
+
+  it('does not claim stopped while the backend still has remaining children', async () => {
+    getStatusSpy.mockResolvedValue({ data: { status: 'running', mode: 'paper' } });
+    stopSpy.mockResolvedValueOnce({ data: { status: 'stopping', remaining: 1 } });
+    const { container, cleanup } = renderWithClient(<TradingPanel />);
+    const button = await waitForRendered(container, 'button', (node) => node.textContent?.includes('STOP TRADING'));
+    await act(async () => { button.click(); await Promise.resolve(); });
+    await flushPromises(); await flushPromises();
+    expect(toastSpies.info).toHaveBeenCalledWith('Stop requested; worker exit is not yet confirmed');
     cleanup();
   });
 });

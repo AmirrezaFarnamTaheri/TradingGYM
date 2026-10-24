@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from trading_gym.intelligence.types import BackendHealth, DecisionSignal, MarketContext
 
@@ -28,3 +29,12 @@ class IntelligenceBackend(ABC):
     @abstractmethod
     def decide(self, context: MarketContext) -> DecisionSignal:
         """Produce one bounded advisory signal for the current bar."""
+
+    def decide_with_observation(self, context: MarketContext, observation: Any) -> DecisionSignal:
+        """Explicit observation seam; context-only backends ignore the tensor.
+
+        Observation-dependent implementations override this method. Callers
+        must supply the admitted, model-compatible observation; no backend
+        may reconstruct a synthetic feature vector from account context.
+        """
+        return self.decide(context)

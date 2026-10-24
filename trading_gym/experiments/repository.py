@@ -316,6 +316,7 @@ class ExperimentRepository:
         worker_id: str,
         accepted_types: set[str] | None = None,
         lease_seconds: int = 120,
+        experiment_id: str | None = None,
     ) -> ExperimentRecord | None:
         worker_id = self._validate_worker(worker_id)
         if not 30 <= lease_seconds <= 3600:
@@ -327,7 +328,7 @@ class ExperimentRepository:
             document = self._load()
             now = self._now()
             candidates: list[ExperimentRecord] = []
-            for experiment_id, raw in document["experiments"].items():
+            for candidate_id, raw in document["experiments"].items():
                 record = ExperimentRecord.model_validate(raw)
                 event = self._apply_stale(record, now)
                 if event is not None:
@@ -338,7 +339,7 @@ class ExperimentRepository:
                         actor="system-reconciler",
                     )
                     changed = True
-                document["experiments"][experiment_id] = record.model_dump(mode="json")
+                document["experiments"][candidate_id] = record.model_dump(mode="json")
                 eligible_state = record.state in {
                     ExperimentState.PENDING,
                     ExperimentState.STALE,
@@ -349,6 +350,7 @@ class ExperimentRepository:
                 if (
                     eligible_state
                     and eligible_type
+                    and (experiment_id is None or candidate_id == experiment_id)
                     and record.attempts < record.max_attempts
                 ):
                     candidates.append(record)

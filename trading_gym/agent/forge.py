@@ -255,7 +255,9 @@ class StrategyForge:
         if memory is not None:
             memory.record(
                 context_tags=[*memory_tags, f"forge:{seed.name}"],
-                outcome="profitable" if outcome.applied else "neutral",
+                # Passing a revision gate is research process evidence; it
+                # does not establish realized trading profit.
+                outcome="revision_applied" if outcome.applied else "revision_rejected",
                 lesson=(
                     f"evolve(seed={seed.name}, n={len(variants)}, "
                     f"range={mutation_range[0]}-{mutation_range[1]}): "

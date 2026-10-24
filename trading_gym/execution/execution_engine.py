@@ -29,7 +29,7 @@ class MarketSnapshot:
     best-first ascending, bids best-first descending — caller's duty).  When
     present, :meth:`ExecutionEngine.apply_trade` fills by walking that depth
     instead of the parametric spread/impact model, and the walked liquidity
-    replaces both the venue and configured notional caps.
+    is intersected with the venue and configured notional caps.
     """
 
     mid_price: float
@@ -62,6 +62,7 @@ class ExecutionResult:
     slippage_cost: Decimal
     crossing_cost: Decimal
     liquidity_capped: bool
+    risk_reduction_only: bool = False
 
     @property
     def total_cost(self) -> Decimal:
@@ -69,54 +70,28 @@ class ExecutionResult:
 
 
 class ExecutionEngine:
-    """
-    Shared execution logic using pure Decimal arithmetic.
+    """Shared Decimal execution/accounting with explicit local assumptions.
 
-    Market Impact Model
-    ===================
+    Without a depth book the local parametric cost model uses
+    ``slip_vol = volatility_lambda * abs(delta_units) * volatility_hint`` and
+    ``slip_liq = liquidity_lambda * sqrt(mid_notional / liquidity_cap)``.
+    Their sum is multiplied by fill notional; spread crossing and fees are
+    separate costs. Coefficients depend on the instrument and input units.
+    No venue calibration or source-backed universal coefficient range is
+    established here. This exact formula is not attributed to the linear-cost
+    Almgren--Chriss (2001) execution model.
 
-    This engine implements a two-component market impact model:
+    With a book, the final projected quantity is re-walked against supplied
+    resting levels and intersected with declared notional limits. This is a
+    deterministic depth assumption, not evidence of queue position or a real
+    venue fill. Costs retain the existing nonnegative-shortfall convention.
 
-    1. **Volatility Impact (Kyle-style):**
-       slip_vol = volatility_lambda * |trade_size| * volatility
-
-       Based on Kyle (1985), market impact is proportional to trade size
-       and increases with volatility. The volatility_lambda parameter
-       represents the market's sensitivity to informed trading.
-
-    2. **Liquidity Impact (Square-root model):**
-       slip_liq = liquidity_lambda * sqrt(notional / liquidity_cap)
-
-       Based on Almgren & Chriss (2001), market impact follows a square-root
-       relationship with trade size relative to available liquidity.
-       This captures the concave nature of price impact.
-
-    **Total Slippage:**
-       slippage_cost = |trade_size| * price * (slip_vol + slip_liq)
-
-    The additive combination assumes the two effects are approximately
-    independent. In practice, they interact, but this simplification
-    provides a tractable and calibratable model.
-
-    **Calibration Notes:**
-    - volatility_lambda: Typically 0.05-0.20 for liquid crypto assets
-    - liquidity_lambda: Typically 0.05-0.15 depending on market depth
-    - These should be calibrated to historical fill data when available
-
-    **Depth-walk mode:**
-       When ``MarketSnapshot.depth_book`` is supplied, the executed price is
-       the quantity-weighted average of walking the opposite side of the book
-       (`execution/fill_models.market_fill`), the fill is capped to real
-       resting liquidity (``liquidity_capped`` flags partial walks, an empty
-       side refuses the trade), and ``slippage_cost`` reports the realized
-       depth shortfall versus mid (``crossing_cost`` is zero — the book already
-       embeds the spread).  Without a book the parametric model above applies
-       unchanged.
-
-    References:
-    - Kyle, A. S. (1985). "Continuous Auctions and Insider Trading"
-    - Almgren, R., & Chriss, N. (2001). "Optimal Execution of Portfolio Transactions"
-    - Gatheral, J. (2010). "No-Dynamic-Arbitrage and Market Impact"
+    Equity is marked at ``market.mid_price``. Quote borrowing is the negative
+    marked cash balance, ``max(0, position * mid - equity)``. Margin admission
+    conservatively uses ``max(mid, fill_price)``; that risk valuation is not a
+    second cash debit and must not be used to manufacture a larger loan.
+    Individual fill prices are rounded to ticks; weighted entry price retains
+    Decimal precision because an average of legal fills need not be on a tick.
     """
 
     def __init__(self, cfg: EnvConfig):
@@ -242,156 +217,120 @@ class ExecutionEngine:
             )
             return self._no_trade_result(state, Decimal(str(market.mid_price)), False)
 
-        # 2. Boundary Conversion: Float Inputs -> Decimal
+        # Project once onto the intersection of quantity, liquidity, borrow and
+        # post-cost margin constraints. Later clipping must never enlarge an
+        # already capped fill or price a changed fill using an old book walk.
         target = Decimal(str(target_position))
         mid_price = Decimal(str(market.mid_price))
-
-        # Fix: Dust Handling (prevent rounding errors from leaving tiny positions)
         if abs(target) < self._min_qty:
             target = ZERO
-
+        if target < ZERO:
+            target = -self._enforce_short_rules(abs(target))
         qty_decimals = self._decimals.qty_for(self.cfg.symbol)
         price_decimals = self._decimals.price_for(self.cfg.symbol)
-
-        delta = target - Decimal(str(state.position))
-        # A true flatten request is an accounting boundary, not a target rounded
-        # away from zero.  Preserve an exact close even when the incoming state
-        # contains sub-precision residue from an older float-backed path.
+        quantum = Decimal(f"1e-{qty_decimals}")
+        requested_delta = target - state.position
         if target != ZERO:
-            delta = self._round_qty(delta, qty_decimals)
-
-        # No trade needed?
-        if abs(delta) == ZERO:
-            return self._no_trade_result(state, mid_price, False)
-
-        new_position = Decimal(str(state.position)) + delta
-
-        book_fill: FillResult | None = None
-        liquidity_capped = False
+            requested_delta = self._round_qty(requested_delta, qty_decimals)
+        if requested_delta == ZERO:
+            return self._no_trade_result(state, mid_price)
+        direction = Decimal("1") if requested_delta > ZERO else Decimal("-1")
+        liquidity_cap = self._liquidity_cap(requested_delta, market)
+        if liquidity_cap <= ZERO:
+            return self._no_trade_result(state, mid_price, True)
+        upper = min(abs(requested_delta), liquidity_cap / mid_price)
         if market.depth_book is not None:
-            # 2a. Depth-walk mode: fill against walked L2 liquidity instead of
-            # the parametric cap/impact model.  A side with no resting
-            # liquidity refuses the trade rather than synthesizing a fill.
-            book_fill, liquidity_capped = self._depth_fill(delta, market.depth_book)
-            if book_fill is None:
+            initial_fill, _ = self._depth_fill(requested_delta, market.depth_book)
+            if initial_fill is None:
                 return self._no_trade_result(state, mid_price, True)
-            signed_fill = (
-                book_fill.filled_quantity if delta > 0 else -book_fill.filled_quantity
-            )
-            delta = self._round_qty(signed_fill, qty_decimals)
-            new_position = state.position + delta
-        else:
-            liquidity_cap = self._liquidity_cap(delta, market)
-        trade_notional = abs(delta) * mid_price
-
-        # 2. Liquidity Capping (parametric path only; depth walk already
-        # bounded the fill to real resting quantity).
-        if book_fill is None and trade_notional > liquidity_cap:
-            scale = liquidity_cap / max(trade_notional, EPSILON)
-            delta = self._round_qty(delta * scale, qty_decimals)
-            new_position = state.position + delta
-            trade_notional = abs(delta) * mid_price
-            liquidity_capped = True
-            # Log at DEBUG to avoid spam
-            logger.debug("Trade capped: %s -> %s", target, new_position)
-
-        # 3. Minimum Size Checks
-        if trade_notional < self._min_notional or abs(delta) < self._min_qty:
+            upper = min(upper, initial_fill.filled_quantity)
+        liquidity_capped = upper < abs(requested_delta)
+        # Exact closure of legacy sub-tick dust is an accounting boundary.
+        exact_close = target == ZERO and upper == abs(requested_delta)
+        if not exact_close:
+            upper = self._round_qty(upper, qty_decimals)
+        if upper <= ZERO:
             return self._no_trade_result(state, mid_price, liquidity_capped)
-
-        # 4. Pricing & Costs
-        spread_dec = Decimal(str(market.spread_bps))
-        half_spread = (spread_dec / BP_DIVISOR) * mid_price / TWO
-        if book_fill is not None:
-            executed_price = self._round_price(book_fill.average_price, price_decimals)
-        else:
-            executed_price = mid_price + (half_spread if delta > 0 else -half_spread)
-            executed_price = self._round_price(executed_price, price_decimals)
-
-        if not executed_price.is_finite() or executed_price <= ZERO:
-            # A valid sub-tick price can round to zero even when the incoming
-            # book and mid are positive; never settle a zero-price fill.
-            raise ValueError("computed execution price must be positive")
-
+        half_spread = Decimal(str(market.spread_bps)) / BP_DIVISOR * mid_price / TWO
         vol_hint = Decimal(str(max(market.volatility_hint, 0)))
 
-        def _costs_for(
-            d: Decimal, px: Decimal, notional: Decimal
-        ) -> tuple[Decimal, Decimal, Decimal]:
-            fee = abs(d) * px * self._taker_fee
-            if book_fill is not None:
-                # The walked average price already embeds spread crossing and
-                # depth impact; layering the parametric models on top would
-                # double-count microstructure costs.
-                slippage = abs(d) * abs(px - mid_price)
-                crossing = ZERO
+        def quote(amount: Decimal):
+            d = direction * amount
+            if market.depth_book is not None:
+                fill, _ = self._depth_fill(d, market.depth_book)
+                if fill is None or fill.filled_quantity < amount:
+                    return None
+                px = self._round_price(fill.average_price, price_decimals)
             else:
-                slip_vol = self._vol_lambda * abs(d) * vol_hint
-                slip_liq = (
-                    self._liq_lambda
-                    * (max(notional, ZERO) / max(liquidity_cap, EPSILON)).sqrt()
-                )
-                slippage = abs(d) * px * (slip_vol + slip_liq)
-                crossing = abs(d) * half_spread
-            return fee, slippage, crossing
+                px = self._round_price(mid_price + direction * half_spread, price_decimals)
+            if not px.is_finite() or px <= ZERO:
+                raise ValueError("computed execution price must be positive")
+            notional = amount * px
+            fee = notional * self._taker_fee
+            if market.depth_book is not None:
+                slippage, crossing = amount * abs(px - mid_price), ZERO
+            else:
+                slip_vol = self._vol_lambda * amount * vol_hint
+                slip_liq = self._liq_lambda * (amount * mid_price / liquidity_cap).sqrt()
+                slippage, crossing = amount * px * (slip_vol + slip_liq), amount * half_spread
+            equity = state.equity - fee - slippage - crossing
+            position = state.position + d
+            return px, fee, slippage, crossing, equity, position
 
-        fee_cost, slippage_cost, crossing_cost = _costs_for(
-            delta, executed_price, trade_notional
-        )
-
-        equity_after_trade = state.equity - fee_cost - slippage_cost - crossing_cost
-
-        # 5. Leverage Checks (Decimal Math)
-        # Determine applicable leverage limit
-        if new_position >= 0:
-            limit = self._max_lev
-        else:
-            limit = self._max_short_lev
-
-        # Max Units = (Equity * Limit) / (Price * MarginMultiplier)
-        margin_units_divisor = max(executed_price, EPSILON) * self._margin_multiplier
-        max_units = (max(equity_after_trade, EPSILON) * limit) / margin_units_divisor
-
-        if abs(new_position) > max_units + EPSILON:
-            capped_target = Decimal(int(np.sign(float(new_position)))) * max_units
-            delta = self._round_qty(capped_target - state.position, qty_decimals)
-            new_position = state.position + delta
-            trade_notional = abs(delta) * executed_price
-
-            # Recalculate costs for clipped delta
-            fee_cost, slippage_cost, crossing_cost = _costs_for(
-                delta, executed_price, trade_notional
+        def feasible(amount: Decimal) -> bool:
+            if amount <= ZERO:
+                return True
+            q = quote(amount)
+            if q is None:
+                return False
+            px, _, _, _, equity, position = q
+            if amount * px > liquidity_cap or equity < ZERO:
+                return False
+            limit = self._max_lev if position >= ZERO else self._max_short_lev
+            margin_price = max(mid_price, px)
+            within_margin = abs(position) * margin_price * self._margin_multiplier <= equity * limit
+            short_allowed = position >= ZERO or abs(position) <= self._enforce_short_rules(abs(position))
+            if within_margin and short_allowed:
+                return True
+            # An already over-limit account may reduce risk partially when the
+            # book cannot fill a complete cure. Never manufacture extra liquidity.
+            same_side = position == ZERO or position * state.position > ZERO
+            reducing = same_side and abs(position) < abs(state.position)
+            improves_margin = (
+                abs(position) * state.equity <= abs(state.position) * equity
             )
+            return reducing and improves_margin
 
-            equity_after_trade = state.equity - fee_cost - slippage_cost - crossing_cost
-
-        # 6. Update Average Entry Price (WAP) - PART 1 (Before short caps)
-        # We need to know if we are closing or opening to update WAP correctly,
-        # but the final position might change due to short caps below.
-        # However, usually short caps just limit the size.
-
+        amount = upper
+        if not feasible(amount):
+            low, high = ZERO, upper
+            for _ in range(96):
+                if high - low <= quantum:
+                    break
+                middle = (low + high) / TWO
+                if feasible(middle):
+                    low = middle
+                else:
+                    high = middle
+            amount = self._round_qty(low, qty_decimals)
+        if amount <= ZERO or not feasible(amount):
+            return self._no_trade_result(state, mid_price, liquidity_capped)
+        execution_quote = quote(amount)
+        assert execution_quote is not None
+        executed_price, fee_cost, slippage_cost, crossing_cost, equity_after_trade, new_position = execution_quote
+        delta = direction * amount
+        trade_notional = amount * executed_price
+        if trade_notional < self._min_notional or amount < self._min_qty:
+            return self._no_trade_result(state, mid_price, liquidity_capped)
+        # This is an explicit invariant guard, independent of solver convergence.
+        if abs(delta) > abs(requested_delta) or trade_notional > liquidity_cap:
+            raise ArithmeticError("execution projection exceeded admitted quantity/liquidity")
+        final_limit = self._max_lev if new_position >= ZERO else self._max_short_lev
+        risk_reduction_only = (
+            abs(new_position) * max(mid_price, executed_price) * self._margin_multiplier > equity_after_trade * final_limit
+            or (new_position < ZERO and abs(new_position) > self._enforce_short_rules(abs(new_position)))
+        )
         prev_position = state.position
-
-        # 7. Update Borrow State & Short Caps
-        # CRITICAL FIX: Apply short rules BEFORE finalizing position
-        if new_position < 0:
-            # Enforce short selling rules (caps, whitelisting)
-            capped_short_units = self._enforce_short_rules(abs(new_position))
-
-            # If capped, we must adjust delta and costs again!
-            if capped_short_units != abs(new_position):
-                new_position = -capped_short_units
-                delta = new_position - state.position
-                delta = self._round_qty(delta, qty_decimals)
-
-                # Recalc costs for short-capped delta
-                trade_notional = abs(delta) * executed_price
-                fee_cost, slippage_cost, crossing_cost = _costs_for(
-                    delta, executed_price, trade_notional
-                )
-                equity_after_trade = (
-                    state.equity - fee_cost - slippage_cost - crossing_cost
-                )
 
         # 6. Update Average Entry Price (WAP) - PART 2 (Finalized)
         prev_avg_price = state.average_entry_price
@@ -415,7 +354,6 @@ class ExecutionEngine:
             cost_old = abs(prev_position) * prev_avg_price
             cost_new = abs(delta) * executed_price
             new_avg_price = (cost_old + cost_new) / abs(new_position)
-            new_avg_price = self._round_price(new_avg_price, price_decimals)
         else:
             # Decreasing Position Size or No Change
             # Average entry price remains the same for the remaining portion
@@ -427,7 +365,7 @@ class ExecutionEngine:
 
         if new_position >= 0:
             borrowed_base = ZERO
-            gross_exposure = abs(new_position) * executed_price
+            gross_exposure = abs(new_position) * mid_price
             borrowed_quote = max(ZERO, gross_exposure - equity_after_trade)
         else:
             # Position already capped above, now calculate borrow based on final position
@@ -450,6 +388,7 @@ class ExecutionEngine:
             slippage_cost=slippage_cost,
             crossing_cost=crossing_cost,
             liquidity_capped=liquidity_capped,
+            risk_reduction_only=risk_reduction_only,
         )
 
     def _no_trade_result(
@@ -480,7 +419,8 @@ class ExecutionEngine:
         side = "buy" if delta > 0 else "sell"
         levels = book.asks if side == "buy" else book.bids
         for level in levels:
-            if level.price <= ZERO or level.quantity <= ZERO:
+            if (not level.price.is_finite() or not level.quantity.is_finite()
+                    or level.price <= ZERO or level.quantity <= ZERO):
                 raise ValueError("book levels must carry positive price and quantity")
         if book_total_liquidity(levels) <= ZERO:
             return None, True
@@ -494,7 +434,7 @@ class ExecutionEngine:
             else Decimal(str(market.sell_cap_quote))
         )
         config_cap = Decimal(str(self.cfg.liquidity.cap_for(self.cfg.symbol)))
-        return max(EPSILON, min(venue_cap, config_cap))
+        return max(ZERO, min(venue_cap, config_cap))
 
     def _enforce_short_rules(self, target_abs_units: Decimal) -> Decimal:
         # Rule 1: Globally disabled

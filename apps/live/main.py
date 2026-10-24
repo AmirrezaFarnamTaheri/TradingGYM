@@ -14,6 +14,7 @@ from stable_baselines3 import PPO
 from apps.common.trade_loop import trade_loop
 from trading_gym.common.config import load_app_config
 from trading_gym.common.intelligence_config import IntelligenceMode
+from trading_gym.pipelines.model_bundle import read_model_bundle
 from trading_gym.intelligence.wiring import (
     build_trading_policy,
     mode_requires_model,
@@ -54,7 +55,14 @@ async def run_live_trading(
         # artifact. An advisory fast model needs its own independent
         # execution-qualification process before it may control funded orders.
         raise PermissionError("unqualified_live_intelligence_mode")
+    if not dry_run and cfg.env.breaker.state_file is None:
+        raise PermissionError(
+            "funded live execution requires an explicit stable account-scoped breaker.state_file"
+        )
     requires_model = (not dry_run) or mode_requires_model(cfg)
+    timeframe = f"{cfg.features.timeframes[0].bar_minutes}m"
+    inputs = load_environment_inputs(cfg, timeframe)
+    bundle = None
     if requires_model:
         if not model_path or not model_sha256:
             raise ValueError("hash-pinned RL artifact required for this mode")
@@ -64,6 +72,10 @@ async def run_live_trading(
             label="model",
             max_bytes=8 * 1024 * 1024 * 1024,
         ) as snapshot:
+            bundle = read_model_bundle(snapshot, expected_model_sha256=model_sha256)
+            bundle.validate_config(cfg)
+            bundle.validate_features(inputs["features"])
+            bundle.validate_runtime()
             model = PPO.load(snapshot)
     else:
         model = None
@@ -75,10 +87,11 @@ async def run_live_trading(
         proposal_id=proposal_id,
     )
 
-    timeframe = cfg.features.timeframes[0].name if cfg.features.timeframes else "5m"
-    logger.info("Initializing environment and fetching initial data...")
-    inputs = load_environment_inputs(cfg, timeframe)
-    env = create_environment(cfg, inputs, live_mode=True)
+    stats = bundle.training_stats if bundle is not None else {
+        "method": "provided", "center": {c:0.0 for c in inputs["features"]},
+        "scale": {c:1.0 for c in inputs["features"]}}
+    env = create_environment(cfg, inputs, live_mode=True, training_stats=stats)
+    env.model_bundle_id = model_sha256 if bundle is not None else "no-model"
     if dry_run:
         policy = build_trading_policy(cfg, model, env)
         if policy is not None:

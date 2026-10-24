@@ -25,7 +25,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import timedelta
 from enum import IntEnum
-from typing import Sequence
+from typing import Any, Sequence
 
 from trading_gym.authz.scopes import ScopePattern, ScopeToken
 from trading_gym.intelligence.base import IntelligenceBackend
@@ -107,6 +107,10 @@ class Arm(ABC):
         rather than fabricate a signal when they cannot act honestly.
         """
 
+    def propose_with_observation(self, context: MarketContext, observation: Any) -> DecisionSignal:
+        """Context-only arms preserve their existing contract."""
+        return self.propose(context)
+
     def validate_required_scopes(self) -> None:
         """Arms declare concrete, grantable scopes (ADR-028 grammar).
 
@@ -138,6 +142,7 @@ class ArmProposal:
     tier: ArmTier
     signal: DecisionSignal
     cost_paid: CostModel
+    source_id: str | None = None
 
 
 @dataclass
@@ -174,6 +179,7 @@ class BackendArm(Arm):
         required_scopes: frozenset[str] | Sequence[str] = frozenset(),
         staleness_tolerance: timedelta | None = None,
         name: str | None = None,
+        source_id: str | None = None,
     ) -> None:
         # ``name`` overrides the backend's own name when an arm must present a
         # fixed identity while voting through a wrapped backend — the rules
@@ -184,6 +190,11 @@ class BackendArm(Arm):
         self.required_scopes = frozenset(required_scopes)
         self.staleness_tolerance = staleness_tolerance
         self._backend = backend
+        config = getattr(backend, "config", None)
+        self.source_id = source_id or (
+            f"{config.provider_id}/{config.model}" if config is not None
+            and hasattr(config, "provider_id") else backend.name
+        )
         self.validate_required_scopes()
 
     def is_available(self) -> bool:
@@ -194,6 +205,10 @@ class BackendArm(Arm):
 
     def propose(self, context: MarketContext) -> DecisionSignal:
         return self._backend.decide(context)
+
+    def propose_with_observation(self, context: MarketContext, observation: Any) -> DecisionSignal:
+        observed = getattr(self._backend, "decide_with_observation", None)
+        return observed(context, observation) if callable(observed) else self._backend.decide(context)
 
 
 class ArmRegistry:

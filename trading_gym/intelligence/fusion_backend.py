@@ -19,6 +19,8 @@ authority, and every output still passes the pre-trade gate and coordinator.
 from __future__ import annotations
 
 import math
+import hashlib
+import json
 from typing import Any
 
 from trading_gym.intelligence.rl_backend import RLPolicyBackend
@@ -28,6 +30,8 @@ from trading_gym.intelligence.types import (
     ActionKind,
     BackendHealth,
     BackendUnavailable,
+    InvalidDecisionSignal,
+    UncertainDecision,
     DecisionSignal,
     MarketContext,
 )
@@ -58,14 +62,14 @@ class FusionBackend(IntelligenceBackend):
         self.allow_flip = bool(allow_flip)
 
     def is_available(self) -> bool:
-        return self.rl.is_available()
+        return self.rl.is_available() and self.llm.is_available()
 
     def health(self) -> BackendHealth:
         rl_health = self.rl.health()
         llm_health = self.llm.health()
         return BackendHealth(
             name=self.name,
-            available=rl_health.available,
+            available=rl_health.available and llm_health.available,
             device=rl_health.device,
             detail=f"rl={rl_health.detail or 'ok'}; llm={llm_health.detail or 'unknown'}",
         )
@@ -86,19 +90,11 @@ class FusionBackend(IntelligenceBackend):
         """
         if not self.rl.is_available():
             raise BackendUnavailable("fusion requires the RL executor backend")
-        if isinstance(self.rl, RLPolicyBackend):
-            leverage, _ = self.rl.raw_predict(observation)
-            if not math.isfinite(leverage):
-                raise BackendUnavailable("RL prediction is not finite")
-            rl_signal = DecisionSignal(
-                backend=self.rl.name,
-                action_kind=RLPolicyBackend.classify(leverage),
-                target_leverage=leverage,
-                confidence=0.7,
-                rationale="verified RL observation action",
-            )
-        else:
-            rl_signal = self.rl.decide(context)
+        observed = getattr(self.rl, "decide_with_observation", None)
+        rl_signal = (
+            observed(context, observation) if callable(observed)
+            else self.rl.decide(context)
+        )
         return self._govern(context, rl_signal)
 
     def _govern(
@@ -109,18 +105,29 @@ class FusionBackend(IntelligenceBackend):
 
         try:
             gov = self.llm.decide(context)
-        except PermissionError:
+        except (PermissionError, InvalidDecisionSignal, UncertainDecision):
             # Authorization and policy refusals are not availability failures.
             # Never turn a revoked governor into permission for ungated RL.
             raise
-        except Exception as exc:  # noqa: BLE001 - governor loss degrades to pure RL
-            return DecisionSignal(
-                backend=self.name,
-                action_kind=rl_signal.action_kind,
-                target_leverage=rl_signal.target_leverage,
-                confidence=max(0.0, rl_signal.confidence - 0.05),
-                rationale=f"[governor-unavailable:{type(exc).__name__}] {rl_signal.rationale}",
-            )
+        except BackendUnavailable:
+            # Restoring the unconstrained RL target can increase exposure.
+            # A separate configured fallback must pass account-aware admission.
+            raise
+
+        # Stable, role-qualified lineage survives flip, veto and size scaling.
+        # Missing source IDs are explicitly unidentified; the journal separately
+        # records the admitted RL model bundle ID supplied by the application.
+        contributors = (
+            f"rl:{rl_signal.source_id or 'unidentified/' + rl_signal.backend}",
+            f"governor:{gov.source_id or 'unidentified/' + gov.backend}",
+        )
+        provenance = {
+            "source_id": "fusion/" + hashlib.sha256(
+                json.dumps(contributors, separators=(",", ":")).encode("utf-8")
+            ).hexdigest(),
+            "contributing_sources": contributors,
+            "confidence_semantics": "advisory_score",
+        }
 
         # Direction flip requires explicit strong disagreement.
         disagreeing = (
@@ -141,6 +148,7 @@ class FusionBackend(IntelligenceBackend):
                 rationale=(
                     f"FLIPPED per governor ({gov.confidence:.2f}): {gov.rationale}"
                 ),
+                **provenance,
             )
 
         # Veto: governor stands aside with conviction.
@@ -154,6 +162,7 @@ class FusionBackend(IntelligenceBackend):
                 target_leverage=0.0,
                 confidence=gov.confidence,
                 rationale=f"VETOED per governor: {gov.rationale}",
+                **provenance,
             )
 
         # Size-scale: governor leverage relative to cap scales RL magnitude.
@@ -174,4 +183,5 @@ class FusionBackend(IntelligenceBackend):
                 f"({gov.action_kind.value}@{gov.target_leverage:+g}); "
                 f"{rl_signal.rationale}"
             ),
+            **provenance,
         )

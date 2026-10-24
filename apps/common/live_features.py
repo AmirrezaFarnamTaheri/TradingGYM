@@ -13,7 +13,7 @@ import json
 import math
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol, Sequence
 
 import numpy as np
@@ -21,7 +21,11 @@ import pandas as pd
 
 from trading_gym.common.config import AppConfig, TimeframeConfig
 from trading_gym.features.feature_assembler import FeatureAssembler
-from trading_gym.features.feature_fusion import fuse_features
+from trading_gym.features.feature_fusion import fuse_features, preserve_base_context
+from trading_gym.pipelines.availability import (
+    SETTLEMENT_DELAY_SECONDS, active_timeframes, available_index,
+    closed_feature_frame, feature_history_rows,
+)
 
 _INTERVAL = re.compile(r"^[1-9][0-9]{0,4}[mhd]$")
 MAX_LIVE_CANDLES = 1_000
@@ -52,6 +56,8 @@ class LiveFeatureSnapshot:
     # Only validated, fully closed BASE timeframe candles (oldest-first).
     # Separate from unclocked intrabar mark-price updates in the environment.
     base_closed_closes: tuple[float, ...] = ()
+    available_at: int = 0
+    timeframe_available_at: dict[str, int] = field(default_factory=dict)
 
 
 def _interval(tf: TimeframeConfig) -> str:
@@ -144,7 +150,7 @@ def _validated_frame(
 
     # Use only fully closed candles. Exchange APIs commonly include the current
     # forming candle, which would leak future/incomplete information into policy input.
-    cutoff = now - 2
+    cutoff = now - SETTLEMENT_DELAY_SECONDS
     completed = [
         item for item in parsed if int(item["timestamp"]) + bar_seconds <= cutoff
     ]
@@ -184,6 +190,7 @@ def build_live_feature_snapshot(
     if len(cfg.features.timeframes) > MAX_TIMEFRAMES:
         raise ValueError("live feature timeframe limit exceeded")
 
+    timeframes = active_timeframes(cfg.features)
     assembler = FeatureAssembler(cfg.features)
     feature_rows: list[np.ndarray] = []
     feature_columns: tuple[str, ...] | None = None
@@ -191,14 +198,18 @@ def build_live_feature_snapshot(
     source_frames: dict[str, list[dict[str, Any]]] = {}
     base_values: tuple[int, float, float, float] | None = None
     base_closed_closes: tuple[float, ...] = ()
-    min_rows = max(20, cfg.features.rolling_window // 10)
+    available_at: int = 0
+    timeframe_available_at: dict[str, int] = field(default_factory=dict)
+    min_rows = feature_history_rows(cfg.features)
+    available_times: dict[str, int] = {}
+    decision_time: pd.Timestamp | None = None
     if min_rows > MAX_LIVE_CANDLES:
         raise ValueError("configured rolling window exceeds live history capacity")
 
-    for index, timeframe in enumerate(cfg.features.timeframes):
+    for index, timeframe in enumerate(timeframes):
         interval = _interval(timeframe)
         bar_seconds = timeframe.bar_minutes * 60
-        lookback = min(MAX_LIVE_CANDLES, max(min_rows + 20, 64))
+        lookback = min(MAX_LIVE_CANDLES, min_rows + 3)
         start = max(1, current_time - bar_seconds * (lookback + 3))
         raw_rows = client.get_klines(
             cfg.env.symbol,
@@ -213,7 +224,21 @@ def build_live_feature_snapshot(
             now=current_time,
             min_rows=min_rows,
         )
-        features = assembler.process(frame, cfg.env.symbol)
+        if index == 0:
+            decision_time = available_index(frame.index, bar_seconds)[-1]
+        # Every timeframe is read as of the BASE candle's availability, even
+        # when wall-clock polling sees later higher-timeframe publications.
+        available = available_index(frame.index, bar_seconds)
+        frame = frame.loc[available <= decision_time]
+        if len(frame) < min_rows:
+            raise ValueError("insufficient causal history at the base decision time")
+        feature_available = available_index(frame.index, bar_seconds)[-1]
+        max_age = bar_seconds + timeframe.roll_fill_cap * timeframes[0].bar_minutes * 60
+        if (decision_time - feature_available).total_seconds() >= max_age:
+            raise ValueError("required live timeframe is stale at the base decision time")
+        features = closed_feature_frame(frame, assembler, cfg.env.symbol,
+                                        bar_seconds=bar_seconds)
+        available_times[timeframe.name] = int(feature_available.timestamp())
         columns = tuple(str(column) for column in features.columns)
         if feature_columns is None:
             feature_columns = columns
@@ -252,6 +277,7 @@ def build_live_feature_snapshot(
             matrix[:, np.newaxis, :],
             np.zeros((len(feature_rows), 1), dtype=bool),
         )[0]
+        fused = preserve_base_context(fused, matrix[0], feature_columns)
     else:
         fused = matrix[0]
     if fused.shape != (len(feature_columns),) or not np.isfinite(fused).all():
@@ -273,4 +299,6 @@ def build_live_feature_snapshot(
         source_sha256=source_sha256,
         timeframe_timestamps=timestamps,
         base_closed_closes=base_closed_closes,
+        available_at=int(decision_time.timestamp()),
+        timeframe_available_at=available_times,
     )

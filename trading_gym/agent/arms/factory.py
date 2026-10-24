@@ -351,12 +351,8 @@ def default_registry(
     registry = ArmRegistry()
     rules = rule_backend or DeterministicRuleBackend()
 
-    # The rules channel votes *through* its guard rather than alongside it.
-    # Registered as two arms sharing one guarded backend, a veto becomes the
-    # channel's own HOLD: both arms report flat, so the guarded vote cannot
-    # reach fusion. Registered side-by-side with the raw backend instead, the
-    # guard's HOLD was a neutral vote while the unguarded rules LONG still
-    # decided the bar — the guard guarded nothing.
+    # One guarded rules channel: the guard constrains the vote rather than
+    # presenting a second alias as independent evidence.
     guarded = RiskGuardBackend(rules)
     registry.register(
         BackendArm(
@@ -364,14 +360,6 @@ def default_registry(
             name="rules",
             tier=ArmTier.T1_RULES,
             cost=_cost(0.1, 0.5),
-            required_scopes=frozenset({"trade.paper.order.submit"}),
-        )
-    )
-    registry.register(
-        BackendArm(
-            backend=guarded,
-            tier=ArmTier.T1_RULES,
-            cost=_cost(0.2, 1.0),
             required_scopes=frozenset({"trade.paper.order.submit"}),
         )
     )

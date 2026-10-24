@@ -18,6 +18,7 @@ from trading_gym.execution.execution_engine import (
 from trading_gym.margin.lot_positions import LotLedger
 from trading_gym.margin.stop_out import plan_stop_out
 from trading_gym.risk.circuit_breakers import CircuitBreaker
+from trading_gym.execution.rebalance_policy import admit_rebalance, net_equity_log_reward
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,9 @@ class MarginTradingEnv(gym.Env):
         initial_equity: float = 10_000.0,
         live_mode=False,
         training_stats=None,
+        timestamps: Optional[np.ndarray] = None,
+        bar_seconds: Optional[float] = None,
+        max_steps: Optional[int] = None,
     ) -> None:
         super().__init__()
         if not (
@@ -112,6 +116,30 @@ class MarginTradingEnv(gym.Env):
         # Resolve the shape first: the live-mode buffers size themselves from
         # self.T, so it must exist before they are constructed.
         self.T, self.n_features = self.features.shape
+        self.bar_seconds = float(
+            bar_seconds if bar_seconds is not None
+            else features_cfg.timeframes[0].bar_minutes * 60
+        )
+        if not np.isfinite(self.bar_seconds) or self.bar_seconds <= 0:
+            raise ValueError("bar_seconds must be finite and positive")
+        if timestamps is None and isinstance(features.index, pd.DatetimeIndex):
+            if features.index.hasnans:
+                raise ValueError("market timestamps must not contain NaT")
+            timestamps = features.index.asi8.astype(np.float64) / 1e9
+        self.clock_source = "market_timestamps" if timestamps is not None else "configured_bar_duration"
+        self.timestamps = (
+            np.asarray(timestamps, dtype=np.float64).copy()
+            if timestamps is not None
+            else np.arange(self.T, dtype=np.float64) * self.bar_seconds
+        )
+        if (
+            self.timestamps.shape != (self.T,)
+            or not np.isfinite(self.timestamps).all()
+            or (np.diff(self.timestamps) <= 0).any()
+        ):
+            raise ValueError("market timestamps must be finite, ordered, unique and aligned")
+        self._live_observed_at: Optional[float] = None
+        self._account_observation_anchor: Optional[tuple[float, float]] = None
         if self.live_mode:
             # Seed BOTH rolling buffers with the historical window: the raw rows
             # feed microstructure/skip checks (_get_current_raw_features reads
@@ -125,7 +153,10 @@ class MarginTradingEnv(gym.Env):
                 self._raw_buffer.append(self._raw_features[i])
         self.cfg = cfg
         self.engine = ExecutionEngine(cfg)
-        self.breaker = CircuitBreaker(cfg.breaker)
+        self._breaker_config = (
+            cfg.breaker if live_mode else cfg.breaker.model_copy(update={"state_file": None})
+        )
+        self.breaker = CircuitBreaker(self._breaker_config)
         self.initial_equity = float(initial_equity)
         # Lot-level overlay of the net position, feeding the graded stop-out
         # cascade.  Purely an accounting twin: execution stays with the engine.
@@ -148,9 +179,7 @@ class MarginTradingEnv(gym.Env):
             raise ValueError(
                 "Offline environment needs at least two market bars after warmup"
             )
-        self.max_steps = min(1000, available_steps)
-        if self.max_steps <= 0:
-            self.max_steps = 1
+        self.max_steps = 1000 if max_steps is None else max_steps
 
         self.reward_scaling = cfg.rewards.scaling
         self.death_penalty = cfg.rewards.death_penalty
@@ -206,16 +235,25 @@ class MarginTradingEnv(gym.Env):
         self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
     ) -> Tuple[np.ndarray, Dict[str, Any]]:
         super().reset(seed=seed)
+        if self.live_mode and self._live_observed_at is not None:
+            raise RuntimeError("an observed live account cannot be reset as a training episode")
+        if not self.live_mode:
+            # Training episodes are independent; never read/write a durable
+            # account halt file or inherit the previous episode's loss history.
+            self.breaker = CircuitBreaker(self._breaker_config)
         if self.live_mode:
             self.t = len(self.feature_buffer) - 1
         else:
             high = self.T - self.max_steps - 1
             low = self.warmup_steps
-            self.t = low if low >= high else self.np_random.integers(low, high)
+            self.t = low if low >= high else int(self.np_random.integers(low, high + 1))
 
         self.start_t = self.t
         current_price = self.price[-1] if self.live_mode else self.price[self.t]
-        self.initial_price = current_price
+        self.initial_price = (
+            self._account_observation_anchor[1]
+            if self.live_mode and self._account_observation_anchor is not None else current_price
+        )
         self.done = False
         self.truncated = False
         self.financing_accrued = 0.0
@@ -336,7 +374,7 @@ class MarginTradingEnv(gym.Env):
         margin_ratio = self._margin_ratio(current_mid)
         if np.isfinite(margin_ratio):
             context["margin_ratio"] = margin_ratio
-        if self.breaker.check(context, current_time=self.t * 60):
+        if self.breaker.check(context, current_time=self.current_time):
             self.done = True
             info.reason = self.breaker.trip_reason
 
@@ -382,6 +420,10 @@ class MarginTradingEnv(gym.Env):
         # PRECISION FIX: Use str() conversion to avoid float formatting artifacts
         # This ensures we preserve the exact float value without intermediate string formatting
         clipped_target_dec = Decimal(str(clipped_target))
+        rebalance = admit_rebalance(current_units=self.position, target_units=clipped_target_dec,
+            equity=self.equity, mid=Decimal(str(current_mid)),
+            deadband_fraction=Decimal(str(self.cfg.costs.dead_zone_equity_frac)))
+        clipped_target_dec = rebalance.target_units
 
         current_features = self._get_current_raw_features()
         # ROBUSTNESS FIX: Use feature index dictionary exclusively, fail loudly if missing
@@ -439,6 +481,77 @@ class MarginTradingEnv(gym.Env):
         self.position_history.append(float(self._state.position))
 
         return self._obs(), reward, terminated, truncated, info.to_dict()
+
+    @property
+    def current_time(self) -> float:
+        """Timestamp of this decision; never derive physical time from a live index."""
+        if self.live_mode:
+            if self._live_observed_at is None:
+                raise RuntimeError("live account observation timestamp is required")
+            return self._live_observed_at
+        return float(self.timestamps[self.t])
+
+    def update_observation_clock(self, observed_at: float) -> None:
+        if not self.live_mode:
+            raise RuntimeError("external observation clock requires live_mode")
+        candidate = float(observed_at)
+        if not np.isfinite(candidate):
+            raise ValueError("observation time must be finite")
+        if self._live_observed_at is not None and candidate < self._live_observed_at:
+            raise ValueError("observation time must not move backwards")
+        self._live_observed_at = candidate
+
+    def bind_account_observation_anchor(self, *, initial_equity: float, initial_price: float) -> None:
+        """Admit a durable account reference before the first live observation.
+
+        Equity must match the already admitted model/configuration contract.
+        Reset may initialize the observation view but cannot choose a different
+        persisted price origin when the account resumes in another process.
+        """
+        if not self.live_mode or self._live_observed_at is not None:
+            raise RuntimeError("account observation anchor must be bound before live observation")
+        values = (float(initial_equity), float(initial_price))
+        if not all(np.isfinite(v) and v > 0 for v in values):
+            raise ValueError("account observation anchors must be finite and positive")
+        if values[0] != self.initial_equity:
+            raise ValueError("account reference equity differs from admitted model/configuration")
+        if self._account_observation_anchor is not None and self._account_observation_anchor != values:
+            raise ValueError("account observation anchor is already bound")
+        self._account_observation_anchor = values
+
+    def observe_account_state(self, *, equity: Decimal, position: Decimal,
+                              mid: float, observed_at: float,
+                              average_entry_price: Decimal = Decimal("0"),
+                              borrowed_base: Decimal = Decimal("0"),
+                              borrowed_quote: Decimal = Decimal("0")) -> bool:
+        """Observe an authoritative account without simulating another trade.
+
+        A live observation is already marked by its financial owner. Updating
+        this view must not book P&L, fees, financing, liquidation or a zero target.
+        The gross-exposure floor below is a conservative local risk estimate;
+        it does not claim to be an exchange-reported margin ratio.
+        """
+        if not self.live_mode:
+            raise RuntimeError("external account observations require live_mode")
+        values = (equity, position, average_entry_price, borrowed_base, borrowed_quote)
+        if not all(isinstance(v, Decimal) and v.is_finite() for v in values):
+            raise ValueError("account observation values must be finite Decimal values")
+        if borrowed_base < 0 or borrowed_quote < 0 or average_entry_price < 0:
+            raise ValueError("account observation contains negative borrow/entry values")
+        self.update_observation_clock(observed_at)
+        self.update_latest_candle(mid)
+        self._state = ExecutionState(position, equity, borrowed_base, borrowed_quote, average_entry_price)
+        self.prev_mid_price = mid
+        if not self.equity_history or self.equity_history[-1] != float(equity):
+            self.equity_history.append(float(equity))
+            self.price_history.append(mid)
+            self.position_history.append(float(position))
+        context = {"nav": float(equity), "initial_nav": self.initial_equity}
+        gross = abs(float(position)) * mid
+        if gross > 0:
+            context["margin_ratio"] = float(equity) / gross
+        self.done = bool(self.breaker.check(context, current_time=self.current_time))
+        return self.done
 
     @property
     def equity(self) -> Decimal:
@@ -521,6 +634,9 @@ class MarginTradingEnv(gym.Env):
         rate = Decimal(str(self._financing_per_bar))
         cost = rate * borrowed_val
         self._state.equity -= cost
+        # Funding debits cash; a leveraged long's capitalized quote liability
+        # therefore increases even when no new trade occurs on this bar.
+        self._resync_borrows(current_mid)
         self.financing_accrued += float(cost)
         info.financing_paid = float(cost)
 
@@ -612,7 +728,9 @@ class MarginTradingEnv(gym.Env):
             # Resync net position and borrows with the reduced book.
             new_position = self._lots.net_position()
             self._state.position = new_position
-            self._resync_borrows(exec_price)
+            # Remaining inventory/equity are still marked at reference_price;
+            # closure execution price must not revalue its outstanding loan.
+            self._resync_borrows(reference_price)
             if plan.margin_restored:
                 # Margin restored without ending the episode — possibly flat.
                 info.graded_stop_out = True
@@ -637,9 +755,9 @@ class MarginTradingEnv(gym.Env):
         info.reason = "forced_liquidation"
         self.done = True
 
-    def _resync_borrows(self, exec_price: float) -> None:
-        """Recompute borrow state from the post-cascade position (engine rule)."""
-        price = Decimal(str(exec_price))
+    def _resync_borrows(self, mark_price: float) -> None:
+        """Recompute base borrowing or marked cash liability after a cash change."""
+        price = Decimal(str(mark_price))
         if self._state.position >= 0:
             self._state.borrowed_base = Decimal("0.0")
             gross_exposure = abs(self._state.position) * price
@@ -654,19 +772,29 @@ class MarginTradingEnv(gym.Env):
         """
         PHASE 2 UPDATE: Softened Death Penalty
         """
-        if float(self.equity) <= 0.0:
-            return self.death_penalty
-        return np.clip(
-            float(np.log(float(self.equity) / equity_before) * self.reward_scaling),
-            self.reward_clip_min,
-            self.reward_clip_max,
-        )
+        return net_equity_log_reward(equity_before,float(self.equity),scaling=self.reward_scaling,
+            death_penalty=self.death_penalty,clip_min=self.reward_clip_min,clip_max=self.reward_clip_max)
+
+    @property
+    def max_steps(self) -> int:
+        return self._max_steps
+
+    @max_steps.setter
+    def max_steps(self, value: int) -> None:
+        if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value <= 0:
+            raise ValueError("max_steps must be a positive integer")
+        available = self.T - self.warmup_steps - 1
+        self._max_steps = int(value) if self.live_mode else min(int(value), available)
+        if self._max_steps < 1:
+            raise ValueError("not enough rows for a transition and its observation")
 
     def _advance_time(self, current_mid: float) -> None:
         self.prev_mid_price = current_mid
         if not self.live_mode:
             self.t += 1
-        if self.t >= self.start_t + self.max_steps:
+        if not self.live_mode and (
+            self.t >= self.start_t + self.max_steps or self.t >= self.T - 1
+        ):
             self.done = self.truncated = True
 
     def _termination_flags(self) -> Tuple[bool, bool]:

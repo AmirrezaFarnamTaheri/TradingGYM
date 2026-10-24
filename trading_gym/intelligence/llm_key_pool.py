@@ -22,6 +22,7 @@ from typing import Callable, Mapping, Sequence
 
 import httpx
 from filelock import FileLock, Timeout
+from trading_gym.intelligence.deadlines import check_deadline, remaining_seconds
 
 _REF_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,79}$")
 _MAX_KEYS = 16
@@ -461,12 +462,13 @@ def request_with_rotation(
         raise ValueError("invalid LLM request deadline")
     if not 1 <= max_attempts <= _MAX_KEYS:
         raise ValueError("invalid LLM attempt budget")
-    deadline = monotonic() + timeout_seconds
+    deadline = monotonic() + remaining_seconds(timeout_seconds)
     tried: set[str] = set()
     tried_values: set[bytes] = set()
     authentication_failed = False
     auth_only_failures = True
     for _ in range(min(max_attempts, len(pool.references))):
+        check_deadline()
         if monotonic() >= deadline:
             break
         try:
@@ -496,9 +498,12 @@ def request_with_rotation(
             auth_only_failures = False
             pool.cool_down(lease.reference, 5)
             continue
+        check_deadline()
+        if monotonic() >= deadline:
+            raise CredentialsUnavailable("provider response arrived after deadline")
         code = getattr(response, "status_code", None)
         if type(code) is not int:
-            raise CredentialsUnavailable("invalid provider HTTP response")
+            raise PermissionError("invalid_provider_http_response")
         if 200 <= code < 300:
             return response
         if code == 403:
@@ -512,6 +517,7 @@ def request_with_rotation(
             # Bad request/model/configuration is not a transient health issue.
             raise PermissionError("provider_request_denied")
         if code == 429:
+            auth_only_failures = False
             headers = getattr(response, "headers", {})
             retry_after = _retry_after_seconds(
                 headers.get("retry-after"), now=pool._clock()
@@ -536,7 +542,7 @@ def request_with_rotation(
             pool.cool_down(lease.reference, 5)
             continue
         raise PermissionError("provider_request_denied")
-    if authentication_failed:
+    if authentication_failed and auth_only_failures:
         # Only lock out the entire fleet when every reference was checked and
         # all distinct attempted secrets rejected authentication. An eligible
         # fourth key (beyond the caller's bounded attempt budget) must not be

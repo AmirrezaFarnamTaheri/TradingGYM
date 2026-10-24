@@ -7,11 +7,11 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: process.env.TRADING_GYM_API_TARGET || 'http://localhost:8000',
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:8000',
+        target: (process.env.TRADING_GYM_API_TARGET || 'http://localhost:8000').replace(/^http/, 'ws'),
         ws: true,
       }
     }

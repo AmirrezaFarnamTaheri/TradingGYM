@@ -26,6 +26,7 @@ from trading_gym.intelligence.policy_adapter import IntelligencePolicyAdapter
 from trading_gym.intelligence.registry import BackendRegistry as BackendRegistry
 from trading_gym.intelligence.rl_backend import RLPolicyBackend
 from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
+from trading_gym.intelligence.types import DecisionSignal, MarketContext
 
 
 def build_intelligence_policy(
@@ -37,6 +38,8 @@ def build_intelligence_policy(
     provider_repository: ProviderRepository | None = None,
     context_builder: Callable[[Any], dict[str, Any]] | None = None,
     working_memory: Any | None = None,
+    experience_memory: Any | None = None,
+    fallback_admission: Callable[[DecisionSignal, MarketContext], DecisionSignal] | None = None,
 ):
     """Assemble the configured backend stack.
 
@@ -85,7 +88,7 @@ def build_intelligence_policy(
             raise ValueError("native System-One providers cannot serve chat LLM mode")
         return LLMDecisionBackend(
             matches[0],
-            strict_json_only=strict_review,
+            strict_json_only=True,
             review_confidence_floor=(
                 config.system1_confidence_floor if strict_review else None
             ),
@@ -114,7 +117,7 @@ def build_intelligence_policy(
                     raise PermissionError("system1_memory_integrity") from exc
 
         evidence = (
-            VerifiedMemoryReader()
+            (experience_memory if experience_memory is not None else VerifiedMemoryReader())
             if config.system1_use_experience_memory
             else None
         )
@@ -185,20 +188,12 @@ def build_intelligence_policy(
             entries = []
         fast_roster: tuple[IntelligenceBackend, ...] = ()
         if config.system1_provider_ids:
-            try:
-                fast_roster = resolve_system1()
-                entries.extend(
-                    (fast, 80 + index * 5)
-                    for index, fast in enumerate(fast_roster)
-                )
-            except (ValueError, OSError):
-                # AUTO retains the RL/LLM/rules path when an optional
-                # fast-model preset is absent or locally misconfigured.
-                pass
-        try:
-            llm = resolve_llm()
-        except Exception:
-            llm = None  # optional provider unavailable; retain RL/rules floor
+            # An explicitly configured but invalid preset is a configuration
+            # failure, not permission to silently select a local profile.
+            fast_roster = resolve_system1()
+            entries.extend((fast, 80 + index * 5)
+                           for index, fast in enumerate(fast_roster))
+        llm = resolve_llm() if config.llm_provider_id else None
         if fast_roster and llm is not None:
             # A low-confidence System-1 result is *uncertainty*, not a
             # provider outage. A strict independent deep reviewer must
@@ -249,4 +244,5 @@ def build_intelligence_policy(
             else None
         ),
         context_builder=context_builder,
+        fallback_admission=fallback_admission,
     )

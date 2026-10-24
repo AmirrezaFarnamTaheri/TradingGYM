@@ -15,7 +15,7 @@ class Model:
     def predict(self, obs, deterministic=True):
         self.calls += 1
         if self.down:
-            raise RuntimeError("rl backend down")
+            raise BackendUnavailable("rl backend down")
         return np.array([4.0], dtype=np.float32), None
 
 
@@ -43,7 +43,7 @@ class LLM:
 
 
 def build(monkeypatch, model, llm, allow_rules=True):
-    monkeypatch.setattr(factory, "LLMDecisionBackend", lambda provider: llm)
+    monkeypatch.setattr(factory, "LLMDecisionBackend", lambda provider, **kwargs: llm)
 
     class Item:
         provider_id = "health-llm"
@@ -71,6 +71,9 @@ def build(monkeypatch, model, llm, allow_rules=True):
             prev_close=100.0,
             recent_returns=(0.1, 0.1, 0.1),
         ),
+        # This recovery fixture deliberately authorizes its synthetic targets.
+        # Production callers must supply an account/order-aware guard instead.
+        fallback_admission=lambda signal, context: signal,
     )
 
 
@@ -91,9 +94,9 @@ def test_full_capability_degrades_to_llm_and_restores(monkeypatch):
     assert adapter.last_signal.backend == "rules(degraded)"
     model.down = False
     a, _ = adapter.predict(np.zeros(6))
-    assert adapter.last_signal.backend == "fusion"
+    assert adapter.last_signal.backend == "rl(degraded)"
     assert float(a[0]) == pytest.approx(4.0)
-    assert adapter.last_failure_types == ()
+    assert adapter.last_failure_types == ("fusion:BackendUnavailable",)
 
 
 def test_all_failed_with_disabled_rule_fallback(monkeypatch):

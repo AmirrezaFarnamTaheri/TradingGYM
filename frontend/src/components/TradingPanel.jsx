@@ -25,6 +25,8 @@ import { useToast } from './Toast';
 
 function StatusBadge({ status }) {
   const statusConfig = {
+    starting: { color: '#795500', bg: '#fff3cd', label: 'STARTING' },
+    stopping: { color: '#795500', bg: '#fff3cd', label: 'STOP REQUESTED' },
     running: { color: '#27ae60', bg: '#d4edda', label: '🟢 ACTIVE' },
     idle: { color: '#7f8c8d', bg: '#f8f9fa', label: '⚪ IDLE' },
     stopped: { color: '#e74c3c', bg: '#f8d7da', label: '🔴 STOPPED' },
@@ -136,7 +138,7 @@ export default function TradingPanel() {
     queryFn: () => modelsAPI.getActive().then(r => r.data),
   });
 
-  const isRunning = tradingStatus?.status === 'running';
+  const isRunning = ['starting', 'running', 'stopping'].includes(tradingStatus?.status);
   const currentMode = tradingStatus?.mode || mode;
   const activeModel = activeModelData?.active_model;
 
@@ -169,7 +171,7 @@ export default function TradingPanel() {
         ? tradingAPI.start(mode, modelVersion, authorisation)
         : tradingAPI.start(mode, modelVersion),
     onSuccess: (data, variables) => {
-      toast.success(`${variables.mode.toUpperCase()} trading started!`);
+      toast.success(`${variables.mode.toUpperCase()} worker started. Check session status for readiness.`);
       queryClient.invalidateQueries({ queryKey: ['trading-status'] });
       setShowConfirmLive(false);
       clearLiveAuthorisation();
@@ -181,8 +183,10 @@ export default function TradingPanel() {
 
   const stopMutation = useMutation({
     mutationFn: () => tradingAPI.stop(),
-    onSuccess: () => {
-      toast.info('Trading stopped');
+    onSuccess: (response) => {
+      toast.info(response.data?.status === 'stopped'
+        ? 'Trading worker stopped'
+        : 'Stop requested; worker exit is not yet confirmed');
       queryClient.invalidateQueries({ queryKey: ['trading-status'] });
     },
     onError: (error) => {
@@ -193,7 +197,7 @@ export default function TradingPanel() {
   const panicMutation = useMutation({
     mutationFn: () => tradingAPI.panic(),
     onSuccess: () => {
-      toast.error('🚨 PANIC PROTOCOL ACTIVATED - All positions closing!');
+      toast.error('Panic request recorded. Check reconciliation for the position outcome.');
       queryClient.invalidateQueries({ queryKey: ['trading-status'] });
     },
     onError: (error) => {
@@ -434,7 +438,7 @@ export default function TradingPanel() {
               className="btn btn-warning btn-large"
               style={{ flex: 2 }}
             >
-              {stopMutation.isPending ? '⏳ Stopping...' : '⏹️ STOP TRADING'}
+              {stopMutation.isPending ? '⏳ Stopping...' : tradingStatus?.status === 'stopping' ? 'Retry stop request' : '⏹️ STOP TRADING'}
             </button>
           )}
         </div>

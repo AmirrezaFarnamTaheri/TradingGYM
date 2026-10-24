@@ -111,6 +111,12 @@ class WorkingMemory:
         if not math.isfinite(amount):
             raise ValueError("pnl_quote must be finite")
         record = self._cycles[index]
+        if not isinstance(outcome, str) or not outcome.strip():
+            raise ValueError("outcome must be a non-empty label")
+        if record.outcome is not None or record.pnl_quote is not None:
+            if record.outcome == outcome and record.pnl_quote == amount:
+                return record
+            raise PermissionError("settled cycle outcome is immutable")
         settled = replace(record, outcome=outcome, pnl_quote=amount)
         self._cycles[index] = settled
         return settled

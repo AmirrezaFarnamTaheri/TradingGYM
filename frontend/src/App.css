@@ -1963,3 +1963,27 @@ button[title]:hover::after {
     display: none !important;
   }
 }
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 10000;
+  padding: 0.75rem 1rem;
+  color: #111;
+  background: #fff;
+  border: 2px solid #174ea6;
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: translateY(0); }
+.session-entry { max-width: 40rem; margin: 8vh auto; padding: 2rem; }
+.session-entry input { display: block; width: 100%; margin: 0.5rem 0 1rem; }
+.session-toolbar { display: flex; justify-content: flex-end; gap: 1rem; padding: 0.5rem; }
+.first-run { background: #fff; border: 1px solid #c6d2df; border-radius: 8px; padding: 24px; margin: 0 24px 24px; color: #172b4d; }
+.first-run-heading, .first-run-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.first-run-heading { justify-content: space-between; }
+.first-run select { display: block; width: 100%; padding: 10px; margin: 8px 0; }
+.first-run table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+.first-run th, .first-run td { padding: 8px; border-bottom: 1px solid #c6d2df; text-align: left; }
+.first-run pre { overflow: auto; max-height: 260px; }
+.first-run-steps li { margin: 12px 0; }
+.first-run-steps span { display: block; margin-top: 4px; }
