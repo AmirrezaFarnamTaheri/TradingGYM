@@ -1,8 +1,10 @@
 """Reject stale, dirty, or changed source identity for validation receipts."""
 
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -72,6 +74,74 @@ class ReceiptRevisionTests(unittest.TestCase):
         admitted = self.identity(self.sha)
         with patch.object(receipt, "ROOT", self.root):
             receipt.verify_unchanged(self.sha, admitted)
+
+
+    def test_refuses_output_overwriting_a_tracked_source_file(self):
+        original = (self.root / "tracked.txt").read_bytes()
+        with patch.object(receipt, "ROOT", self.root):
+            with self.assertRaisesRegex(ValueError, "outside"):
+                receipt.write_receipt(
+                    self.root / "tracked.txt", {"outcome": "passed"}
+                )
+        self.assertEqual((self.root / "tracked.txt").read_bytes(), original)
+
+    def test_invalid_output_path_rejected_before_running_command(self):
+        target = self.root / "receipt.json"
+        with patch.object(receipt, "ROOT", self.root):
+            with self.assertRaises(SystemExit) as outcome:
+                receipt.main(
+                    [
+                        "--source-sha",
+                        self.sha,
+                        "--output",
+                        str(target),
+                        "--scope",
+                        "guard",
+                        "--",
+                        sys.executable,
+                        "-c",
+                        "print('noop')",
+                    ]
+                )
+        self.assertEqual(outcome.exception.code, 2)
+        self.assertFalse(target.exists())
+        self.assertEqual(self.identity(self.sha)["observed_head_sha"], self.sha)
+
+    def test_symlink_from_outside_cannot_write_inside_checkout(self):
+        with tempfile.TemporaryDirectory() as external:
+            link = Path(external) / "alias"
+            try:
+                link.symlink_to(self.root, target_is_directory=True)
+            except OSError:
+                self.skipTest("symlinks are unavailable")
+            with patch.object(receipt, "ROOT", self.root):
+                with self.assertRaisesRegex(ValueError, "outside"):
+                    receipt.write_receipt(link / "receipt.json", {"ok": True})
+            self.assertFalse((self.root / "receipt.json").exists())
+
+    def test_valid_outside_receipt_records_same_clean_revision(self):
+        with tempfile.TemporaryDirectory() as external:
+            dest = Path(external) / "receipt.json"
+            with patch.object(receipt, "ROOT", self.root):
+                code = receipt.main(
+                    [
+                        "--source-sha",
+                        self.sha,
+                        "--output",
+                        str(dest),
+                        "--scope",
+                        "external-output",
+                        "--",
+                        sys.executable,
+                        "-c",
+                        "print('ok')",
+                    ]
+                )
+            self.assertEqual(code, 0)
+            document = json.loads(dest.read_text(encoding="utf-8"))
+            self.assertEqual(document["source"]["observed_head_sha"], self.sha)
+            self.assertEqual(document["execution"]["outcome"], "passed")
+            self.assertEqual(self.identity(self.sha)["observed_head_sha"], self.sha)
 
 
 if __name__ == "__main__":

@@ -148,7 +148,20 @@ def classify_jobs(document: dict, expected_sha: str) -> dict:
     }
 
 
+def ensure_external_output(path: Path) -> None:
+    """A receipt cannot modify the very checkout whose identity it certifies."""
+    root = ROOT.resolve()
+    target = path.expanduser()
+    # Cover both lexical paths and paths entering through directory symlinks.
+    if (
+        target.absolute().is_relative_to(root)
+        or target.resolve().is_relative_to(root)
+    ):
+        raise ValueError("receipt output must be outside the source checkout")
+
+
 def write_receipt(path: Path, document: dict) -> None:
+    ensure_external_output(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=".receipt-", dir=path.parent)
     try:
@@ -210,6 +223,10 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if not 1 <= args.timeout <= 3600:
         parser.error("timeout must be 1..3600 seconds")
+    try:
+        ensure_external_output(args.output)
+    except ValueError as exc:
+        parser.error(str(exc))
     receipt = {
         "schema_version": 1,
         "created_at": datetime.now(timezone.utc).isoformat(),

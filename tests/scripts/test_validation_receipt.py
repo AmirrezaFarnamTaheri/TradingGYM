@@ -91,7 +91,6 @@ class ReceiptTests(unittest.TestCase):
                 )
 
 
-
 class ReceiptOptionalSkipTests(unittest.TestCase):
     def test_non_gating_weekly_scan_does_not_make_green_pr_fail(self):
         jobs = [
@@ -191,6 +190,7 @@ class ReceiptOptionalSkipTests(unittest.TestCase):
         ]
         result = receipt.classify_jobs({"jobs": jobs}, SHA)
         self.assertFalse(result["all_executed_successfully"])
+
 
 if __name__ == "__main__":
     unittest.main()

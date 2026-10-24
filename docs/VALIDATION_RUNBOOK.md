@@ -18,3 +18,5 @@ or the named command changes that source during execution. Keep disposable
 untracked logs and exported job metadata outside the checkout when generating
 an official revision-bound receipt. Existing historical receipts are not
 retroactively granted these stricter guarantees.
+
+Output paths inside the repository are rejected before the named command runs, including paths reached through external symlinks. This prevents a successful validation receipt from modifying or overwriting its own certified checkout. Use an external, access-controlled directory for JSON receipts and job metadata.
