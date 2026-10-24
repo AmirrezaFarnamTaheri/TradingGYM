@@ -139,6 +139,8 @@ def classify_jobs(document: dict, expected_sha: str) -> dict:
                 "url": job.get("html_url"),
                 "conclusion": job.get("conclusion"),
                 "status": job.get("status"),
+                "run_id": job.get("run_id"),
+                "run_attempt": job.get("run_attempt"),
                 "evidence": evidence,
                 "step_count": len(steps) if isinstance(steps, list) else None,
             }
@@ -153,14 +155,32 @@ def classify_jobs(document: dict, expected_sha: str) -> dict:
     complete_job_inventory = not (
         missing_required_jobs or duplicate_job_names or unexpected_job_names
     )
+    # Successful jobs from two distinct runs on the same commit must not be
+    # stitched together into one fabricated green receipt. A GitHub rerun may
+    # legitimately contain jobs from different attempts of the SAME run.
+    valid_run_ids = {
+        item["run_id"]
+        for item in results
+        if type(item["run_id"]) is int and item["run_id"] > 0
+    }
+    unbound_job_names = sorted(
+        str(item["name"])
+        for item in results
+        if type(item["run_id"]) is not int or item["run_id"] <= 0
+    )
+    single_run_identity = len(valid_run_ids) == 1 and not unbound_job_names
     return {
         "jobs": results,
         "missing_required_jobs": missing_required_jobs,
         "duplicate_job_names": duplicate_job_names,
         "unexpected_job_names": unexpected_job_names,
         "complete_job_inventory": complete_job_inventory,
+        "single_run_identity": single_run_identity,
+        "unbound_job_names": unbound_job_names,
+        "observed_run_ids": sorted(valid_run_ids),
         "all_executed_successfully": (
             complete_job_inventory
+            and single_run_identity
             and all(
                 (
                     item["evidence"] == "execution_observed"

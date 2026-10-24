@@ -100,6 +100,8 @@ class ReceiptOptionalSkipTests(unittest.TestCase):
             {
                 "head_sha": SHA,
                 "name": name,
+                "run_id": 800,
+                "run_attempt": 1,
                 "status": "completed",
                 "conclusion": "success",
                 "runner_name": "runner-1",
@@ -111,6 +113,8 @@ class ReceiptOptionalSkipTests(unittest.TestCase):
             {
                 "head_sha": SHA,
                 "name": "Dependency Scan (weekly, informational)",
+                "run_id": 800,
+                "run_attempt": 1,
                 "status": "completed",
                 "conclusion": "skipped",
                 "runner_name": None,
@@ -204,6 +208,8 @@ class ReceiptCompletenessTests(unittest.TestCase):
         return {
             "head_sha": SHA,
             "name": name,
+            "run_id": 800,
+            "run_attempt": 1,
             "status": "completed",
             "conclusion": "success",
             "runner_name": "hosted-runner",
@@ -249,6 +255,52 @@ class ReceiptCompletenessTests(unittest.TestCase):
             result["unexpected_job_names"],
             ["Previously unknown required security gate"],
         )
+
+    def test_cannot_combine_successes_from_two_different_workflow_runs(self):
+        jobs = self.all_required()
+        jobs[0]["run_id"] = 801
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertFalse(result["all_executed_successfully"])
+        self.assertTrue(result["complete_job_inventory"])
+        self.assertFalse(result["single_run_identity"])
+        self.assertEqual(result["observed_run_ids"], [800, 801])
+
+    def test_missing_run_identity_makes_green_evidence_unqualified(self):
+        jobs = self.all_required()
+        jobs[0].pop("run_id")
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertFalse(result["all_executed_successfully"])
+        self.assertEqual(result["unbound_job_names"], [jobs[0]["name"]])
+
+    def test_boolean_or_zero_run_identity_is_not_accepted(self):
+        for invalid in (True, 0, "800"):
+            with self.subTest(invalid=invalid):
+                jobs = self.all_required()
+                jobs[0]["run_id"] = invalid
+                result = receipt.classify_jobs({"jobs": jobs}, SHA)
+                self.assertFalse(result["single_run_identity"])
+                self.assertFalse(result["all_executed_successfully"])
+
+    def test_partial_rerun_same_run_id_may_have_multiple_attempts(self):
+        jobs = self.all_required()
+        jobs[0]["run_attempt"] = 2
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertTrue(result["single_run_identity"])
+        self.assertTrue(result["all_executed_successfully"])
+        self.assertEqual(result["observed_run_ids"], [800])
+
+    def test_optional_scan_from_another_run_does_not_qualify(self):
+        jobs = self.all_required()
+        jobs.append({
+            "head_sha": SHA,
+            "name": "Dependency Scan (weekly, informational)",
+            "run_id": 801,
+            "status": "completed",
+            "conclusion": "skipped",
+        })
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertFalse(result["all_executed_successfully"])
+        self.assertFalse(result["single_run_identity"])
 
     def test_queued_job_with_success_label_does_not_qualify(self):
         jobs = self.all_required()
