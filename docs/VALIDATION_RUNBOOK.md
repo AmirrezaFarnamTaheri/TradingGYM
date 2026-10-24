@@ -20,3 +20,7 @@ an official revision-bound receipt. Existing historical receipts are not
 retroactively granted these stricter guarantees.
 
 Output paths inside the repository are rejected before the named command runs, including paths reached through external symlinks. This prevents a successful validation receipt from modifying or overwriting its own certified checkout. Use an external, access-controlled directory for JSON receipts and job metadata.
+
+## Verification-step evidence
+
+A completed successful GitHub job with an assigned runner does **not** prove its test gates executed. This receipt requires every named lint, type, unit/coverage, research, integration, frontend, security, Rust/parity and aggregate verification step to be present **exactly once** with `status=completed` and `conclusion=success`. Missing, failed, skipped, pending and duplicate proof steps are reported in `missing_or_unsuccessful_gate_steps` and fail qualification. A native test checks the proof-step inventory against `.github/workflows/ci.yml`; update both when changing CI. Legitimate partial reruns within the same selected `run_id` remain valid.

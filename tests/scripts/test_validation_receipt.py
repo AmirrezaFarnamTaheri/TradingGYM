@@ -105,7 +105,10 @@ class ReceiptOptionalSkipTests(unittest.TestCase):
                 "status": "completed",
                 "conclusion": "success",
                 "runner_name": "runner-1",
-                "steps": [{"name": "verify", "conclusion": "success"}],
+                "steps": [
+                    {"name": step, "status": "completed", "conclusion": "success"}
+                    for step in receipt.REQUIRED_CI_PROOF_STEPS[name]
+                ],
             }
             for name in receipt.REQUIRED_CI_JOBS
         ]
@@ -215,7 +218,10 @@ class ReceiptCompletenessTests(unittest.TestCase):
             "status": "completed",
             "conclusion": "success",
             "runner_name": "hosted-runner",
-            "steps": [{"name": "execute", "conclusion": "success"}],
+            "steps": [
+                {"name": step, "status": "completed", "conclusion": "success"}
+                for step in receipt.REQUIRED_CI_PROOF_STEPS[name]
+            ],
         }
 
     def all_required(self):
@@ -366,6 +372,76 @@ class ReceiptCompletenessTests(unittest.TestCase):
                 ]
             )
         self.assertEqual(failure.exception.code, 2)
+
+    def test_missing_or_skipped_named_gate_fails_green_job(self):
+        for missing, status, conclusion in (
+            (True, None, None),
+            (False, "completed", "skipped"),
+            (False, "in_progress", None),
+            (False, "completed", "failure"),
+        ):
+            with self.subTest(missing=missing, status=status, conclusion=conclusion):
+                jobs = self.all_required()
+                frontend = next(job for job in jobs if job["name"] == "Frontend Tests")
+                if missing:
+                    frontend["steps"] = [
+                        {"name": "Set up Node.js", "status": "completed", "conclusion": "success"}
+                    ]
+                else:
+                    frontend["steps"][0].update(
+                        {"status": status, "conclusion": conclusion}
+                    )
+                result = receipt.classify_jobs(
+                    {"jobs": jobs}, SHA, expected_run_id=800
+                )
+                self.assertFalse(result["all_executed_successfully"])
+                observed = next(
+                    job for job in result["jobs"] if job["name"] == "Frontend Tests"
+                )
+                self.assertTrue(observed["missing_or_unsuccessful_gate_steps"])
+
+    def test_duplicate_named_gate_fails_green_job(self):
+        jobs = self.all_required()
+        frontend = next(job for job in jobs if job["name"] == "Frontend Tests")
+        frontend["steps"].append(
+            {"name": "Run tests", "status": "completed", "conclusion": "skipped"}
+        )
+        result = receipt.classify_jobs(
+            {"jobs": jobs}, SHA, expected_run_id=800
+        )
+        self.assertFalse(result["all_executed_successfully"])
+
+    def test_real_named_gate_steps_allow_partial_rerun(self):
+        jobs = self.all_required()
+        jobs[0]["run_attempt"] = 2
+        result = receipt.classify_jobs(
+            {"jobs": jobs}, SHA, expected_run_id=800
+        )
+        self.assertTrue(result["complete_verification_step_inventory"])
+        self.assertTrue(result["all_executed_successfully"])
+
+    def test_proof_step_inventory_matches_actual_ci_workflow(self):
+        workflow = yaml.safe_load(
+            (Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml")
+            .read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            set(receipt.REQUIRED_CI_PROOF_STEPS), receipt.REQUIRED_CI_JOBS
+        )
+        workflow_step_names = {
+            job["name"]: [
+                step.get("name") for step in job["steps"] if "name" in step
+            ]
+            for job in workflow["jobs"].values()
+        }
+        for job_name, steps in receipt.REQUIRED_CI_PROOF_STEPS.items():
+            workflow_job = "Tests" if job_name.startswith("Tests (") else job_name
+            for step in steps:
+                self.assertEqual(
+                    workflow_step_names[workflow_job].count(step),
+                    1,
+                    (job_name, step),
+                )
 
     def test_queued_job_with_success_label_does_not_qualify(self):
         jobs = self.all_required()

@@ -102,6 +102,33 @@ REQUIRED_CI_JOBS = frozenset(
 # Only this completed, scheduled informational skip is non-gating.
 OPTIONAL_SKIPPED_JOBS = frozenset({"Dependency Scan (weekly, informational)"})
 
+// Each required CI job must actually execute its verification steps. A green
+// checkout-only job is not sufficient evidence. Keep in sync with ci.yml.
+REQUIRED_CI_PROOF_STEPS = {
+    "Lint & Format": ("Run Ruff linter", "Run Black formatter check", "Run Flake8"),
+    "Type Checking": ("Run MyPy",),
+    "Tests (ubuntu-latest, 3.11)": ("Run unit tests",),
+    "Tests (ubuntu-latest, 3.12)": ("Run unit tests with coverage",),
+    "Tests (windows-latest, 3.11)": ("Run unit tests",),
+    "Tests (windows-latest, 3.12)": ("Run unit tests",),
+    "Research and Paper Contracts": (
+        "Check research, account, provider and API contracts with real dependencies",
+    ),
+    "Integration Tests": ("Run integration tests",),
+    "Frontend Tests": ("Run tests", "Run native Node contract tests", "Build frontend"),
+    "Security Scan": ("Run Bandit security linter",),
+    "Rust Kernel & Parity (ADR-035)": (
+        "Cargo fmt",
+        "Clippy",
+        "Crate unit tests",
+        "Build release cdylib",
+        "Parity suite against the compiled kernel",
+        "Playground and forge suites against the compiled kernel",
+    ),
+    "All Checks Passed": ("Require every verification job to succeed",),
+}
+
+
 
 def classify_jobs(
     document: dict, expected_sha: str, expected_run_id: int | None = None
@@ -138,8 +165,24 @@ def classify_jobs(
             evidence = "no_execution_evidence"
         else:
             evidence = "incomplete_metadata_or_pending"
+        expected_steps = REQUIRED_CI_PROOF_STEPS.get(job.get("name"), ())
+        present_steps = steps if isinstance(steps, list) else []
+        missing_gate_steps = []
+        for step_name in expected_steps:
+            matches = [
+                step
+                for step in present_steps
+                if isinstance(step, dict) and step.get("name") == step_name
+            ]
+            if (
+                len(matches) != 1
+                or matches[0].get("status") != "completed"
+                or matches[0].get("conclusion") != "success"
+            ):
+                missing_gate_steps.append(step_name)
         results.append(
             {
+                "missing_or_unsuccessful_gate_steps": missing_gate_steps,
                 "id": job.get("id"),
                 "name": job.get("name"),
                 "url": job.get("html_url"),
@@ -160,6 +203,9 @@ def classify_jobs(
     )
     complete_job_inventory = not (
         missing_required_jobs or duplicate_job_names or unexpected_job_names
+    )
+    complete_verification_step_inventory = (
+        set(REQUIRED_CI_PROOF_STEPS) == REQUIRED_CI_JOBS
     )
     # Successful jobs from two distinct runs on the same commit must not be
     # stitched together into one fabricated green receipt. A GitHub rerun may
@@ -187,6 +233,7 @@ def classify_jobs(
         "duplicate_job_names": duplicate_job_names,
         "unexpected_job_names": unexpected_job_names,
         "complete_job_inventory": complete_job_inventory,
+        "complete_verification_step_inventory": complete_verification_step_inventory,
         "single_run_identity": single_run_identity,
         "expected_run_id": expected_run_id,
         "bound_to_expected_run_id": bound_to_expected_run_id,
@@ -194,11 +241,13 @@ def classify_jobs(
         "observed_run_ids": sorted(valid_run_ids),
         "all_executed_successfully": (
             complete_job_inventory
+            and complete_verification_step_inventory
             and single_run_identity
             and bound_to_expected_run_id
             and all(
                 (
                     item["evidence"] == "execution_observed"
+                    and not item["missing_or_unsuccessful_gate_steps"]
                     and item["conclusion"] == "success"
                     and item["status"] == "completed"
                 )
