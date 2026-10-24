@@ -102,8 +102,8 @@ REQUIRED_CI_JOBS = frozenset(
 # Only this completed, scheduled informational skip is non-gating.
 OPTIONAL_SKIPPED_JOBS = frozenset({"Dependency Scan (weekly, informational)"})
 
-// Each required CI job must actually execute its verification steps. A green
-// checkout-only job is not sufficient evidence. Keep in sync with ci.yml.
+# Each required CI job must actually execute its verification steps. A green
+# checkout-only job is not sufficient evidence. Keep in sync with ci.yml.
 REQUIRED_CI_PROOF_STEPS = {
     "Lint & Format": ("Run Ruff linter", "Run Black formatter check", "Run Flake8"),
     "Type Checking": ("Run MyPy",),
