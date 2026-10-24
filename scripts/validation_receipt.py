@@ -103,7 +103,13 @@ REQUIRED_CI_JOBS = frozenset(
 OPTIONAL_SKIPPED_JOBS = frozenset({"Dependency Scan (weekly, informational)"})
 
 
-def classify_jobs(document: dict, expected_sha: str) -> dict:
+def classify_jobs(
+    document: dict, expected_sha: str, expected_run_id: int | None = None
+) -> dict:
+    if expected_run_id is not None and (
+        type(expected_run_id) is not int or expected_run_id <= 0
+    ):
+        raise ValueError("expected GitHub run ID must be a positive integer")
     jobs = document.get("jobs")
     if not isinstance(jobs, list) or not jobs:
         raise ValueError("jobs export must contain a non-empty jobs list")
@@ -169,6 +175,12 @@ def classify_jobs(document: dict, expected_sha: str) -> dict:
         if type(item["run_id"]) is not int or item["run_id"] <= 0
     )
     single_run_identity = len(valid_run_ids) == 1 and not unbound_job_names
+    # A coherent export from another workflow run must never certify this run.
+    bound_to_expected_run_id = (
+        single_run_identity
+        and expected_run_id is not None
+        and expected_run_id in valid_run_ids
+    )
     return {
         "jobs": results,
         "missing_required_jobs": missing_required_jobs,
@@ -176,11 +188,14 @@ def classify_jobs(document: dict, expected_sha: str) -> dict:
         "unexpected_job_names": unexpected_job_names,
         "complete_job_inventory": complete_job_inventory,
         "single_run_identity": single_run_identity,
+        "expected_run_id": expected_run_id,
+        "bound_to_expected_run_id": bound_to_expected_run_id,
         "unbound_job_names": unbound_job_names,
         "observed_run_ids": sorted(valid_run_ids),
         "all_executed_successfully": (
             complete_job_inventory
             and single_run_identity
+            and bound_to_expected_run_id
             and all(
                 (
                     item["evidence"] == "execution_observed"
@@ -269,11 +284,17 @@ def main(argv=None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--scope", required=True)
     parser.add_argument("--jobs-json", type=Path)
+    parser.add_argument("--run-id", type=int)
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     if not 1 <= args.timeout <= 3600:
         parser.error("timeout must be 1..3600 seconds")
+    if args.jobs_json:
+        if args.run_id is None or args.run_id <= 0:
+            parser.error("--jobs-json requires a positive --run-id")
+    elif args.run_id is not None:
+        parser.error("--run-id requires --jobs-json")
     try:
         ensure_external_output(args.output)
     except ValueError as exc:
@@ -296,7 +317,9 @@ def main(argv=None) -> int:
         if args.jobs_json.stat().st_size > 8 * 1024 * 1024:
             parser.error("jobs export exceeds 8 MiB")
         receipt["ci"] = classify_jobs(
-            json.loads(args.jobs_json.read_text()), args.source_sha
+            json.loads(args.jobs_json.read_text()),
+            args.source_sha,
+            expected_run_id=args.run_id,
         )
         code = 0 if receipt["ci"]["all_executed_successfully"] else 1
     else:

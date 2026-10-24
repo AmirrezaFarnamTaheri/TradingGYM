@@ -121,7 +121,9 @@ class ReceiptOptionalSkipTests(unittest.TestCase):
                 "steps": None,
             }
         )
-        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        result = receipt.classify_jobs(
+            {"jobs": jobs}, SHA, expected_run_id=800
+        )
         self.assertTrue(result["all_executed_successfully"])
         self.assertTrue(result["complete_job_inventory"])
         self.assertEqual(
@@ -284,7 +286,9 @@ class ReceiptCompletenessTests(unittest.TestCase):
     def test_partial_rerun_same_run_id_may_have_multiple_attempts(self):
         jobs = self.all_required()
         jobs[0]["run_attempt"] = 2
-        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        result = receipt.classify_jobs(
+            {"jobs": jobs}, SHA, expected_run_id=800
+        )
         self.assertTrue(result["single_run_identity"])
         self.assertTrue(result["all_executed_successfully"])
         self.assertEqual(result["observed_run_ids"], [800])
@@ -301,6 +305,49 @@ class ReceiptCompletenessTests(unittest.TestCase):
         result = receipt.classify_jobs({"jobs": jobs}, SHA)
         self.assertFalse(result["all_executed_successfully"])
         self.assertFalse(result["single_run_identity"])
+
+    def test_complete_jobs_from_wrong_run_cannot_qualify(self):
+        jobs = self.all_required()
+        result = receipt.classify_jobs(
+            {"jobs": jobs}, SHA, expected_run_id=801
+        )
+        self.assertTrue(result["single_run_identity"])
+        self.assertFalse(result["bound_to_expected_run_id"])
+        self.assertFalse(result["all_executed_successfully"])
+        self.assertEqual(result["expected_run_id"], 801)
+        self.assertEqual(result["observed_run_ids"], [800])
+
+    def test_missing_expected_run_id_never_qualifies(self):
+        result = receipt.classify_jobs({"jobs": self.all_required()}, SHA)
+        self.assertTrue(result["single_run_identity"])
+        self.assertFalse(result["bound_to_expected_run_id"])
+        self.assertFalse(result["all_executed_successfully"])
+
+    def test_invalid_expected_run_id_is_rejected(self):
+        for invalid in (0, -1, True, "800", 800.0):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "positive integer"):
+                    receipt.classify_jobs(
+                        {"jobs": self.all_required()},
+                        SHA,
+                        expected_run_id=invalid,
+                    )
+
+    def test_jobs_cli_rejects_missing_run_id_before_git_access(self):
+        with self.assertRaises(SystemExit) as failure:
+            receipt.main(
+                ["--source-sha", SHA, "--output", "/tmp/unused-receipt.json",
+                 "--scope", "ci", "--jobs-json", "/tmp/unused-jobs.json"]
+            )
+        self.assertEqual(failure.exception.code, 2)
+
+    def test_cli_run_id_only_valid_for_jobs_mode(self):
+        with self.assertRaises(SystemExit) as failure:
+            receipt.main(
+                ["--source-sha", SHA, "--output", "/tmp/unused-receipt.json",
+                 "--scope", "command", "--run-id", "800", "--", "true"]
+            )
+        self.assertEqual(failure.exception.code, 2)
 
     def test_queued_job_with_success_label_does_not_qualify(self):
         jobs = self.all_required()
