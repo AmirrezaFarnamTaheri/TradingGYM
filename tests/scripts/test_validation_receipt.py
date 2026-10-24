@@ -1,7 +1,10 @@
 import importlib.util
+from itertools import product
 from pathlib import Path
 import sys
 import unittest
+
+import yaml
 
 spec = importlib.util.spec_from_file_location(
     "receipt", Path(__file__).parents[2] / "scripts/validation_receipt.py"
@@ -96,12 +99,15 @@ class ReceiptOptionalSkipTests(unittest.TestCase):
         jobs = [
             {
                 "head_sha": SHA,
-                "name": "All Checks Passed",
+                "name": name,
                 "status": "completed",
                 "conclusion": "success",
                 "runner_name": "runner-1",
                 "steps": [{"name": "verify", "conclusion": "success"}],
-            },
+            }
+            for name in receipt.REQUIRED_CI_JOBS
+        ]
+        jobs.append(
             {
                 "head_sha": SHA,
                 "name": "Dependency Scan (weekly, informational)",
@@ -109,12 +115,13 @@ class ReceiptOptionalSkipTests(unittest.TestCase):
                 "conclusion": "skipped",
                 "runner_name": None,
                 "steps": None,
-            },
-        ]
+            }
+        )
         result = receipt.classify_jobs({"jobs": jobs}, SHA)
         self.assertTrue(result["all_executed_successfully"])
+        self.assertTrue(result["complete_job_inventory"])
         self.assertEqual(
-            result["jobs"][1]["evidence"], "intentional_non_gating_skip"
+            result["jobs"][-1]["evidence"], "intentional_non_gating_skip"
         )
 
     def test_required_skipped_job_still_blocks_qualification(self):
@@ -190,6 +197,89 @@ class ReceiptOptionalSkipTests(unittest.TestCase):
         ]
         result = receipt.classify_jobs({"jobs": jobs}, SHA)
         self.assertFalse(result["all_executed_successfully"])
+
+
+
+class ReceiptCompletenessTests(unittest.TestCase):
+    def successful(self, name):
+        return {
+            "head_sha": SHA,
+            "name": name,
+            "status": "completed",
+            "conclusion": "success",
+            "runner_name": "hosted-runner",
+            "steps": [{"name": "execute", "conclusion": "success"}],
+        }
+
+    def all_required(self):
+        return [
+            self.successful(name)
+            for name in sorted(receipt.REQUIRED_CI_JOBS)
+        ]
+
+    def test_partial_successful_page_does_not_certify_workflow(self):
+        result = receipt.classify_jobs(
+            {"jobs": [self.successful("All Checks Passed")]}, SHA
+        )
+        self.assertFalse(result["all_executed_successfully"])
+        self.assertFalse(result["complete_job_inventory"])
+        self.assertIn("Lint & Format", result["missing_required_jobs"])
+
+    def test_missing_matrix_cell_is_reported(self):
+        jobs = [
+            job
+            for job in self.all_required()
+            if job["name"] != "Tests (windows-latest, 3.12)"
+        ]
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertFalse(result["all_executed_successfully"])
+        self.assertEqual(
+            result["missing_required_jobs"], ["Tests (windows-latest, 3.12)"]
+        )
+
+    def test_duplicate_job_fails_closed(self):
+        jobs = self.all_required() + [self.successful("All Checks Passed")]
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertFalse(result["all_executed_successfully"])
+        self.assertEqual(result["duplicate_job_names"], ["All Checks Passed"])
+
+    def test_new_unrecognized_job_fails_closed(self):
+        jobs = self.all_required() + [
+            self.successful("Previously unknown required security gate")
+        ]
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertFalse(result["all_executed_successfully"])
+        self.assertEqual(
+            result["unexpected_job_names"],
+            ["Previously unknown required security gate"],
+        )
+
+    def test_queued_job_with_success_label_does_not_qualify(self):
+        jobs = self.all_required()
+        jobs[0]["status"] = "queued"
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertFalse(result["all_executed_successfully"])
+
+    def test_required_names_match_actual_workflow_matrix(self):
+        workflow = yaml.safe_load(
+            (Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml")
+            .read_text(encoding="utf-8")
+        )
+        observed = set()
+        for definition in workflow["jobs"].values():
+            name = definition["name"]
+            matrix = definition.get("strategy", {}).get("matrix")
+            if matrix:
+                for os_name, version in product(
+                    matrix["os"], matrix["python-version"]
+                ):
+                    observed.add(f"{name} ({os_name}, {version})")
+            else:
+                observed.add(name)
+        self.assertEqual(
+            receipt.REQUIRED_CI_JOBS,
+            observed - receipt.OPTIONAL_SKIPPED_JOBS,
+        )
 
 
 if __name__ == "__main__":
