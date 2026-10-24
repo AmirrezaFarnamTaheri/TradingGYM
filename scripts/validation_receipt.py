@@ -6,6 +6,7 @@ This receipt describes its command scope; it never certifies unexecuted paths.
 
 from __future__ import annotations
 import argparse
+from collections import Counter
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -79,8 +80,26 @@ def verify_unchanged(declared_sha: str, initial: dict) -> None:
         raise ValueError("source changed during validation")
 
 
-# This is the only intentionally skipped, non-gating job in the PR CI workflow.
-# Keep in sync with .github/workflows/ci.yml if the weekly scan is renamed.
+# Require every CI job, including each matrix cell; keep in sync with
+# .github/workflows/ci.yml. The inventory test detects workflow drift.
+REQUIRED_CI_JOBS = frozenset(
+    {
+        "Lint & Format",
+        "Type Checking",
+        "Tests (ubuntu-latest, 3.11)",
+        "Tests (ubuntu-latest, 3.12)",
+        "Tests (windows-latest, 3.11)",
+        "Tests (windows-latest, 3.12)",
+        "Research and Paper Contracts",
+        "Integration Tests",
+        "Frontend Tests",
+        "Security Scan",
+        "Rust Kernel & Parity (ADR-035)",
+        "All Checks Passed",
+    }
+)
+
+# Only this completed, scheduled informational skip is non-gating.
 OPTIONAL_SKIPPED_JOBS = frozenset({"Dependency Scan (weekly, informational)"})
 
 
@@ -119,22 +138,34 @@ def classify_jobs(document: dict, expected_sha: str) -> dict:
                 "name": job.get("name"),
                 "url": job.get("html_url"),
                 "conclusion": job.get("conclusion"),
+                "status": job.get("status"),
                 "evidence": evidence,
                 "step_count": len(steps) if isinstance(steps, list) else None,
             }
         )
+    counts = Counter(str(item["name"]) for item in results)
+    observed_names = set(counts)
+    missing_required_jobs = sorted(REQUIRED_CI_JOBS - observed_names)
+    duplicate_job_names = sorted(name for name, count in counts.items() if count > 1)
+    unexpected_job_names = sorted(
+        observed_names - REQUIRED_CI_JOBS - OPTIONAL_SKIPPED_JOBS
+    )
+    complete_job_inventory = not (
+        missing_required_jobs or duplicate_job_names or unexpected_job_names
+    )
     return {
         "jobs": results,
+        "missing_required_jobs": missing_required_jobs,
+        "duplicate_job_names": duplicate_job_names,
+        "unexpected_job_names": unexpected_job_names,
+        "complete_job_inventory": complete_job_inventory,
         "all_executed_successfully": (
-            any(
-                item["evidence"] == "execution_observed"
-                and item["conclusion"] == "success"
-                for item in results
-            )
+            complete_job_inventory
             and all(
                 (
                     item["evidence"] == "execution_observed"
                     and item["conclusion"] == "success"
+                    and item["status"] == "completed"
                 )
                 or (
                     item["evidence"] == "intentional_non_gating_skip"
