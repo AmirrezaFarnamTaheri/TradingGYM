@@ -79,6 +79,11 @@ def verify_unchanged(declared_sha: str, initial: dict) -> None:
         raise ValueError("source changed during validation")
 
 
+# This is the only intentionally skipped, non-gating job in the PR CI workflow.
+# Keep in sync with .github/workflows/ci.yml if the weekly scan is renamed.
+OPTIONAL_SKIPPED_JOBS = frozenset({"Dependency Scan (weekly, informational)"})
+
+
 def classify_jobs(document: dict, expected_sha: str) -> dict:
     jobs = document.get("jobs")
     if not isinstance(jobs, list) or not jobs:
@@ -90,7 +95,14 @@ def classify_jobs(document: dict, expected_sha: str) -> dict:
         steps = job.get("steps")
         runner = bool(job.get("runner_name") or job.get("runner_id"))
         if job.get("conclusion") == "skipped":
-            evidence = "skipped"
+            # The scheduled informational scan deliberately skips pull requests.
+            # Only a completed skip of this exact job is non-gating.
+            evidence = (
+                "intentional_non_gating_skip"
+                if job.get("name") in OPTIONAL_SKIPPED_JOBS
+                and job.get("status") == "completed"
+                else "skipped"
+            )
         elif isinstance(steps, list) and steps and runner:
             evidence = "execution_observed"
         elif (
@@ -113,9 +125,23 @@ def classify_jobs(document: dict, expected_sha: str) -> dict:
         )
     return {
         "jobs": results,
-        "all_executed_successfully": all(
-            item["evidence"] == "execution_observed" and item["conclusion"] == "success"
-            for item in results
+        "all_executed_successfully": (
+            any(
+                item["evidence"] == "execution_observed"
+                and item["conclusion"] == "success"
+                for item in results
+            )
+            and all(
+                (
+                    item["evidence"] == "execution_observed"
+                    and item["conclusion"] == "success"
+                )
+                or (
+                    item["evidence"] == "intentional_non_gating_skip"
+                    and item["conclusion"] == "skipped"
+                )
+                for item in results
+            )
         ),
         "admission_cause": "unverified",
         "next_external_step": "Inspect the GitHub job/account admission annotation. Resolve its actual cause, then obtain a started current-revision job and retain logs; this tool cannot enable runner admission.",

@@ -8,6 +8,8 @@ To diagnose Actions, export the read-only jobs response for the exact run using 
 
 Generate current documentation from the scoped receipts. Historical counts remain historical; failed, skipped and not-run capabilities must remain visible. Official reference: https://docs.github.com/en/rest/actions/workflow-jobs .
 
+A pull-request CI run intentionally skips the job named `Dependency Scan (weekly, informational)` because `.github/workflows/ci.yml` runs it only on weekly schedules. The receipt classifies this *one exact completed skip* as `intentional_non_gating_skip`; it does not count as executed, and it cannot alone qualify a run. A skipped required job (such as Integration Tests), an incomplete/pending scan, or a failing scan still blocks `all_executed_successfully`. The caller must export **all job pages** and review each required job; passing the supplied jobs alone is not evidence that an omitted job ran.
+
 ## Exact revision admission
 
 The receipt helper now fails closed if the supplied SHA differs from Git HEAD,

@@ -91,5 +91,106 @@ class ReceiptTests(unittest.TestCase):
                 )
 
 
+
+class ReceiptOptionalSkipTests(unittest.TestCase):
+    def test_non_gating_weekly_scan_does_not_make_green_pr_fail(self):
+        jobs = [
+            {
+                "head_sha": SHA,
+                "name": "All Checks Passed",
+                "status": "completed",
+                "conclusion": "success",
+                "runner_name": "runner-1",
+                "steps": [{"name": "verify", "conclusion": "success"}],
+            },
+            {
+                "head_sha": SHA,
+                "name": "Dependency Scan (weekly, informational)",
+                "status": "completed",
+                "conclusion": "skipped",
+                "runner_name": None,
+                "steps": None,
+            },
+        ]
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertTrue(result["all_executed_successfully"])
+        self.assertEqual(
+            result["jobs"][1]["evidence"], "intentional_non_gating_skip"
+        )
+
+    def test_required_skipped_job_still_blocks_qualification(self):
+        jobs = [
+            {
+                "head_sha": SHA,
+                "name": "All Checks Passed",
+                "status": "completed",
+                "conclusion": "success",
+                "runner_name": "runner-1",
+                "steps": [{"name": "verify"}],
+            },
+            {
+                "head_sha": SHA,
+                "name": "Integration Tests",
+                "status": "completed",
+                "conclusion": "skipped",
+                "steps": None,
+            },
+        ]
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertFalse(result["all_executed_successfully"])
+        self.assertEqual(result["jobs"][1]["evidence"], "skipped")
+
+    def test_failing_weekly_scan_is_not_exempt(self):
+        jobs = [
+            {
+                "head_sha": SHA,
+                "name": "All Checks Passed",
+                "status": "completed",
+                "conclusion": "success",
+                "runner_name": "runner-1",
+                "steps": [{"name": "verify"}],
+            },
+            {
+                "head_sha": SHA,
+                "name": "Dependency Scan (weekly, informational)",
+                "status": "completed",
+                "conclusion": "failure",
+                "runner_name": "runner-2",
+                "steps": [{"name": "scan"}],
+            },
+        ]
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertFalse(result["all_executed_successfully"])
+
+    def test_informational_skip_alone_cannot_prove_ci_executed(self):
+        job = {
+            "head_sha": SHA,
+            "name": "Dependency Scan (weekly, informational)",
+            "status": "completed",
+            "conclusion": "skipped",
+        }
+        result = receipt.classify_jobs({"jobs": [job]}, SHA)
+        self.assertFalse(result["all_executed_successfully"])
+
+    def test_queued_informational_scan_is_not_a_completed_exception(self):
+        jobs = [
+            {
+                "head_sha": SHA,
+                "name": "All Checks Passed",
+                "status": "completed",
+                "conclusion": "success",
+                "runner_name": "runner-1",
+                "steps": [{"name": "verify"}],
+            },
+            {
+                "head_sha": SHA,
+                "name": "Dependency Scan (weekly, informational)",
+                "status": "queued",
+                "conclusion": "skipped",
+            },
+        ]
+        result = receipt.classify_jobs({"jobs": jobs}, SHA)
+        self.assertFalse(result["all_executed_successfully"])
+
 if __name__ == "__main__":
     unittest.main()
