@@ -28,9 +28,9 @@ class IntelligenceConfig(BaseModel):
     #: Provider hub id used by llm/fusion modes. Must exist in providers.json.
     llm_provider_id: Annotated[str | None, Field(max_length=80)] = None
     #: Cheap, fast advisory model fleet (priority/failover order).
-    system1_provider_ids: tuple[Annotated[str, Field(min_length=2, max_length=80)], ...] = Field(
-        default=(), max_length=4
-    )
+    system1_provider_ids: tuple[
+        Annotated[str, Field(min_length=2, max_length=80)], ...
+    ] = Field(default=(), max_length=4)
     system1_confidence_floor: float = Field(default=0.65, ge=0, le=1)
     system1_max_leverage: float = Field(default=1.0, gt=0, le=5)
     system1_timeout_seconds: float = Field(default=5.0, gt=0, le=20)
@@ -52,4 +52,3 @@ class IntelligenceConfig(BaseModel):
     #: When True a backend failure falls down to the deterministic floor
     #: instead of propagating. Auto mode always degrades this way.
     allow_fallback_to_rules: bool = True
-

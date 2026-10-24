@@ -8,16 +8,37 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = json.loads(
-    (ROOT / "trading_gym" / "release_manifest.json").read_text(encoding="utf-8")
-)
-VERSION = str(MANIFEST["version"])
+
+
+def committed_release_version() -> str:
+    """Bind the ZIP member prefix to the manifest's immutable HEAD blob."""
+    try:
+        content = subprocess.run(
+            ["git", "-C", str(ROOT), "show", "HEAD:trading_gym/release_manifest.json"],
+            check=True,
+            capture_output=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError("Git committed release manifest is unavailable") from exc
+    version = json.loads(content)["version"]
+    if not isinstance(version, str) or not re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}", version
+    ):
+        raise ValueError("unsafe source release version")
+    return version
+
+
+VERSION = committed_release_version()
 ARCHIVE_ROOT = f"trading-gym-{VERSION}"
 OUT = (
     Path(sys.argv[1])
@@ -44,20 +65,31 @@ def included(path: Path) -> bool:
         return False
     if path.suffix in EXCLUDED_SUFFIXES:
         return False
-    if (
-        rel.parts[:3] == ("trading_gym", "data", "manifests")
-        and path.suffix == ".lock"
-    ):
+    if rel.parts[:3] == ("trading_gym", "data", "manifests") and path.suffix == ".lock":
         return False
-    if (
-        rel.parts[:2] == ("rust", "axiom_kernel")
-        and path.suffix == ".exit"
-    ):
+    if rel.parts[:2] == ("rust", "axiom_kernel") and path.suffix == ".exit":
         return False
     return True
 
 
-def source_files() -> list[Path]:
+def assert_clean_revision() -> None:
+    """Reject changes to tracked source, including staged changes.
+
+    Untracked files cannot enter the Git-indexed source archive.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(ROOT), "status", "--porcelain", "--untracked-files=no"],
+            check=True,
+            capture_output=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError("source release requires a readable Git checkout") from exc
+    if result.stdout:
+        raise RuntimeError("source release requires unmodified tracked files")
+
+
+def source_files() -> list[tuple[Path, int, str]]:
     """Preflight every tracked source file before creating the ZIP."""
     try:
         root = subprocess.run(
@@ -69,7 +101,7 @@ def source_files() -> list[Path]:
         if Path(root).resolve() != ROOT.resolve():
             raise RuntimeError("release source must be its own Git checkout")
         inventory = subprocess.run(
-            ["git", "-C", str(ROOT), "ls-files", "--cached", "-z"],
+            ["git", "-C", str(ROOT), "ls-files", "--stage", "-z"],
             check=True,
             capture_output=True,
         ).stdout
@@ -80,16 +112,29 @@ def source_files() -> list[Path]:
     if not entries:
         raise RuntimeError("empty Git source inventory")
 
-    files: list[Path] = []
+    assert_clean_revision()
+
+    files: list[tuple[Path, int, str]] = []
     casefolded: set[str] = set()
-    for entry in entries:
+    for record in entries:
+        metadata, separator, entry = record.partition("\t")
+        fields = metadata.split()
+        if not separator or len(fields) != 3 or fields[2] != "0":
+            raise ValueError(f"unsafe Git source index record: {record!r}")
+        if fields[0] == "120000":
+            raise ValueError(f"symlink-backed tracked source path: {entry!r}")
+        if fields[0] not in {"100644", "100755"}:
+            raise ValueError(f"unsupported Git source file mode: {record!r}")
+        mode = int(fields[0], 8)
+        object_id = fields[1]
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", object_id):
+            raise ValueError(f"invalid source blob identity: {record!r}")
         rel = PurePosixPath(entry)
         if rel.is_absolute() or ".." in rel.parts or not rel.parts:
             raise ValueError(f"unsafe tracked source path: {entry!r}")
         file_name = rel.name.lower()
         if file_name == ".env" or (
-            file_name.startswith(".env.")
-            and file_name not in SAFE_DOTENV_TEMPLATES
+            file_name.startswith(".env.") and file_name not in SAFE_DOTENV_TEMPLATES
         ):
             raise ValueError("tracked dotenv secret cannot enter source release")
         path = ROOT.joinpath(*rel.parts)
@@ -108,28 +153,72 @@ def source_files() -> list[Path]:
         if name.casefold() in casefolded:
             raise ValueError(f"duplicate/case-colliding release path: {name}")
         casefolded.add(name.casefold())
-        files.append(path)
-    return sorted(files)
+        files.append((path, mode, object_id))
+    return sorted(files, key=lambda item: item[0])
 
 
-files = source_files()
-with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
-    for path in files:
-        rel = path.relative_to(ROOT).as_posix()
-        archive.write(path, f"{ARCHIVE_ROOT}/{rel}")
+def copy_committed_blob(object_id: str, target) -> None:
+    """Copy immutable Git blob bytes, not a mutable worktree path."""
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", object_id):
+        raise ValueError("invalid source blob identity")
+    try:
+        with subprocess.Popen(
+            ["git", "-C", str(ROOT), "cat-file", "blob", object_id],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        ) as process:
+            if process.stdout is None:
+                raise RuntimeError("Git source blob stream is unavailable")
+            shutil.copyfileobj(process.stdout, target, length=1024 * 1024)
+            process.stdout.close()
+            if process.wait() != 0:
+                raise RuntimeError("Git source blob cannot be read")
+    except OSError as exc:
+        raise RuntimeError("Git source blob cannot be read") from exc
 
-digest = hashlib.sha256()
-with OUT.open("rb") as handle:
-    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-        digest.update(chunk)
-print(
-    json.dumps(
-        {
-            "archive": str(OUT),
-            "sha256": digest.hexdigest(),
-            "members": len(files),
-            "root": ARCHIVE_ROOT,
-        },
-        sort_keys=True,
+
+def main() -> None:
+    files = source_files()
+    # The destination is only replaced after a complete successful archive
+    # and a final worktree check. Failed runs must not publish partial ZIPs.
+    descriptor, temporary = tempfile.mkstemp(
+        prefix=".source-", suffix=".zip", dir=OUT.parent
     )
-)
+    os.close(descriptor)
+    temp_path = Path(temporary)
+    try:
+        with zipfile.ZipFile(
+            temp_path, "w", zipfile.ZIP_DEFLATED, allowZip64=True
+        ) as archive:
+            for path, mode, object_id in files:
+                rel = path.relative_to(ROOT).as_posix()
+                # Canonical metadata comes from Git, not local mtimes or modes.
+                info = zipfile.ZipInfo(f"{ARCHIVE_ROOT}/{rel}", (1980, 1, 1, 0, 0, 0))
+                info.create_system = 3
+                info.external_attr = mode << 16
+                info.compress_type = zipfile.ZIP_DEFLATED
+                with archive.open(info, "w", force_zip64=True) as target:
+                    copy_committed_blob(object_id, target)
+        assert_clean_revision()
+        digest = hashlib.sha256()
+        with temp_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        os.replace(temp_path, OUT)
+    finally:
+        temp_path.unlink(missing_ok=True)
+    print(
+        json.dumps(
+            {
+                "archive": str(OUT),
+                "sha256": digest.hexdigest(),
+                "members": len(files),
+                "root": ARCHIVE_ROOT,
+            },
+            sort_keys=True,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()

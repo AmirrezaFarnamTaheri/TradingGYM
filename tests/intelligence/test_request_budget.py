@@ -1,11 +1,14 @@
 """Request budget authorization is shared across credentials and fail-closed."""
+
 from pathlib import Path
 
 import pytest
 
 from trading_gym.agent.providers import ProviderConfig, ProviderKind
 from trading_gym.intelligence.llm_request_budget import (
-    ProviderRequestBudget, RequestBudgetExhausted, RequestBudgetUnavailable,
+    ProviderRequestBudget,
+    RequestBudgetExhausted,
+    RequestBudgetUnavailable,
 )
 from trading_gym.intelligence.llm_backend import httpx_transport
 
@@ -25,7 +28,9 @@ def test_attempts_share_one_state_and_count_failures(tmp_path):
 
 def test_reset_and_rewind(tmp_path):
     clock = [3599]
-    budget = ProviderRequestBudget(tmp_path / "requests.json", limit=1, now=lambda: clock[0])
+    budget = ProviderRequestBudget(
+        tmp_path / "requests.json", limit=1, now=lambda: clock[0]
+    )
     budget.reserve()
     with pytest.raises(RequestBudgetExhausted):
         budget.reserve()
@@ -71,43 +76,48 @@ def test_invalid_cap_rejected():
 
 def test_provider_configuration_has_strict_optional_cap():
     config = ProviderConfig(
-        provider_id="fast-one", kind=ProviderKind.LOCAL,
-        display_name="Fast model", model="fast",
+        provider_id="fast-one",
+        kind=ProviderKind.LOCAL,
+        display_name="Fast model",
+        model="fast",
         base_url="http://127.0.0.1:11434/v1",
         max_requests_per_hour=2,
     )
     assert config.max_requests_per_hour == 2
     with pytest.raises(ValueError):
-        ProviderConfig.model_validate(config.model_dump() | {"max_requests_per_hour": True})
+        ProviderConfig.model_validate(
+            config.model_dump() | {"max_requests_per_hour": True}
+        )
 
 
-def test_transport_charges_each_attempt_and_blocks_second(monkeypatch, tmp_path):
+def test_transport_charges_each_attempt_and_blocks_second(
+    monkeypatch, tmp_path, mock_httpx_client
+):
     import httpx
     import trading_gym.intelligence.llm_backend as backend
 
     monkeypatch.setattr(
-        backend, "default_request_budget_path",
+        backend,
+        "default_request_budget_path",
         lambda *_: tmp_path / "budget.json",
     )
-    # No actual network calls: the admission seam is tested against a fake
-    # client, but the real code is responsible for invoking reserve().
+    # Real HTTPX streaming over an in-memory transport; the real budget
+    # must reserve before each attempt reaches the transport.
     attempted = []
-    class FakeClient:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-        def __enter__(self):
-            return self
-        def __exit__(self, *exc):
-            return False
-        def post(self, url, **kwargs):
-            attempted.append(url)
-            return httpx.Response(200, json={
-                "choices": [{"message": {"content": "ok"}}]
-            }, request=httpx.Request("POST", url))
-    monkeypatch.setattr(httpx, "Client", FakeClient)
+
+    def handle(request):
+        attempted.append(request)
+        return httpx.Response(
+            200,
+            stream=httpx.ByteStream(b'{"choices":[{"message":{"content":"ok"}}]}'),
+        )
+
+    options = mock_httpx_client(handle)
     cfg = ProviderConfig(
-        provider_id="fast", kind=ProviderKind.LOCAL,
-        display_name="Fast model", model="fast",
+        provider_id="fast",
+        kind=ProviderKind.LOCAL,
+        display_name="Fast model",
+        model="fast",
         base_url="http://127.0.0.1:11434/v1",
         max_requests_per_hour=1,
     )
@@ -116,3 +126,8 @@ def test_transport_charges_each_attempt_and_blocks_second(monkeypatch, tmp_path)
     with pytest.raises(PermissionError, match="provider_request_budget_denied"):
         transport(cfg.base_url, [])
     assert len(attempted) == 1
+    assert 0 < options[0]["timeout"] <= 20.0
+    assert attempted[0].headers["Accept-Encoding"] == "identity"
+    assert (
+        ProviderRequestBudget(tmp_path / "budget.json", limit=1).status()["used"] == 1
+    )

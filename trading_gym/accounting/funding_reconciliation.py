@@ -3,6 +3,7 @@
 Jeeva's signed funding-payment convention and Vibe-Trading's venue readback
 inform this evidence plane. No ledger posting, order, model or risk authority.
 """
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -47,18 +48,18 @@ class FundingReceipt:
 
 
 def _identifier(value: object) -> str:
-    if type(value) is not str or not _ID.fullmatch(value):
+    if type(value) is not str or not _ID.fullmatch(value):  # noqa: E721
         raise ValueError("invalid funding identity")
     return value
 
 
 def _currency(value: object) -> None:
-    if type(value) is not str or not _CURRENCY.fullmatch(value):
+    if type(value) is not str or not _CURRENCY.fullmatch(value):  # noqa: E721
         raise ValueError("invalid funding currency")
 
 
 def _sha(value: object) -> None:
-    if type(value) is not str or not _SHA.fullmatch(value):
+    if type(value) is not str or not _SHA.fullmatch(value):  # noqa: E721
         raise ValueError("funding requires a canonical source SHA-256")
 
 
@@ -71,7 +72,7 @@ def _decimal(value: object, name: str, *, strictly_positive: bool = False) -> De
 
 
 def _time(value: object) -> int:
-    if type(value) is not int or not 0 <= value <= 10**11:
+    if type(value) is not int or not 0 <= value <= 10**11:  # noqa: E721
         raise ValueError("invalid funding timestamp")
     return value
 
@@ -85,7 +86,10 @@ def _due_valid(due: FundingDue, account: str, now: int) -> None:
     _sha(due.source_sha256)
     if due.account_id != account:
         raise ValueError("funding account mismatch")
-    if type(due.direction) is not str or due.direction not in ("long", "short"):
+    if type(due.direction) is not str or due.direction not in (  # noqa: E721
+        "long",
+        "short",
+    ):
         raise ValueError("invalid funding direction")
     _decimal(due.notional_quote, "notional", strictly_positive=True)
     if abs(_decimal(due.funding_rate, "rate")) > 1:
@@ -97,8 +101,13 @@ def _due_valid(due: FundingDue, account: str, now: int) -> None:
 def _receipt_valid(receipt: FundingReceipt, account: str, now: int) -> None:
     if not isinstance(receipt, FundingReceipt):
         raise ValueError("unrecognized funding receipt")
-    for v in (receipt.receipt_id, receipt.event_id, receipt.account_id,
-              receipt.venue_id, receipt.instrument_id):
+    for v in (
+        receipt.receipt_id,
+        receipt.event_id,
+        receipt.account_id,
+        receipt.venue_id,
+        receipt.instrument_id,
+    ):
         _identifier(v)
     _currency(receipt.currency)
     _sha(receipt.source_sha256)
@@ -124,9 +133,14 @@ def _jsonable(value: Any) -> Any:
 
 
 def _seal(value: Any) -> str:
-    return hashlib.sha256(json.dumps(
-        _jsonable(value), sort_keys=True, separators=(",", ":"), allow_nan=False,
-    ).encode("utf-8")).hexdigest()
+    return hashlib.sha256(
+        json.dumps(
+            _jsonable(value),
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def reconcile_funding(
@@ -147,9 +161,12 @@ def reconcile_funding(
     tol = _decimal(allowed_absolute_delta, "absolute tolerance")
     if not 0 <= tol <= 100:
         raise ValueError("funding absolute tolerance outside permitted bounds")
-    if (not isinstance(dues, (list, tuple)) or
-        not isinstance(receipts, (list, tuple)) or
-        len(dues) > _MAX_EVENTS or len(receipts) > _MAX_EVENTS):
+    if (
+        not isinstance(dues, (list, tuple))
+        or not isinstance(receipts, (list, tuple))
+        or len(dues) > _MAX_EVENTS
+        or len(receipts) > _MAX_EVENTS
+    ):
         raise ValueError("funding evidence exceeds bounded sequence")
     for x in dues:
         _due_valid(x, account, now)
@@ -169,7 +186,9 @@ def reconcile_funding(
     observed: dict[str, Decimal] = {}
     blockers: list[str] = []
     for x in dues:
-        amount = (-1 if x.direction == "long" else 1) * x.notional_quote * x.funding_rate
+        amount = (
+            (-1 if x.direction == "long" else 1) * x.notional_quote * x.funding_rate
+        )
         if not amount.is_finite() or abs(amount) > _MAX_VALUE:
             raise ValueError("funding cash estimate exceeds limit")
         expected[x.currency] = expected.get(x.currency, Decimal(0)) + amount
@@ -181,7 +200,9 @@ def reconcile_funding(
         else:
             r = found[0]
             if (r.venue_id, r.instrument_id, r.currency) != (
-                x.venue_id, x.instrument_id, x.currency
+                x.venue_id,
+                x.instrument_id,
+                x.currency,
             ):
                 blockers.append(f"funding_scope_mismatch:{x.event_id}")
             if r.settled_at_unix < x.effective_at_unix:
@@ -209,19 +230,28 @@ def reconcile_funding(
         "as_of_unix": now,
         "event_count": len(dues),
         "receipt_count": len(receipts),
-        "expected_cash_by_currency": {k: _amount_text(v) for k, v in sorted(expected.items())},
-        "observed_cash_by_currency": {k: _amount_text(v) for k, v in sorted(observed.items())},
-        "unexplained_cash_by_currency": {k: _amount_text(v) for k, v in differences.items()},
+        "expected_cash_by_currency": {
+            k: _amount_text(v) for k, v in sorted(expected.items())
+        },
+        "observed_cash_by_currency": {
+            k: _amount_text(v) for k, v in sorted(observed.items())
+        },
+        "unexplained_cash_by_currency": {
+            k: _amount_text(v) for k, v in differences.items()
+        },
         "blockers": sorted(set(blockers)),
         "consistent": not blockers,
         "mutation_performed": False,
         "funded_live_approved": False,
-        "inputs_sha256": _seal({
-            "dues": [asdict(x) for x in dues],
-            "receipts": [asdict(x) for x in receipts],
-            "account_id": account, "as_of_unix": now,
-            "allowed_absolute_delta": tol,
-        }),
+        "inputs_sha256": _seal(
+            {
+                "dues": [asdict(x) for x in dues],
+                "receipts": [asdict(x) for x in receipts],
+                "account_id": account,
+                "as_of_unix": now,
+                "allowed_absolute_delta": tol,
+            }
+        ),
     }
     report["report_sha256"] = _seal(report)
     return report

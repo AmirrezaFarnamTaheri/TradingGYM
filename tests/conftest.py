@@ -1,11 +1,26 @@
 import sys
 import types
 import importlib.util
+import importlib
 from pathlib import Path
 import pytest
 import os
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+if os.environ.get("TRADING_GYM_REQUIRE_REAL_DEPS") == "1":
+    for dependency in ("torch", "stable_baselines3", "typer"):
+        try:
+            installed_module = importlib.import_module(dependency)
+        except ImportError as exc:
+            raise pytest.UsageError(
+                f"Real dependency {dependency!r} is required for this test run. "
+                "Run poetry install --with dev before retrying."
+            ) from exc
+        if not getattr(installed_module, "__file__", None):
+            raise pytest.UsageError(
+                f"{dependency!r} is a substitute module, not an installed dependency."
+            )
 
 # Stub heavy optional dependencies (torch / stable_baselines3) ONLY IF NOT INSTALLED
 # This avoids loading GPU DLLs on constrained environments but allows real tests if packages exist.

@@ -59,6 +59,14 @@ pytest-cov = ">=6.0.0"
 black = "^24.4.2"
 hypothesis = ">=6.147.0,<7.0.0"
 
+[tool.poetry.group.experiments]
+optional = true
+
+[tool.poetry.group.experiments.dependencies]
+# CPU-only deployment experiments; the normal application does not require ONNX.
+onnx = "1.16.2"
+onnxruntime = "1.18.1"
+
 [tool.poetry.scripts]
 tg-train = "apps.trainer.main:main"
 tg-sim = "apps.simulator.main:app"

@@ -53,9 +53,8 @@ def constrain_system1_signal(
     if signal.action_kind is ActionKind.HOLD:
         return replace(signal, target_leverage=0.0)
     leverage = min(upper, max(lower, signal.target_leverage))
-    forbidden = (
-        (signal.action_kind is ActionKind.LONG and leverage <= 0)
-        or (signal.action_kind is ActionKind.SHORT and leverage >= 0)
+    forbidden = (signal.action_kind is ActionKind.LONG and leverage <= 0) or (
+        signal.action_kind is ActionKind.SHORT and leverage >= 0
     )
     if forbidden:
         return replace(

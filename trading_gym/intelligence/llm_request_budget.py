@@ -48,7 +48,7 @@ class ProviderRequestBudget:
         limit: int,
         now: Callable[[], float] = time.time,
     ) -> None:
-        if type(limit) is not int or not 1 <= limit <= _MAX_REQUESTS:
+        if type(limit) is not int or not 1 <= limit <= _MAX_REQUESTS:  # noqa: E721
             raise ValueError("provider request cap must be a positive bounded integer")
         self.state_path = Path(state_path)
         self.limit = limit
@@ -74,7 +74,9 @@ class ProviderRequestBudget:
             if path.is_symlink() or Path(str(path) + ".lock").is_symlink():
                 raise RequestBudgetUnavailable("provider budget state is unsafe")
         except OSError as exc:
-            raise RequestBudgetUnavailable("provider budget storage unavailable") from exc
+            raise RequestBudgetUnavailable(
+                "provider budget storage unavailable"
+            ) from exc
         return FileLock(str(path) + ".lock", timeout=2)
 
     def _read(self, window: int) -> dict[str, int]:
@@ -83,16 +85,23 @@ class ProviderRequestBudget:
             if path.is_symlink():
                 raise ValueError("symlink")
             if not path.exists():
-                return {"schema_version": 1, "window_start": window,
-                        "used": 0, "ceiling": self.limit}
+                return {
+                    "schema_version": 1,
+                    "window_start": window,
+                    "used": 0,
+                    "ceiling": self.limit,
+                }
             metadata = path.stat()
-            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > _MAX_STATE_BYTES:
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_size > _MAX_STATE_BYTES
+            ):
                 raise ValueError("unexpected file")
             state = json.loads(path.read_text(encoding="utf-8"))
             if (
                 not isinstance(state, dict)
                 or set(state) != {"schema_version", "window_start", "used", "ceiling"}
-                or any(type(state[key]) is not int for key in state)
+                or any(type(state[key]) is not int for key in state)  # noqa: E721
                 or state["schema_version"] != 1
                 or state["window_start"] < 0
                 or state["window_start"] % _SECONDS_PER_WINDOW
@@ -142,15 +151,21 @@ class ProviderRequestBudget:
             with self._lock():
                 state = self._read(window)
                 if state["window_start"] < window:
-                    state = {"schema_version": 1, "window_start": window,
-                             "used": 0, "ceiling": self.limit}
+                    state = {
+                        "schema_version": 1,
+                        "window_start": window,
+                        "used": 0,
+                        "ceiling": self.limit,
+                    }
                 else:
                     state["ceiling"] = min(state["ceiling"], self.limit)
                 if state["used"] >= state["ceiling"]:
                     # Persist a newly lowered cap so an old worker cannot
                     # ignore it by continuing to use its higher local value.
                     self._write(state)
-                    raise RequestBudgetExhausted("provider hourly request cap exhausted")
+                    raise RequestBudgetExhausted(
+                        "provider hourly request cap exhausted"
+                    )
                 state["used"] += 1
                 self._write(state)
         except Timeout as exc:
@@ -163,8 +178,12 @@ class ProviderRequestBudget:
             with self._lock():
                 state = self._read(window)
                 if state["window_start"] < window:
-                    state = {"schema_version": 1, "window_start": window,
-                             "used": 0, "ceiling": self.limit}
+                    state = {
+                        "schema_version": 1,
+                        "window_start": window,
+                        "used": 0,
+                        "ceiling": self.limit,
+                    }
                 effective = min(self.limit, state["ceiling"])
                 return {
                     "window_start": state["window_start"],

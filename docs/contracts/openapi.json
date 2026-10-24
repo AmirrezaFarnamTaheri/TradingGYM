@@ -450,6 +450,7 @@
       },
       "AccountingEventType": {
         "enum": [
+          "observation",
           "cash_adjustment",
           "fill",
           "funding",
@@ -8245,6 +8246,23 @@
         ],
         "title": "EvidenceQuality",
         "type": "string"
+      },
+      "ExampleRunRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "idempotency_key": {
+            "maxLength": 120,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._-]+$",
+            "title": "Idempotency Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotency_key"
+        ],
+        "title": "ExampleRunRequest",
+        "type": "object"
       },
       "ExecutionCalibrationRequest": {
         "additionalProperties": false,
@@ -19855,6 +19873,12 @@
       "RestoreDrillReport": {
         "additionalProperties": false,
         "properties": {
+          "application_recovery_qualified": {
+            "const": false,
+            "default": false,
+            "title": "Application Recovery Qualified",
+            "type": "boolean"
+          },
           "bytes_verified": {
             "minimum": 0,
             "title": "Bytes Verified",
@@ -19893,6 +19917,18 @@
           },
           "valid": {
             "title": "Valid",
+            "type": "boolean"
+          },
+          "validation_scope": {
+            "const": "byte_integrity_only",
+            "default": "byte_integrity_only",
+            "title": "Validation Scope",
+            "type": "string"
+          },
+          "writer_quiescence_verified": {
+            "const": false,
+            "default": false,
+            "title": "Writer Quiescence Verified",
             "type": "boolean"
           }
         },
@@ -38945,6 +38981,226 @@
         "summary": "Readiness Check"
       }
     },
+    "/api/v1/runs/example": {
+      "get": {
+        "operationId": "list_example_runs_api_v1_runs_example_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Example Runs"
+      },
+      "post": {
+        "operationId": "start_example_run_api_v1_runs_example_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExampleRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Example Run"
+      }
+    },
+    "/api/v1/runs/example/{run_id}": {
+      "get": {
+        "operationId": "get_example_run_api_v1_runs_example__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Example Run"
+      }
+    },
+    "/api/v1/runs/example/{run_id}/artifact": {
+      "get": {
+        "operationId": "get_example_artifact_api_v1_runs_example__run_id__artifact_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Example Artifact"
+      }
+    },
+    "/api/v1/runs/example/{run_id}/cancel": {
+      "post": {
+        "operationId": "cancel_example_run_api_v1_runs_example__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Example Run"
+      }
+    },
     "/api/v1/simulate/backtest": {
       "post": {
         "description": "Run backtest on specific model",
@@ -39029,6 +39285,43 @@
           }
         },
         "summary": "Get System Status"
+      }
+    },
+    "/api/v1/storage/health": {
+      "get": {
+        "operationId": "get_storage_health_api_v1_storage_health_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "title": "X-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Storage Health"
       }
     },
     "/api/v1/system/prune": {

@@ -10,16 +10,24 @@ environment action space; downstream clip/pre-trade-gate/coordinator still run.
 from __future__ import annotations
 
 from dataclasses import replace
+import time
 from typing import Any, Callable, Sequence
 
 import numpy as np
 
 from trading_gym.intelligence.base import IntelligenceBackend
-from trading_gym.intelligence.fusion_backend import FusionBackend
-from trading_gym.intelligence.rl_backend import RLPolicyBackend
+from trading_gym.intelligence.deadlines import (
+    decision_budget,
+    check_deadline,
+    DecisionDeadlineExceeded,
+)
 from trading_gym.intelligence.types import (
-    ActionKind, BackendUnavailable, DecisionSignal, InvalidDecisionSignal,
-    MarketContext, UncertainDecision
+    ActionKind,
+    BackendUnavailable,
+    DecisionSignal,
+    InvalidDecisionSignal,
+    MarketContext,
+    UncertainDecision,
 )
 
 
@@ -35,6 +43,11 @@ class IntelligencePolicyAdapter:
         fallback_backend: IntelligenceBackend | None = None,
         fallback_backends: Sequence[IntelligenceBackend] | None = None,
         context_builder: Callable[[Any], dict[str, Any]] | None = None,
+        fallback_admission: (
+            Callable[[DecisionSignal, MarketContext], DecisionSignal] | None
+        ) = None,
+        decision_timeout_seconds: float = 20.0,
+        monotonic: Callable[[], float] = time.monotonic,
     ):
         if (
             not np.isfinite(float(action_low))
@@ -48,6 +61,10 @@ class IntelligencePolicyAdapter:
             raise ValueError(
                 "action bounds must be finite, ordered and admit neutral HOLD"
             )
+        with decision_budget(decision_timeout_seconds, clock=monotonic):
+            pass  # validate before starting the runtime
+        self.decision_timeout_seconds = decision_timeout_seconds
+        self._monotonic = monotonic
         self.backend = backend
         self.fallback = fallback_backend
         self._fallback_chain = (
@@ -64,6 +81,7 @@ class IntelligencePolicyAdapter:
         #: Populated after every predict() for evidence/telemetry surfaces.
         self.last_signal: DecisionSignal | None = None
         self._context_builder = context_builder
+        self._fallback_admission = fallback_admission
 
     def _clip(self, value: float) -> float:
         return float(min(self.action_high, max(self.action_low, value)))
@@ -82,6 +100,7 @@ class IntelligencePolicyAdapter:
             or not isinstance(signal.confidence, (int, float, np.number))
             or not np.isfinite(signal.confidence)
             or not 0 <= signal.confidence <= 1
+            or (signal.action_kind is ActionKind.HOLD and signal.target_leverage != 0)
             or (signal.action_kind is ActionKind.LONG and signal.target_leverage < 0)
             or (signal.action_kind is ActionKind.SHORT and signal.target_leverage > 0)
         ):
@@ -173,18 +192,14 @@ class IntelligencePolicyAdapter:
             or context.equity <= 0
             or context.last_close <= 0
             or any(value is not None and not np.isfinite(value) for value in optional)
-            or (
-                context.prev_close is not None
-                and context.prev_close <= 0
-            )
+            or (context.prev_close is not None and context.prev_close <= 0)
             or (
                 context.drawdown_from_peak is not None
                 and not 0 <= context.drawdown_from_peak <= 1
             )
-            or type(context.is_live) is not bool
-            or context.return_basis not in {
-                "unspecified", "historical_bars", "completed_bars", "mark_updates"
-            }
+            or type(context.is_live) is not bool  # noqa: E721
+            or context.return_basis
+            not in {"unspecified", "historical_bars", "completed_bars", "mark_updates"}
             or any(not np.isfinite(value) for value in context.recent_returns)
         ):
             raise ValueError("market/account context is invalid")
@@ -208,13 +223,10 @@ class IntelligencePolicyAdapter:
         limits = context.risk_limits
         max_leverage = limits.get("max_leverage")
         min_leverage = limits.get("min_leverage")
-        if (
-            (max_leverage is not None and max_leverage < 0)
-            or (
-                max_leverage is not None
-                and min_leverage is not None
-                and min_leverage > max_leverage
-            )
+        if (max_leverage is not None and max_leverage < 0) or (
+            max_leverage is not None
+            and min_leverage is not None
+            and min_leverage > max_leverage
         ):
             raise ValueError("market/account context is invalid")
         return context
@@ -223,21 +235,21 @@ class IntelligencePolicyAdapter:
     def _run_backend(
         backend: IntelligenceBackend, context: MarketContext, observation: Any
     ) -> DecisionSignal:
-        if isinstance(backend, FusionBackend):
-            return backend.decide_with_observation(context, observation)
-        if isinstance(backend, RLPolicyBackend):
-            leverage, _ = backend.raw_predict(observation)
-            return DecisionSignal(
-                backend=backend.name,
-                action_kind=RLPolicyBackend.classify(leverage),
-                target_leverage=leverage,
-                confidence=0.7,
-                rationale=f"rl policy action {leverage:+.4f}",
-            )
-        return backend.decide(context)
+        observed = getattr(backend, "decide_with_observation", None)
+        return (
+            observed(context, observation)
+            if callable(observed)
+            else backend.decide(context)
+        )
 
-    def predict(self, observation: Any, deterministic: bool = True, **_: Any):
+    def predict(self, observation: Any, deterministic: bool = True, **kwargs: Any):
+        with decision_budget(self.decision_timeout_seconds, clock=self._monotonic):
+            return self._predict(observation, deterministic=deterministic, **kwargs)
+
+    def _predict(self, observation: Any, deterministic: bool = True, **_: Any):
         del deterministic  # downstream action gates still enforce limits
+        self.last_signal = None
+        self.last_failure_types = ()
         # Invalid market/account context is a non-degradable authority failure.
         # Never manufacture fallback trades from a corrupt observation.
         context = self._market_context(self.build_context(observation))
@@ -253,7 +265,9 @@ class IntelligencePolicyAdapter:
                 failures.append(f"{backend.name}:skipped_after_uncertainty")
                 continue
             try:
+                check_deadline()
                 signal = self._run_backend(backend, context, observation)
+                check_deadline()
                 action = self._signal_to_action(signal)
             except UncertainDecision:
                 uncertain_system1 = True
@@ -277,7 +291,13 @@ class IntelligencePolicyAdapter:
                     (*failures, f"{backend.name}:InvalidDecisionSignal")
                 )
                 raise PermissionError("invalid_intelligence_decision") from exc
-            except (RuntimeError, OSError) as exc:
+            except DecisionDeadlineExceeded:
+                self.last_failure_types = tuple(
+                    (*failures, f"{backend.name}:DecisionDeadlineExceeded")
+                )
+                self.last_signal = None
+                raise
+            except BackendUnavailable as exc:
                 # Recoverable provider/model outages may use the explicitly
                 # configured fallback chain. PermissionError was already
                 # handled above and cannot silently degrade.
@@ -292,6 +312,26 @@ class IntelligencePolicyAdapter:
                 )
                 raise PermissionError("intelligence_backend_invalid_failure") from exc
             if index:
+                self.last_failure_types = tuple(failures)
+                if self._fallback_admission is None:
+                    raise UncertainDecision(
+                        "fallback requires explicit operating-state admission"
+                    )
+                admitted = self._fallback_admission(signal, context)
+                if (
+                    not isinstance(admitted, DecisionSignal)
+                    or admitted.source_id != signal.source_id
+                    or admitted.contributing_sources != signal.contributing_sources
+                    or admitted.backend != signal.backend
+                    or admitted.confidence != signal.confidence
+                    or admitted.confidence_semantics != signal.confidence_semantics
+                ):
+                    raise PermissionError(
+                        "fallback admission changed evidence provenance"
+                    )
+                check_deadline()
+                signal = admitted
+                action = self._signal_to_action(signal)
                 signal = replace(
                     signal,
                     backend=f"{backend.name}(degraded)",
@@ -302,17 +342,9 @@ class IntelligencePolicyAdapter:
             return action, None
         self.last_failure_types = tuple(failures)
         if uncertain_system1:
-            # The review roster was exhausted. A conservative abstention
-            # prevents the runtime from taking an unrelated risk-on path.
-            signal = DecisionSignal(
-                backend="system1:abstained",
-                action_kind=ActionKind.HOLD,
-                target_leverage=0.0,
-                confidence=0.0,
-                rationale="uncertain direction; no qualified review approved exposure",
-            )
-            self.last_signal = signal
-            return self._signal_to_action(signal), None
+            # Zero target is a real flatten order, not abstention. The
+            # caller must record this blocked cycle and submit no order.
+            raise UncertainDecision("no qualified review resolved model uncertainty")
         self.last_signal = None
         raise BackendUnavailable(
             "no configured intelligence backend produced a decision"

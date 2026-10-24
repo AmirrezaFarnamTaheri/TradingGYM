@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -101,6 +102,33 @@ class MemoryAdvice:
         }
 
 
+def memory_advice(tags: Sequence[str], hits: Sequence[Experience]) -> MemoryAdvice:
+    """One advisory digest implementation for durable and derived memories."""
+    warnings, confirmations = [], []
+    loss_support = win_support = 0
+    for hit in hits:
+        # Legacy forge journals used "profitable" for an applied revision.
+        # Retain those rows as process history, but do not count them as cash
+        # outcomes. Actual financial memory is projected from ledger evidence.
+        if any(tag.startswith("forge:") for tag in hit.context_tags):
+            continue
+        outcome = hit.outcome.strip().lower()
+        if outcome in _LOSS_OUTCOMES:
+            warnings.append((hit.lesson, hit.support))
+            loss_support += hit.support
+        elif outcome in _WIN_OUTCOMES:
+            confirmations.append((hit.lesson, hit.support))
+            win_support += hit.support
+    total = loss_support + win_support
+    return MemoryAdvice(
+        tags=tuple(_normalise_tags(list(tags))),
+        warnings=tuple(warnings),
+        confirmations=tuple(confirmations),
+        net_signal=0.0 if total == 0 else (win_support - loss_support) / total,
+        consulted=len(hits),
+    )
+
+
 class PersistentExperienceMemory:
     """ExperienceMemory with a crash-safe, integrity-checked journal."""
 
@@ -113,7 +141,7 @@ class PersistentExperienceMemory:
         retention_days: float = 180.0,
         read_only: bool = False,
     ) -> None:
-        if type(read_only) is not bool:
+        if type(read_only) is not bool:  # noqa: E721
             raise ValueError("read_only must be a boolean")
         self._read_only = read_only
         self._memory = ExperienceMemory(
@@ -145,6 +173,8 @@ class PersistentExperienceMemory:
         if self._read_only:
             raise PermissionError("read-only memory cannot append records")
         timestamp = float(created_at) if created_at is not None else _now()
+        if not math.isfinite(timestamp):
+            raise ValueError("experience timestamp must be finite")
         tags = _normalise_tags(context_tags)
         bounded_lesson = lesson[:400]
         entry: dict[str, Any] = {
@@ -152,6 +182,7 @@ class PersistentExperienceMemory:
             "outcome": outcome,
             "lesson": bounded_lesson,
             "created_at": timestamp,
+            "recorded_at": _now(),
         }
         self._append_journal(entry)
         self._project()
@@ -165,7 +196,17 @@ class PersistentExperienceMemory:
     def query(
         self, tags: list[str], *, k: int = 3, now: float | None = None
     ) -> list[Experience]:
-        return self._memory.query(tags, k=k, now=now)
+        now = _now() if now is None else now
+        if not math.isfinite(now):
+            raise ValueError("memory as-of time must be finite")
+        # Consolidation must happen AFTER the time filter. Filtering only the
+        # latest consolidated timestamp either leaks future support or hides
+        # an earlier valid observation of the same lesson.
+        memory = ExperienceMemory(
+            self._memory.max_entries, self._memory.recency_half_life_seconds
+        )
+        memory.replace_entries(self._projection(as_of=now))
+        return memory.query(tags, k=k, now=now)
 
     def advice(
         self,
@@ -182,28 +223,7 @@ class PersistentExperienceMemory:
         no directional evidence. Advisory: it carries no authority.
         """
 
-        hits = self._memory.query(list(tags), k=max(0, k), now=now)
-        warnings: list[tuple[str, int]] = []
-        confirmations: list[tuple[str, int]] = []
-        loss_support = 0
-        win_support = 0
-        for hit in hits:
-            outcome = hit.outcome.strip().lower()
-            if outcome in _LOSS_OUTCOMES:
-                warnings.append((hit.lesson, hit.support))
-                loss_support += hit.support
-            elif outcome in _WIN_OUTCOMES:
-                confirmations.append((hit.lesson, hit.support))
-                win_support += hit.support
-        total = loss_support + win_support
-        net = 0.0 if total == 0 else (win_support - loss_support) / total
-        return MemoryAdvice(
-            tags=tuple(_normalise_tags(list(tags))),
-            warnings=tuple(warnings),
-            confirmations=tuple(confirmations),
-            net_signal=float(net),
-            consulted=len(hits),
-        )
+        return memory_advice(tags, self.query(list(tags), k=max(0, k), now=now))
 
     def entries(self) -> tuple[Experience, ...]:
         """Consolidated projection, oldest first."""
@@ -330,7 +350,7 @@ class PersistentExperienceMemory:
             raise MemoryJournalIntegrityError("experience journal anchor is malformed")
         seq = anchor.get("seq")
         head = anchor.get("head")
-        if type(seq) is not int or not isinstance(head, str):
+        if type(seq) is not int or not isinstance(head, str):  # noqa: E721
             raise MemoryJournalIntegrityError("experience journal anchor is malformed")
         expected_seq = entries[-1]["seq"] if entries else 0
         expected_head = entries[-1]["record_sha256"] if entries else _GENESIS
@@ -342,6 +362,9 @@ class PersistentExperienceMemory:
             )
 
     def _project(self) -> None:
+        self._memory.replace_entries(self._projection())
+
+    def _projection(self, *, as_of: float | None = None) -> list[Experience]:
         """Rebuild the consolidated in-memory projection from the journal.
 
         Records with identical (tags, outcome, lesson) fold into one
@@ -355,6 +378,15 @@ class PersistentExperienceMemory:
         order: list[tuple[tuple[str, ...], str, str]] = []
         for entry in self._journal:
             record = entry["record"]
+            if (
+                as_of is not None
+                and max(
+                    float(record["created_at"]),
+                    float(record.get("recorded_at", record["created_at"])),
+                )
+                > as_of
+            ):
+                continue
             tags = tuple(record["context_tags"])
             key = (tags, str(record["outcome"]), str(record["lesson"]))
             created = float(record["created_at"])
@@ -381,7 +413,7 @@ class PersistentExperienceMemory:
                 last_seen_at=max(existing.observed_at, created),
             )
         projection = [folded[key] for key in order]
-        self._memory.replace_entries(projection)
+        return projection
 
     def _by_material(
         self, tags: tuple[str, ...], outcome: str, lesson: str

@@ -1,5 +1,7 @@
-"""Omni-intelligence layer tests: backends, ladder parsing, fusion, registry,
+"""Omni-intelligence layer tests: backends, strict admission, fusion, registry,
 adapter clipping, and default-off safety."""
+
+from dataclasses import asdict
 
 import numpy as np
 import pytest
@@ -17,6 +19,11 @@ from trading_gym.intelligence import (
     build_intelligence_policy,
 )
 from trading_gym.intelligence.llm_backend import LLMTransportResponse
+from trading_gym.intelligence.operating_state import (
+    OperatingPolicy,
+    OperatingSnapshot,
+    fallback_guard,
+)
 from trading_gym.intelligence.types import ActionKind, BackendUnavailable
 
 
@@ -33,6 +40,35 @@ def _ctx(**over):
     )
     base.update(over)
     return MarketContext(**base)
+
+
+def _paper_context(_observation):
+    return asdict(_ctx())
+
+
+def _paper_fallback_admission():
+    context = _ctx()
+    snapshot = OperatingSnapshot(
+        account_id="paper-fixture",
+        mode="paper",
+        as_of=1000.0,
+        market_observed_at=1000.0,
+        account_observed_at=1000.0,
+        position_units=context.position_units,
+        equity=context.equity,
+        price=context.last_close,
+        orders_known=True,
+    )
+    policy = OperatingPolicy(
+        profile_id="explicit-rules-fallback",
+        account_id=snapshot.account_id,
+        mode=snapshot.mode,
+        max_abs_leverage=1.0,
+        max_age_seconds=5.0,
+        allow_open_from_flat=True,
+        allow_risk_increase=True,
+    )
+    return fallback_guard(lambda: snapshot, policy)
 
 
 # ---------------------------------------------------------------------------
@@ -110,14 +146,17 @@ def test_adapter_falls_back_to_rules_when_backend_unavailable():
         action_low=-20.0,
         action_high=20.0,
         fallback_backend=DeterministicRuleBackend(),
+        context_builder=_paper_context,
+        fallback_admission=_paper_fallback_admission(),
     )
     action, _ = adapter.predict(np.zeros(6))
-    assert float(action[0]) != 0.0 or True  # finite action produced
+    assert np.isfinite(action).all()
+    assert 0 < float(action[0]) <= 1.0
     assert adapter.last_signal.backend.startswith("rules(degraded)")
 
 
 # ---------------------------------------------------------------------------
-# LLM parse ladder (fake transport — no network)
+# Strict LLM decision admission (fake transport — no network)
 # ---------------------------------------------------------------------------
 
 
@@ -157,31 +196,42 @@ def test_llm_strict_json_path():
     assert "[strict_json]" in sig.rationale
 
 
-def test_llm_lenient_json_fenced_fallback():
+def test_llm_fenced_prose_cannot_create_a_decision():
     llm, transport = _llm_with(
         'Sure!\n```json\n{"action":"short","target_leverage":-1}\n```'
     )
-    sig = llm.decide(_ctx())
-    assert sig.action_kind is ActionKind.SHORT
-    assert "[lenient_json]" in sig.rationale
+    with pytest.raises(PermissionError, match="unparseable_model_output"):
+        llm.decide(_ctx())
+    assert transport.calls == 1
 
 
-def test_llm_keyword_last_resort():
+def test_llm_direction_keyword_cannot_create_a_decision():
     llm, transport = _llm_with("Honestly? I would go LONG here.")
-    sig = llm.decide(_ctx())
-    assert sig.action_kind is ActionKind.LONG
-    assert "[keyword]" in sig.rationale
+    with pytest.raises(PermissionError, match="unparseable_model_output"):
+        llm.decide(_ctx())
+    assert transport.calls == 1
 
 
-def test_llm_unparseable_raises_backend_unavailable():
+def test_llm_unparseable_is_an_authority_denial():
     llm, _ = _llm_with("42")
-    with pytest.raises(BackendUnavailable):
+    with pytest.raises(PermissionError, match="unparseable_model_output"):
         llm.decide(_ctx())
 
 
-def test_llm_hold_zeroes_leverage_even_if_model_hallucinates_one():
-    llm, _ = _llm_with('{"action":"hold","target_leverage":9}')
+def test_llm_contradictory_hold_is_not_repaired_into_a_flatten_order():
+    llm, _ = _llm_with(
+        '{"action":"hold","target_leverage":9,"confidence":0.8,"rationale":"fixture"}'
+    )
+    with pytest.raises(PermissionError, match="invalid_structured_response"):
+        llm.decide(_ctx())
+
+
+def test_llm_explicit_flat_target_remains_valid():
+    llm, _ = _llm_with(
+        '{"action":"hold","target_leverage":0,"confidence":0.8,"rationale":"fixture"}'
+    )
     sig = llm.decide(_ctx())
+    assert sig.action_kind is ActionKind.HOLD
     assert sig.target_leverage == 0.0
 
 
@@ -253,12 +303,11 @@ def test_fusion_size_scale_and_agreement_bonus():
     assert out.confidence == pytest.approx(0.65)
 
 
-def test_fusion_governor_failure_degrades_to_pure_rl():
+def test_fusion_governor_failure_cannot_release_ungoverned_rl():
     rl = _Scripted("rl", _sig(ActionKind.LONG, 3.0, 0.8))
     gov = _Scripted("llm", error=True)
-    out = FusionBackend(rl_backend=rl, llm_backend=gov).decide(_ctx())
-    assert out.action_kind is ActionKind.LONG
-    assert "governor-unavailable" in out.rationale
+    with pytest.raises(BackendUnavailable):
+        FusionBackend(rl_backend=rl, llm_backend=gov).decide(_ctx())
 
 
 def test_fusion_without_rl_raises():
@@ -385,14 +434,14 @@ def test_fusion_adapter_uses_real_rl_prediction_then_llm_veto():
     assert "VETOED" in adapter.last_signal.rationale
 
 
-def test_fusion_governor_outage_falls_back_to_rl_and_recovers():
+def test_fusion_governor_outage_blocks_then_recovers():
     model = _FakeModel(3.0)
     gov = _Scripted("llm", error=True)
     fusion = FusionBackend(rl_backend=RLPolicyBackend(model), llm_backend=gov)
     adapter = IntelligencePolicyAdapter(fusion, action_low=-5, action_high=20)
-    unavailable_action, _ = adapter.predict(np.zeros(6))
-    assert float(unavailable_action[0]) == pytest.approx(3.0)
-    assert "governor-unavailable" in adapter.last_signal.rationale
+    with pytest.raises(BackendUnavailable):
+        adapter.predict(np.zeros(6))
+    assert adapter.last_signal is None
     gov.error = False
     gov.signal = _sig(ActionKind.LONG, 2.5, 0.9)
     healthy_action, _ = adapter.predict(np.zeros(6))
@@ -403,7 +452,8 @@ def test_fusion_governor_outage_falls_back_to_rl_and_recovers():
 def test_fusion_executor_outage_uses_explicit_rules_fallback():
     class DeadModel:
         def predict(self, obs, deterministic=True):
-            raise RuntimeError("GPU down")
+            raise BackendUnavailable("GPU unavailable")
+
     fusion = FusionBackend(
         rl_backend=RLPolicyBackend(DeadModel()),
         llm_backend=_Scripted("llm", _sig(ActionKind.HOLD, 0.0, 0.9)),
@@ -413,17 +463,25 @@ def test_fusion_executor_outage_uses_explicit_rules_fallback():
         action_low=-5,
         action_high=20,
         fallback_backend=DeterministicRuleBackend(),
+        context_builder=_paper_context,
+        fallback_admission=_paper_fallback_admission(),
     )
     action, _ = adapter.predict(np.zeros(6))
     assert np.isfinite(action).all()
+    assert 0 < float(action[0]) <= 1.0
     assert adapter.last_signal.backend == "rules(degraded)"
 
 
 def test_llm_inference_does_not_depend_on_an_unrelated_health_endpoint(monkeypatch):
     import trading_gym.intelligence.llm_backend as mod
-    llm, transport = _llm_with('{"action": "long", "target_leverage": 1}')
+
+    llm, transport = _llm_with(
+        '{"action":"long","target_leverage":1,"confidence":0.8,"rationale":"fixture"}'
+    )
+
     def broken_probe(*args, **kwargs):
         raise RuntimeError("optional models endpoint down")
+
     monkeypatch.setattr(mod, "provider_status", broken_probe)
     assert llm.is_available() is True  # injected transport does not probe
     result = llm.decide(_ctx())
@@ -434,16 +492,27 @@ def test_llm_inference_does_not_depend_on_an_unrelated_health_endpoint(monkeypat
 def test_llm_health_probe_exception_isolated_without_secret_leak(monkeypatch):
     import trading_gym.intelligence.llm_backend as mod
     from trading_gym.agent.providers import ProviderConfig, ProviderKind
+
     cfg = ProviderConfig(
-        provider_id="local-broken", kind=ProviderKind.LOCAL,
-        display_name="local", model="model", base_url="http://127.0.0.1:11434/v1",
+        provider_id="local-broken",
+        kind=ProviderKind.LOCAL,
+        display_name="local",
+        model="model",
+        base_url="http://127.0.0.1:11434/v1",
     )
     llm = LLMDecisionBackend(cfg)
+    probes = []
+
     def broken_probe(*args, **kwargs):
+        probes.append(True)
         raise ValueError("my-private-credential")
+
     monkeypatch.setattr(mod, "provider_status", broken_probe)
-    assert llm.is_available() is False
+    # Cheap configured availability must not depend on a model-list endpoint.
+    assert llm.is_available() is True
+    assert probes == []
     health = llm.health()
+    assert len(probes) == 1
     assert health.available is False
     assert health.detail == "probe_failed:ValueError"
     assert "my-private-credential" not in repr(health)
@@ -451,24 +520,35 @@ def test_llm_health_probe_exception_isolated_without_secret_leak(monkeypatch):
 
 def test_llm_rejects_oversized_response_without_parser_work():
     llm, _ = _llm_with("X" * 66_000)
-    with pytest.raises(BackendUnavailable, match="bounded text"):
+    with pytest.raises(PermissionError, match="response_text_budget_exceeded"):
         llm.decide(_ctx())
 
 
 def test_model_free_auto_uses_healthy_llm_instead_of_rules(monkeypatch):
     from trading_gym.agent.providers import ProviderConfig, ProviderKind
-    from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
-    from trading_gym.intelligence.llm_backend import LLMDecisionBackend
-    config = ProviderConfig(
-        provider_id="local-model", kind=ProviderKind.LOCAL,
-        display_name="Local model", model="m", base_url="http://127.0.0.1:11434/v1",
+    from trading_gym.common.intelligence_config import (
+        IntelligenceConfig,
+        IntelligenceMode,
     )
+    from trading_gym.intelligence.llm_backend import LLMDecisionBackend
+
+    config = ProviderConfig(
+        provider_id="local-model",
+        kind=ProviderKind.LOCAL,
+        display_name="Local model",
+        model="m",
+        base_url="http://127.0.0.1:11434/v1",
+    )
+
     class StubRepository:
         def list(self):
             return [config]
+
     monkeypatch.setattr(LLMDecisionBackend, "is_available", lambda _self: True)
     adapter = build_intelligence_policy(
-        config=IntelligenceConfig(mode=IntelligenceMode.AUTO, llm_provider_id="local-model"),
+        config=IntelligenceConfig(
+            mode=IntelligenceMode.AUTO, llm_provider_id="local-model"
+        ),
         model=None,
         action_low=-5,
         action_high=20,
@@ -478,7 +558,11 @@ def test_model_free_auto_uses_healthy_llm_instead_of_rules(monkeypatch):
 
 
 def test_model_free_auto_degrades_to_rules_without_provider():
-    from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
+    from trading_gym.common.intelligence_config import (
+        IntelligenceConfig,
+        IntelligenceMode,
+    )
+
     adapter = build_intelligence_policy(
         config=IntelligenceConfig(mode=IntelligenceMode.AUTO),
         model=None,
@@ -502,9 +586,7 @@ def test_market_context_builder_uses_true_equity_prices_and_returns():
         equity_history=[1000.0, 1200.0, 900.0],
         _margin_level=lambda price: 0.4,
     )
-    context = build_market_context(
-        SimpleNamespace(unwrapped=state), symbol="BTCUSDT"
-    )
+    context = build_market_context(SimpleNamespace(unwrapped=state), symbol="BTCUSDT")
     assert context["symbol"] == "BTCUSDT"
     assert context["equity"] == 600
     assert context["position_units"] == 1.25
@@ -560,9 +642,7 @@ def test_real_context_failure_prevents_fabricated_rules_execution():
         equity_history=[1000.0],
     )
     with pytest.raises(ValueError, match="account or price state"):
-        build_market_context(
-            SimpleNamespace(unwrapped=state), symbol="BTCUSDT"
-        )
+        build_market_context(SimpleNamespace(unwrapped=state), symbol="BTCUSDT")
 
 
 def test_fusion_governor_receives_actual_account_context():
@@ -575,9 +655,7 @@ def test_fusion_governor_receives_actual_account_context():
             self.last_context = context
             return super().decide(context)
 
-    governor = CapturingGovernor(
-        "llm", _sig(ActionKind.LONG, 2.5, 0.8)
-    )
+    governor = CapturingGovernor("llm", _sig(ActionKind.LONG, 2.5, 0.8))
     state = SimpleNamespace(
         live_mode=True,
         price=np.array([130.0]),
@@ -596,9 +674,7 @@ def test_fusion_governor_receives_actual_account_context():
         fusion,
         action_low=-5,
         action_high=20,
-        context_builder=lambda obs: build_market_context(
-            env, symbol="BTCUSDT"
-        ),
+        context_builder=lambda obs: build_market_context(env, symbol="BTCUSDT"),
     )
     action, _ = policy.predict(np.zeros(6))
     assert float(action[0]) == pytest.approx(2.0)
@@ -606,6 +682,4 @@ def test_fusion_governor_receives_actual_account_context():
     assert governor.last_context.equity == pytest.approx(1500.0)
     assert governor.last_context.last_close == 130.0
     assert governor.last_context.prev_close == 120.0
-    assert governor.last_context.recent_returns[0] == pytest.approx(
-        130 / 120 - 1
-    )
+    assert governor.last_context.recent_returns[0] == pytest.approx(130 / 120 - 1)

@@ -15,7 +15,7 @@ from trading_gym.intelligence.system1_backend import System1DecisionBackend
 from trading_gym.intelligence.systemone_native_backend import (
     NativeSystemOneDecisionBackend,
 )
-from trading_gym.intelligence.types import BackendUnavailable
+from trading_gym.intelligence.types import BackendUnavailable, UncertainDecision
 
 
 def _market(_observation):
@@ -56,40 +56,50 @@ def _fast(*, confidence):
     )
 
 
-def _adapter(primary, *fallback):
+def _adapter(primary, *fallback, admission=None):
     return IntelligencePolicyAdapter(
         primary,
         action_low=-5,
         action_high=5,
         fallback_backends=fallback,
+        fallback_admission=admission,
         context_builder=_market,
     )
 
 
 def test_uncertain_fast_direction_cannot_turn_into_risk_on_rules():
     policy = _adapter(_fast(confidence=0.15), DeterministicRuleBackend())
-    action, _ = policy.predict(np.zeros(6))
-    assert float(action[0]) == 0.0
-    assert policy.last_signal is not None
-    assert policy.last_signal.target_leverage == 0
-    assert "uncertain" in policy.last_signal.rationale
+    with pytest.raises(UncertainDecision, match="no qualified review"):
+        policy.predict(np.zeros(6))
+    assert policy.last_signal is None
+    assert any(
+        "skipped_after_uncertainty" in reason for reason in policy.last_failure_types
+    )
 
 
 def test_uncertain_fast_can_be_reviewed_by_another_confident_fast():
     first = _fast(confidence=0.15)
     second = _fast(confidence=0.98)
-    policy = _adapter(first, second, DeterministicRuleBackend())
+    admitted = []
+
+    def admit(signal, context):
+        admitted.append((signal, context))
+        return signal
+
+    policy = _adapter(first, second, DeterministicRuleBackend(), admission=admit)
     action, _ = policy.predict(np.zeros(6))
     assert 0 < float(action[0]) <= 1
     assert policy.last_signal is not None
     assert policy.last_signal.backend.endswith("(degraded)")
+    assert len(admitted) == 1
+    assert admitted[0][1].position_units == 0.0
 
 
 def test_uncertain_fast_with_no_reviewer_abstains():
     policy = _adapter(_fast(confidence=0.1))
-    action, _ = policy.predict(np.zeros(6))
-    assert float(action[0]) == 0.0
-    assert policy.last_signal is not None
+    with pytest.raises(UncertainDecision, match="no qualified review"):
+        policy.predict(np.zeros(6))
+    assert policy.last_signal is None
 
 
 def test_uncertain_native_direction_does_not_promote_rules():
@@ -109,19 +119,31 @@ def test_uncertain_native_direction_does_not_promote_rules():
         },
     )
     policy = _adapter(native, DeterministicRuleBackend())
-    action, _ = policy.predict(np.zeros(6))
-    assert float(action[0]) == 0.0
-    assert policy.last_signal is not None
+    with pytest.raises(UncertainDecision, match="no qualified review"):
+        policy.predict(np.zeros(6))
+    assert policy.last_signal is None
 
 
-def test_provider_outage_is_separate_from_model_uncertainty():
+@pytest.mark.parametrize("admitted", [False, True])
+def test_provider_outage_is_separate_from_model_uncertainty(admitted):
     class Down:
         name = "temporary-outage"
 
         def decide(self, context):
             raise BackendUnavailable("connection failure")
 
-    policy = _adapter(Down(), DeterministicRuleBackend())
+    policy = _adapter(
+        Down(),
+        DeterministicRuleBackend(),
+        admission=(lambda signal, context: signal) if admitted else None,
+    )
+    if not admitted:
+        with pytest.raises(
+            UncertainDecision, match="explicit operating-state admission"
+        ):
+            policy.predict(np.zeros(6))
+        assert policy.last_signal is None
+        return
     action, _ = policy.predict(np.zeros(6))
     assert float(action[0]) > 0
 
@@ -193,13 +215,15 @@ def test_schema_break_in_fast_output_does_not_fallback_to_rules():
     fast = System1DecisionBackend(
         _provider(),
         transport=lambda _url, _messages: LLMTransportResponse(
-            content=json.dumps({
-                "action": "long",
-                "target_leverage": 0.8,
-                "confidence": 0.8,
-                "rationale": "bad extra",
-                "override_risk": True,
-            })
+            content=json.dumps(
+                {
+                    "action": "long",
+                    "target_leverage": 0.8,
+                    "confidence": 0.8,
+                    "rationale": "bad extra",
+                    "override_risk": True,
+                }
+            )
         ),
     )
     policy = _adapter(fast, DeterministicRuleBackend())
@@ -213,19 +237,19 @@ def test_weak_strict_deep_review_abstains_without_rules_override():
     deep = LLMDecisionBackend(
         _provider(),
         transport=lambda _url, _messages: LLMTransportResponse(
-            content=json.dumps({
-                "action": "long",
-                "target_leverage": 2.0,
-                "confidence": 0.10,
-                "rationale": "low confidence",
-            })
+            content=json.dumps(
+                {
+                    "action": "long",
+                    "target_leverage": 2.0,
+                    "confidence": 0.10,
+                    "rationale": "low confidence",
+                }
+            )
         ),
         strict_json_only=True,
         review_confidence_floor=0.70,
     )
-    policy = _adapter(
-        _fast(confidence=0.1), deep, DeterministicRuleBackend()
-    )
-    action, _ = policy.predict(np.zeros(6))
-    assert float(action[0]) == 0
-    assert policy.last_signal.backend == "system1:abstained"
+    policy = _adapter(_fast(confidence=0.1), deep, DeterministicRuleBackend())
+    with pytest.raises(UncertainDecision, match="no qualified review"):
+        policy.predict(np.zeros(6))
+    assert policy.last_signal is None

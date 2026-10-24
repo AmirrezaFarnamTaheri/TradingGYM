@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-23T19:29:44.548540+00:00",
+  "qualification": "Recorded local execution only; not exact-lock, cross-platform, browser, container, venue or financial-performance certification.",
+  "source": {
+    "base_commit": "3cdbc0a563a81a3a7d8e9c49b9ce7ef314e97e1b",
+    "validated_code_commit": "865beaf83ae067923aa293c1fc8b17b2f0fb8400",
+    "validated_tree": "4afaffb779b0a5c25457faf031ba6ee48d3d602f",
+    "file_count": 1148,
+    "source_sha256": "5b16788cb0ea950565a6b318488367dfa1c385eb141ee2b25907cf00422ed32e",
+    "digest_method": "Sort repository paths; hash each path plus NUL plus the SHA-256 digest of its file bytes into one SHA-256 accumulator.",
+    "following_documentation_only_changes": [
+      "docs/AUDIT_INTEGRATION.md",
+      "docs/reviews/2026-10-23/validation.json"
+    ]
+  },
+  "supplied_bundle": {
+    "parent_patches": 40,
+    "subitems": 234,
+    "original_file_afterimages": 150,
+    "verified_patch_hashes": 40,
+    "verified_checksum_entries": 109,
+    "combined_patch_sha256": "f510d090cdb94f112686860e9f73d09ac94d37aad1cd7ffd7275dd79d1c5fdc1",
+    "source_coverage_sha256": "ddc804839155e5a03252d6e7b0d0a3d2b960a76448919d74840185ba1711fbfa",
+    "source_outcomes": {
+      "implemented": 171,
+      "partial": 22,
+      "experimental": 30,
+      "external": 11
+    }
+  },
+  "runtime": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+    "recorded_packages": {
+      "pytest": "8.4.2",
+      "numpy": "1.26.4",
+      "pandas": "2.3.3",
+      "scipy": "1.17.1",
+      "torch": "2.2.2+cpu",
+      "stable-baselines3": "2.2.1",
+      "gymnasium": "0.29.1",
+      "numba": "0.59.1",
+      "optuna": "3.6.2",
+      "pydantic": "2.12.4",
+      "fastapi": "0.109.2",
+      "httpx": "0.27.2",
+      "onnx": "1.17.0",
+      "onnxruntime": "1.21.1",
+      "typer": "0.9.4",
+      "click": "8.5.0",
+      "mlflow": "3.6.0",
+      "pyarrow": "15.0.2",
+      "black": "24.10.0",
+      "ruff": "0.2.2",
+      "mypy": "1.18.2"
+    },
+    "recorded_differences_from_lock": {
+      "scipy": {
+        "local": "1.17.1",
+        "locked": "1.16.3"
+      },
+      "torch": {
+        "local": "2.2.2+cpu",
+        "locked": "2.9.1"
+      },
+      "stable-baselines3": {
+        "local": "2.2.1",
+        "locked": "2.7.0"
+      },
+      "onnx": {
+        "local": "1.17.0",
+        "locked": "1.16.2"
+      },
+      "onnxruntime": {
+        "local": "1.21.1",
+        "locked": "1.18.1"
+      },
+      "click": {
+        "local": "8.5.0",
+        "locked": "8.3.0"
+      }
+    }
+  },
+  "checks": {
+    "full_python": {
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-v",
+        "--tb=short"
+      ],
+      "counts": {
+        "tests": 3504,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 43,
+        "passed": 3461
+      },
+      "exit_code": 0,
+      "normal_conftest": true,
+      "real_dependencies_required": true,
+      "isolated_application_state": true,
+      "elapsed_seconds": 306.745,
+      "started_at": "2026-10-23T19:18:24.785538+00:00",
+      "finished_at": "2026-10-23T19:23:31.788255+00:00",
+      "source_unchanged": true,
+      "log_sha256": "67a97a00c445a32e6b3eef4532641c470f68ebf3d1ea2a5acc3c5bcf0095355f",
+      "junit_sha256": "4e1e4c880c746c4410d77576a5865f82686333cbc275b4c19d15a635d8904bc1"
+    },
+    "isolated_contracts": {
+      "command": [
+        "python",
+        "scripts/run_contract_tests.py",
+        "--junitxml=artifacts/contracts.xml",
+        "--tb=short"
+      ],
+      "counts": {
+        "tests": 396,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 396
+      },
+      "exit_code": 0,
+      "test_files": 55,
+      "noconftest": true,
+      "real_dependencies_required": true,
+      "elapsed_seconds": 131.01,
+      "source_unchanged": true,
+      "log_sha256": "c8b1c2742b810500c3f0633ff4e3d38b585dbf0dfc0b48c031e39831d3da5d57",
+      "junit_sha256": "5938dbef766eef2f2a95f4418bd799db29ba0a67336e9edaff2b8cdc51dc6023"
+    },
+    "frontend": {
+      "command": [
+        "npm",
+        "run",
+        "test:ci",
+        "--",
+        "--maxWorkers=2",
+        "--minWorkers=1"
+      ],
+      "cwd": "frontend",
+      "passed": 113,
+      "files": 21,
+      "exit_code": 0,
+      "source_file_count": 66,
+      "source_sha256": "f52b09a9a498cb695627a9566f45e9cc5b4eff06fcf8ff4c51ffb388e2053384",
+      "source_unchanged": true,
+      "elapsed_seconds": 31.686,
+      "log_sha256": "14ac6c9858b4f828dafbaa15df8c869cc714b19509a790f210b41b7c474dab6f"
+    },
+    "native_node": {
+      "command": [
+        "node",
+        "--test",
+        "frontend/src/jobResponse.node.test.mjs",
+        "frontend/src/wallets/trustWallet.node.test.js"
+      ],
+      "passed": 3,
+      "files": 2,
+      "skipped": 0,
+      "exit_code": 0,
+      "log_sha256": "64834d89415059d306aa64f9c0360b1caead1d814e1c2f8325a98d3b3d6c3fc2"
+    },
+    "frontend_production_build": {
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "cwd": "frontend",
+      "exit_code": 0,
+      "reported_seconds": 9.57,
+      "log_sha256": "fe537e004f6ea831287cb991bb97d60a02d3c646da8ccf9d91207a87d1087ac5",
+      "scope": "Build completed after the last frontend source edit; frontend source remained unchanged afterward."
+    },
+    "launcher": {
+      "command": [
+        "python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/scripts",
+        "-p",
+        "test_gui_bootstrap.py",
+        "-v"
+      ],
+      "passed": 7,
+      "exit_code": 0,
+      "scope": "Mocked launcher/service/browser checks; not interactive browser or Windows qualification."
+    },
+    "static": {
+      "ruff": "passed",
+      "black": {
+        "version": "24.10.0",
+        "files": 849,
+        "result": "passed"
+      },
+      "flake8": {
+        "version": "7.3.0",
+        "selection": "E9,F63,F7,F82",
+        "result": "passed"
+      },
+      "mypy": {
+        "source_files": 36,
+        "scope": "scripts/project.py TYPECHECK_TARGETS",
+        "result": "passed"
+      },
+      "openapi": "matched",
+      "module_accountability": {
+        "modules": 389,
+        "result": "matched"
+      },
+      "release_manifest": "passed",
+      "workflow_pins": "passed",
+      "recovered_target_coverage": "passed",
+      "release_permissions": "passed",
+      "poetry_lock_consistency": "passed",
+      "log_sha256": {
+        "black-complete.log": "4080ec903b7a7de33b9a7d272d9e156e1b0d1fa7a03eea9eb69154f8b86cdc40",
+        "flake8-complete.log": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "typecheck-complete.log": "60f28b94716a9681d0ca533e2fe42680ae0961635c17d3110675fc53df4ea115",
+        "manifests-isolated-complete.log": "f8ae7ba4b36114e4f7929270ecc3857249ad9623c3f66e3acf82a1e1c8d29560"
+      }
+    }
+  },
+  "full_suite_skips": [
+    {
+      "reason": "no compiled axiom_kernel artifact (build rust/axiom_kernel)",
+      "count": 9,
+      "test_modules": {
+        "tests.playground.test_kernel_parity.TestKernelParity": 9
+      }
+    },
+    {
+      "reason": "native ADX artifact unavailable",
+      "count": 1,
+      "test_modules": {
+        "tests.scripts.test_adx_benchmark": 1
+      }
+    },
+    {
+      "reason": "compiled optional kernel unavailable",
+      "count": 32,
+      "test_modules": {
+        "tests.strategy_lab.test_adx_native_parity": 32
+      }
+    },
+    {
+      "reason": "Skipping flaky performance scaling test",
+      "count": 1,
+      "test_modules": {
+        "tests.test_feature_performance.TestNumbaPerformance": 1
+      }
+    }
+  ],
+  "still_unqualified": [
+    "Exact Poetry lock on hosted Linux/Windows runners, including compiled native artifacts.",
+    "Installed interactive browser journey and a built-container smoke test.",
+    "Full fresh-model-to-persistent-paper application/account workflow qualification.",
+    "Real market/provider/venue costs, fills, latency and economic performance.",
+    "All-writer consistent recovery snapshot plus isolated financial reconciliation.",
+    "Hard cancellation of arbitrary CPU/DNS work beyond bounded synchronous provider admission.",
+    "Production storage retention/capacity and optional admitted account/state integrations."
+  ]
+}

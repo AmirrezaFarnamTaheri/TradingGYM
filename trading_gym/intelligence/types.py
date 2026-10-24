@@ -10,6 +10,8 @@ from typing import Any
 
 
 class ActionKind(str, Enum):
+    # Legacy wire name: HOLD is an explicit zero/flat target. Missing advice
+    # and uncertainty must raise, never be represented by this action.
     HOLD = "hold"
     LONG = "long"
     SHORT = "short"
@@ -81,6 +83,13 @@ class DecisionSignal:
     target_leverage: float
     confidence: float  # 0..1, advisory
     rationale: str
+    # An evidence source may have several presentation aliases. This ID is
+    # provenance, not proof of statistical independence or calibration.
+    source_id: str = ""
+    confidence_semantics: str = "advisory_score"
+    # Role-qualified immediate contributors for a composite decision. Their
+    # identities are evidence lineage, not independent votes or probabilities.
+    contributing_sources: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if type(self.action_kind) is not ActionKind:
@@ -89,11 +98,31 @@ class DecisionSignal:
             raise InvalidDecisionSignal("target_leverage must be finite")
         if not np_finite(self.confidence) or not 0.0 <= self.confidence <= 1.0:
             raise InvalidDecisionSignal("confidence must be within [0, 1]")
+        if not isinstance(self.source_id, str) or len(self.source_id) > 300:
+            raise InvalidDecisionSignal("invalid evidence source identity")
+        if self.confidence_semantics not in {
+            "advisory_score",
+            "vote_agreement",
+            "model_concentration",
+        }:
+            raise InvalidDecisionSignal("unsupported confidence semantics")
+        if (
+            type(self.contributing_sources) is not tuple
+            or len(self.contributing_sources) > 8
+            or any(
+                not isinstance(value, str) or not value or len(value) > 320
+                for value in self.contributing_sources
+            )
+            or len(set(self.contributing_sources)) != len(self.contributing_sources)
+        ):
+            raise InvalidDecisionSignal("invalid composite evidence identities")
 
 
 def np_finite(value: float) -> bool:
     """Accept finite real scalars, but never booleans or coercible strings."""
-    return isinstance(value, Real) and not isinstance(value, bool) and math.isfinite(value)
+    return (
+        isinstance(value, Real) and not isinstance(value, bool) and math.isfinite(value)
+    )
 
 
 @dataclass(frozen=True)

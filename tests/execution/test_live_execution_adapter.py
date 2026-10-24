@@ -32,7 +32,7 @@ def mock_config():
     cfg.env.decimals.qty_for.return_value = 6
     cfg.env.decimals.price_for.return_value = 2
     cfg.env.decimals.min_qty_for.return_value = 0.001
-    cfg.env.cost.taker_fee_bps = 10.0
+    cfg.env.costs.taker_fee_bps = 10.0
     return cfg
 
 
@@ -208,7 +208,6 @@ async def test_flatten(adapter, mock_client):
     )
 
 
-
 @pytest.mark.parametrize(
     "response",
     [
@@ -281,7 +280,7 @@ def test_quote_reservation_rounds_up_and_rejects_invalid_prices(adapter):
 
 
 def test_missing_or_invalid_fee_configuration_fails_closed(adapter):
-    adapter.cfg.env.cost.taker_fee_bps = float("nan")
+    adapter.cfg.env.costs.taker_fee_bps = float("nan")
     with pytest.raises(ValueError, match="invalid_taker_fee_configuration"):
         adapter._quote_cost(Decimal("1"), 10.0)
 
@@ -360,6 +359,8 @@ async def test_reconcile_dust(adapter, mock_client):
     assert res["reason"] == "dust"
 
     mock_client.place_market_order.assert_not_called()
+
+
 @pytest.mark.asyncio
 async def test_flatten_net_zero_does_not_mask_offsetting_spot_and_shorts(
     adapter, mock_client
@@ -391,8 +392,13 @@ async def test_flatten_requires_verified_post_order_position(adapter, mock_clien
     ]
     mock_client.get_short_positions.return_value = []
     mock_client.place_market_order.return_value = OrderResponse(
-        id="filled", code="200", base_symbol="BTC", quote_symbol="USDT",
-        side=OrderSide.SELL, type="market", status=OrderStatus.FILLED,
+        id="filled",
+        code="200",
+        base_symbol="BTC",
+        quote_symbol="USDT",
+        side=OrderSide.SELL,
+        type="market",
+        status=OrderStatus.FILLED,
         volume={"BTC": Decimal("1")},
         filled_volume={"BTC": Decimal("1")},
         created_at="now",
@@ -420,8 +426,13 @@ async def test_flatten_succeeds_when_broker_confirms_no_gross_exposure(
     ]
     mock_client.get_short_positions.return_value = []
     mock_client.place_market_order.return_value = OrderResponse(
-        id="filled", code="200", base_symbol="BTC", quote_symbol="USDT",
-        side=OrderSide.SELL, type="market", status=OrderStatus.FILLED,
+        id="filled",
+        code="200",
+        base_symbol="BTC",
+        quote_symbol="USDT",
+        side=OrderSide.SELL,
+        type="market",
+        status=OrderStatus.FILLED,
         volume={"BTC": Decimal("1")},
         filled_volume={"BTC": Decimal("1")},
         created_at="now",
@@ -631,9 +642,10 @@ async def test_untyped_cancel_ack_is_unverified_until_order_detail_confirms(
         )
     mock_client.cancel_order.assert_called_once_with("pending-order")
     mock_client.get_order_details.assert_called_once_with("pending-order")
-    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
-        "status"
-    ] == "ambiguous"
+    assert (
+        next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"]
+        == "ambiguous"
+    )
 
 
 @pytest.mark.asyncio
@@ -660,9 +672,10 @@ async def test_cancel_dict_ack_commits_only_after_confirmed_terminal_order(
         reference_id="pending-order",
     )
     assert result == {"message": "accepted"}
-    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
-        "status"
-    ] == "committed"
+    assert (
+        next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"]
+        == "committed"
+    )
 
 
 @pytest.mark.asyncio
@@ -678,9 +691,10 @@ async def test_cancel_confirmation_failure_preserves_unknown_order_state(
             quantity=Decimal("0"),
             reference_id="pending-order",
         )
-    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
-        "status"
-    ] == "ambiguous"
+    assert (
+        next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"]
+        == "ambiguous"
+    )
 
 
 @pytest.mark.asyncio
@@ -698,9 +712,10 @@ async def test_dict_short_close_ack_requires_broker_position_disappearance(
             quantity=Decimal("0"),
             reference_id="short-1",
         )
-    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
-        "status"
-    ] == "ambiguous"
+    assert (
+        next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"]
+        == "ambiguous"
+    )
 
 
 @pytest.mark.asyncio
@@ -717,9 +732,10 @@ async def test_full_short_close_uses_broker_readback_not_generic_ack(
     )
     assert result == {"success": True}
     mock_client.get_short_positions.assert_called_once()
-    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
-        "status"
-    ] == "committed"
+    assert (
+        next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"]
+        == "committed"
+    )
 
 
 @pytest.mark.asyncio
@@ -734,9 +750,10 @@ async def test_partial_short_close_ack_without_fill_proof_remains_unresolved(
             quantity=Decimal("0.2"),
             reference_id="short-1",
         )
-    assert next(iter(adapter._mutation_outbox.latest_by_key().values()))[
-        "status"
-    ] == "ambiguous"
+    assert (
+        next(iter(adapter._mutation_outbox.latest_by_key().values()))["status"]
+        == "ambiguous"
+    )
 
 
 @pytest.mark.asyncio
@@ -795,9 +812,7 @@ def test_net_position_rejects_duplicate_base_balance_rows(adapter, mock_client):
 
 
 @pytest.mark.parametrize("amount", ["NaN", "-0.1", "Infinity"])
-def test_net_position_rejects_invalid_short_inventory(
-    adapter, mock_client, amount
-):
+def test_net_position_rejects_invalid_short_inventory(adapter, mock_client, amount):
     mock_client.get_short_positions.return_value = [
         {"symbol": "BTCUSDT", "amount": amount}
     ]
@@ -876,9 +891,7 @@ async def test_dry_run_never_acknowledges_offsetting_gross_exposure(
 
 
 @pytest.mark.asyncio
-async def test_dry_run_refuses_unverified_open_orders(
-    mock_config, mock_client
-):
+async def test_dry_run_refuses_unverified_open_orders(mock_config, mock_client):
     with patch(
         "trading_gym.execution.live_execution_adapter.EnhancedAbanClient",
         return_value=mock_client,
@@ -932,9 +945,7 @@ async def test_flat_verification_requires_explicit_base_balance_row(
 
 
 @pytest.mark.asyncio
-async def test_flat_verification_rejects_negative_blocked_balance(
-    adapter, mock_client
-):
+async def test_flat_verification_rejects_negative_blocked_balance(adapter, mock_client):
     """A negative hold cannot cancel genuine spot exposure in the sum."""
     mock_client.get_balance.return_value = [
         Balance(symbol="BTC", balance=Decimal("1"), blocked=Decimal("-1"))
@@ -973,9 +984,7 @@ async def test_flat_verification_accepts_explicit_zero_base_snapshot(
     await adapter._verify_broker_flat()
 
 
-def test_net_position_does_not_infer_missing_base_balance_as_zero(
-    adapter, mock_client
-):
+def test_net_position_does_not_infer_missing_base_balance_as_zero(adapter, mock_client):
     """A truncated balance response cannot become a new trading baseline."""
     mock_client.get_balance.return_value = [
         Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0"))
@@ -1038,7 +1047,9 @@ async def test_global_panic_proof_requests_all_open_orders(adapter, mock_client)
     kwargs = mock_client.get_orders.call_args.kwargs
     assert "base_symbol" not in kwargs and "quote_symbol" not in kwargs
     assert set(kwargs["status"]) == {
-        OrderStatus.NEW, OrderStatus.OPEN, OrderStatus.PROCESSING,
+        OrderStatus.NEW,
+        OrderStatus.OPEN,
+        OrderStatus.PROCESSING,
     }
 
 
@@ -1056,7 +1067,9 @@ def test_live_equity_rejects_invalid_balance_components(
     """Malformed broker rows must not be silently omitted as zero exposure."""
     mock_client.get_balance.return_value = [
         Balance(symbol="USDT", balance=Decimal("100"), blocked=Decimal("0")),
-        Balance(symbol="BTC", balance=available, blocked=blocked),
+        # Bypass response parsing to exercise the adapter's independent
+        # validation even when an injected or stale SDK model is malformed.
+        Balance.model_construct(symbol="BTC", balance=available, blocked=blocked),
     ]
     mock_client.get_ticker.return_value = {}
     with pytest.raises(RuntimeError, match="unable to determine live equity"):

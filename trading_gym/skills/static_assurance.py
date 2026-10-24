@@ -15,9 +15,22 @@ _HASH = re.compile(r"^[0-9a-f]{64}$")
 _NAME = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 _FORBIDDEN_ROOTS = frozenset(
     {
-        "execute", "shell", "wallet", "wallet_sign", "trade", "order",
-        "broker", "payment", "network", "credential", "secret", "secrets",
-        "deploy", "publish", "subprocess", "live",
+        "execute",
+        "shell",
+        "wallet",
+        "wallet_sign",
+        "trade",
+        "order",
+        "broker",
+        "payment",
+        "network",
+        "credential",
+        "secret",
+        "secrets",
+        "deploy",
+        "publish",
+        "subprocess",
+        "live",
     }
 )
 _MAX_CAPABILITIES = 32
@@ -32,9 +45,7 @@ def _safe_capabilities(value: object) -> tuple[tuple[str, ...], bool]:
     ):
         return (), False
     if any(
-        not isinstance(cap, str)
-        or len(cap) > 64
-        or not _NAME.fullmatch(cap)
+        not isinstance(cap, str) or len(cap) > 64 or not _NAME.fullmatch(cap)
         for cap in value
     ):
         return (), False
@@ -111,9 +122,9 @@ def assess_workflow_static(workflow):
         else:
             nodes[ident] = item
         retries = item.get("retries", 0)
-        if type(retries) is not int or retries < 0 or retries > 10:
+        if type(retries) is not int or retries < 0 or retries > 10:  # noqa: E721
             blockers.add("retries_out_of_bounds")
-            if type(retries) is int and retries > 10:
+            if type(retries) is int and retries > 10:  # noqa: E721
                 blockers.add("unbounded_retries")
         timeout = item.get("timeout_seconds", 0)
         if (

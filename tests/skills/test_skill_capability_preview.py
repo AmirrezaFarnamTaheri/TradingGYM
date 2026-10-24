@@ -141,9 +141,7 @@ def test_registry_snapshot_matches_digest_pinned_selection():
 
     quarantine = SkillQuarantineRepository()
     record = _skill()
-    quarantine.admit(
-        "research", record, reviewer="reviewer_a", preparer="preparer_b"
-    )
+    quarantine.admit("research", record, reviewer="reviewer_a", preparer="preparer_b")
     snapshot = quarantine.list()
     report = _preview(snapshot)
     assert report["selected_hint"] == "research"

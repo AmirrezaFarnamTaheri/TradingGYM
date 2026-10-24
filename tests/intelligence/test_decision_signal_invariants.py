@@ -59,8 +59,6 @@ def test_finite_numpy_reals_remain_supported_without_loose_string_coercion():
         ("target_leverage", float("-inf")),
     ],
 )
-def test_nonfinite_or_out_of_range_advice_raises_explicit_domain_error(
-    field, value
-):
+def test_nonfinite_or_out_of_range_advice_raises_explicit_domain_error(field, value):
     with pytest.raises(InvalidDecisionSignal):
         _signal(**{field: value})

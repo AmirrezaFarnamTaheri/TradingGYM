@@ -37,7 +37,7 @@ def _text(value: object, pattern: re.Pattern, label: str) -> str:
 
 
 def _unix(value: object) -> int:
-    if type(value) is not int or not 0 <= value <= _MAX_UNIX:
+    if type(value) is not int or not 0 <= value <= _MAX_UNIX:  # noqa: E721
         raise ValueError("invalid universe timestamp")
     return value
 
@@ -60,7 +60,7 @@ def _event(value: object) -> dict[str, Any]:
     observed = _unix(value.observed_at_unix)
     if published > observed:
         raise ValueError("universe observation precedes its publication")
-    if type(value.included) is not bool:
+    if type(value.included) is not bool:  # noqa: E721
         raise ValueError("universe membership must be explicit boolean")
     return {
         "universe_id": universe,
@@ -97,23 +97,31 @@ def assess_universe_asof(
     entries = [_event(item) for item in events]
     requested = set(names)
     known = [
-        e for e in entries
+        e
+        for e in entries
         if e["universe_id"] == universe
         and e["instrument_id"] in requested
         and e["effective_at_unix"] <= now
         and e["published_at_unix"] <= now
         and e["observed_at_unix"] <= now
     ]
-    known.sort(key=lambda e: (
-        e["instrument_id"], e["effective_at_unix"],
-        e["published_at_unix"], e["observed_at_unix"], e["source_sha256"],
-    ))
+    known.sort(
+        key=lambda e: (
+            e["instrument_id"],
+            e["effective_at_unix"],
+            e["published_at_unix"],
+            e["observed_at_unix"],
+            e["source_sha256"],
+        )
+    )
     identities = set()
     per_instrument: dict[str, list[dict[str, Any]]] = {}
     for item in known:
         identity = (
-            item["instrument_id"], item["effective_at_unix"],
-            item["published_at_unix"], item["observed_at_unix"],
+            item["instrument_id"],
+            item["effective_at_unix"],
+            item["published_at_unix"],
+            item["observed_at_unix"],
         )
         if identity in identities:
             raise ValueError("duplicate or conflicting universe membership event")
@@ -127,7 +135,8 @@ def assess_universe_asof(
         selected = max(
             options,
             key=lambda e: (
-                e["effective_at_unix"], e["published_at_unix"],
+                e["effective_at_unix"],
+                e["published_at_unix"],
                 e["observed_at_unix"],
             ),
             default=None,
@@ -143,13 +152,15 @@ def assess_universe_asof(
         if selected is None:
             blockers.append(f"membership_unknown:{name}")
         else:
-            result.update({
-                "state": "included" if selected["included"] else "excluded",
-                "effective_at_unix": selected["effective_at_unix"],
-                "published_at_unix": selected["published_at_unix"],
-                "observed_at_unix": selected["observed_at_unix"],
-                "source_sha256": selected["source_sha256"],
-            })
+            result.update(
+                {
+                    "state": "included" if selected["included"] else "excluded",
+                    "effective_at_unix": selected["effective_at_unix"],
+                    "published_at_unix": selected["published_at_unix"],
+                    "observed_at_unix": selected["observed_at_unix"],
+                    "source_sha256": selected["source_sha256"],
+                }
+            )
         results.append(result)
 
     document = {

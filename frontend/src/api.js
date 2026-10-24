@@ -35,6 +35,14 @@ const api = axios.create({
   timeout: API_TIMEOUT,
 });
 
+export const exampleRunsAPI = {
+  list: () => api.get('/runs/example'),
+  start: (idempotencyKey) => api.post('/runs/example', { idempotency_key: idempotencyKey }),
+  get: (runId) => api.get(`/runs/example/${encodeURIComponent(runId)}`),
+  artifact: (runId) => api.get(`/runs/example/${encodeURIComponent(runId)}/artifact`),
+  cancel: (runId) => api.post(`/runs/example/${encodeURIComponent(runId)}/cancel`),
+};
+
 // =============================================================================
 // Interceptors
 // =============================================================================
@@ -84,11 +92,22 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const detail = error.response?.data?.detail || error.message || 'Unknown API Error';
 
+    // Only expire the credential actually rejected. A late response from a
+    // previous session must not disconnect a newly authenticated session, and
+    // an approval/actor permission failure is not a rejected gateway key.
+    const requestHeaders = error.config?.headers;
+    const attemptedKey = requestHeaders?.get?.('X-API-Key') || requestHeaders?.['X-API-Key'];
+    const gatewayRejected = status === 401 || (status === 403 && detail === 'Invalid API key');
+    if (gatewayRejected && sessionApiKey && attemptedKey === sessionApiKey) {
+      clearApiKey();
+      window.dispatchEvent(new Event('trading-gym:session-expired'));
+    }
+
     // Handle specific error codes
     if (status === 401) {
       console.error('[API] Authentication failed. Please check your API key.');
     } else if (status === 403) {
-      console.error('[API] Access forbidden. Invalid API key.');
+      console.error('[API] Access forbidden:', detail);
     } else if (status === 404) {
       console.warn('[API] Resource not found:', error.config?.url);
     } else if (status === 409) {

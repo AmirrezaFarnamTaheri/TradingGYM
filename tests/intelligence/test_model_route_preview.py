@@ -56,7 +56,9 @@ def test_cheapest_qualified_model_hint_is_deterministic_and_not_authoritative():
 def test_remote_privacy_and_unknown_prices_never_masquerade_as_free():
     private = _candidate("local", cost_usd_per_1k_tokens=0.02)
     remote = _candidate(
-        "remote", is_remote=True, cost_usd_per_1k_tokens=0,
+        "remote",
+        is_remote=True,
+        cost_usd_per_1k_tokens=0,
     )
     unknown = _candidate("unknown", cost_usd_per_1k_tokens=None)
     report = preview_route([remote, unknown, private], _request())
@@ -151,6 +153,7 @@ def test_public_preview_export_is_the_same_pure_routing_function():
     from trading_gym.intelligence import preview_model_route
 
     assert preview_model_route is preview_route
+
 
 def test_unknown_remaining_request_budget_is_not_assumed_unlimited():
     preview = preview_route(

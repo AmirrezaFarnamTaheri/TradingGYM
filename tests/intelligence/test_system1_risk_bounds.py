@@ -30,19 +30,25 @@ def context(**limits: float) -> MarketContext:
 
 def chat_backend(action: str, leverage: float, calls: list) -> System1DecisionBackend:
     provider = ProviderConfig(
-        provider_id="chat-fast", kind=ProviderKind.LOCAL,
-        display_name="fast chat", model="fast-1",
+        provider_id="chat-fast",
+        kind=ProviderKind.LOCAL,
+        display_name="fast chat",
+        model="fast-1",
         base_url="http://127.0.0.1:11434/v1",
     )
 
     def reply(url, messages):
         calls.append((url, messages))
-        return LLMTransportResponse(content=json.dumps({
-            "action": action,
-            "target_leverage": leverage,
-            "confidence": 0.95,
-            "rationale": "bounded advisory evidence",
-        }))
+        return LLMTransportResponse(
+            content=json.dumps(
+                {
+                    "action": action,
+                    "target_leverage": leverage,
+                    "confidence": 0.95,
+                    "rationale": "bounded advisory evidence",
+                }
+            )
+        )
 
     return System1DecisionBackend(provider, transport=reply)
 
@@ -85,9 +91,7 @@ def test_direction_forbidden_by_risk_bounds_becomes_hold(
         {"min_leverage": -1.0, "max_leverage": float("nan")},
     ),
 )
-def test_bad_risk_bounds_deny_before_provider_request(
-    limits: dict[str, float]
-) -> None:
+def test_bad_risk_bounds_deny_before_provider_request(limits: dict[str, float]) -> None:
     calls: list = []
     backend = chat_backend("long", 0.5, calls)
     with pytest.raises(PermissionError, match="system1_invalid_risk"):
@@ -97,9 +101,12 @@ def test_bad_risk_bounds_deny_before_provider_request(
 
 def test_native_systemone_also_enforces_negative_short_side_bound() -> None:
     provider = ProviderConfig(
-        provider_id="native-fast", kind=ProviderKind.LOCAL,
-        display_name="typed fast", model="native-v1",
-        wire_protocol="systemone", base_url="http://127.0.0.1:8080",
+        provider_id="native-fast",
+        kind=ProviderKind.LOCAL,
+        display_name="typed fast",
+        model="native-v1",
+        wire_protocol="systemone",
+        base_url="http://127.0.0.1:8080",
     )
     calls: list = []
 
@@ -125,12 +132,14 @@ def test_native_systemone_also_enforces_negative_short_side_bound() -> None:
     assert len(calls) == 1
 
 
-
 def test_native_systemone_short_only_risk_window_does_not_force_hold() -> None:
     provider = ProviderConfig(
-        provider_id="native-short", kind=ProviderKind.LOCAL,
-        display_name="typed short", model="native-short-v1",
-        wire_protocol="systemone", base_url="http://127.0.0.1:8080",
+        provider_id="native-short",
+        kind=ProviderKind.LOCAL,
+        display_name="typed short",
+        model="native-short-v1",
+        wire_protocol="systemone",
+        base_url="http://127.0.0.1:8080",
     )
     backend = NativeSystemOneDecisionBackend(
         provider,

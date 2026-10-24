@@ -16,7 +16,16 @@ def make(
     timeframe: str = "5m",
     training_stats: Optional[Dict[str, Any]] = None,
 ):
-    """Create a margin-trading environment from a config or config path."""
+    """Create an environment with explicitly supplied frozen training statistics.
+
+    Pass an admitted model bundle's ``training_stats`` for evaluation/operation.
+    New training callers fit statistics on their designated training partition.
+    This function never estimates preprocessing from the data being evaluated.
+    """
+    if training_stats is None:
+        raise ValueError(
+            "frozen training_stats required; use a model bundle or fit a designated training partition"
+        )
 
     from trading_gym.pipelines.environment import (
         create_environment,
@@ -25,9 +34,7 @@ def make(
 
     cfg = load_app_config(config) if not isinstance(config, AppConfig) else config
     inputs = load_environment_inputs(cfg, timeframe)
-    return create_environment(
-        cfg, inputs, training_stats=training_stats or {"mean": 0.0, "std": 1.0}
-    )
+    return create_environment(cfg, inputs, training_stats=training_stats)
 
 
 __all__ = [

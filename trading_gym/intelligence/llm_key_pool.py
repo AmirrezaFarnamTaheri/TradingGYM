@@ -22,6 +22,7 @@ from typing import Callable, Mapping, Sequence
 
 import httpx
 from filelock import FileLock, Timeout
+from trading_gym.intelligence.deadlines import check_deadline, remaining_seconds
 
 _REF_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,79}$")
 _MAX_KEYS = 16
@@ -104,17 +105,13 @@ class CredentialPool:
             or not math.isfinite(timestamp)
             or not 0 <= timestamp <= 9_999_999_999
         ):
-            raise CredentialStateIntegrityError(
-                "credential rotation clock is invalid"
-            )
+            raise CredentialStateIntegrityError("credential rotation clock is invalid")
         return float(timestamp)
 
     def _state(self) -> dict:
         path = self.state_path
         if path.is_symlink():
-            raise CredentialStateIntegrityError(
-                "credential rotation state is invalid"
-            )
+            raise CredentialStateIntegrityError("credential rotation state is invalid")
         try:
             metadata = path.stat()
         except FileNotFoundError:
@@ -124,15 +121,18 @@ class CredentialPool:
                 "credential rotation state is invalid"
             ) from exc
         try:
-            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > _MAX_STATE_BYTES:
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_size > _MAX_STATE_BYTES
+            ):
                 raise ValueError("oversized")
             state = json.loads(path.read_text(encoding="utf-8"))
             if (
                 not isinstance(state, dict)
                 or set(state) != {"schema_version", "cursor", "cooldowns"}
-                or type(state["schema_version"]) is not int
+                or type(state["schema_version"]) is not int  # noqa: E721
                 or state["schema_version"] != 1
-                or type(state["cursor"]) is not int
+                or type(state["cursor"]) is not int  # noqa: E721
                 or not 0 <= state["cursor"] <= 1_000_000_000
                 or not isinstance(state["cooldowns"], dict)
                 or len(state["cooldowns"]) > _MAX_TRACKED_SLOTS
@@ -157,9 +157,7 @@ class CredentialPool:
     def _write(self, state: dict) -> None:
         path = self.state_path
         if len(state["cooldowns"]) > _MAX_TRACKED_SLOTS:
-            raise CredentialStateIntegrityError(
-                "too many provider cooldown records"
-            )
+            raise CredentialStateIntegrityError("too many provider cooldown records")
         payload = json.dumps(state, sort_keys=True, separators=(",", ":")).encode()
         if len(payload) > _MAX_STATE_BYTES:
             raise CredentialStateIntegrityError(
@@ -421,7 +419,7 @@ def reject_terminal_provider_status(response: object) -> None:
     that permits a more risk-seeking fallback.
     """
     code = getattr(response, "status_code", None)
-    if type(code) is not int:
+    if type(code) is not int:  # noqa: E721
         raise PermissionError("provider_invalid_http_status")
     if code == 401:
         raise PermissionError("provider_authentication_denied")
@@ -438,7 +436,12 @@ def _shared_rate_scope(response: object) -> bool:
     headers = getattr(response, "headers", {})
     scope = str(headers.get("x-ratelimit-scope", "")).strip().lower()
     return scope in {
-        "organization", "org", "project", "account", "global", "tenant",
+        "organization",
+        "org",
+        "project",
+        "account",
+        "global",
+        "tenant",
         "workspace",
     }
 
@@ -461,12 +464,13 @@ def request_with_rotation(
         raise ValueError("invalid LLM request deadline")
     if not 1 <= max_attempts <= _MAX_KEYS:
         raise ValueError("invalid LLM attempt budget")
-    deadline = monotonic() + timeout_seconds
+    deadline = monotonic() + remaining_seconds(timeout_seconds)
     tried: set[str] = set()
     tried_values: set[bytes] = set()
     authentication_failed = False
     auth_only_failures = True
     for _ in range(min(max_attempts, len(pool.references))):
+        check_deadline()
         if monotonic() >= deadline:
             break
         try:
@@ -496,9 +500,12 @@ def request_with_rotation(
             auth_only_failures = False
             pool.cool_down(lease.reference, 5)
             continue
+        check_deadline()
+        if monotonic() >= deadline:
+            raise CredentialsUnavailable("provider response arrived after deadline")
         code = getattr(response, "status_code", None)
-        if type(code) is not int:
-            raise CredentialsUnavailable("invalid provider HTTP response")
+        if type(code) is not int:  # noqa: E721
+            raise PermissionError("invalid_provider_http_response")
         if 200 <= code < 300:
             return response
         if code == 403:
@@ -512,6 +519,7 @@ def request_with_rotation(
             # Bad request/model/configuration is not a transient health issue.
             raise PermissionError("provider_request_denied")
         if code == 429:
+            auth_only_failures = False
             headers = getattr(response, "headers", {})
             retry_after = _retry_after_seconds(
                 headers.get("retry-after"), now=pool._clock()
@@ -536,7 +544,7 @@ def request_with_rotation(
             pool.cool_down(lease.reference, 5)
             continue
         raise PermissionError("provider_request_denied")
-    if authentication_failed:
+    if authentication_failed and auth_only_failures:
         # Only lock out the entire fleet when every reference was checked and
         # all distinct attempted secrets rejected authentication. An eligible
         # fourth key (beyond the caller's bounded attempt budget) must not be

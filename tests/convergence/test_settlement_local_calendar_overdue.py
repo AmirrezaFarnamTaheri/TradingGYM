@@ -100,11 +100,13 @@ def test_future_trade_cannot_enter_prior_cash_projection():
 
 def test_future_settlement_confirmation_cannot_leak_into_prior_snapshot():
     original = obligation("settled", "America/New_York")
-    item = SettlementObligation(**{
-        **original.model_dump(),
-        "state": SettlementState.SETTLED,
-        "observed_settlement_at": datetime(2026, 7, 9, 12, tzinfo=timezone.utc),
-    })
+    item = SettlementObligation(
+        **{
+            **original.model_dump(),
+            "state": SettlementState.SETTLED,
+            "observed_settlement_at": datetime(2026, 7, 9, 12, tzinfo=timezone.utc),
+        }
+    )
     with pytest.raises(ValueError, match="future_settlement"):
         report(datetime(2026, 7, 8, 12, tzinfo=timezone.utc), [item])
 
@@ -112,8 +114,10 @@ def test_future_settlement_confirmation_cannot_leak_into_prior_snapshot():
 def test_confirmation_cannot_precede_the_trade():
     original = obligation("backdated", "America/New_York")
     with pytest.raises(ValueError, match="before_trade"):
-        SettlementObligation(**{
-            **original.model_dump(),
-            "state": SettlementState.SETTLED,
-            "observed_settlement_at": datetime(2026, 7, 6, 12, tzinfo=timezone.utc),
-        })
+        SettlementObligation(
+            **{
+                **original.model_dump(),
+                "state": SettlementState.SETTLED,
+                "observed_settlement_at": datetime(2026, 7, 6, 12, tzinfo=timezone.utc),
+            }
+        )

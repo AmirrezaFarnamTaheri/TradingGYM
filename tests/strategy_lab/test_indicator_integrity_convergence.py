@@ -44,9 +44,7 @@ def test_rsi_monotone_gains_and_losses_remain_extremes() -> None:
 def test_stochastic_d_respects_configured_smoothing_warmup() -> None:
     frame = _frame(np.arange(50, dtype=float) + 100)
     for smooth in (2, 3, 5, 8):
-        result = stochastic(
-            frame, {"period": 14, "smooth": smooth, "component": "d"}
-        )
+        result = stochastic(frame, {"period": 14, "smooth": smooth, "component": "d"})
         first_ready = 13 + smooth - 1
         assert result.iloc[:first_ready].isna().all()
         assert np.isfinite(result.iloc[first_ready])
@@ -54,8 +52,16 @@ def test_stochastic_d_respects_configured_smoothing_warmup() -> None:
 
 @pytest.mark.parametrize(
     "reserved_alias",
-    ["open", "high", "low", "close", "volume",
-     "entry_signal", "exit_signal", "position_intent"],
+    [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "entry_signal",
+        "exit_signal",
+        "position_intent",
+    ],
 )
 def test_strategy_spec_rejects_indicator_alias_shadowing_fields(
     reserved_alias: str,

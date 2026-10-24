@@ -34,19 +34,22 @@ def assess_factor_research_readiness(
 ) -> dict[str, Any]:
     """Combine independent evidence blockers using conservative conjunction."""
     universe = assess_universe_asof(
-        events=membership_events, universe_id=universe_id,
-        instruments=instruments, as_of_unix=as_of_unix,
+        events=membership_events,
+        universe_id=universe_id,
+        instruments=instruments,
+        as_of_unix=as_of_unix,
     )
     demand = set(instruments)
     if any(
-        not isinstance(query, FundamentalQuery)
-        or query.instrument_id not in demand
+        not isinstance(query, FundamentalQuery) or query.instrument_id not in demand
         for query in fundamental_queries
     ):
         raise ValueError("factor query instrument outside historical universe request")
     fundamentals = assess_fundamentals_asof(
-        facts=fundamental_facts, queries=fundamental_queries,
-        as_of_unix=as_of_unix, max_period_age_seconds=max_period_age_seconds,
+        facts=fundamental_facts,
+        queries=fundamental_queries,
+        as_of_unix=as_of_unix,
+        max_period_age_seconds=max_period_age_seconds,
     )
     blockers = set(universe["blockers"]) | set(fundamentals["blockers"])
     for item in universe["members"]:

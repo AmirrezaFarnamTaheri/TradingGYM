@@ -74,9 +74,7 @@ def replay_evaluated_signals(
     """
     if not isinstance(source_sha256, str) or not _SHA256.fullmatch(source_sha256):
         raise ValueError("source_sha256 must be a lowercase SHA-256 digest")
-    fraction = _bounded_real(
-        "allocation_fraction", allocation_fraction, low=0, high=1
-    )
+    fraction = _bounded_real("allocation_fraction", allocation_fraction, low=0, high=1)
     if fraction == 0:
         raise ValueError("allocation_fraction must be positive")
     fee = _bounded_real("fee_bps", fee_bps, low=0, high=1000) / 10_000
@@ -108,9 +106,7 @@ def replay_evaluated_signals(
         raise ValueError("conflicting entry and exit signals on a bar")
     if "position_intent" in frame.columns:
         intents = frame["position_intent"]
-        expected_intents = np.select(
-            [signals[:, 0], signals[:, 1]], [1, -1], default=0
-        )
+        expected_intents = np.select([signals[:, 0], signals[:, 1]], [1, -1], default=0)
         if (
             not pd.api.types.is_integer_dtype(intents.dtype)
             or intents.isna().any()
@@ -138,9 +134,7 @@ def replay_evaluated_signals(
             raise ValueError("market timestamp exceeds byte budget")
         digest.update(len(stamp).to_bytes(2, "big"))
         digest.update(stamp)
-        digest.update(
-            struct.pack(">5d??", *row, bool(signal[0]), bool(signal[1]))
-        )
+        digest.update(struct.pack(">5d??", *row, bool(signal[0]), bool(signal[1])))
     input_digest = digest.hexdigest()
 
     cash = initial
@@ -193,9 +187,7 @@ def replay_evaluated_signals(
     encoded = json.dumps(
         body, sort_keys=True, separators=(",", ":"), allow_nan=False
     ).encode("utf-8")
-    return CausalReplayReport(
-        **body, report_sha256=hashlib.sha256(encoded).hexdigest()
-    )
+    return CausalReplayReport(**body, report_sha256=hashlib.sha256(encoded).hexdigest())
 
 
 def replay_strategy(

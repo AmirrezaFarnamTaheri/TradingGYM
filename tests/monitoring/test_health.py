@@ -107,8 +107,10 @@ def test_empty_registry_never_reports_healthy_or_ready():
 
 def test_probe_error_does_not_expose_exception_message():
     health = HealthCheck()
+
     def raises_secret():
         raise RuntimeError("private-credential-123456")
+
     health.register("provider", raises_secret, required_for_readiness=False)
     result = health.get_status()
     assert "private-credential-123456" not in repr(result)
@@ -117,6 +119,7 @@ def test_probe_error_does_not_expose_exception_message():
 
 def test_model_probe_requires_regular_nonsymlink_file(tmp_path):
     from trading_gym.monitoring.health import check_model_loaded
+
     model = tmp_path / "model.zip"
     model.write_bytes(b"model")
     assert check_model_loaded(str(model))

@@ -54,8 +54,7 @@ def _compare(rows, **changes):
 
 def test_net_of_cost_sign_test_and_holm_adjustment_are_explicitly_non_authoritative():
     rows = [
-        replace(r, gross_return=0.0) if r.candidate_id == "beta" else r
-        for r in _runs()
+        replace(r, gross_return=0.0) if r.candidate_id == "beta" else r for r in _runs()
     ]
     report = _compare(rows)
     alpha, beta = report["candidates"]
@@ -115,10 +114,7 @@ def test_ties_do_not_create_fake_significance():
     rows = [replace(r, gross_return=0.01) for r in _runs()]
     result = _compare(rows)
     assert all(c["non_tied_pairs"] == 0 for c in result["candidates"])
-    assert all(
-        c["nominal_one_sided_p_value"] == 1.0
-        for c in result["candidates"]
-    )
+    assert all(c["nominal_one_sided_p_value"] == 1.0 for c in result["candidates"])
 
 
 def test_require_enough_historical_pairs_and_distinct_regimes():

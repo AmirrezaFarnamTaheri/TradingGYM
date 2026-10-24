@@ -153,7 +153,7 @@ class LiveExecutionAdapter:
     def _taker_fee_rate(self) -> Decimal:
         """Reject missing/invalid fee assumptions rather than under-reserving."""
         try:
-            bps = Decimal(str(self.cfg.env.cost.taker_fee_bps))
+            bps = Decimal(str(self.cfg.env.costs.taker_fee_bps))
         except (ValueError, TypeError, AttributeError) as exc:
             raise ValueError("invalid_taker_fee_configuration") from exc
         if not bps.is_finite() or bps < 0:
@@ -295,12 +295,9 @@ class LiveExecutionAdapter:
                 if not isinstance(positions, list) or any(
                     not isinstance(position, dict) for position in positions
                 ):
-                    raise MutationOutcomeUnknown(
-                        "short_close_confirmation_unavailable"
-                    )
+                    raise MutationOutcomeUnknown("short_close_confirmation_unavailable")
                 if any(
-                    str(position.get("id")) == reference_id
-                    for position in positions
+                    str(position.get("id")) == reference_id for position in positions
                 ):
                     raise MutationOutcomeUnknown("short_close_not_verified")
             elif status is not None:
@@ -761,9 +758,7 @@ class LiveExecutionAdapter:
                         require_flat_verification=True,
                     )
                 else:
-                    short_positions = await self._call_api(
-                        self.api.get_short_positions
-                    )
+                    short_positions = await self._call_api(self.api.get_short_positions)
                     my_shorts = [
                         p for p in short_positions if p.get("symbol") == self.symbol
                     ]

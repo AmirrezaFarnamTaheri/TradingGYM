@@ -132,6 +132,9 @@ data:
   end_date: null
 
 features:
+  # Explicit simulation assumption when historical bid/ask spreads are absent.
+  # This is not measured exchange liquidity; qualify against recorded quotes.
+  assumed_spread_bps: 20.0
   timeframes:
     - name: "tf_5m"
       bar_minutes: 5

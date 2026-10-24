@@ -14,10 +14,15 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { tradingAPI, modelsAPI, createReconnectingWebSocket } from '../api';
+import { tradingAPI, modelsAPI, configAPI, createReconnectingWebSocket } from '../api';
 import { useStaleFeed } from '../hooks/useStaleFeed';
 import StaleFeedBadge from './StaleFeedBadge';
 import { useToast } from './Toast';
+
+const PROCESS_STATES = new Set(['idle', 'starting', 'running', 'stopping', 'stopped', 'completed', 'failed', 'error']);
+const finiteNumber = (value) => typeof value === 'number' && Number.isFinite(value) ? value : null;
+const formattedNumber = (value, suffix = '', scale = 1) => finiteNumber(value) === null
+  ? 'Unavailable' : `${(value * scale).toLocaleString(undefined, { maximumFractionDigits: 4 })}${suffix}`;
 
 // =============================================================================
 // Status Badge Component
@@ -25,13 +30,18 @@ import { useToast } from './Toast';
 
 function StatusBadge({ status }) {
   const statusConfig = {
+    starting: { color: '#795500', bg: '#fff3cd', label: 'STARTING' },
+    stopping: { color: '#795500', bg: '#fff3cd', label: 'STOP REQUESTED' },
     running: { color: '#27ae60', bg: '#d4edda', label: '🟢 ACTIVE' },
     idle: { color: '#7f8c8d', bg: '#f8f9fa', label: '⚪ IDLE' },
     stopped: { color: '#e74c3c', bg: '#f8d7da', label: '🔴 STOPPED' },
+    completed: { color: '#23629a', bg: '#e7f0fa', label: 'COMPLETED' },
+    failed: { color: '#a42828', bg: '#f8d7da', label: 'FAILED' },
     error: { color: '#e74c3c', bg: '#f8d7da', label: '❌ ERROR' },
+    unknown: { color: '#795500', bg: '#fff3cd', label: 'STATUS UNAVAILABLE' },
   };
 
-  const config = statusConfig[status] || statusConfig.idle;
+  const config = statusConfig[status] || statusConfig.unknown;
 
   return (
     <span
@@ -67,7 +77,7 @@ function MetricCard({ label, value, prefix = '', suffix = '', trend, color }) {
       <div
         className="metric-value"
         style={{ color: color || trendColors[trend] || '#2c3e50' }}
-        aria-label={`${label}: ${value}${suffix}`}
+        aria-label={`${label}: ${prefix}${value}${suffix}`}
       >
         {prefix}{typeof value === 'number' ? value.toLocaleString() : value}{suffix}
       </div>
@@ -116,14 +126,19 @@ export default function TradingPanel() {
 
   // Trading status query
   const {
-    data: tradingStatus = { status: 'idle' },
+    data: tradingStatus,
     isLoading: statusLoading,
     isError: statusIsError,
     error: statusError,
   } = useQuery({
     queryKey: ['trading-status'],
-    queryFn: () => tradingAPI.getStatus().then(r => r.data),
+    queryFn: async () => {
+      const { data } = await tradingAPI.getStatus();
+      if (!PROCESS_STATES.has(data?.status)) throw new Error('Invalid trading process status');
+      return data;
+    },
     refetchInterval: 3000,
+    retry: false,
   });
 
   // Active model query
@@ -134,11 +149,19 @@ export default function TradingPanel() {
   } = useQuery({
     queryKey: ['active-model'],
     queryFn: () => modelsAPI.getActive().then(r => r.data),
+    retry: false,
   });
 
-  const isRunning = tradingStatus?.status === 'running';
+  const { data: configuredRisk, isError: riskIsError, isLoading: riskLoading, refetch: refreshRisk } = useQuery({
+    queryKey: ['config', 'env'],
+    queryFn: () => configAPI.getSection('env').then(r => r.data),
+    retry: false,
+  });
+  const statusUnknown = statusIsError || !tradingStatus;
+  const isRunning = !statusUnknown && ['starting', 'running', 'stopping'].includes(tradingStatus?.status);
   const currentMode = tradingStatus?.mode || mode;
   const activeModel = activeModelData?.active_model;
+  const risk = riskIsError ? null : configuredRisk;
 
   // ==========================================================================
   // WebSocket for Real-time Metrics
@@ -169,20 +192,22 @@ export default function TradingPanel() {
         ? tradingAPI.start(mode, modelVersion, authorisation)
         : tradingAPI.start(mode, modelVersion),
     onSuccess: (data, variables) => {
-      toast.success(`${variables.mode.toUpperCase()} trading started!`);
-      queryClient.invalidateQueries({ queryKey: ['trading-status'] });
+      toast.success(`${variables.mode.toUpperCase()} worker started. Check session status for readiness.`);
       setShowConfirmLive(false);
       clearLiveAuthorisation();
     },
     onError: (error) => {
       toast.error(`Failed to start trading: ${error.message}`);
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['trading-status'] }),
   });
 
   const stopMutation = useMutation({
     mutationFn: () => tradingAPI.stop(),
-    onSuccess: () => {
-      toast.info('Trading stopped');
+    onSuccess: (response) => {
+      toast.info(response.data?.status === 'stopped'
+        ? 'Trading worker stopped'
+        : 'Stop requested; worker exit is not yet confirmed');
       queryClient.invalidateQueries({ queryKey: ['trading-status'] });
     },
     onError: (error) => {
@@ -193,7 +218,7 @@ export default function TradingPanel() {
   const panicMutation = useMutation({
     mutationFn: () => tradingAPI.panic(),
     onSuccess: () => {
-      toast.error('🚨 PANIC PROTOCOL ACTIVATED - All positions closing!');
+      toast.error('Panic request recorded. Check reconciliation for the position outcome.');
       queryClient.invalidateQueries({ queryKey: ['trading-status'] });
     },
     onError: (error) => {
@@ -203,8 +228,14 @@ export default function TradingPanel() {
 
   const emergencyKillMutation = useMutation({
     mutationFn: ({ key }) => tradingAPI.emergencyKillAll('CONFIRM_KILL', key),
-    onSuccess: () => {
-      toast.error('🚨 EMERGENCY: All processes terminated!');
+    onSuccess: (response) => {
+      const outcome = response.data || {};
+      const positions = outcome.flatten_confirmed === true
+        ? 'The server confirmed positions were flattened.'
+        : 'Position closure is unconfirmed; reconcile the account.';
+      const signal = outcome.panic_status === 'degraded'
+        ? ' The panic signal could not be saved.' : '';
+      toast.warning(`Emergency stop processed. Check process status. ${positions}${signal}`);
       queryClient.invalidateQueries({ queryKey: ['trading-status'] });
       queryClient.invalidateQueries({ queryKey: ['system-status'] });
       setShowEmergencyConfirm(false);
@@ -239,7 +270,7 @@ export default function TradingPanel() {
   };
 
   const handlePanic = () => {
-    if (window.confirm('🚨 ARE YOU SURE? This will IMMEDIATELY close ALL positions!')) {
+    if (window.confirm('Request a panic stop? The worker will attempt to close positions. Confirm the outcome in account reconciliation.')) {
       panicMutation.mutate();
     }
   };
@@ -248,26 +279,27 @@ export default function TradingPanel() {
   // Computed Values
   // ==========================================================================
 
-  // Live feeds can deliver NaN/null/string junk; coerce to finite numbers so
-  // the panel degrades to neutral defaults instead of rendering 'NaN'.
+  // Missing or invalid telemetry is unavailable, never an invented zero balance.
   const raw = liveMetrics || {};
-  const safeNum = (value) => {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : 0;
-  };
   const metrics = {
-    balance: safeNum(raw.balance),
-    pnl: safeNum(raw.pnl),
-    pnl_pct: safeNum(raw.pnl_pct),
-    total_positions: Number.isFinite(Number(raw.total_positions))
-      ? Math.trunc(Number(raw.total_positions))
-      : 0,
-    margin_ratio: safeNum(raw.margin_ratio),
-    unrealized_pnl: safeNum(raw.unrealized_pnl),
+    balance: finiteNumber(raw.balance),
+    pnl: finiteNumber(raw.pnl),
+    pnl_pct: finiteNumber(raw.pnl_pct),
+    total_positions: Number.isInteger(raw.total_positions) && raw.total_positions >= 0 ? raw.total_positions : null,
+    margin_ratio: finiteNumber(raw.margin_ratio),
+    unrealized_pnl: finiteNumber(raw.unrealized_pnl),
   };
-
-  const pnlColor = metrics.pnl >= 0 ? '#27ae60' : '#e74c3c';
-  const pnlTrend = metrics.pnl >= 0 ? 'up' : 'down';
+  const pnlTrend = metrics.pnl === null ? 'neutral' : metrics.pnl >= 0 ? 'up' : 'down';
+  const riskRows = [
+    ['Maximum long leverage', formattedNumber(risk?.leverage?.max_leverage, '×')],
+    ['Maximum short leverage', risk?.shorts?.enabled === false ? 'Short selling disabled' : formattedNumber(risk?.leverage?.max_short_leverage, '×')],
+    ['Shortable assets', risk?.shorts?.enabled === false ? 'None' : Array.isArray(risk?.shorts?.allowed_symbols) ? risk.shorts.allowed_symbols.join(', ') || 'None' : 'Unavailable'],
+    ['Loss limit', `${formattedNumber(risk?.breaker?.max_loss_pct, '%')} / ${formattedNumber(risk?.breaker?.max_loss_window_minutes, ' minutes')}`],
+    ['Margin floor', formattedNumber(risk?.breaker?.margin_ratio_floor, '%', 100)],
+    ['Liquidation threshold', formattedNumber(risk?.leverage?.liquidation_margin_ratio, '%', 100)],
+    ['Taker fee', formattedNumber(risk?.costs?.taker_fee_bps, '%', .01)],
+    ['Daily financing rate', formattedNumber(risk?.leverage?.financing?.daily_pct, '%')],
+  ];
 
   // ==========================================================================
   // Render
@@ -282,43 +314,23 @@ export default function TradingPanel() {
     );
   }
 
-  // A failed status/model fetch must surface as an error with a retry path,
-  // not as a silent idle panel that looks like a healthy "not running" state.
-  if (statusIsError || activeModelIsError) {
-    const fetchError = statusIsError ? statusError : activeModelError;
-    const what = statusIsError ? 'trading status' : 'active model';
-    return (
-      <div className="panel trading-panel">
-        <h2>💱 Trading Control</h2>
-        <div className="error" role="alert" aria-live="assertive">
-          Failed to load the {what}: {fetchError?.message || 'Unknown error'}
-        </div>
-        <div style={{ textAlign: 'center', marginTop: '12px' }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() =>
-              queryClient.invalidateQueries({
-                queryKey: statusIsError ? ['trading-status'] : ['active-model'],
-              })
-            }
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="panel trading-panel">
       <h2>💱 Trading Control</h2>
+      {(statusIsError || activeModelIsError) && <div className="error" role="alert">
+        <p>Failed to load the {statusIsError ? 'trading status' : 'active model'}: {(statusIsError ? statusError : activeModelError)?.message || 'Unknown error'}.</p>
+        <p>Starting is blocked until readiness is confirmed. Emergency stop controls remain available.</p>
+        <button type="button" className="btn btn-secondary" onClick={() => {
+          queryClient.invalidateQueries({ queryKey: ['trading-status'] });
+          queryClient.invalidateQueries({ queryKey: ['active-model'] });
+        }}>Retry</button>
+      </div>}
 
       {/* Status Overview */}
       <div className="section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h3 style={{ margin: 0 }}>Status</h3>
-          <StatusBadge status={tradingStatus?.status} />
+          <StatusBadge status={statusUnknown ? 'unknown' : tradingStatus.status} />
         </div>
 
         <div className="info-box">
@@ -339,38 +351,37 @@ export default function TradingPanel() {
           <div className="metrics-grid">
             <MetricCard
               label="Balance"
-              value={metrics.balance?.toFixed(2) || '0.00'}
-              prefix="$"
+              value={metrics.balance?.toFixed(2) ?? 'Unavailable'}
+              prefix={metrics.balance === null ? '' : '$'}
               color="#2c3e50"
             />
             <MetricCard
               label="P&L"
-              value={metrics.pnl?.toFixed(2) || '0.00'}
-              prefix={metrics.pnl >= 0 ? '+$' : '-$'}
+              value={metrics.pnl === null ? 'Unavailable' : Math.abs(metrics.pnl).toFixed(2)}
+              prefix={metrics.pnl === null ? '' : metrics.pnl >= 0 ? '+$' : '-$'}
               trend={pnlTrend}
             />
             <MetricCard
               label="P&L %"
-              value={metrics.pnl_pct?.toFixed(2) || '0.00'}
-              suffix="%"
+              value={metrics.pnl_pct?.toFixed(2) ?? 'Unavailable'}
+              suffix={metrics.pnl_pct === null ? '' : '%'}
               trend={pnlTrend}
             />
             <MetricCard
               label="Open Positions"
-              value={metrics.total_positions || 0}
+              value={metrics.total_positions ?? 'Unavailable'}
               color="#3498db"
             />
             <MetricCard
-              label="Margin Used"
-              value={(metrics.margin_ratio * 100)?.toFixed(1) || '0.0'}
-              suffix="%"
-              color={metrics.margin_ratio > 0.8 ? '#e74c3c' : '#27ae60'}
+              label="Margin ratio"
+              value={metrics.margin_ratio === null ? 'Unavailable' : (metrics.margin_ratio * 100).toFixed(1)}
+              suffix={metrics.margin_ratio === null ? '' : '%'}
             />
             <MetricCard
               label="Unrealized P&L"
-              value={metrics.unrealized_pnl?.toFixed(2) || '0.00'}
-              prefix="$"
-              trend={metrics.unrealized_pnl >= 0 ? 'up' : 'down'}
+              value={metrics.unrealized_pnl?.toFixed(2) ?? 'Unavailable'}
+              prefix={metrics.unrealized_pnl === null ? '' : '$'}
+              trend={metrics.unrealized_pnl === null ? 'neutral' : metrics.unrealized_pnl >= 0 ? 'up' : 'down'}
             />
           </div>
         </div>
@@ -407,8 +418,7 @@ export default function TradingPanel() {
               <li>The selected model must be admitted and active</li>
               <li>A separately approved critical <code>trading.start_live</code> proposal is required</li>
               <li>The executor principal and approval factor are verified independently</li>
-              <li>Short selling limited to BTC (0.5 max) & ETH (10.0 max) only</li>
-              <li>Maximum leverage: 5x for both Long & Short positions</li>
+              <li>Review the current configured limits below before requesting a start</li>
             </ul>
           </div>
         )}
@@ -421,7 +431,7 @@ export default function TradingPanel() {
           {!isRunning ? (
             <button
               onClick={handleStart}
-              disabled={startMutation.isPending || !activeModel}
+              disabled={startMutation.isPending || statusUnknown || activeModelIsError || !activeModel}
               className="btn btn-success btn-large"
               style={{ flex: 2 }}
             >
@@ -434,7 +444,7 @@ export default function TradingPanel() {
               className="btn btn-warning btn-large"
               style={{ flex: 2 }}
             >
-              {stopMutation.isPending ? '⏳ Stopping...' : '⏹️ STOP TRADING'}
+              {stopMutation.isPending ? '⏳ Stopping...' : tradingStatus?.status === 'stopping' ? 'Retry stop request' : '⏹️ STOP TRADING'}
             </button>
           )}
         </div>
@@ -505,6 +515,9 @@ export default function TradingPanel() {
               onClick={handleConfirmLive}
               disabled={
                 startMutation.isPending
+                || statusUnknown
+                || activeModelIsError
+                || isRunning
                 || !activeModel
                 || !liveAuthorisation.proposalId
                 || !liveAuthorisation.expectedRevision
@@ -540,7 +553,7 @@ export default function TradingPanel() {
             className="btn btn-danger"
             style={{ flex: 1 }}
           >
-            {panicMutation.isPending ? '⏳ Executing...' : '🚨 PANIC - Close All Positions'}
+            {panicMutation.isPending ? 'Sending request…' : 'Request panic stop'}
           </button>
 
           <button
@@ -557,14 +570,14 @@ export default function TradingPanel() {
           <div className="emergency-confirm" style={{ marginTop: '15px' }}>
             <div className="confirmation-warning" style={{ backgroundColor: '#f8d7da', padding: '15px', borderRadius: '8px' }}>
               <strong style={{ color: '#c0392b' }}>⚠️ EMERGENCY KILL CONFIRMATION</strong>
-              <p>This will IMMEDIATELY terminate ALL running processes:</p>
+              <p>Request a stop for all managed processes:</p>
               <ul>
                 <li>Training jobs</li>
                 <li>Paper/Live trading</li>
                 <li>Data downloads</li>
                 <li>Backtests</li>
               </ul>
-              <p><strong>This action cannot be undone!</strong></p>
+              <p>The server first attempts a graceful trading stop, then terminates managed workers. Check process status and reconcile positions afterward.</p>
               <label style={{ display: 'block', marginTop: '12px' }}>
                 Independent emergency key
                 <input
@@ -602,18 +615,15 @@ export default function TradingPanel() {
       <div className="section">
         <h3>Risk Configuration</h3>
         <div className="info-box">
-          <p><strong>Leverage Limits:</strong></p>
-          <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
-            <li>Long positions: Up to 5x leverage</li>
-            <li>Short positions: Up to 5x leverage (BTC/ETH only)</li>
-          </ul>
-          <p><strong>Circuit Breakers:</strong></p>
-          <ul style={{ margin: '5px 0', paddingLeft: '20px' }}>
-            <li>Max loss: 10% per hour</li>
-            <li>Margin floor: 2%</li>
-            <li>Liquidation threshold: 3%</li>
-          </ul>
-          <p><strong>Fees:</strong> 0.075% taker fee, 0.05% daily financing</p>
+          <p>Current server configuration. A running worker keeps the settings admitted when it started.</p>
+          {riskLoading && <p role="status">Loading configured limits…</p>}
+          {riskIsError && <p role="alert">Configured limits are unavailable. <button type="button" className="btn" onClick={() => refreshRisk()}>Retry limits</button></p>}
+          {!riskLoading && !riskIsError && <table className="models-table">
+            <caption>Configured risk and cost limits</caption>
+            <tbody>{riskRows.map(([label, value]) => <tr key={label}>
+              <th scope="row">{label}</th><td>{value}</td>
+            </tr>)}</tbody>
+          </table>}
         </div>
       </div>
     </div>

@@ -23,7 +23,7 @@ def compute_adx(
     Seed Wilder smoothed sums using moves 1..period and seed ADX with
     DX values period..2*period-1. Missing warmup remains NaN, not zero.
     """
-    if type(period) is not int or not 2 <= period <= 10_000:
+    if type(period) is not int or not 2 <= period <= 10_000:  # noqa: E721
         raise ValueError("ADX period must be an integer between 2 and 10000")
     if not isinstance(component, str) or component not in _COMPONENTS:
         raise ValueError("ADX component must be adx, plus_di, minus_di or dx")

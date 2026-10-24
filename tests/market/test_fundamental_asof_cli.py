@@ -41,8 +41,14 @@ def _invoke(tmp_path, facts, queries, when=500 * DAY):
     q.write_text(json.dumps(queries), encoding="utf-8")
     return subprocess.run(
         [
-            sys.executable, str(SCRIPT), "--facts", str(f),
-            "--queries", str(q), "--as-of-unix", str(when),
+            sys.executable,
+            str(SCRIPT),
+            "--facts",
+            str(f),
+            "--queries",
+            str(q),
+            "--as-of-unix",
+            str(when),
         ],
         cwd=ROOT,
         capture_output=True,
@@ -76,10 +82,19 @@ def test_cli_denies_duplicate_json_keys(tmp_path):
     q.write_text(json.dumps([_query()]), encoding="utf-8")
     run = subprocess.run(
         [
-            sys.executable, str(SCRIPT), "--facts", str(f),
-            "--queries", str(q), "--as-of-unix", str(500 * DAY),
+            sys.executable,
+            str(SCRIPT),
+            "--facts",
+            str(f),
+            "--queries",
+            str(q),
+            "--as-of-unix",
+            str(500 * DAY),
         ],
-        cwd=ROOT, capture_output=True, text=True, check=False,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert run.returncode != 0
     assert "hacked" not in run.stderr
@@ -95,9 +110,18 @@ def test_cli_denies_floating_json_and_excessive_size(tmp_path):
     q.write_text(json.dumps([_query()]), encoding="utf-8")
     run = subprocess.run(
         [
-            sys.executable, str(SCRIPT), "--facts", str(f),
-            "--queries", str(q), "--as-of-unix", str(500 * DAY),
+            sys.executable,
+            str(SCRIPT),
+            "--facts",
+            str(f),
+            "--queries",
+            str(q),
+            "--as-of-unix",
+            str(500 * DAY),
         ],
-        cwd=ROOT, capture_output=True, text=True, check=False,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert run.returncode != 0

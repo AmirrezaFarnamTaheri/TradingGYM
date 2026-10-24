@@ -96,7 +96,9 @@ class VenueRouter:
                 self._record_failure(primary, probe=probing, generation=generation)
                 if not (self.fail_open_secondary and self.policy.secondary):
                     raise
-                logger.warning("Primary market-data read failed error_type=%s", type(exc).__name__)
+                logger.warning(
+                    "Primary market-data read failed error_type=%s", type(exc).__name__
+                )
             else:
                 self._record_success(primary, probe=probing, generation=generation)
                 return value

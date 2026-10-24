@@ -139,12 +139,14 @@ def test_adx_research_presets_generate_entries_and_exits_in_shifted_regimes():
 
 def test_wilder_reference_two_period_hand_calculation():
     # First smoothed moves use periods 1 and 2: TR=6, +DM=4, -DM=0.
-    frame = pd.DataFrame({
-        "open": [9, 11, 13, 12, 11],
-        "high": [10, 12, 14, 13, 12],
-        "low": [8, 10, 12, 11, 10],
-        "close": [9, 11, 13, 12, 11],
-    })
+    frame = pd.DataFrame(
+        {
+            "open": [9, 11, 13, 12, 11],
+            "high": [10, 12, 14, 13, 12],
+            "low": [8, 10, 12, 11, 10],
+            "close": [9, 11, 13, 12, 11],
+        }
+    )
     plus = compute_adx(frame, period=2, component="plus_di")
     minus = compute_adx(frame, period=2, component="minus_di")
     adx = compute_adx(frame, period=2)

@@ -22,10 +22,16 @@ def test_new_turnover_request_and_report_fields_match_runtime_schema():
     document = json.loads((ROOT / "docs/contracts/openapi.json").read_text())
     published = document["components"]["schemas"]
     fields = (
-        (PortfolioConstructionRequest, (
-            "previous_weights", "turnover_penalty", "risk_aversion",
-            "asset_groups", "group_caps",
-        )),
+        (
+            PortfolioConstructionRequest,
+            (
+                "previous_weights",
+                "turnover_penalty",
+                "risk_aversion",
+                "asset_groups",
+                "group_caps",
+            ),
+        ),
         (
             PortfolioConstructionReport,
             (

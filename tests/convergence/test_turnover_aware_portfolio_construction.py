@@ -48,9 +48,9 @@ def test_same_api_adds_turnover_penalized_research_without_execution_rights():
     assert guarded.mutation_performed is False
     assert guarded.previous_weights_sha256 is not None
     assert len(guarded.previous_weights_sha256) == 64
-    assert guarded.report_sha256 == construct_portfolio(
-        request(penalty=0.1)
-    ).report_sha256
+    assert (
+        guarded.report_sha256 == construct_portfolio(request(penalty=0.1)).report_sha256
+    )
 
 
 def test_new_name_cap_forces_tracked_reallocation():
@@ -96,10 +96,12 @@ def test_prior_must_be_explicit_and_turnover_settings_cannot_be_ignored():
 
 def test_existing_methods_keep_nullable_turnover_evidence():
     req = request().model_copy(
-        update={"method": ConstructionMethod.EQUAL_WEIGHT,
-                "previous_weights": None,
-                "risk_aversion": 1.0,
-                "turnover_penalty": 0.0}
+        update={
+            "method": ConstructionMethod.EQUAL_WEIGHT,
+            "previous_weights": None,
+            "risk_aversion": 1.0,
+            "turnover_penalty": 0.0,
+        }
     )
     result = construct_portfolio(req)
     assert result.estimated_one_way_turnover is None
@@ -121,13 +123,10 @@ def test_large_turnover_problem_fails_before_solver_allocation():
                 for i in range(n)
             ],
             correlation_matrix=[
-                [1.0 if i == j else 0.0 for j in range(n)]
-                for i in range(n)
+                [1.0 if i == j else 0.0 for j in range(n)] for i in range(n)
             ],
             method=ConstructionMethod.TURNOVER_AWARE,
-            previous_weights={
-                f"ASSET{i}": 1.0 / n for i in range(n)
-            },
+            previous_weights={f"ASSET{i}": 1.0 / n for i in range(n)},
         )
 
 
@@ -139,10 +138,12 @@ def test_group_exposure_cap_is_respected_with_transparent_receipt():
     )
     result = construct_portfolio(PortfolioConstructionRequest(**payload))
     assert result.weights["BBB"] <= 0.300001
-    assert result.group_exposure == pytest.approx({
-        "equities": result.weights["AAA"],
-        "crypto": result.weights["BBB"],
-    })
+    assert result.group_exposure == pytest.approx(
+        {
+            "equities": result.weights["AAA"],
+            "crypto": result.weights["BBB"],
+        }
+    )
     assert result.group_caps_sha256 is not None
     assert result.execution_authority_granted is False
 
@@ -151,12 +152,16 @@ def test_group_exposure_cap_is_respected_with_transparent_receipt():
     "group_inputs",
     [
         {"asset_groups": {"AAA": "equities"}, "group_caps": {"equities": 0.5}},
-        {"asset_groups": {"AAA": "equities", "BBB": "crypto"},
-         "group_caps": {"unknown": 0.6}},
+        {
+            "asset_groups": {"AAA": "equities", "BBB": "crypto"},
+            "group_caps": {"unknown": 0.6},
+        },
         {"asset_groups": {"AAA": "equities", "BBB": "crypto"}},
         {"group_caps": {"crypto": 0.4}},
-        {"asset_groups": {"AAA": "equities", "BBB": "crypto"},
-         "group_caps": {"crypto": True}},
+        {
+            "asset_groups": {"AAA": "equities", "BBB": "crypto"},
+            "group_caps": {"crypto": True},
+        },
     ],
 )
 def test_incomplete_or_misleading_group_policy_cannot_be_accepted(group_inputs):

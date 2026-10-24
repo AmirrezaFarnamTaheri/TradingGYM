@@ -35,7 +35,7 @@ governed path.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Protocol
+from typing import Any, Protocol
 
 from trading_gym.agent.arms.base import (
     Arm,
@@ -58,6 +58,9 @@ from trading_gym.agent.working_memory import (
 from trading_gym.intelligence.types import (
     ActionKind,
     BackendUnavailable,
+    DecisionSignal,
+    InvalidDecisionSignal,
+    UncertainDecision,
     MarketContext,
 )
 from trading_gym.authz.grants import GrantLedger
@@ -127,6 +130,7 @@ class TierCascadePlanner:
         ledger: GrantLedger,
         blackboard: Blackboard | None = None,
         cycle_id: str | None = None,
+        observation: Any | None = None,
     ) -> PlannerResult:
         board = blackboard if blackboard is not None else Blackboard()
         invoked: list[tuple[ArmTier, str]] = []
@@ -155,7 +159,19 @@ class TierCascadePlanner:
                     benched.append((arm.name, reason))
                     continue
                 try:
-                    signal = arm.propose(context)
+                    signal = (
+                        arm.propose(context)
+                        if observation is None
+                        else arm.propose_with_observation(context, observation)
+                    )
+                    if not isinstance(signal, DecisionSignal):
+                        raise InvalidDecisionSignal("arm returned an untyped proposal")
+                except UncertainDecision:
+                    # Qualified review is an explicit external transition;
+                    # another unrelated arm cannot erase uncertainty.
+                    raise
+                except InvalidDecisionSignal as exc:
+                    raise PermissionError("invalid_arm_decision") from exc
                 except BackendUnavailable as exc:
                     benched.append((arm.name, _BENCH_ERROR))
                     del exc
@@ -164,15 +180,15 @@ class TierCascadePlanner:
                     # A revoked authority is not mere provider unavailability.
                     # Never hide denial behind a lower-tier fallback proposal.
                     raise
-                except Exception:  # noqa: BLE001 - one arm must not abort the cycle
-                    benched.append((arm.name, _BENCH_ERROR))
-                    continue
+                except Exception as exc:
+                    raise PermissionError("arm_invalid_failure") from exc
                 board.record(
                     ArmProposal(
                         arm_name=arm.name,
                         tier=tier,
                         signal=signal,
                         cost_paid=arm.cost,
+                        source_id=getattr(arm, "source_id", None),
                     )
                 )
                 invoked.append((tier, arm.name))

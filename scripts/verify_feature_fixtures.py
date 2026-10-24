@@ -22,7 +22,7 @@ def verify_feature_fixtures(
     root: Path, *, minimum_expected: int = 28
 ) -> dict[str, int]:
     """Fail on missing, untracked, symlinked, or tampered data fixtures."""
-    if type(minimum_expected) is not int or minimum_expected < 1:
+    if type(minimum_expected) is not int or minimum_expected < 1:  # noqa: E721
         raise ValueError("minimum_expected must be a positive integer")
     root = Path(root)
     expected: dict[str, str] = {}
@@ -62,4 +62,8 @@ def verify_feature_fixtures(
 
 
 if __name__ == "__main__":
-    print(json.dumps(verify_feature_fixtures(Path(__file__).resolve().parents[1]), sort_keys=True))
+    print(
+        json.dumps(
+            verify_feature_fixtures(Path(__file__).resolve().parents[1]), sort_keys=True
+        )
+    )

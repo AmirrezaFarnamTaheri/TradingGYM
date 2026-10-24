@@ -10,7 +10,7 @@ except ImportError:
     pytest.skip("Stable-Baselines3/Torch not installed", allow_module_level=True)
 
 
-def test_env_model_handshake(app_config, synthetic_data):
+def test_env_model_handshake(app_config, tmp_path):
     """
     HARDENING CHECK: Verifies that the Environment's observation space
     perfectly matches the PPO Agent's input expectations.
@@ -18,19 +18,20 @@ def test_env_model_handshake(app_config, synthetic_data):
     # 1. Force a specific timeframe for deterministic testing
     timeframe = "5m"
 
-    # 2. Initialize the real environment (using synthetic data fixture)
-    # We mock the data loader for the test context
-    import os
+    # 2. Build an isolated base-timeframe training tape and freeze its stats.
     import pandas as pd
+    from trading_gym.pipelines.environment import load_environment_inputs
+    from trading_gym.pipelines.model_bundle import FrozenNormalizer
 
-    # Ensure lake dir is set to temp location
-    app_config.data.lake_dir = "/tmp/lake"
+    cfg = app_config.model_copy(deep=True)
+    cfg.features.attention.enabled = False
+    cfg.data.lake_dir = str(tmp_path / "lake")
+    snapshot_path = tmp_path / "lake" / cfg.env.symbol / timeframe / "snap.parquet"
+    snapshot_path.parent.mkdir(parents=True)
 
-    os.makedirs("/tmp/lake/BTCUSDT/5m", exist_ok=True)
-    # Create sufficient data points to satisfy rolling window requirements (min 20)
+    # More than the admitted 64 completed history rows leaves a real transition.
     n_rows = 100
-    # Generate data with tight spreads (2bps) to avoid max_valid_spread_bps (100bps) check
-    # Mid: 100.0 -> High: 100.01, Low: 99.99 -> Spread: 0.02 / 100.0 = 0.0002 = 2bps
+    # Declare the modeled spread independently of the candle's high/low range.
     mid_prices = np.linspace(100, 200, n_rows)
     _snap = pd.DataFrame(
         {
@@ -41,15 +42,18 @@ def test_env_model_handshake(app_config, synthetic_data):
             "mid": mid_prices,
             "high": mid_prices + 0.01,
             "low": mid_prices - 0.01,
+            "spread_bps": np.full(n_rows, 2.0),
             "volume": np.ones(n_rows) * 1000,
         }
     )
     # The admitted-data loader requires a timezone-aware DatetimeIndex.
     _snap.index = pd.date_range("2024-01-01", periods=n_rows, freq="5min", tz="UTC")
-    _snap.to_parquet("/tmp/lake/BTCUSDT/5m/snap.parquet")
-    env = make(
-        app_config, timeframe=timeframe, training_stats={"mean": 0.0, "std": 1.0}
-    )
+    _snap.to_parquet(snapshot_path)
+    training_inputs = load_environment_inputs(cfg, timeframe)
+    stats = FrozenNormalizer.fit(
+        training_inputs["features"], cfg.features.standardization.method
+    ).to_stats()
+    env = make(cfg, timeframe=timeframe, training_stats=stats)
 
     assert isinstance(env.observation_space, gym.spaces.Box), "Obs space must be a Box"
     assert isinstance(env.action_space, gym.spaces.Box), "Action space must be a Box"
@@ -82,5 +86,6 @@ def test_env_model_handshake(app_config, synthetic_data):
     assert np.all(np.isfinite(new_obs)), "Post-step observation contains NaNs!"
     assert isinstance(reward, float), "Reward must be float"
     assert "equity" in info, "Info dict missing 'equity'"
+    env.close()
 
     print("\n✅ System Sanity Check Passed: Env <-> PPO compatibility verified.")

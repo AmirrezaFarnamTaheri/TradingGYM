@@ -278,7 +278,7 @@ def wilder_adx(
     function = getattr(library, "axiom_wilder_adx", None)
     if function is None:
         return None
-    if type(period) is not int or not 2 <= period <= 10_000:
+    if type(period) is not int or not 2 <= period <= 10_000:  # noqa: E721
         raise KernelError("invalid ADX period")
     buffers = tuple(
         np.require(values, dtype=np.float64, requirements=["C", "A"])

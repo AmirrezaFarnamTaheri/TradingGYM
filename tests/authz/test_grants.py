@@ -189,9 +189,7 @@ class TestEvaluation:
     def test_non_numeric_constraint_value_rejected(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         with pytest.raises(ConstraintViolation):
-            ledger.issue(
-                make_request(constraints=(("max_notional_quote", "500"),))
-            )
+            ledger.issue(make_request(constraints=(("max_notional_quote", "500"),)))
         assert ledger.events() == ()
 
     def test_historical_non_numeric_ceiling_fails_on_direct_evaluation(
@@ -268,6 +266,7 @@ class TestGrantLedgerIntegrity:
         with pytest.raises(ScopeError):
             ledger.issue(make_request(scopes=()))
 
+
 @pytest.mark.parametrize(
     "pattern",
     ("trade.**", "trade.live.*", "production.**", "x402.pay.*"),
@@ -298,7 +297,6 @@ def test_existing_legacy_grant_record_can_still_be_parsed() -> None:
     assert not loaded.scopes.patterns[0].is_issuable()
 
 
-
 class TestOverlappingGrantRiskControls:
     """Constraints bind matching authority, not an arbitrary first grant."""
 
@@ -306,12 +304,8 @@ class TestOverlappingGrantRiskControls:
         self, tmp_path: Path
     ) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
-        grant = ledger.issue(
-            make_request(constraints=(("max_notional_quote", 500),))
-        )
-        decision = grant.evaluate(
-            "trade.paper.order.submit", now=TEST_DECISION_TIME
-        )
+        grant = ledger.issue(make_request(constraints=(("max_notional_quote", 500),)))
+        decision = grant.evaluate("trade.paper.order.submit", now=TEST_DECISION_TIME)
         assert not decision.allowed
         assert decision.reason == "constraint_missing_max_notional_quote"
         assert not ledger.check(
@@ -323,11 +317,10 @@ class TestOverlappingGrantRiskControls:
     ) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         ledger.issue(make_request())
-        ledger.issue(
-            make_request(constraints=(("max_notional_quote", 500),))
-        )
+        ledger.issue(make_request(constraints=(("max_notional_quote", 500),)))
         decision = ledger.check(
-            "agent-axiom1", "trade.paper.order.submit",
+            "agent-axiom1",
+            "trade.paper.order.submit",
             now=TEST_DECISION_TIME,
             constraints={"max_notional_quote": 501},
         )
@@ -335,7 +328,8 @@ class TestOverlappingGrantRiskControls:
         assert decision.reason == "constraint_max_notional_quote"
         with pytest.raises(ScopeDenied):
             ledger.require(
-                "agent-axiom1", "trade.paper.order.submit",
+                "agent-axiom1",
+                "trade.paper.order.submit",
                 now=TEST_DECISION_TIME,
                 constraints={"max_notional_quote": 501},
             )
@@ -345,20 +339,23 @@ class TestOverlappingGrantRiskControls:
     ) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         ledger.issue(make_request())
-        ledger.issue(
-            make_request(constraints=(("max_notional_quote", 500),))
-        )
+        ledger.issue(make_request(constraints=(("max_notional_quote", 500),)))
         verdict = ledger.check(
-            "agent-axiom1", "trade.paper.order.submit",
+            "agent-axiom1",
+            "trade.paper.order.submit",
             now=TEST_DECISION_TIME,
             constraints={"max_notional_quote": 499},
         )
         assert verdict.allowed
-        assert ledger.require(
-            "agent-axiom1", "trade.paper.order.submit",
-            now=TEST_DECISION_TIME,
-            constraints={"max_notional_quote": 499},
-        ).grant_id == verdict.grant_id
+        assert (
+            ledger.require(
+                "agent-axiom1",
+                "trade.paper.order.submit",
+                now=TEST_DECISION_TIME,
+                constraints={"max_notional_quote": 499},
+            ).grant_id
+            == verdict.grant_id
+        )
 
     def test_unrelated_scope_cannot_veto_authorized_action(
         self, tmp_path: Path
@@ -375,23 +372,29 @@ class TestOverlappingGrantRiskControls:
             "agent-axiom1", "trade.paper.order.submit", now=TEST_DECISION_TIME
         ).allowed
 
-    @pytest.mark.parametrize("observed", [
-        float("nan"), float("inf"), float("-inf"), True,
-    ])
+    @pytest.mark.parametrize(
+        "observed",
+        [
+            float("nan"),
+            float("inf"),
+            float("-inf"),
+            True,
+        ],
+    )
     def test_invalid_observation_fails_closed_without_500(
         self, tmp_path: Path, observed: object
     ) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
-        grant = ledger.issue(
-            make_request(constraints=(("max_notional_quote", 500),))
-        )
+        grant = ledger.issue(make_request(constraints=(("max_notional_quote", 500),)))
         with pytest.raises(ConstraintViolation):
             grant.evaluate(
-                "trade.paper.order.submit", now=TEST_DECISION_TIME,
+                "trade.paper.order.submit",
+                now=TEST_DECISION_TIME,
                 constraints={"max_notional_quote": observed},
             )
         denial = ledger.check(
-            "agent-axiom1", "trade.paper.order.submit",
+            "agent-axiom1",
+            "trade.paper.order.submit",
             now=TEST_DECISION_TIME,
             constraints={"max_notional_quote": observed},
         )
@@ -404,9 +407,7 @@ class TestOverlappingGrantRiskControls:
     ) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         with pytest.raises(ConstraintViolation):
-            ledger.issue(
-                make_request(constraints=(("max_notional_quote", ceiling),))
-            )
+            ledger.issue(make_request(constraints=(("max_notional_quote", ceiling),)))
         assert ledger.events() == ()
 
     def test_future_dated_grant_cannot_be_used_before_issuance(
@@ -417,14 +418,10 @@ class TestOverlappingGrantRiskControls:
             make_request(issued_at="2026-09-05T00:00:00Z", ttl_hours=24)
         )
         assert not grant.is_active(now=TEST_DECISION_TIME)
-        early = grant.evaluate(
-            "trade.paper.order.submit", now=TEST_DECISION_TIME
-        )
+        early = grant.evaluate("trade.paper.order.submit", now=TEST_DECISION_TIME)
         assert not early.allowed
         assert early.reason == "grant_not_yet_valid"
-        start = grant.evaluate(
-            "trade.paper.order.submit", now="2026-09-05T00:00:00Z"
-        )
+        start = grant.evaluate("trade.paper.order.submit", now="2026-09-05T00:00:00Z")
         assert start.allowed
 
     def test_old_grant_handle_stops_authorizing_after_revocation(
@@ -442,7 +439,6 @@ class TestOverlappingGrantRiskControls:
         )
         assert not decision.allowed
         assert decision.reason == "grant_revoked"
-
 
 
 class TestGrantAnchorCorruptionRegression:
@@ -473,9 +469,7 @@ class TestGrantAnchorCorruptionRegression:
     ) -> None:
         path = tmp_path / "grants.jsonl"
         GrantLedger.open(path).issue(make_request())
-        path.with_suffix(".jsonl.anchor").write_text(
-            bad_anchor, encoding="utf-8"
-        )
+        path.with_suffix(".jsonl.anchor").write_text(bad_anchor, encoding="utf-8")
         with pytest.raises(GrantLedgerIntegrityError):
             GrantLedger.open(path)
 
@@ -491,9 +485,7 @@ class TestGrantAnchorCorruptionRegression:
         with pytest.raises(GrantLedgerIntegrityError):
             GrantLedger.open(path)
 
-    def test_non_object_journal_record_is_integrity_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_non_object_journal_record_is_integrity_error(self, tmp_path: Path) -> None:
         path = tmp_path / "grants.jsonl"
         path.write_text("null" + chr(10), encoding="utf-8")
         with pytest.raises(GrantLedgerIntegrityError):
@@ -504,9 +496,7 @@ class TestGrantAnchorCorruptionRegression:
     ) -> None:
         path = tmp_path / "grants.jsonl"
         GrantLedger.open(path).issue(make_request())
-        path.with_suffix(".jsonl.anchor").write_text(
-            " " * 8192, encoding="utf-8"
-        )
+        path.with_suffix(".jsonl.anchor").write_text(" " * 8192, encoding="utf-8")
         with pytest.raises(GrantLedgerIntegrityError, match="size bound"):
             GrantLedger.open(path)
 
@@ -529,14 +519,10 @@ class TestGrantIssuanceConstraintValidation:
     ) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         with pytest.raises(ConstraintViolation):
-            ledger.issue(
-                make_request(constraints=(("max_notional_quote", ceiling),))
-            )
+            ledger.issue(make_request(constraints=(("max_notional_quote", ceiling),)))
         assert ledger.events() == ()
 
-    def test_duplicate_ceiling_names_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_duplicate_ceiling_names_rejected(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         with pytest.raises(ConstraintViolation, match="duplicate"):
             ledger.issue(
@@ -548,18 +534,12 @@ class TestGrantIssuanceConstraintValidation:
                 )
             )
 
-    def test_malformed_constraint_name_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_malformed_constraint_name_rejected(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         with pytest.raises(ConstraintViolation, match="name"):
-            ledger.issue(
-                make_request(constraints=(("max_notional_quote!" , 100),))
-            )
+            ledger.issue(make_request(constraints=(("max_notional_quote!", 100),)))
 
-    def test_boolean_ttl_must_not_be_treated_as_one_hour(
-        self, tmp_path: Path
-    ) -> None:
+    def test_boolean_ttl_must_not_be_treated_as_one_hour(self, tmp_path: Path) -> None:
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
         with pytest.raises(ValueError, match="ttl_hours"):
             ledger.issue(make_request(ttl_hours=True))
@@ -620,9 +600,7 @@ class TestConcurrentGrantJournalTransitions:
         assert current.get(grant.grant_id).state == GrantState.REVOKED
         assert second.get(grant.grant_id).state == GrantState.REVOKED
 
-    def test_two_stale_breach_latches_are_idempotent(
-        self, tmp_path: Path
-    ) -> None:
+    def test_two_stale_breach_latches_are_idempotent(self, tmp_path: Path) -> None:
         journal = tmp_path / "grants.jsonl"
         first = GrantLedger.open(journal)
         grant = first.issue(make_request())
@@ -656,9 +634,7 @@ class TestConcurrentGrantJournalTransitions:
         assert current.verify()["entries"] == 1
         assert current.get(grant.grant_id).state == GrantState.ACTIVE
 
-    def test_unrelated_concurrent_issuance_remains_valid(
-        self, tmp_path: Path
-    ) -> None:
+    def test_unrelated_concurrent_issuance_remains_valid(self, tmp_path: Path) -> None:
         journal = tmp_path / "grants.jsonl"
         first = GrantLedger.open(journal)
         second = GrantLedger.open(journal)

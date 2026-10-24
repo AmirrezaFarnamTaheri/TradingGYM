@@ -19,19 +19,37 @@ _CAPABILITY = re.compile(r"^[a-z][a-z0-9._-]{1,39}$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _WIRES = frozenset({"systemone", "systemone_fixed", "openai_chat"})
 _HEALTH = frozenset({"available", "degraded", "unavailable", "unprobed"})
-_CANDIDATE_COLUMNS = frozenset({
-    "provider_id", "model_id", "wire_protocol", "capabilities",
-    "context_window_tokens", "p95_latency_ms", "cost_usd_per_1k_tokens",
-    "is_remote", "enabled", "health", "remaining_requests", "metadata_sha256",
-})
-_REQUEST_COLUMNS = frozenset({
-    "required_capabilities", "required_protocol", "input_tokens", "output_tokens",
-    "max_latency_ms", "max_cost_usd", "allow_remote_context",
-})
+_CANDIDATE_COLUMNS = frozenset(
+    {
+        "provider_id",
+        "model_id",
+        "wire_protocol",
+        "capabilities",
+        "context_window_tokens",
+        "p95_latency_ms",
+        "cost_usd_per_1k_tokens",
+        "is_remote",
+        "enabled",
+        "health",
+        "remaining_requests",
+        "metadata_sha256",
+    }
+)
+_REQUEST_COLUMNS = frozenset(
+    {
+        "required_capabilities",
+        "required_protocol",
+        "input_tokens",
+        "output_tokens",
+        "max_latency_ms",
+        "max_cost_usd",
+        "allow_remote_context",
+    }
+)
 
 
 def _integer(value: Any, *, minimum: int, maximum: int) -> int:
-    if type(value) is not int or not minimum <= value <= maximum:
+    if type(value) is not int or not minimum <= value <= maximum:  # noqa: E721
         raise ValueError("invalid routing integer")
     return value
 
@@ -75,13 +93,10 @@ def _candidate(item: Any) -> dict[str, Any]:
         or result["wire_protocol"] not in _WIRES
     ):
         raise ValueError("invalid routing wire protocol")
-    if (
-        not isinstance(result["health"], str)
-        or result["health"] not in _HEALTH
-    ):
+    if not isinstance(result["health"], str) or result["health"] not in _HEALTH:
         raise ValueError("invalid routing health state")
     for key in ("is_remote", "enabled"):
-        if type(result[key]) is not bool:
+        if type(result[key]) is not bool:  # noqa: E721
             raise ValueError("invalid routing boolean metadata")
     if not isinstance(result["metadata_sha256"], str) or not _DIGEST.fullmatch(
         result["metadata_sha256"]
@@ -115,7 +130,7 @@ def _request(item: Any) -> dict[str, Any]:
         or result["required_protocol"] not in _WIRES
     ):
         raise ValueError("invalid required protocol")
-    if type(result["allow_remote_context"]) is not bool:
+    if type(result["allow_remote_context"]) is not bool:  # noqa: E721
         raise ValueError("invalid remote disclosure consent")
     result["input_tokens"] = _integer(
         result["input_tokens"], minimum=0, maximum=1_000_000

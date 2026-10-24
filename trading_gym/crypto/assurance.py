@@ -31,13 +31,13 @@ def evaluate_crypto_evidence(evidence):
         m.source_sha256
     ):
         blockers.append("invalid_source_sha256")
-    if type(m.built) is not bool:
+    if type(m.built) is not bool:  # noqa: E721
         blockers.append("invalid_build_evidence")
     elif not m.built:
         blockers.append("native_build_missing")
     if not isinstance(m.compiler, str) or not m.compiler.strip():
         blockers.append("compiler_required")
-    if type(m.vectors_executed) is not int or m.vectors_executed <= 0:
+    if type(m.vectors_executed) is not int or m.vectors_executed <= 0:  # noqa: E721
         blockers.append("no_executed_vectors")
     return {
         "blockers": blockers,

@@ -44,12 +44,12 @@ class ProviderConfig(BaseModel):
     model: Annotated[str, Field(min_length=1, max_length=200)]
     # Native finite-choice System-One and chat-completions are distinct
     # protocols. Preserve the existing chat behavior by default.
-    wire_protocol: Literal[
-        "openai_chat", "systemone", "systemone_fixed"
-    ] = "openai_chat"
-    systemone_path: Annotated[
-        str, Field(pattern=r"^/[A-Za-z0-9_./-]{0,199}$")
-    ] = "/v1/systemone"
+    wire_protocol: Literal["openai_chat", "systemone", "systemone_fixed"] = (
+        "openai_chat"
+    )
+    systemone_path: Annotated[str, Field(pattern=r"^/[A-Za-z0-9_./-]{0,199}$")] = (
+        "/v1/systemone"
+    )
     base_url: str | None = None
     health_path: Annotated[str, Field(pattern=r"^/[A-Za-z0-9_./-]{0,199}$")] = "/models"
     api_key_env: Annotated[str | None, Field(pattern=r"^[A-Z][A-Z0-9_]{1,79}$")] = None
@@ -58,7 +58,9 @@ class ProviderConfig(BaseModel):
     # provider documents independent per-key rate-limit buckets.
     rotate_on_rate_limit: bool = False
     # Optional all-key, all-model, cross-process hourly HTTP attempt ceiling.
-    max_requests_per_hour: Annotated[int | None, Field(strict=True, ge=1, le=100_000)] = None
+    max_requests_per_hour: Annotated[
+        int | None, Field(strict=True, ge=1, le=100_000)
+    ] = None
     command: Annotated[str | None, Field(pattern=r"^[A-Za-z0-9_.-]{1,120}$")] = None
     allow_private_network: bool = False
     enabled: bool = True
@@ -131,10 +133,15 @@ class ProviderConfig(BaseModel):
             raise ValueError("CLI providers must not define API credentials")
         if self.kind is ProviderKind.CLI and self.wire_protocol != "openai_chat":
             raise ValueError("CLI providers cannot use System-One HTTP protocol")
-        if self.wire_protocol in {"systemone", "systemone_fixed"} and self.rotate_on_rate_limit:
+        if (
+            self.wire_protocol in {"systemone", "systemone_fixed"}
+            and self.rotate_on_rate_limit
+        ):
             # Native Go System-One returns HTTP 429 when its *global*
             # scorer is busy; rotating credentials cannot create capacity.
-            raise ValueError("native System-One does not support rate-limit key rotation")
+            raise ValueError(
+                "native System-One does not support rate-limit key rotation"
+            )
         if self.kind is ProviderKind.OPENAI_COMPATIBLE and not refs:
             raise ValueError(
                 "OpenAI-compatible providers require an API-key environment reference"
@@ -294,12 +301,16 @@ def selected_provider_credential_refs(
     mode = intelligence.mode
     if mode in (IntelligenceMode.SYSTEM1, IntelligenceMode.AUTO):
         chosen.extend(intelligence.system1_provider_ids)
-    if mode in (
-        IntelligenceMode.SYSTEM1,
-        IntelligenceMode.AUTO,
-        IntelligenceMode.FUSION,
-        IntelligenceMode.LLM,
-    ) and intelligence.llm_provider_id:
+    if (
+        mode
+        in (
+            IntelligenceMode.SYSTEM1,
+            IntelligenceMode.AUTO,
+            IntelligenceMode.FUSION,
+            IntelligenceMode.LLM,
+        )
+        and intelligence.llm_provider_id
+    ):
         chosen.append(intelligence.llm_provider_id)
     if (
         mode in (IntelligenceMode.LLM, IntelligenceMode.FUSION)
@@ -316,7 +327,11 @@ def selected_provider_credential_refs(
     references: set[str] = set()
     for provider_id in requested:
         provider = catalogue.get(provider_id)
-        if provider is None or not provider.enabled or provider.kind is ProviderKind.CLI:
+        if (
+            provider is None
+            or not provider.enabled
+            or provider.kind is ProviderKind.CLI
+        ):
             if mode is IntelligenceMode.AUTO:
                 continue
             raise ValueError(f"model provider {provider_id!r} not found or disabled")
@@ -393,7 +408,8 @@ def provider_status(
     # reachability, not of model readiness or decision quality.
     health_path = (
         config.systemone_path
-        if config.wire_protocol in {"systemone", "systemone_fixed"} and config.health_path == "/models"
+        if config.wire_protocol in {"systemone", "systemone_fixed"}
+        and config.health_path == "/models"
         else config.health_path
     )
     destination = join_provider_endpoint(base_url, health_path)
@@ -414,7 +430,8 @@ def provider_status(
             config.wire_protocol in {"systemone", "systemone_fixed"}
             and health_path == config.systemone_path
             and code == 405
-            and "POST" in {
+            and "POST"
+            in {
                 method.strip().upper()
                 for method in response.headers.get("allow", "").split(",")
             }

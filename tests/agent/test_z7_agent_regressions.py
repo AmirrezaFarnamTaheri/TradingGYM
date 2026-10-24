@@ -87,7 +87,7 @@ def test_guard_veto_is_the_rules_channels_own_hold(tmp_path: Path) -> None:
     rules = DeterministicRuleBackend(defence_drawdown=0.95)
     # the raw backend is still risk-on at this drawdown...
     assert rules.decide(_stressed_context()).action_kind is ActionKind.LONG
-    # ...while the guard's floor vetoes it
+    # Its own defence floor activates later, so it cannot explain this veto.
     assert (
         rules.decide(make_context(drawdown_from_peak=0.96)).action_kind
         is ActionKind.HOLD
@@ -95,10 +95,11 @@ def test_guard_veto_is_the_rules_channels_own_hold(tmp_path: Path) -> None:
 
     registry = default_registry(rule_backend=rules)
     by_name = {arm.name: arm for arm in registry.arms()}
-    for name in ("rules", "risk-guard:rules"):
-        assert (
-            by_name[name].propose(_stressed_context()).action_kind is ActionKind.HOLD
-        ), f"{name} must flatten on a guard veto"
+    assert "risk-guard:rules" not in by_name, "the guard must not add an alias vote"
+    guarded_signal = by_name["rules"].propose(_stressed_context())
+    assert guarded_signal.action_kind is ActionKind.HOLD
+    assert guarded_signal.target_leverage == 0.0
+    assert guarded_signal.backend == "risk-guard:rules"
 
     planner = TierCascadePlanner(registry)
     result = planner.run(
@@ -109,6 +110,11 @@ def test_guard_veto_is_the_rules_channels_own_hold(tmp_path: Path) -> None:
     )
     assert result.fused.action_kind is ActionKind.HOLD
     assert result.fused.target_leverage == 0.0
+    assert [
+        proposal.arm_name
+        for proposal in result.proposals
+        if proposal.source_id == "risk-guard:rules"
+    ] == ["rules"]
 
 
 def test_cycle_ids_stay_unique_past_fifo_eviction(tmp_path: Path) -> None:

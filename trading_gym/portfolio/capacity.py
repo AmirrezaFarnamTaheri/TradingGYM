@@ -39,13 +39,13 @@ def _amount(value: object, *, allow_zero: bool = True) -> Decimal:
 
 
 def _int(value: object, *, upper: int = 10**11) -> int:
-    if type(value) is not int or not 0 <= value <= upper:
+    if type(value) is not int or not 0 <= value <= upper:  # noqa: E721
         raise ValueError("invalid capacity time or limit")
     return value
 
 
 def _digest(value: object) -> str:
-    if type(value) is not str or not _SHA256.fullmatch(value):
+    if type(value) is not str or not _SHA256.fullmatch(value):  # noqa: E721
         raise ValueError("missing or malformed capacity SHA-256 evidence")
     return value
 
@@ -81,13 +81,17 @@ def assess_rebalance_capacity(
     cap = _amount(max_participation, allow_zero=False)
     if cap > 1:
         raise ValueError("participation cap cannot exceed one")
-    if not getattr(plan, "dry_run", False) or getattr(
-        plan, "mutation_performed", True
-    ) or getattr(plan, "execution_authority_granted", True):
+    if (
+        not getattr(plan, "dry_run", False)
+        or getattr(plan, "mutation_performed", True)
+        or getattr(plan, "execution_authority_granted", True)
+    ):
         raise ValueError("capacity assessment requires a non-mutating plan")
     plan_sha = _digest(getattr(plan, "plan_sha256", None))
     currency = getattr(plan, "base_currency", None)
-    if type(currency) is not str or not re.fullmatch(r"[A-Z]{3,8}", currency):
+    if type(currency) is not str or not re.fullmatch(  # noqa: E721
+        r"[A-Z]{3,8}", currency
+    ):
         raise ValueError("invalid plan base currency")
     trades = getattr(plan, "trades", None)
     if not isinstance(trades, (tuple, list)) or len(trades) > _MAX_INPUTS:
@@ -146,15 +150,17 @@ def assess_rebalance_capacity(
         total_shortfall += shortfall
         if reason is None and shortfall > 0:
             blockers.add(f"capacity_exceeded:{name}")
-        items.append({
-            "instrument_id": name,
-            "requested_notional_base": str(requested),
-            "capacity_notional_base": str(allowed),
-            "shortfall_base": str(shortfall),
-            "participation": participation,
-            "observed_at_unix": evidence.observed_at_unix if evidence else None,
-            "source_sha256": evidence.source_sha256 if evidence else None,
-        })
+        items.append(
+            {
+                "instrument_id": name,
+                "requested_notional_base": str(requested),
+                "capacity_notional_base": str(allowed),
+                "shortfall_base": str(shortfall),
+                "participation": participation,
+                "observed_at_unix": evidence.observed_at_unix if evidence else None,
+                "source_sha256": evidence.source_sha256 if evidence else None,
+            }
+        )
     if set(indexed) - used:
         raise ValueError("ADV evidence contains unrelated instruments")
     body: dict[str, Any] = {

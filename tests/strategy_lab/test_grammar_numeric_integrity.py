@@ -1,6 +1,5 @@
 """Reject implicit boolean coercion and nonfinite strategy grammar inputs."""
 
-
 import pytest
 
 from trading_gym.strategy_lab.models import IndicatorSpec, Operand, RiskSpec

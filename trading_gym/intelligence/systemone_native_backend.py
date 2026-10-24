@@ -23,6 +23,8 @@ from trading_gym.agent.providers import (
 )
 from trading_gym.common.security import validate_base_url
 from trading_gym.intelligence.base import IntelligenceBackend
+from trading_gym.intelligence.deadlines import decision_budget, remaining_seconds
+from trading_gym.intelligence.bounded_http import bounded_post, strict_response_json
 from trading_gym.intelligence.llm_key_pool import (
     CredentialPool,
     CredentialStateIntegrityError,
@@ -49,6 +51,7 @@ from trading_gym.intelligence.types import (
     BackendHealth,
     BackendUnavailable,
     UncertainDecision,
+    InvalidDecisionSignal,
     DecisionSignal,
     MarketContext,
 )
@@ -86,15 +89,13 @@ def httpx_systemone_transport(
         else None
     )
 
-    def call(body: dict[str, Any]) -> dict[str, Any]:
+    def execute(body: dict[str, Any]) -> dict[str, Any]:
         # Hosted System One can bill per logical request and supports an
         # Idempotency-Key header. Generate it ONCE per decision: credential
         # retries must not create independent billable inference requests.
         # Self-hosted fixed-model engines do not need this hosted extension.
         logical_key = (
-            secrets.token_hex(16)
-            if config.wire_protocol == "systemone"
-            else None
+            secrets.token_hex(16) if config.wire_protocol == "systemone" else None
         )
 
         def post(secret: str, remaining: float) -> httpx.Response:
@@ -123,24 +124,26 @@ def httpx_systemone_transport(
                 follow_redirects=False,
                 trust_env=False,
             ) as client:
-                return client.post(endpoint, headers=headers, json=body)
+                return bounded_post(
+                    client, endpoint, headers=headers, json=body, timeout=remaining
+                )
 
         try:
             if pool is None:
-                response = post("", timeout_seconds)
+                response = post("", remaining_seconds(timeout_seconds))
                 reject_terminal_provider_status(response)
                 response.raise_for_status()
             else:
                 response = request_with_rotation(
                     pool,
                     post,
-                    timeout_seconds=timeout_seconds,
+                    timeout_seconds=remaining_seconds(timeout_seconds),
                     rotate_on_rate_limit=config.rotate_on_rate_limit,
                 )
             if len(response.content) > _MAX_RESPONSE_BYTES:
                 raise PermissionError("systemone_response_byte_budget_exceeded")
             try:
-                result = response.json()
+                result = strict_response_json(response)
             except (ValueError, TypeError) as exc:
                 # Malformed successful model responses are corrupted
                 # evidence, not a recoverable provider outage.
@@ -148,7 +151,7 @@ def httpx_systemone_transport(
             if not isinstance(result, dict):
                 raise PermissionError("systemone_invalid_response_envelope")
             return result
-        except PermissionError:
+        except (PermissionError, InvalidDecisionSignal):
             raise
         except RequestBudgetUnavailable as exc:
             raise PermissionError("provider_request_budget_denied") from exc
@@ -170,6 +173,10 @@ def httpx_systemone_transport(
             raise
         except (httpx.HTTPError, ValueError, TypeError) as exc:
             raise BackendUnavailable("System-One transport unavailable") from exc
+
+    def call(body: dict[str, Any]) -> dict[str, Any]:
+        with decision_budget(timeout_seconds):
+            return execute(body)
 
     return call
 
@@ -251,7 +258,8 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
 
         self.last_context_sha256 = hashlib.sha256(packet.encode("utf-8")).hexdigest()
         request = build_request(
-            packet, self.config.model,
+            packet,
+            self.config.model,
             include_model=self.config.wire_protocol == "systemone",
         )
         result = self._transport(request)
@@ -273,6 +281,8 @@ class NativeSystemOneDecisionBackend(IntelligenceBackend):
             raise PermissionError("systemone_invalid_model_output") from exc
         advisory = DecisionSignal(
             backend=self.name,
+            source_id=f"{self.config.provider_id}/{self.config.model}",
+            confidence_semantics="model_concentration",
             action_kind=ActionKind(action),
             target_leverage=leverage,
             confidence=confidence,

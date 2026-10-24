@@ -67,7 +67,7 @@ class MutationRetryPolicy:
 
     def __post_init__(self) -> None:
         if (
-            type(self.max_attempts) is not int
+            type(self.max_attempts) is not int  # noqa: E721
             or not 1 <= self.max_attempts <= MAX_ATTEMPTS
         ):
             raise ValueError("max_attempts must be an integer between 1 and 5")
@@ -76,10 +76,7 @@ class MutationRetryPolicy:
             ("max_delay_s", self.max_delay_s),
             ("jitter_fraction", self.jitter_fraction),
         ):
-            if (
-                type(value) not in (int, float)
-                or not math.isfinite(value)
-            ):
+            if type(value) not in (int, float) or not math.isfinite(value):
                 raise ValueError(f"{name} must be finite and numeric")
         if not 0 < self.base_delay_s <= 60:
             raise ValueError("base_delay_s must be in (0, 60]")
@@ -101,7 +98,7 @@ def delay_for_attempt(
     policy: MutationRetryPolicy, attempt: int, *, rng: random.Random | None = None
 ) -> float:
     """Exponential backoff capped at ``max_delay_s`` with multiplicative jitter."""
-    if type(attempt) is not int or attempt < 1:
+    if type(attempt) is not int or attempt < 1:  # noqa: E721
         raise ValueError("attempt numbering starts at positive integer 1")
     rng = rng or random.Random()
     raw = min(policy.max_delay_s, policy.base_delay_s * (2 ** (attempt - 1)))
@@ -182,12 +179,9 @@ class MutationOutbox:
                         "idempotency_key_already_recorded"
                     )
                 if operation != "order.cancel" and any(
-                    row["status"] in {"pending", "ambiguous"}
-                    for row in latest.values()
+                    row["status"] in {"pending", "ambiguous"} for row in latest.values()
                 ):
-                    raise PermissionError(
-                        "unresolved_mutations_require_reconciliation"
-                    )
+                    raise PermissionError("unresolved_mutations_require_reconciliation")
                 self.record_pending(
                     idempotency_key=idempotency_key,
                     proposal_id=proposal_id,
@@ -246,10 +240,9 @@ class MutationOutbox:
                 if existing == outcome:
                     return  # idempotent recovery; do not grow the durable log
                 allowed = (
-                    (existing == "pending"
-                     and outcome in {"committed", "ambiguous", "terminal"})
-                    or (existing == "ambiguous" and outcome == "committed")
-                )
+                    existing == "pending"
+                    and outcome in {"committed", "ambiguous", "terminal"}
+                ) or (existing == "ambiguous" and outcome == "committed")
                 if not allowed:
                     raise MutationOutboxIntegrityError(
                         "invalid transition for mutation outcome"

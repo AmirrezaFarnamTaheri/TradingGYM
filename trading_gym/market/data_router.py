@@ -347,7 +347,9 @@ class DataProviderRouter:
             if not pending.event.wait(self.inflight_wait_seconds):
                 raise TimeoutError("market_data_shared_request_timeout")
             if pending.error is not None:
-                raise RuntimeError("market_data_shared_request_failed") from pending.error
+                raise RuntimeError(
+                    "market_data_shared_request_failed"
+                ) from pending.error
             if pending.envelope is None:
                 raise RuntimeError("market_data_shared_request_missing_result")
             return replace(

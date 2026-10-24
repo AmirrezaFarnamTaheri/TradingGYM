@@ -42,7 +42,7 @@ def build_request(
     System-One engines select model weights at server startup and reject
     unknown JSON fields. The caller must pin and verify the response model.
     """
-    if type(include_model) is not bool:
+    if type(include_model) is not bool:  # noqa: E721
         raise ValueError("systemone_invalid_model_selector_policy")
     if (
         not isinstance(context_json, str)
@@ -132,7 +132,7 @@ def parse_decision(
     if abs(math.fsum(distribution.values()) - 1.0) > 0.001:
         raise ValueError("systemone_invalid_distribution")
     label = direction.get("choice")
-    if type(label) is not str or label not in _OPTIONS:
+    if type(label) is not str or label not in _OPTIONS:  # noqa: E721
         raise ValueError("systemone_invalid_choice")
     confidence = _probability(direction["confidence"])
     risk_off = _probability(risk["noul"])
@@ -143,7 +143,12 @@ def parse_decision(
     if label != winners[0]:
         raise ValueError("systemone_choice_disagrees_with_distribution")
     if risk_off >= 0.5:
-        return "hold", 0.0, risk_off, "risk-off probability veto; uncalibrated, advisory only"
+        return (
+            "hold",
+            0.0,
+            risk_off,
+            "risk-off probability veto; uncalibrated, advisory only",
+        )
     # A model's explicit HOLD is itself a conservative result. A weak HOLD
     # must not be promoted to a fallback trading model by classifying it as
     # an ordinary provider failure.
@@ -151,7 +156,9 @@ def parse_decision(
         return "hold", 0.0, confidence, "typed hold; uncalibrated, advisory only"
     if confidence < confidence_floor or peak < confidence_floor:
         raise ValueError("systemone_low_confidence_escalate")
-    magnitude = min(max_leverage, risk_ceiling) if risk_ceiling is not None else max_leverage
+    magnitude = (
+        min(max_leverage, risk_ceiling) if risk_ceiling is not None else max_leverage
+    )
     return (
         label,
         magnitude if label == "long" else -magnitude,

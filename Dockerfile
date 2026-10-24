@@ -1,37 +1,27 @@
-# Use the official Python 3.12 slim image as a parent image
-FROM python:3.12-slim
+FROM node:22-bookworm-slim AS frontend
+WORKDIR /ui
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
 
-# Set the working directory in the container to /app
+FROM python:3.12-slim AS runtime
+ARG SOURCE_REVISION=unrecorded
+ENV TRADING_GYM_BUILD_REVISION=$SOURCE_REVISION
 WORKDIR /app
-
-# Copy the dependency files to the working directory
-COPY pyproject.toml poetry.lock* ./
-
-# Install poetry (pinned; the lock file drives every version below)
-RUN pip install --no-cache-dir poetry==1.8.5 \
-    && poetry config virtualenvs.create false
-
-# Install ONLY the runtime dependencies (--only main replaces the
-# removed-in-Poetry-1.2 --no-dev flag; the lock file is respected)
-RUN poetry install --only main --no-root
-
-# Copy the rest of the application's source code from your host to your image filesystem.
-COPY . .
-
-# Install the project in editable mode
-RUN poetry install --only main
-
-# Run as an unprivileged user (was root)
-RUN useradd --create-home --shell /usr/sbin/nologin appuser \
-    && mkdir -p /home/appuser/.trading-gym \
-    && chown -R appuser:appuser /app /home/appuser/.trading-gym
+COPY pyproject.toml poetry.lock README.md ./
+RUN pip install --no-cache-dir poetry==2.2.1 && POETRY_VIRTUALENVS_CREATE=false poetry install --only main --no-root
+COPY apps/ ./apps/
+COPY axiomforge/ ./axiomforge/
+COPY trading_gym/ ./trading_gym/
+COPY config/ ./config/
+COPY evidence/recovered/ ./evidence/recovered/
+RUN POETRY_VIRTUALENVS_CREATE=false poetry install --only main
+COPY --from=frontend /ui/dist ./frontend/dist
+RUN useradd --create-home --shell /usr/sbin/nologin appuser && mkdir -p /home/appuser/.trading-gym && chown -R appuser:appuser /app /home/appuser/.trading-gym
 USER appuser
-
 ENV TRADING_GYM_HOME=/home/appuser/.trading-gym
-
-# Container liveness: the API serves /api/v1/health
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3).status == 200 else 1)" || exit 1
-
-# Set the default command to run when the container starts
-CMD ["/bin/bash"]
+VOLUME ["/home/appuser/.trading-gym", "/app/config"]
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"
+CMD ["python", "-m", "uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

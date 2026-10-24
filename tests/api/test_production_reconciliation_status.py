@@ -12,9 +12,7 @@ from trading_gym.production.mutation_retry import MutationOutbox
 def api(tmp_path, monkeypatch):
     monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
     app = FastAPI()
-    app.include_router(
-        create_production_router(lambda: None), prefix="/api/v1"
-    )
+    app.include_router(create_production_router(lambda: None), prefix="/api/v1")
     return TestClient(app)
 
 

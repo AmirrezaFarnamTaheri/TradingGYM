@@ -106,7 +106,6 @@ def test_env_reset(minimal_env_config, minimal_feature_config, mock_inputs):
     assert env.t >= env.warmup_steps
 
 
-
 @pytest.mark.parametrize("rows", [1, 201])
 def test_offline_environment_rejects_history_without_next_observation(
     rows, minimal_env_config, minimal_feature_config, mock_inputs
@@ -307,6 +306,7 @@ def test_live_mode_constructs(minimal_env_config, minimal_feature_config, mock_i
     assert env._raw_buffer.maxlen == env.T
 
     env.reset()
+    env.update_observation_clock(1_700_000_000.0)
     obs, reward, terminated, truncated, info = env.step(
         np.array([0.0], dtype=np.float32)
     )
@@ -328,22 +328,25 @@ def test_skipped_bar_still_accounts_for_mark_to_market_and_financing(
     )
     env.reset(seed=33)
     env._state = ExecutionState(
-        position=Decimal("1"),
+        position=Decimal("1.3"),
         equity=Decimal("100"),
         borrowed_base=Decimal("0"),
         borrowed_quote=Decimal("30"),
         average_entry_price=Decimal("100"),
     )
     env.prev_mid_price = 100.0
-    env.price[env.t] = 102.0
-    env.price_high[env.t] = 103.0
-    env.price_low[env.t] = 101.0
+    env.price[env.t] = 100.0
+    env.price_high[env.t] = 101.0
+    env.price_low[env.t] = 99.0
+    env.price[env.t + 1] = 102.0
+    env.price_high[env.t + 1] = 103.0
+    env.price_low[env.t + 1] = 101.0
     env._raw_features[env.t, env.feature_index["spread_ratio"]] = 1.0
 
     _, reward, _, _, info = env.step(np.array([1.0]))
 
     assert info["skipped"] is True
-    assert float(env.equity) < 102.0  # financing still charged
+    assert float(env.equity) < 102.6  # financing still charged
     assert float(env.equity) > 100.0  # price appreciation still booked
     assert info["financing_paid"] > 0.0
     assert reward == pytest.approx(env._reward(100.0))

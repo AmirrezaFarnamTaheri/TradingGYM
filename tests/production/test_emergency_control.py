@@ -144,6 +144,7 @@ def test_emergency_transition_preserves_valid_boolean_and_revision() -> None:
     assert next_state.actor == "operator-1"
     assert next_state.approver == "approver-2"
 
+
 def test_emergency_snapshot_rejects_fifo_before_blocking_read(
     tmp_path, monkeypatch
 ) -> None:

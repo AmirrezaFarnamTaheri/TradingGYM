@@ -112,7 +112,10 @@ def solve_turnover_aware(
         raise ValueError("per-asset limits cannot satisfy fully invested portfolio")
     lam = _scalar(risk_aversion, low=0.0, high=1000.0, label="risk aversion")
     gamma = _scalar(turnover_penalty, low=0.0, high=1000.0, label="turnover penalty")
-    if type(max_iterations) is not int or not 10 <= max_iterations <= 100_000:
+    if (
+        type(max_iterations) is not int  # noqa: E721
+        or not 10 <= max_iterations <= 100_000  # noqa: E721
+    ):
         raise ValueError("invalid optimizer iteration budget")
     tol = _scalar(tolerance, low=1e-12, high=0.1, label="tolerance")
     if max_iterations * n * n > 100_000_000:
@@ -127,8 +130,7 @@ def solve_turnover_aware(
         if not isinstance(group_caps, dict) or not group_caps:
             raise ValueError("group caps must be explicitly provided")
         if any(
-            not isinstance(name, str) or not 1 <= len(name) <= 80
-            for name in groups
+            not isinstance(name, str) or not 1 <= len(name) <= 80 for name in groups
         ):
             raise ValueError("group names must be nonempty and bounded")
         if len(group_caps) > n or not set(group_caps).issubset(groups):

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { dataAPI } from '../api';
+import { unwrapJobResponse } from '../jobResponse';
 import { useToast } from './Toast';
 
 export default function DataPanel() {
@@ -25,7 +26,7 @@ export default function DataPanel() {
   const downloadMutation = useMutation({
     mutationFn: (params) => dataAPI.download(
       params.symbol, params.timeframe, params.startDate, params.endDate
-    ),
+    ).then((response) => unwrapJobResponse(response)),
     onSuccess: (data) => {
       toast.success(`Data download started! Job: ${data.job_key}, PID: ${data.pid}. Check Training panel logs for progress.`);
     },
@@ -35,7 +36,7 @@ export default function DataPanel() {
   });
 
   const featuresMutation = useMutation({
-    mutationFn: () => dataAPI.generateFeatures(),
+    mutationFn: () => dataAPI.generateFeatures().then((response) => unwrapJobResponse(response, false)),
     onSuccess: (data) => {
       toast.success(`Feature generation started! PID: ${data.pid}. Check Training panel logs for progress.`);
     },

@@ -24,7 +24,8 @@ def obs(
     return FundingObservation(
         instrument_id="BTC-USDT-PERP",
         effective_at=T0 + timedelta(hours=effective_hours),
-        observed_at=T0 + timedelta(
+        observed_at=T0
+        + timedelta(
             hours=effective_hours if observed_hours is None else observed_hours
         ),
         rate=Decimal(rate),
@@ -76,15 +77,15 @@ def test_stale_evidence_denied_instead_of_reusing_old_funding():
 
 def test_cashflow_sign_and_decimal_precision_are_non_authoritative():
     q = quote([obs(2)], hours=2)
-    assert funding_cashflow_estimate(
-        q, signed_notional=Decimal("300")
-    ) == Decimal("-0.300")
-    assert funding_cashflow_estimate(
-        q, signed_notional=Decimal("-300")
-    ) == Decimal("0.300")
-    assert funding_cashflow_estimate(
-        q, signed_notional=Decimal("0")
-    ) == Decimal("0.000")
+    assert funding_cashflow_estimate(q, signed_notional=Decimal("300")) == Decimal(
+        "-0.300"
+    )
+    assert funding_cashflow_estimate(q, signed_notional=Decimal("-300")) == Decimal(
+        "0.300"
+    )
+    assert funding_cashflow_estimate(q, signed_notional=Decimal("0")) == Decimal(
+        "0.000"
+    )
     assert not q.capital_authority_granted
 
 
@@ -162,9 +163,12 @@ def test_utc_and_explicit_offset_observations_produce_identical_receipts():
     )
     assert quote([a], hours=3).evidence_sha256 == quote([b], hours=3).evidence_sha256
 
+
 def test_one_observed_rate_cannot_be_reused_as_unobserved_future_intervals():
     one_rate = quote([obs(2)], hours=2)
     with pytest.raises(ValueError, match="single observed interval"):
         funding_cashflow_estimate(
-            one_rate, signed_notional=Decimal("500"), intervals=2,
+            one_rate,
+            signed_notional=Decimal("500"),
+            intervals=2,
         )
