@@ -10,6 +10,19 @@ def test_direct_access_and_cross_origin_rejection(tmp_path):
         assert data["mode"] == "observe"
         assert data["equity"] is None and data["cash"] is None
         assert data["trades"] == []
+        for port in [3000, 4173, 5173]:
+            assert (
+                client.get(
+                    "/api/v1/agent", headers={"Origin": f"http://127.0.0.1:{port}"}
+                ).status_code
+                == 200
+            )
+        assert (
+            client.get(
+                "/api/v1/agent", headers={"Origin": "http://127.0.0.1:9001"}
+            ).status_code
+            == 403
+        )
         assert (
             client.get(
                 "/api/v1/agent", headers={"Origin": "https://evil.example"}
@@ -62,3 +75,23 @@ def test_history_has_real_empty_states_and_bounded_pagination(tmp_path):
         assert client.get("/api/v1/agent/decisions").json() == {"total": 0, "items": []}
         assert client.get("/api/v1/agent/history?limit=10000").status_code == 422
         assert client.get("/api/v1/agent/decision?id=missing").status_code == 404
+
+
+def test_live_settings_require_explicit_live_start_and_never_arm_implicitly(tmp_path):
+    from trading_gym.agent.daemon import AgentSettings
+
+    app = create_app(tmp_path, start_connectors=False)
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        settings = AgentSettings(execution_mode="live", live_execution_enabled=True)
+        assert (
+            client.put("/api/v1/agent/settings", json=settings.model_dump()).status_code
+            == 200
+        )
+        assert (
+            client.post("/api/v1/agent/start", json={"mode": "paper"}).status_code
+            == 409
+        )
+        assert client.get("/api/v1/agent/history").json()["total"] == 0
+        assert app.state.agent.task is None
+        exported = client.get("/api/v1/agent/history.csv")
+        assert exported.status_code == 200 and exported.text.startswith("id,at,symbol,")

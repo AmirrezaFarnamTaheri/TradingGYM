@@ -86,6 +86,14 @@ class AbantetherConnection:
                             "bid": float(quote.sell_price),
                             "ask": float(quote.buy_price),
                             "price": price,
+                            "active": quote.active,
+                            "buy_max": str(quote.buy_max),
+                            "sell_max": str(quote.sell_max),
+                            "spread_bps": float(
+                                (quote.buy_price - quote.sell_price)
+                                / quote.mid_price
+                                * 10000
+                            ),
                             "at": time.time(),
                         }
                     )
@@ -113,6 +121,21 @@ class AbantetherConnection:
                     self.pending[quote["symbol"]] = {
                         "bucket": bucket,
                         "price": quote["price"],
+                        "open": (
+                            previous["open"]
+                            if previous and previous["bucket"] == bucket
+                            else quote["price"]
+                        ),
+                        "high": (
+                            max(previous["high"], quote["price"])
+                            if previous and previous["bucket"] == bucket
+                            else quote["price"]
+                        ),
+                        "low": (
+                            min(previous["low"], quote["price"])
+                            if previous and previous["bucket"] == bucket
+                            else quote["price"]
+                        ),
                         "complete": (
                             previous["complete"]
                             if previous and previous["bucket"] == bucket
@@ -126,6 +149,8 @@ class AbantetherConnection:
                         "error": None,
                         "quotes": quotes,
                         "updated_at": now,
+                        "bar_counts": {s: len(self.bars[s]) for s in self.symbols},
+                        "pending_bars": self.pending.copy(),
                     }
                 )
                 if key:
@@ -178,17 +203,17 @@ class AbantetherConnection:
                 raise TypeError("Abantether order history schema was not recognized")
             for raw in rows:
                 order = OrderResponse.model_validate(raw)
-                if order.status != "filled":
+                if order.status not in {"filled", "canceled", "failed"}:
                     continue
                 quantity = order.filled_volume.get(order.base_symbol)
+                if order.status != "filled" and (quantity is None or quantity == 0):
+                    continue
                 price = order.price or order.coin_price or order.usdt_price
                 if quantity is None or quantity <= 0 or price is None or price <= 0:
                     raise ValueError(
                         "Filled broker order lacks confirmed execution values"
                     )
-                datetime.fromisoformat(
-                    order.finalized_at or order.created_at
-                )
+                datetime.fromisoformat(order.finalized_at or order.created_at)
                 identity = raw.get("track_id")
                 decision = (
                     self.history.detail(identity) if isinstance(identity, str) else None
@@ -206,9 +231,13 @@ class AbantetherConnection:
                         "realized_pnl": None,
                         "reason": "robot" if decision else "broker_history",
                         "mode": "broker",
-                        "decision_id": identity if decision else None,
+                        "decision_id": decision["id"] if decision else None,
                         "attribution": "robot" if decision else "unattributed",
-                        "status": "broker_confirmed",
+                        "status": (
+                            "broker_confirmed"
+                            if order.status == "filled"
+                            else "terminal_partial_fill"
+                        ),
                     }
                 )
                 count += 1

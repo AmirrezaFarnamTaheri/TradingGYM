@@ -65,8 +65,7 @@ export default function ConnectorKeys() {
             : t("Decision-1 gateway keys")}
         </h3>
         <p>
-        {num(query.data?.[role]?.length ?? 0,0)}
-          {t("saved keys")}
+          {num(query.data?.[role]?.length ?? 0, 0)} {t("saved keys")}
         </p>
         {keys.map((key, i) => (
           <div className="key-row" key={i}>

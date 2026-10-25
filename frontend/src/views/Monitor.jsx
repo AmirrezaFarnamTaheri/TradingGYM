@@ -48,7 +48,7 @@ export default function Monitor({ data, act, pending, onExperience }) {
               onClick={() =>
                 act("start", {
                   source: "broker",
-                  mode: "paper",
+                  mode: data.mode || "observe",
                 })
               }
             >
@@ -90,6 +90,52 @@ export default function Monitor({ data, act, pending, onExperience }) {
         </div>
       )}
       <div className="stat-grid">
+        {data.broker?.quotes?.map((quote) => {
+          const pending = data.broker.pending_bars?.[quote.symbol];
+          return (
+            <article className="stat-tile" key={quote.symbol}>
+              <span>{quote.symbol}</span>
+              <strong>{money(quote.price)}</strong>
+              <small>
+                {t("Spread")}: {num(quote.spread_bps)} bps ·{" "}
+                {num(data.broker.bar_counts?.[quote.symbol] || 0, 0)} / 14{" "}
+                {t("Observed bars")}
+              </small>
+              <small>
+                {t("Last observation")}:{" "}
+                {new Date(quote.at * 1000).toLocaleTimeString()} ·{" "}
+                {t(data.broker.status)}
+              </small>
+              {pending && (
+                <>
+                  <small>
+                    {t("Partial observed interval")}:{" "}
+                    {num(
+                      Math.min(
+                        100,
+                        Math.max(0, ((quote.at - pending.bucket) / 300) * 100),
+                      ),
+                      0,
+                    )}
+                    %
+                  </small>
+                  <progress
+                    max="100"
+                    value={Math.min(
+                      100,
+                      Math.max(0, ((quote.at - pending.bucket) / 300) * 100),
+                    )}
+                    aria-label={t("Partial observed interval")}
+                  />
+                  <small>
+                    O {money(pending.open)} · H {money(pending.high)} · L{" "}
+                    {money(pending.low)} · C {money(pending.price)}
+                  </small>
+                </>
+              )}
+            </article>
+          );
+        })}
         {[
           [t("Portfolio equity"), money(data.equity), t("USDT account")],
           [
@@ -119,7 +165,13 @@ export default function Monitor({ data, act, pending, onExperience }) {
               />
             </span>
             <strong
-              className={i === 1 ? (pnl >= 0 ? "positive" : "negative") : ""}
+              className={
+                i === 1 && pnl !== null
+                  ? pnl >= 0
+                    ? "positive"
+                    : "negative"
+                  : ""
+              }
             >
               {value}
             </strong>
@@ -157,6 +209,7 @@ export default function Monitor({ data, act, pending, onExperience }) {
             </small>
           </div>
           <EquityChart
+            mode={data.mode}
             points={data.equity_curve}
             initial={data.settings.initial_cash}
           />

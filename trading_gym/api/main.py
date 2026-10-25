@@ -3,15 +3,17 @@
 import asyncio
 import ipaddress
 import time
+import httpx
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from filelock import FileLock
+from filelock import FileLock, Timeout
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from trading_gym.agent.daemon import AgentSettings, AutonomousTradingAgent
@@ -62,6 +64,9 @@ def create_app(home: Path | None = None, *, start_connectors: bool = True):
             owner.release()
 
     app = FastAPI(title="Trading Gym", version="32.0.0", lifespan=lifespan)
+    from trading_gym.api.strategy_lab import mount_lab
+
+    mount_lab(app)
     app.state.agent = agent
     app.state.connection = connection
 
@@ -80,7 +85,7 @@ def create_app(home: Path | None = None, *, start_connectors: bool = True):
     def snapshot():
         data = app.state.agent.snapshot()
         data["broker"] = connection.state
-        if data["mode"] == "observe":
+        if data["mode"] != "paper":
             data["equity"] = None
             data["cash"] = (
                 next(
@@ -126,6 +131,22 @@ def create_app(home: Path | None = None, *, start_connectors: bool = True):
                 "items"
             ]
         data["credentials"] = vault.summary()
+        data["funded_execution"] = read_json(
+            root / "paper" / "funded-execution.json", None
+        )
+        if data["mode"] == "live" and app.state.agent.live_executor:
+            try:
+                equity, _, _ = app.state.agent.live_executor.valuation()
+                data["equity"] = float(equity)
+                live_state = app.state.agent.live_executor.state
+                data["drawdown"] = max(
+                    0, 1 - float(equity) / float(live_state.get("peak", equity))
+                )
+                data["daily_loss"] = max(
+                    0, 1 - float(equity) / float(live_state.get("day_open", equity))
+                )
+            except ValueError:
+                pass
         data["runtime"] = {
             "gateway_routes": [
                 {
@@ -211,8 +232,16 @@ def create_app(home: Path | None = None, *, start_connectors: bool = True):
                 },
                 {
                     "name": "Broker order submission",
-                    "status": "disabled",
-                    "access": "none",
+                    "status": (
+                        "enabled"
+                        if app.state.agent.settings.live_execution_enabled
+                        else "disabled"
+                    ),
+                    "access": (
+                        "spot_orders"
+                        if app.state.agent.settings.live_execution_enabled
+                        else "none"
+                    ),
                 },
             ],
             "route": [
@@ -224,7 +253,11 @@ def create_app(home: Path | None = None, *, start_connectors: bool = True):
                 (
                     "Observation only"
                     if app.state.agent.settings.execution_mode == "observe"
-                    else "Paper ledger"
+                    else (
+                        "Funded spot execution"
+                        if app.state.agent.settings.execution_mode == "live"
+                        else "Paper ledger"
+                    )
                 ),
             ],
         }
@@ -244,7 +277,7 @@ def create_app(home: Path | None = None, *, start_connectors: bool = True):
             allowed_origin = not origin or (
                 parsed.scheme == "http"
                 and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
-                and parsed.port in {3000, request.url.port or 80}
+                and parsed.port in {3000, 4173, 5173, request.url.port or 80}
             )
         except ValueError:
             allowed_origin = False
@@ -319,19 +352,83 @@ def create_app(home: Path | None = None, *, start_connectors: bool = True):
     ):
         return app.state.agent.decision_history.decisions(limit, offset)
 
+    @app.get("/api/v1/agent/history.csv")
+    async def export_history(mode: Literal["broker", "paper"] = "broker"):
+        import csv
+        import io
+
+        from fastapi.responses import Response
+
+        rows = app.state.agent.decision_history.trades(mode, 10000, 0)["items"]
+        output = io.StringIO()
+        fields = [
+            "id",
+            "at",
+            "symbol",
+            "side",
+            "quantity",
+            "price",
+            "fee",
+            "realized_pnl",
+            "decision_id",
+            "status",
+        ]
+        writer = csv.DictWriter(output, fieldnames=fields)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(
+                {
+                    key: (
+                        "'" + str(row[key])
+                        if isinstance(row.get(key), str)
+                        and row[key].startswith(("=", "+", "-", "@", "\t", "\r"))
+                        else row.get(key)
+                    )
+                    for key in fields
+                }
+            )
+        return Response(
+            output.getvalue(),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="trading-gym-{mode}.csv"'
+            },
+        )
+
     @app.get("/api/v1/agent/decision")
     async def decision(id: str = Query(max_length=200)):
         result = app.state.agent.decision_history.detail(id)
         if not result:
             raise HTTPException(404, "No recorded decision exists for this ID")
+        funded = read_json(root / "paper" / "funded-execution.json", {"intents": {}})
+        result["execution_evidence"] = [
+            {
+                "track_id": track,
+                "status": item["status"],
+                "broker_order_id": item.get("broker_order_id"),
+                "risk": item.get("risk", {}),
+            }
+            for track, item in funded["intents"].items()
+            if item["decision_id"] == result["id"]
+        ]
         return result
 
     @app.post("/api/v1/agent/start", status_code=202)
     async def start(request: StartRequest):
-        if request.mode != "paper":
+        if app.state.agent.settings.execution_mode == "live" and request.mode != "live":
+            raise HTTPException(
+                409, "Funded operating mode requires an explicit live start request."
+            )
+        if request.mode not in {"paper", "observe", "live"} or (
+            request.mode == "live"
+            and (
+                app.state.agent.settings.execution_mode != "live"
+                or not app.state.agent.settings.live_execution_enabled
+            )
+        ):
             raise HTTPException(
                 409,
-                "A qualified live execution adapter is not configured. Paper mode is available.",
+                "Enable funded execution explicitly in Settings before starting live mode.",
             )
         if request.source != "broker":
             raise HTTPException(422, "Only real Abantether market data is supported")
@@ -351,6 +448,67 @@ def create_app(home: Path | None = None, *, start_connectors: bool = True):
     async def stop():
         await app.state.agent.stop()
         return snapshot()
+
+    @app.post("/api/v1/agent/funded/reconcile")
+    async def reconcile_funded():
+        from trading_gym.execution.live.cockpit_orders import FundedExecution
+
+        service = FundedExecution(root / "paper", connection, app.state.agent.settings)
+        try:
+            with service.owner:
+                await service.reconcile()
+            return snapshot()
+        except (ValueError, TypeError, httpx.HTTPError, Timeout) as exc:
+            raise HTTPException(
+                409,
+                "Broker reconciliation unavailable; unresolved intents remain blocked.",
+            ) from exc
+
+    @app.post("/api/v1/agent/funded/halt")
+    async def halt_funded():
+        from trading_gym.execution.live.cockpit_orders import FundedExecution
+
+        await app.state.agent.stop()
+        service = FundedExecution(root / "paper", connection, app.state.agent.settings)
+        with service.owner:
+            service.state["halted"] = True
+            service.persist()
+        return snapshot()
+
+    @app.post("/api/v1/agent/funded/reset-halt")
+    async def reset_funded_halt():
+        from trading_gym.execution.live.cockpit_orders import FundedExecution
+
+        current = app.state.agent
+        if current.task and not current.task.done():
+            raise HTTPException(409, "Stop the funded agent before resetting its halt.")
+        await connection.refresh()
+        service = FundedExecution(root / "paper", connection, current.settings)
+        try:
+            with service.owner:
+                await service.reconcile()
+                equity, balances, _ = service.valuation()
+                if any(
+                    decimal_row["symbol"] != "USDT"
+                    and float(decimal_row["balance"]) > 0
+                    for decimal_row in balances.values()
+                ):
+                    raise ValueError("funded account must be flat")
+                if any(
+                    i["status"] not in {"filled", "rejected", "failed", "canceled"}
+                    for i in service.state["intents"].values()
+                ):
+                    raise ValueError("broker intents must be terminal")
+                service.state.update(
+                    halted=False, peak=str(equity), day_open=str(equity)
+                )
+                service.persist()
+            return snapshot()
+        except (ValueError, TypeError, Timeout, httpx.HTTPError) as exc:
+            raise HTTPException(
+                409,
+                "A fresh flat broker account and terminal intents are required to reset the halt.",
+            ) from exc
 
     @app.post("/api/v1/agent/pause")
     async def pause():
@@ -376,7 +534,8 @@ def create_app(home: Path | None = None, *, start_connectors: bool = True):
             **app.state.agent.settings.model_dump(),
             "broker_configured": bool(vault.key("abantether")),
             "llm_configured": app.state.agent.settings.llm_enabled,
-            "live_configured": False,
+            "live_configured": app.state.agent.settings.live_execution_enabled
+            and bool(vault.key("abantether")),
         }
 
     @app.put("/api/v1/agent/settings")
@@ -398,7 +557,10 @@ def create_app(home: Path | None = None, *, start_connectors: bool = True):
         atomic_write_json(settings_path, settings.model_dump())
         app.state.agent = AutonomousTradingAgent(root / "paper", settings, vault=vault)
         connection.symbols = settings.symbols
-        connection.bars = {s: connection.bars.get(s, []) for s in settings.symbols}
+        connection.bars = {
+            s: connection.bars.get(s, app.state.agent.decision_history.bars(s))
+            for s in settings.symbols
+        }
         return settings.model_dump()
 
     @app.post("/api/v1/agent/reset-halt")

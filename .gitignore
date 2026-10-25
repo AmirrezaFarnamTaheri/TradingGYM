@@ -116,7 +116,11 @@ dmypy.json
 
 # Project outputs
 artifacts/
-/data/
+/data/*
+!/data/feature-fixtures.sha256
+!/data/parquet/
+/data/parquet/*
+!/data/parquet/*_5m_features.parquet
 reports/
 mlruns/
 checkpoints/

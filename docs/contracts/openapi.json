@@ -26,7 +26,8 @@
             "default": "observe",
             "enum": [
               "observe",
-              "paper"
+              "paper",
+              "live"
             ],
             "title": "Execution Mode",
             "type": "string"
@@ -43,6 +44,32 @@
             "exclusiveMinimum": 0.0,
             "maximum": 1000000000.0,
             "title": "Initial Cash",
+            "type": "number"
+          },
+          "live_execution_enabled": {
+            "default": false,
+            "title": "Live Execution Enabled",
+            "type": "boolean"
+          },
+          "live_max_order_usdt": {
+            "default": 25,
+            "maximum": 10000.0,
+            "minimum": 5.0,
+            "title": "Live Max Order Usdt",
+            "type": "number"
+          },
+          "live_max_spread_bps": {
+            "default": 50,
+            "exclusiveMinimum": 0.0,
+            "maximum": 500.0,
+            "title": "Live Max Spread Bps",
+            "type": "number"
+          },
+          "live_total_budget_usdt": {
+            "default": 100,
+            "maximum": 100000.0,
+            "minimum": 5.0,
+            "title": "Live Total Budget Usdt",
             "type": "number"
           },
           "llm_api_key_env": {
@@ -144,6 +171,11 @@
             "title": "Slippage Bps",
             "type": "number"
           },
+          "statistics_guard_enabled": {
+            "default": true,
+            "title": "Statistics Guard Enabled",
+            "type": "boolean"
+          },
           "stop_loss_fraction": {
             "default": 0.03,
             "exclusiveMinimum": 0.0,
@@ -231,6 +263,114 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "LabRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "allocation_fraction": {
+            "default": 0.1,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Allocation Fraction",
+            "type": "number"
+          },
+          "bars": {
+            "items": {
+              "$ref": "#/components/schemas/MarketBar"
+            },
+            "maxItems": 2000,
+            "minItems": 30,
+            "title": "Bars",
+            "type": "array"
+          },
+          "fee_bps": {
+            "default": 10,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Fee Bps",
+            "type": "number"
+          },
+          "initial_capital": {
+            "default": 10000,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1000000000000.0,
+            "title": "Initial Capital",
+            "type": "number"
+          },
+          "period": {
+            "default": 14,
+            "maximum": 100.0,
+            "minimum": 2.0,
+            "title": "Period",
+            "type": "integer"
+          },
+          "slippage_bps": {
+            "default": 2,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Slippage Bps",
+            "type": "number"
+          },
+          "strategy": {
+            "default": "ema_cross",
+            "enum": [
+              "ema_cross",
+              "rsi_reversion"
+            ],
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bars"
+        ],
+        "title": "LabRequest",
+        "type": "object"
+      },
+      "MarketBar": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "exclusiveMinimum": 0.0,
+            "title": "At",
+            "type": "number"
+          },
+          "close": {
+            "exclusiveMinimum": 0.0,
+            "title": "Close",
+            "type": "number"
+          },
+          "high": {
+            "exclusiveMinimum": 0.0,
+            "title": "High",
+            "type": "number"
+          },
+          "low": {
+            "exclusiveMinimum": 0.0,
+            "title": "Low",
+            "type": "number"
+          },
+          "open": {
+            "exclusiveMinimum": 0.0,
+            "title": "Open",
+            "type": "number"
+          },
+          "volume": {
+            "minimum": 0.0,
+            "title": "Volume",
+            "type": "number"
+          }
+        },
+        "required": [
+          "at",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume"
+        ],
+        "title": "MarketBar",
+        "type": "object"
+      },
       "StartRequest": {
         "additionalProperties": false,
         "properties": {
@@ -250,6 +390,13 @@
       },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -476,6 +623,54 @@
         "summary": "Flatten"
       }
     },
+    "/api/v1/agent/funded/halt": {
+      "post": {
+        "operationId": "halt_funded_api_v1_agent_funded_halt_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Halt Funded"
+      }
+    },
+    "/api/v1/agent/funded/reconcile": {
+      "post": {
+        "operationId": "reconcile_funded_api_v1_agent_funded_reconcile_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Reconcile Funded"
+      }
+    },
+    "/api/v1/agent/funded/reset-halt": {
+      "post": {
+        "operationId": "reset_funded_halt_api_v1_agent_funded_reset_halt_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Reset Funded Halt"
+      }
+    },
     "/api/v1/agent/history": {
       "get": {
         "operationId": "history_api_v1_agent_history_get",
@@ -535,6 +730,48 @@
           }
         },
         "summary": "History"
+      }
+    },
+    "/api/v1/agent/history.csv": {
+      "get": {
+        "operationId": "export_history_api_v1_agent_history_csv_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "default": "broker",
+              "enum": [
+                "broker",
+                "paper"
+              ],
+              "title": "Mode",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export History"
       }
     },
     "/api/v1/agent/pause": {
@@ -685,6 +922,42 @@
           }
         },
         "summary": "Stop"
+      }
+    },
+    "/api/v1/agent/strategy-lab": {
+      "post": {
+        "operationId": "strategy_lab_api_v1_agent_strategy_lab_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LabRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Strategy Lab"
       }
     },
     "/api/v1/health": {

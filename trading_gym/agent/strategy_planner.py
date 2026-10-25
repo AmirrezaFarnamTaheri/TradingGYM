@@ -25,7 +25,9 @@ class AgentDirective(BaseModel):
     rationale: str = Field(min_length=1, max_length=1000)
 
     def bounded_weights(self):
-        if not set(self.arm_weights).issubset({"rules", "stats", "regime"}):
+        if not set(self.arm_weights).issubset(
+            {"rules", "stats", "regime", "rl", "decision1"}
+        ):
             raise ValueError("planner returned an unknown arm")
         if any(
             isinstance(v, bool) or not 0 <= v <= 1 for v in self.arm_weights.values()
@@ -35,7 +37,9 @@ class AgentDirective(BaseModel):
 
 
 class LLMStrategyPlanner:
-    def __init__(self, base_url, model, key_env="LLM_API_KEY", transport=None, gateway=None):
+    def __init__(
+        self, base_url, model, key_env="LLM_API_KEY", transport=None, gateway=None
+    ):
         self.base_url = validate_base_url(
             base_url, allow_loopback=True, allow_private=False, resolve_dns=False
         )
@@ -51,7 +55,7 @@ class LLMStrategyPlanner:
             headers["Authorization"] = "Bearer " + key
         instruction = (
             "You advise a spot-paper trading agent. Never submit orders. Return only JSON with regime "
-            "(trend_up,trend_down,chop,uncertain), arm_weights (rules,stats in [0,1],regime 0), "
+            "(trend_up,trend_down,chop,uncertain), arm_weights (rules,stats,rl,decision1 in [0,1],regime 0), "
             "exposure_multiplier in [0,1], halted_symbols, and rationale. Higher risk always means smaller exposure. "
             "The account risk limits cannot be changed. A shortage of evidence means uncertain and 0 exposure."
         )

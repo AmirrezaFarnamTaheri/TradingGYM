@@ -1,6 +1,6 @@
 # Trading Gym
 
-A local trading research cockpit with three views: **Live monitor**, **Experience**, and **Settings**, in English and فارسی. It opens directly on loopback. Production screens use actual connector records; unavailable data stays unavailable.
+A local trading research cockpit with four views: **Live monitor**, **Experience**, **Strategy lab**, and **Settings**, in English and فارسی. It opens directly on loopback. Production screens use actual connector records; unavailable data stays unavailable.
 
 ## Run locally
 
@@ -23,7 +23,7 @@ In Settings, save the Abantether API key and refresh the connection. Keys are en
 
 The default mode is **observe**. The connector reads quotes, balances and order history. It builds five-minute bars from observations collected locally; it does not fabricate historical candles. A cold start needs at least 14 complete bars before signals are available. Experience separates confirmed broker fills from paper fills and lets you inspect recorded signals, head weights, model route, risk constraints and the resulting decision. Imported fills without a matching decision are explicitly unattributed.
 
-No broker order submission is connected to this cockpit; live execution returns a conflict response. A configured read connection does not make funded autonomous trading available. The current environment's Abantether connection failed during TLS negotiation; authenticated balances, real fills and model inference remain unverified until credentials and connectivity are available.
+Funded execution is disabled by default. Explicit live settings connect a guarded Abantether spot submission/reconciliation path; a read connection alone does not enable orders. Authenticated balances, real fills and model inference remain externally unqualified. No funded orders were placed during implementation.
 
 ## Paper decisions and limits
 
@@ -34,6 +34,8 @@ Settings supports separate multi-key rosters for the LLM planner and Decision-1,
 Shadow learning waits for 400 actual observed bars. A CPU PPO challenger trains on the first 70%; the final 30% is held out. Promotion requires better equity and per-bar Sharpe, no worse drawdown, and probabilistic and deflated Sharpe evidence of at least 0.95 through the paper engine. Trials appear in Experience. Promotion affects paper decisions only and does not establish future profitability.
 
 ## Develop and verify
+
+GitHub Actions runs the native Python, frontend and kernel checks. A local pass does not establish a hosted CI result.
 
 Run `poetry run pytest -q -m "not integration"`; run `npm run test:ci` and `npm run build` inside `frontend`. For frontend development, `npm run dev -- --host 127.0.0.1` proxies `/api` to port 8000. `poetry run tgym doctor` checks installed dependencies. `poetry run tgym train --config training_local.yaml` starts the research trainer; verify its data paths first.
 
@@ -46,3 +48,5 @@ Containers retain the loopback boundary. Ordinary bridge port publishing has not
 ## License
 
 AGPL-3.0-only. See [LICENSE](LICENSE).
+
+See [completed deferred items](docs/DEFERRED_COMPLETION.md) for Strategy Lab, CSV exports, statistics guard, shadow performance, funded limits/reconciliation, dependencies and remaining external qualification.

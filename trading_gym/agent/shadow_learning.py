@@ -149,7 +149,9 @@ class ShadowLearner:
         holdout = bars[cutoff - 14 :]
         if len(training) < 100 or len(holdout) - 14 < 60:
             raise ValueError("insufficient untouched holdout")
-        if bars[cutoff - 1][0] <= self.report.get("last_training_cutoff", 0):
+        if bars[cutoff - 1][0] <= self.report.get("training_cutoffs", {}).get(
+            symbol, 0
+        ):
             raise ValueError("a fresh chronological holdout is required")
         env = ShadowMarketEnv(training, settings)
         candidate = PPO(
@@ -176,12 +178,17 @@ class ShadowLearner:
                     update={
                         "symbols": [symbol],
                         "llm_enabled": False,
+                        "decision1_enabled": False,
                         "shadow_learning_enabled": False,
                         "execution_mode": "paper",
                     }
                 )
                 agent = AutonomousTradingAgent(
-                    Path(directory), config, rl_model=model, rl_symbol=symbol
+                    Path(directory),
+                    config,
+                    rl_model=model,
+                    rl_symbol=symbol,
+                    evaluation_only=True,
                 )
                 for stamp, price in holdout:
                     await agent.process_bar(
@@ -256,6 +263,7 @@ class ShadowLearner:
             }
         )
         self.report.setdefault("evaluations", []).append(result)
+        self.report.setdefault("training_cutoffs", {})[symbol] = bars[cutoff - 1][0]
         self.report["evaluations"] = self.report["evaluations"][-30:]
         if approved:
             active = self.home / "active.zip"

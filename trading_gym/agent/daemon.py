@@ -12,7 +12,7 @@ import math
 import time
 from collections import deque
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -68,7 +68,12 @@ class AgentSettings(BaseModel):
     planner_interval_seconds: float = Field(default=300, ge=1, le=86400)
     poll_seconds: float = Field(default=10, ge=1, le=3600)
     max_feed_age_seconds: float = Field(default=360, ge=1, le=86400)
-    execution_mode: Literal["observe", "paper"] = "observe"
+    execution_mode: Literal["observe", "paper", "live"] = "observe"
+    live_execution_enabled: bool = False
+    live_max_order_usdt: float = Field(default=25, ge=5, le=10000)
+    live_total_budget_usdt: float = Field(default=100, ge=5, le=100000)
+    live_max_spread_bps: float = Field(default=50, gt=0, le=500)
+    statistics_guard_enabled: bool = True
     decision1_enabled: bool = False
     decision1_base_url: str = Field(default="http://127.0.0.1:11434/v1", max_length=500)
     decision1_model: str = Field(default="decision-1", min_length=1, max_length=150)
@@ -185,10 +190,20 @@ class AutonomousTradingAgent:
         rl_model=None,
         rl_symbol=None,
         vault=None,
+        evaluation_only=False,
     ):
         self.home = Path(home)
         self.home.mkdir(parents=True, exist_ok=True)
         self.settings = settings or AgentSettings()
+        self.evaluation_only = evaluation_only
+        self.live_executor = None
+        if evaluation_only and (
+            self.settings.execution_mode != "paper"
+            or self.settings.llm_enabled
+            or self.settings.decision1_enabled
+            or self.settings.shadow_learning_enabled
+        ):
+            raise ValueError("evaluation storage requires isolated paper mode")
         self.vault = vault or LocalSecrets(self.home / "secrets")
         self.decision_history = DecisionHistory(self.home / "decisions.sqlite3")
         self.state_path = self.home / "runtime.json"
@@ -197,12 +212,24 @@ class AutonomousTradingAgent:
         )
         self.account.create({"USDT": Decimal(str(self.settings.initial_cash))})
         self.memory = PersistentExperienceMemory(self.home / "experience.jsonl")
+        if evaluation_only:
+            from trading_gym.agent.evaluation_storage import (
+                EvaluationHistory,
+                EvaluationLedger,
+                EvaluationMemory,
+            )
+
+            self.account = EvaluationLedger()
+            self.account.create({"USDT": Decimal(str(self.settings.initial_cash))})
+            self.decision_history = EvaluationHistory()
+            self.memory = EvaluationMemory()
         self.learner = None
         if self.settings.shadow_learning_enabled:
             from trading_gym.agent.shadow_learning import ShadowLearner
 
             self.learner = ShadowLearner(self.home / "shadow")
-            rl_model, rl_symbol = self.learner.model, self.learner.symbol
+            if self.settings.execution_mode == "paper":
+                rl_model, rl_symbol = self.learner.model, self.learner.symbol
         self.registry = default_registry(
             max_position_units=self.settings.initial_cash, rl_model=rl_model
         )
@@ -319,6 +346,8 @@ class AutonomousTradingAgent:
         )
 
     def persist(self):
+        if self.evaluation_only:
+            return
         atomic_write_json(
             self.state_path,
             {
@@ -345,6 +374,8 @@ class AutonomousTradingAgent:
         )
 
     async def start(self, source: Literal["broker"] = "broker", client=None):
+        if self.evaluation_only:
+            raise ValueError("evaluation instances cannot start market feeds")
         async with self._lock:
             if self.task and not self.task.done():
                 raise ValueError("agent is already running")
@@ -356,6 +387,18 @@ class AutonomousTradingAgent:
                 raise ValueError("Only actual Abantether market data is supported")
             if client is None:
                 raise ValueError("broker market-data credentials are not configured")
+            if self.settings.execution_mode == "live":
+                if not self.settings.live_execution_enabled or not self.vault.key(
+                    "abantether"
+                ):
+                    raise ValueError(
+                        "funded execution must be explicitly enabled with exchange credentials"
+                    )
+                from trading_gym.execution.live.cockpit_orders import FundedExecution
+
+                self.live_executor = FundedExecution(self.home, client, self.settings)
+                await self.live_executor.reconcile()
+                self.live_executor.valuation()
             self._owner.acquire(timeout=0)
             self.status, self.error, self.source = (
                 "running",
@@ -372,7 +415,11 @@ class AutonomousTradingAgent:
     async def _run(self, feed):
         if self.settings.llm_enabled:
             self._planner_task = asyncio.create_task(self._planner_loop())
-        if self.learner and self.source == "broker":
+        if (
+            self.learner
+            and self.source == "broker"
+            and self.settings.execution_mode != "live"
+        ):
             self._learning_task = asyncio.create_task(self._learning_loop())
         try:
             async for bar in feed:
@@ -406,9 +453,17 @@ class AutonomousTradingAgent:
             self._owner.release()
 
     async def _learning_loop(self):
+        next_symbol = 0
         while True:
             await asyncio.sleep(5)
-            symbol = self.settings.symbols[0]
+            eligible = [
+                s
+                for s in self.settings.symbols
+                if len(self.bar_history[s]) >= self.settings.shadow_minimum_bars
+            ]
+            if not eligible:
+                continue
+            symbol = eligible[next_symbol % len(eligible)]
             bars = list(self.bar_history[symbol])
             if len(bars) < self.settings.shadow_minimum_bars:
                 continue
@@ -418,6 +473,7 @@ class AutonomousTradingAgent:
             ):
                 continue
             self.learner.report["status"] = "training"
+            next_symbol += 1
             self._event(
                 "Training a bounded CPU shadow challenger; active decisions are unchanged.",
                 "learning",
@@ -426,7 +482,7 @@ class AutonomousTradingAgent:
                 result = await asyncio.to_thread(
                     self.learner.train_and_evaluate, bars, symbol, self.settings
                 )
-                if result["promoted"]:
+                if result["promoted"] and self.settings.execution_mode == "paper":
                     async with self._lock:
                         self.registry = default_registry(
                             max_position_units=self.settings.initial_cash,
@@ -618,7 +674,7 @@ class AutonomousTradingAgent:
                 ):
                     self.regime = self.classifier.classify(returns)
                     self.weights = {
-                        "rules": 1.0 if self.regime.startswith("trend") else 0.5,
+                        "rules": 1.0 if self.regime.startswith("trend") else 0.8,
                         "stats": 0.5 if self.regime.startswith("trend") else 1.0,
                         "regime": 0.0,
                     }
@@ -688,6 +744,20 @@ class AutonomousTradingAgent:
                         max_leverage=1.0,
                     )
                 ).fuse(proposals, context, regime=self.regime)
+                statistics_blocked = self.settings.statistics_guard_enabled and any(
+                    p.arm_name == "stats"
+                    and p.signal.action_kind == ActionKind.HOLD
+                    and p.signal.confidence >= 0.8
+                    for p in proposals
+                )
+                if statistics_blocked:
+                    fused = replace(
+                        fused,
+                        action_kind=ActionKind.HOLD,
+                        target_leverage=0.0,
+                        rationale="Statistical evidence guard: insufficient risk-on conviction. "
+                        + fused.rationale,
+                    )
                 self.last_decision[bar.symbol] = {
                     "id": f"decision:{bar.symbol}:{bar.timestamp:.3f}",
                     "symbol": bar.symbol,
@@ -755,7 +825,11 @@ class AutonomousTradingAgent:
                         (
                             "observation_only"
                             if self.settings.execution_mode == "observe"
-                            else "paper_execution"
+                            else (
+                                "funded_spot_execution"
+                                if self.settings.execution_mode == "live"
+                                else "paper_execution"
+                            )
                         ),
                     ],
                     "mode": self.settings.execution_mode,
@@ -764,6 +838,7 @@ class AutonomousTradingAgent:
                     name
                     for name, condition in [
                         ("stale_data", stale),
+                        ("statistics_guard", statistics_blocked),
                         ("entries_paused", self.paused),
                         (
                             "stop_loss_cooldown",
@@ -781,7 +856,11 @@ class AutonomousTradingAgent:
                     else (
                         "observation_only"
                         if self.settings.execution_mode == "observe"
-                        else "paper_eligible"
+                        else (
+                            "funded_intent_candidate"
+                            if self.settings.execution_mode == "live"
+                            else "paper_eligible"
+                        )
                     )
                 )
                 self.last_decision[bar.symbol]["route"][-1] = self.last_decision[
@@ -799,6 +878,12 @@ class AutonomousTradingAgent:
                     "error": model_error,
                 }
                 self.decision_history.record_decision(self.last_decision[bar.symbol])
+                if self.live_executor and not stale and not model_error:
+                    await self.live_executor.target(
+                        self.last_decision[bar.symbol],
+                        allow_entry=not self.paused
+                        and bar.symbol not in self.halted_symbols,
+                    )
                 stopped = (
                     pos
                     and units > 0
@@ -939,7 +1024,7 @@ class AutonomousTradingAgent:
             self.memory.record(
                 context_tags=[symbol, self.regime],
                 outcome="win" if net > 0 else "loss",
-                lesson=f"Paper position reduced; realized P&L {net} USDT, including exit fee.",
+                lesson=f"Paper reduction: {symbol}, {self.regime}, {'win' if net > 0 else 'loss'} after exit fee.",
             )
 
     def _flatten_at_marks(self, stamp):
@@ -1014,5 +1099,9 @@ class AutonomousTradingAgent:
             "events": list(reversed(self.events)),
             "trades": list(reversed(self.transitions)),
             "settings": self.settings.model_dump(),
-            "learning": learning,
+            "learning": {
+                **learning,
+                "memory": [entry.to_dict() for entry in self.memory.entries()],
+                "observations": self.memory.observations(),
+            },
         }

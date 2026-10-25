@@ -25,6 +25,7 @@ import { request } from "./services";
 import Monitor from "./views/Monitor";
 import Experience from "./views/Experience";
 import Settings from "./views/Settings";
+import StrategyLab from "./views/StrategyLab";
 function Cockpit() {
   const t = useT();
   const { language, setLanguage } = useLanguage();
@@ -112,6 +113,7 @@ function Cockpit() {
           {[
             ["monitor", t("Live monitor"), "activity"],
             ["experience", t("Experience"), "layers"],
+            ["lab", t("Strategy lab"), "chart"],
             ["settings", t("Settings"), "settings"],
           ].map(([id, label, icon]) => (
             <button
@@ -168,7 +170,11 @@ function Cockpit() {
             </strong>
             <span className="command-divider" />
             <span className="command-mode">
-              {data?.mode === "observe" ? t("OBSERVE") : t("PAPER")}
+              {data?.mode === "live"
+                ? t("FUNDED")
+                : data?.mode === "observe"
+                  ? t("OBSERVE")
+                  : t("PAPER")}
             </span>
           </div>
           <div className="command-meta">
@@ -182,7 +188,7 @@ function Cockpit() {
           </div>
           <button
             className="btn btn-emergency"
-            disabled={!data || mutation.isPending}
+            disabled={!data || mutation.isPending || data.mode === "live"}
             onClick={() => setFlattenOpen(true)}
           >
             <Icon name="shield" size={15} />
@@ -232,7 +238,9 @@ function Cockpit() {
               onExperience={() => setView("experience")}
             />
           ) : view === "experience" ? (
-            <Experience data={data} />
+            <Experience data={data} act={act} pending={mutation.isPending} />
+          ) : view === "lab" ? (
+            <StrategyLab />
           ) : (
             <Settings data={data} act={act} pending={mutation.isPending} />
           )}

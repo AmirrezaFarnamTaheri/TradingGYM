@@ -29,8 +29,7 @@ export default function RobotHistory() {
       <div className="surface-heading">
         <h2>{t("Robot history & decisions")}</h2>
         <span className="muted small">
-          {history.data?.total ?? "—"}
-          {t("records")}
+          {history.data?.total ?? "—"} {t("records")}
         </span>
       </div>
       <div

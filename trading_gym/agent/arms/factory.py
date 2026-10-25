@@ -21,7 +21,8 @@ Roster:
 from __future__ import annotations
 
 import math
-from typing import Any, Sequence, SupportsFloat, SupportsIndex, cast
+from collections.abc import Sequence
+from typing import Any, SupportsFloat, SupportsIndex, cast
 
 import numpy as np
 
@@ -164,8 +165,9 @@ class StatisticsArmBackend(IntelligenceBackend):
       HOLD ("warmup") — never blocks better-informed arms,
     - PSR ≥ ``psr_threshold`` → abstain (low-conviction HOLD): evidence
       supports the roster's directional arms,
-    - PSR < threshold with sufficient history → confident HOLD: the
-      fusion engine counts it as a vote against risk-on.
+    - PSR < threshold with sufficient history → confident HOLD, recorded
+      as advisory context. HOLD does not contribute directional conviction
+      or veto risk-on in the current FusionEngine.
     """
 
     name = "stats"
@@ -292,6 +294,7 @@ class RegimeArmBackend(IntelligenceBackend):
         *,
         trend_threshold: float = 0.004,
         flip_tolerance: float = 0.002,
+        lookback_bars: int = 12,
     ) -> None:
         if trend_threshold <= 0:
             raise ValueError("trend_threshold must be positive")
@@ -299,10 +302,19 @@ class RegimeArmBackend(IntelligenceBackend):
             raise ValueError("flip_tolerance must be non-negative")
         self.trend_threshold = float(trend_threshold)
         self.flip_tolerance = float(flip_tolerance)
+        if (
+            not isinstance(lookback_bars, int)
+            or isinstance(lookback_bars, bool)
+            or lookback_bars < 1
+        ):
+            raise ValueError("lookback_bars must be a positive integer")
+        self.lookback_bars = lookback_bars
 
     def classify(self, recent_returns: tuple[float, ...]) -> str:
         """One of ``trend_up``, ``trend_down``, ``chop``."""
 
+        # MarketContext defines recent_returns as most recent first.
+        recent_returns = recent_returns[: self.lookback_bars]
         if not recent_returns:
             return "chop"
         net = sum(recent_returns)

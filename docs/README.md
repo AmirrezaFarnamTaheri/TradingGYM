@@ -4,6 +4,10 @@ Updated 2026-10-25. Current product instructions take precedence over historical
 
 ## Current product
 
+- [Deferred review implementation and funded execution](DEFERRED_COMPLETION.md)
+
+- [External review follow-up](REVIEW_FOLLOWUP.md)
+
 - [Install and overview](../README.md)
 - [First run, فارسی and recovery](FIRST_RUN.md)
 - [Settings, key rotation and decision evidence](SETTINGS_AND_DECISIONS.md)

@@ -10,7 +10,7 @@ ARG SOURCE_REVISION=unrecorded
 ENV TRADING_GYM_BUILD_REVISION=$SOURCE_REVISION
 WORKDIR /app
 COPY pyproject.toml poetry.lock README.md ./
-RUN pip install --no-cache-dir poetry==2.2.1 && POETRY_VIRTUALENVS_CREATE=false poetry install --only main --no-root
+RUN pip install --no-cache-dir poetry==2.5.1 && POETRY_VIRTUALENVS_CREATE=false poetry install --only main --no-root
 COPY trading_gym/ ./trading_gym/
 COPY config/ ./config/
 RUN POETRY_VIRTUALENVS_CREATE=false poetry install --only main

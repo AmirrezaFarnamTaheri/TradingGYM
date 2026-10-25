@@ -32,12 +32,10 @@ export default function DecisionTrace({ decision }) {
         <div>
           <h3>{t("Observed market")}</h3>
           <p>
-            {t("Close:")}
-            {money(decision.market?.close)}
+            {t("Close:")} {money(decision.market?.close)}
           </p>
           <p>
-            {t("Previous close:")}
-            {money(decision.market?.previous_close)}
+            {t("Previous close:")} {money(decision.market?.previous_close)}
           </p>
         </div>
         <div>
@@ -85,6 +83,23 @@ export default function DecisionTrace({ decision }) {
           </div>
         ))}
       </dl>
+      {decision.execution_evidence?.map((receipt) => (
+        <section key={receipt.track_id}>
+          <h3>{t("Funded broker evidence")}</h3>
+          <p className="mono">
+            {receipt.track_id} · {t(receipt.status)} ·{" "}
+            {receipt.broker_order_id || "—"}
+          </p>
+          <dl className="risk-checks">
+            {Object.entries(receipt.risk).map(([key, value]) => (
+              <div key={key}>
+                <dt>{t(key.replaceAll("_", " "))}</dt>
+                <dd dir="ltr">{String(value)}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ))}
     </section>
   );
 }

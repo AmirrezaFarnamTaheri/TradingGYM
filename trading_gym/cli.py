@@ -14,7 +14,7 @@ def main(argv=None):
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--home", type=Path)
     run = sub.add_parser("run-agent", help="Run the autonomous paper agent")
-    run.add_argument("--mode", choices=["observe", "paper"])
+    run.add_argument("--mode", choices=["observe", "paper", "live"])
     run.add_argument("--source", choices=["broker"], default="broker")
     run.add_argument("--home", type=Path)
     train = sub.add_parser("train", help="Run the research training pipeline")
@@ -97,11 +97,30 @@ def main(argv=None):
         import importlib.metadata
 
         print("Python:", sys.version.split()[0])
-        for package in ["fastapi", "uvicorn", "numpy", "pandas", "torch"]:
+        for package in [
+            "fastapi",
+            "uvicorn",
+            "numpy",
+            "pandas",
+            "torch",
+            "pydantic",
+            "cryptography",
+        ]:
             try:
                 print(package + ":", importlib.metadata.version(package))
             except importlib.metadata.PackageNotFoundError:
                 print(package + ": missing")
+        frontend = (
+            Path(__file__).resolve().parents[1] / "frontend" / "dist" / "index.html"
+        )
+        print(
+            "Frontend build:",
+            (
+                "present"
+                if frontend.is_file()
+                else "missing (run npm run build in frontend from the source checkout)"
+            ),
+        )
 
 
 if __name__ == "__main__":

@@ -1,3 +1,5 @@
+> Current follow-up: [four-view product and guarded funded execution](DEFERRED_COMPLETION.md) supersedes earlier three-view and unconnected-submission descriptions below. Funded execution remains disabled by default and no real orders were placed.
+
 # Settings, credentials and decision evidence
 
 The current implementation is `trading_gym/api/main.py`, `agent/daemon.py`, `agent/gateway.py`, `agent/decision_history.py` and `core/local_secrets.py` beneath the package root.
@@ -18,7 +20,7 @@ History endpoints are paginated. The compact runtime chart is bounded, while the
 
 ## Runtime topology
 
-Live monitor distinguishes enabled heads from fresh, active contributors. Available tools report actual connectivity/read status. Gateway routes show configured endpoint/model, available slots and last used key identifier. The last decision route ends in a block, observation-only outcome or paper eligibility; it must not imply a confirmed exchange order.
+Live monitor distinguishes enabled heads from fresh, active contributors. Available tools report actual connectivity/read status. Gateway routes show configured endpoint/model, available slots and last used key identifier. The last decision route ends in a block, observation-only outcome, paper eligibility or funded intent candidate. Only broker confirmation establishes an actual exchange fill. Decision details include separately recorded funded account risk receipts when an intent was submitted.
 
 ## API
 

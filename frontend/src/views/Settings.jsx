@@ -3,9 +3,10 @@ import ConnectorKeys from "../components/ConnectorKeys";
 import Icon from "../components/Icon";
 import { money, request } from "../services";
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 export default function Settings({ data, act, pending }) {
   const t = useT();
+  const client = useQueryClient();
   const query = useQuery({
     queryKey: ["agent-settings"],
     queryFn: () => request("/settings"),
@@ -30,6 +31,7 @@ export default function Settings({ data, act, pending }) {
     onSuccess: () => {
       setSaved(true);
       query.refetch();
+      client.invalidateQueries({ queryKey: ["agent"] });
     },
     onError: (e) => setError(e.message),
   });
@@ -167,8 +169,7 @@ export default function Settings({ data, act, pending }) {
                 </span>
               </div>
               <p className="fine-print">
-                {t("Set")}
-                <code>{t("ABAN_API_KEY")}</code>
+                {t("Set")} <code>{t("ABAN_API_KEY")}</code>
                 {t(
                   "in the server environment, then restart. You can also save the key securely below.",
                 )}
@@ -207,8 +208,70 @@ export default function Settings({ data, act, pending }) {
                   <option value="paper">
                     {t("Paper execution on real markets")}
                   </option>
+                  <option value="live">
+                    {t("Funded Abantether spot execution")}
+                  </option>
                 </select>
               </label>
+              <label>
+                {t("Statistical evidence guard")}
+                <select
+                  value={
+                    draft.statistics_guard_enabled === false ? "off" : "on"
+                  }
+                  onChange={(e) =>
+                    change("statistics_guard_enabled", e.target.value === "on")
+                  }
+                >
+                  <option value="on">{t("Enabled")}</option>
+                  <option value="off">{t("Disabled")}</option>
+                </select>
+              </label>
+              {draft.execution_mode === "live" && (
+                <>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={draft.live_execution_enabled || false}
+                      onChange={(e) =>
+                        change("live_execution_enabled", e.target.checked)
+                      }
+                    />
+                    {t("Enable funded orders for this local account")}
+                  </label>
+                  <p className="fine-print">
+                    {t(
+                      "Starting in live mode can spend real funds. Unknown order outcomes block further submissions. Paper flatten never closes exchange positions.",
+                    )}
+                  </p>
+                  {[
+                    ["live_max_order_usdt", "Maximum funded order (USDT)"],
+                    [
+                      "live_total_budget_usdt",
+                      "Cumulative submission budget (USDT)",
+                    ],
+                    ["live_max_spread_bps", "Maximum spread (bps)"],
+                  ].map(([key, label]) => (
+                    <label key={key}>
+                      {t(label)}
+                      <input
+                        type="number"
+                        min="1"
+                        required
+                        value={
+                          draft[key] ||
+                          (key === "live_max_order_usdt"
+                            ? 25
+                            : key === "live_total_budget_usdt"
+                              ? 100
+                              : 50)
+                        }
+                        onChange={(e) => change(key, Number(e.target.value))}
+                      />
+                    </label>
+                  ))}
+                </>
+              )}
               <label>
                 {t("Decision-1 head")}
                 <select
@@ -306,8 +369,7 @@ export default function Settings({ data, act, pending }) {
                 </select>
               </label>
               <p className="fine-print">
-                {t("Requires")}
-                {draft.shadow_minimum_bars}
+                {t("Requires")} {draft.shadow_minimum_bars}{" "}
                 {t(
                   "closed broker bars. Each trial keeps the final 30% out of training and checks return, drawdown, and adjusted Sharpe evidence. Only observed broker bars are used.",
                 )}

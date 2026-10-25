@@ -1,6 +1,8 @@
+> Current follow-up: [four-view product and guarded funded execution](../docs/DEFERRED_COMPLETION.md) supersedes earlier three-view and unconnected-submission descriptions below. Funded execution remains disabled by default and no real orders were placed.
+
 # Trading Gym cockpit frontend
 
-React, TanStack Query and Vite provide three views: Live monitor, Experience and Settings. English and Persian share the same real API; Persian sets document language and RTL direction. Browser persistence contains the language preference, not credentials.
+React, TanStack Query and Vite provide four views: Live monitor, Experience, Strategy lab and Settings. English and Persian share the same real API; Persian sets document language and RTL direction. Browser persistence contains the language preference, not credentials.
 
 ```sh
 npm ci

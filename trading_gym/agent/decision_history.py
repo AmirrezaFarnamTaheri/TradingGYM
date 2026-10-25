@@ -11,6 +11,9 @@ class DecisionHistory:
         self.path = Path(path)
         with self.connect() as db:
             db.execute(
+                "CREATE TABLE IF NOT EXISTS broker_intents (track_id TEXT PRIMARY KEY, decision_id TEXT NOT NULL)"
+            )
+            db.execute(
                 "CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, at REAL NOT NULL, symbol TEXT NOT NULL, body TEXT NOT NULL)"
             )
             db.execute(
@@ -85,10 +88,27 @@ class DecisionHistory:
 
     def detail(self, identity):
         with self.connect() as db:
+            alias = db.execute(
+                "SELECT decision_id FROM broker_intents WHERE track_id=?", (identity,)
+            ).fetchone()
+            if alias:
+                identity = alias[0]
             row = db.execute(
                 "SELECT body FROM decisions WHERE id=?", (identity,)
             ).fetchone()
         return json.loads(row[0]) if row else None
+
+    def bind_broker_intent(self, identity, decision_id):
+        with self.connect() as db:
+            existing = db.execute(
+                "SELECT decision_id FROM broker_intents WHERE track_id=?", (identity,)
+            ).fetchone()
+            if existing and existing[0] != decision_id:
+                raise ValueError("tracking ID already belongs to another decision")
+            db.execute(
+                "INSERT OR IGNORE INTO broker_intents VALUES (?,?)",
+                (identity, decision_id),
+            )
 
     def trades(self, mode="broker", limit=50, offset=0):
         with self.connect() as db:

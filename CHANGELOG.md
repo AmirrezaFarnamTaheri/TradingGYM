@@ -1,5 +1,9 @@
 # Changelog
 
+## Deferred review implementation (unreleased)
+
+Added real-data Strategy Lab, actual history CSV export, statistical evidence guard, isolated shadow storage with Decimal parity, per-symbol training cutoffs, guarded funded spot intents/reconciliation, and updated locked dependencies. Funded execution remains off by default; no real trades were placed. See docs/DEFERRED_COMPLETION.md.
+
 ## Local autonomy rebuild — 2026-10-25 (unreleased)
 
 - Unified Python modules under one package; native kernel and fixture paths migrated.
@@ -675,6 +679,10 @@ ADR-034 (memory + tool revision + forge) and ADR-035 (simulation kernel).
 ---
 
 # Changelog
+
+## Deferred review implementation (unreleased)
+
+Added real-data Strategy Lab, actual history CSV export, statistical evidence guard, isolated shadow storage with Decimal parity, per-symbol training cutoffs, guarded funded spot intents/reconciliation, and updated locked dependencies. Funded execution remains off by default; no real trades were placed. See docs/DEFERRED_COMPLETION.md.
 
 All notable changes to TraderAgentReinforcedGym are documented here.
 

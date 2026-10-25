@@ -14,11 +14,10 @@ from typing import Any
 
 from fastapi import FastAPI
 from fastapi._compat import (
-    GenerateJsonSchema,
-    get_compat_model_name_map,
     get_definitions,
+    get_flat_models_from_fields,
+    get_model_name_map,
 )
-from fastapi.openapi.constants import REF_TEMPLATE
 from fastapi.openapi.utils import get_fields_from_routes
 
 
@@ -30,8 +29,9 @@ def build_openapi(app: FastAPI) -> dict[str, Any]:
     fields = get_fields_from_routes([*app.routes, *app.webhooks.routes])
     _, definitions = get_definitions(
         fields=fields,
-        schema_generator=GenerateJsonSchema(ref_template=REF_TEMPLATE),
-        model_name_map=get_compat_model_name_map(fields),
+        model_name_map=get_model_name_map(
+            get_flat_models_from_fields(fields, known_models=set())
+        ),
         separate_input_output_schemas=app.separate_input_output_schemas,
     )
     native = FastAPI.openapi(app)

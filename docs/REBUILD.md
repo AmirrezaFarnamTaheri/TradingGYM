@@ -1,4 +1,8 @@
+> Current follow-up: [four-view product and guarded funded execution](DEFERRED_COMPLETION.md) supersedes earlier three-view and unconnected-submission descriptions below. Funded execution remains disabled by default and no real orders were placed.
+
 # Local autonomy rebuild — finalized 2026-10-25
+
+Subsequent corrections and their separate verification are recorded in [the review follow-up](REVIEW_FOLLOWUP.md), including the Git-ignore packaging regression that excluded the locally verified feature fixtures from c4af6567.
 
 The application opens directly on loopback with three views: Live monitor, Experience and Settings. English and Persian share the same API; Persian uses right-to-left layout and localized numbers. Current guides are indexed in [README](README.md).
 

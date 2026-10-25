@@ -4,7 +4,7 @@ import Icon from "../components/Icon";
 import { useState } from "react";
 import { money, num, when } from "../services";
 import { TradeTable } from "../components/CockpitData";
-export default function Experience({ data }) {
+export default function Experience({ data, act, pending }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
   return (
@@ -29,6 +29,107 @@ export default function Experience({ data }) {
           {t(data.learning.mode.replaceAll("_", " "))}
         </span>
       </div>
+      <section className="surface">
+        <div className="surface-heading">
+          <h2>{t("Export recorded executions")}</h2>
+        </div>
+        <p className="fine-print">
+          {t(
+            "CSV exports include up to 10,000 actual records. Unknown fees and PnL remain blank.",
+          )}
+        </p>
+        <div className="run-controls">
+          <a
+            className="btn"
+            href="/api/v1/agent/history.csv?mode=broker"
+            download
+          >
+            {t("Export broker CSV")}
+          </a>
+          <a
+            className="btn"
+            href="/api/v1/agent/history.csv?mode=paper"
+            download
+          >
+            {t("Export paper CSV")}
+          </a>
+        </div>
+      </section>
+      {data.funded_execution && (
+        <section className="surface">
+          <h2>{t("Funded execution intents")}</h2>
+          <div className="run-controls">
+            <button
+              className="btn"
+              disabled={pending}
+              onClick={() => act("funded/reconcile")}
+            >
+              {t("Reconcile broker intents")}
+            </button>
+            <button
+              className="btn btn-emergency"
+              disabled={pending}
+              onClick={() => act("funded/halt")}
+            >
+              {t("Stop and halt funded entries")}
+            </button>
+            <button
+              className="btn"
+              disabled={pending || data.status === "running"}
+              onClick={() => act("funded/reset-halt")}
+            >
+              {t("Reset funded halt on flat account")}
+            </button>
+          </div>
+          <p>
+            {t("Cumulative submitted notional")}:{" "}
+            {money(data.funded_execution.gross_submitted)}
+          </p>
+          <ul className="tool-list">
+            {Object.entries(data.funded_execution.intents)
+              .slice(-25)
+              .reverse()
+              .map(([id, item]) => (
+                <li key={id}>
+                  <strong>
+                    {item.symbol} · {t(item.side)} · {t(item.status)}
+                  </strong>
+                  <span className="mono">{id}</span>
+                </li>
+              ))}
+          </ul>
+          <p className="fine-print">
+            {t(
+              "Acknowledgement is not a fill. Unknown outcomes block further submissions until reconciliation.",
+            )}
+          </p>
+        </section>
+      )}
+      <section className="surface">
+        <div className="surface-heading">
+          <h2>{t("Consolidated paper lessons")}</h2>
+        </div>
+        {!data.learning.memory?.length ? (
+          <p>{t("No paper lessons recorded.")}</p>
+        ) : (
+          <ul className="tool-list">
+            {data.learning.memory.map((entry) => (
+              <li key={entry.memory_id}>
+                <strong>{entry.lesson}</strong>
+                <span>
+                  {t("Support")}: {num(entry.support, 0)} ·{" "}
+                  {when(entry.last_seen_at || entry.created_at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="fine-print">
+          {t(
+            "Lessons describe recorded paper outcomes and do not authorize trades.",
+          )}
+        </p>
+      </section>
       <section className="surface">
         <div className="surface-heading">
           <h2>{t("Shadow comparisons")}</h2>

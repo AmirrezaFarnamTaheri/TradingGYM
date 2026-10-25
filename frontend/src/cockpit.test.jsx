@@ -2,6 +2,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import App from "./App";
+import { EquityChart } from "./components/CockpitData";
 
 const settings = {
   symbols: ["BTCUSDT"],
@@ -51,6 +52,70 @@ const baseline = {
   },
 };
 let container, root, state, requests;
+
+it("opens a real-data strategy lab without inventing replay input", async () => {
+  await mount();
+  await act(async () =>
+    container.querySelector('button[aria-label="Strategy lab"]').click(),
+  );
+  expect(container.querySelector("h1").textContent).toBe("Strategy lab");
+  expect(container.querySelector("input[type=file]")).not.toBeNull();
+  expect(
+    [...container.querySelectorAll("button")].find(
+      (b) => b.textContent === "Run causal replay",
+    ).disabled,
+  ).toBe(true);
+  expect(
+    requests.some(
+      (r) => r.url.endsWith("/strategy-lab") && r.options?.method === "POST",
+    ),
+  ).toBe(false);
+});
+
+it("shows only recorded quote warmup and leaves unavailable PnL neutral", async () => {
+  state.equity = null;
+  state.broker.quotes = [
+    { symbol: "BTCUSDT", price: 43000, spread_bps: 12, at: 1704067250 },
+  ];
+  state.broker.bar_counts = { BTCUSDT: 3 };
+  state.broker.pending_bars = {
+    BTCUSDT: {
+      bucket: 1704067200,
+      open: 42900,
+      high: 43100,
+      low: 42800,
+      price: 43000,
+    },
+  };
+  await mount();
+  expect(container.textContent).toContain("Observed bars");
+  expect(container.querySelector("progress").value).toBeGreaterThan(0);
+  const tile = [...container.querySelectorAll(".stat-tile")].find((e) =>
+    e.textContent.includes("Net change"),
+  );
+  expect(tile.querySelector("strong").className).toBe("");
+});
+
+it("inspects recorded equity with keyboard-accessible controls", async () => {
+  await act(async () => {
+    root = createRoot(container);
+    root.render(
+      <EquityChart
+        mode="observe"
+        initial={10000}
+        points={[
+          { at: 1704067200, equity: 120 },
+          { at: 1704067500, equity: 125 },
+        ]}
+      />,
+    );
+  });
+  expect(container.querySelector("input[type=range]")).not.toBeNull();
+  expect(container.textContent).toContain("125");
+  expect(container.querySelector("title")?.textContent).not.toBe(
+    "Initial paper capital",
+  );
+});
 beforeEach(() => {
   state = structuredClone(baseline);
   requests = [];
@@ -111,9 +176,9 @@ const button = (label) =>
     b.textContent.includes(label),
   );
 
-it("boots directly into three accessible cockpit views with real empty states", async () => {
+it("boots directly into four accessible cockpit views with real empty states", async () => {
   await mount();
-  expect(container.querySelectorAll("nav button")).toHaveLength(3);
+  expect(container.querySelectorAll("nav button")).toHaveLength(4);
   expect(container.querySelector("h1").textContent).toBe("Live monitor");
   expect(container.querySelector("input[type=password]")).toBeNull();
   expect(container.textContent).toContain("Waiting for verified account data");
@@ -137,7 +202,7 @@ it("starts only the selected paper source and can pause entries", async () => {
   const start = requests.find((r) => r.url.endsWith("/start"));
   expect(JSON.parse(start.options.body)).toEqual({
     source: "broker",
-    mode: "paper",
+    mode: "observe",
   });
   expect(container.textContent).toContain(
     "Actual Abantether market observations",
@@ -149,7 +214,7 @@ it("starts only the selected paper source and can pause entries", async () => {
 });
 
 it("keeps emergency controls present across views and confirms flattening", async () => {
-  state.mode='paper';
+  state.mode = "paper";
   await mount();
   await act(async () => button("Experience").click());
   await act(async () => button("Flatten paper").click());
@@ -176,22 +241,68 @@ it("keeps emergency controls present across views and confirms flattening", asyn
   expect(container.textContent).toContain("RISK HALTED");
 });
 
-it("opens the exact historical signals and risk route bound to a fill", async()=>{
-  const priorFetch=fetch;
-  const decision={id:'test-decision-1',at:1704067200,symbol:'BTCUSDT',source:'test_fixture',mode:'paper',outcome:'paper_eligible',action:'long',target_fraction:.1,rationale:'Weighted positive momentum',market:{close:43000,previous_close:42000},arms:[{name:'rules',action:'long',signal:.1,confidence:.8,weight:1,rationale:'Observed momentum increased'}],planner:{rationale:'Trend up at decision time'},risk:{position_cap:.2,blocked_by:[]},route:['closed_bar','rules','financial_risk','paper_eligible']};
-  vi.stubGlobal('fetch',vi.fn(async(url,options)=>{
-    if(url.includes('/history?')) return {ok:true,json:async()=>({total:1,items:[{id:'confirmed-test-fill',at:'2024-01-01T00:00:00Z',symbol:'BTCUSDT',side:'buy',quantity:'0.01',price:'43000',mode:'broker',decision_id:decision.id}]})};
-    if(url.includes('/decision?id='))return {ok:true,json:async()=>decision};
-    return priorFetch(url,options);
-  }));
+it("opens the exact historical signals and risk route bound to a fill", async () => {
+  const priorFetch = fetch;
+  const decision = {
+    id: "test-decision-1",
+    at: 1704067200,
+    symbol: "BTCUSDT",
+    source: "test_fixture",
+    mode: "paper",
+    outcome: "paper_eligible",
+    action: "long",
+    target_fraction: 0.1,
+    rationale: "Weighted positive momentum",
+    market: { close: 43000, previous_close: 42000 },
+    arms: [
+      {
+        name: "rules",
+        action: "long",
+        signal: 0.1,
+        confidence: 0.8,
+        weight: 1,
+        rationale: "Observed momentum increased",
+      },
+    ],
+    planner: { rationale: "Trend up at decision time" },
+    risk: { position_cap: 0.2, blocked_by: [] },
+    route: ["closed_bar", "rules", "financial_risk", "paper_eligible"],
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url, options) => {
+      if (url.includes("/history?"))
+        return {
+          ok: true,
+          json: async () => ({
+            total: 1,
+            items: [
+              {
+                id: "confirmed-test-fill",
+                at: "2024-01-01T00:00:00Z",
+                symbol: "BTCUSDT",
+                side: "buy",
+                quantity: "0.01",
+                price: "43000",
+                mode: "broker",
+                decision_id: decision.id,
+              },
+            ],
+          }),
+        };
+      if (url.includes("/decision?id="))
+        return { ok: true, json: async () => decision };
+      return priorFetch(url, options);
+    }),
+  );
   await mount();
-  await act(async()=>button('Experience').click());
+  await act(async () => button("Experience").click());
   await settle();
-  await act(async()=>button('View decision').click());
+  await act(async () => button("View decision").click());
   await settle();
-  expect(container.textContent).toContain('Observed momentum increased');
-  expect(container.textContent).toContain('Trend up at decision time');
-  expect(container.textContent).toContain('financial risk');
+  expect(container.textContent).toContain("Observed momentum increased");
+  expect(container.textContent).toContain("Trend up at decision time");
+  expect(container.textContent).toContain("financial risk");
 });
 
 it("shows an offline state instead of inventing account values", async () => {

@@ -17,5 +17,5 @@ def test_documented_runtime_modules_exist():
 
 def test_readme_describes_local_paper_boundary():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "No broker order submission is connected" in text
+    assert "Funded execution is disabled by default" in text
     assert "GitHub Actions" in text
