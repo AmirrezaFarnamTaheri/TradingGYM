@@ -55,7 +55,7 @@ from trading_gym.agent.working_memory import (
     CautionState,
     WorkingMemory,
 )
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     BackendUnavailable,
     DecisionSignal,
@@ -63,7 +63,7 @@ from trading_gym.intelligence.types import (
     UncertainDecision,
     MarketContext,
 )
-from trading_gym.authz.grants import GrantLedger
+from trading_gym.core.authz.grants import GrantLedger
 
 __all__ = ["PlannerResult", "TierCascadePlanner"]
 

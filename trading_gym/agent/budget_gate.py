@@ -18,7 +18,7 @@ from decimal import Decimal
 from typing import Protocol
 
 from trading_gym.agent.arms.base import Arm
-from trading_gym.budgets.ledger import BudgetRepository, BudgetReservationCreate
+from trading_gym.core.budgets.ledger import BudgetRepository, BudgetReservationCreate
 
 __all__ = ["BudgetGate", "BudgetGateProtocol"]
 

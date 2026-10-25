@@ -1,6 +1,6 @@
 from unittest.mock import Mock
 import pytest
-from trading_gym.operations import resilience
+from trading_gym.core.operations import resilience
 
 
 def test_mixed_snapshot_can_pass_hashes_but_never_recovery_gate(tmp_path, monkeypatch):

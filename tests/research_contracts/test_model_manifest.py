@@ -10,16 +10,16 @@ import torch
 from stable_baselines3 import PPO
 
 import trading_gym
-from trading_gym.common.config import load_app_config
-from trading_gym.pipelines import environment
-from trading_gym.pipelines.model_bundle import (
+from trading_gym.core.config import load_app_config
+from trading_gym.rl.pipelines import environment
+from trading_gym.rl.pipelines.model_bundle import (
     ModelBundle,
     bundle_for_model,
     fit_model_bundle,
     inspect_model_bundle,
     read_model_bundle,
 )
-from trading_gym.pipelines.training import train
+from trading_gym.rl.pipelines.training import train
 
 
 def sample_inputs():

@@ -2,7 +2,7 @@
 
 import pytest
 
-from trading_gym.models.promotion import PromotionRecord, promote
+from trading_gym.rl.models.promotion import PromotionRecord, promote
 
 
 @pytest.mark.parametrize("digest", ["z" * 64, "A" * 64, " " * 64])

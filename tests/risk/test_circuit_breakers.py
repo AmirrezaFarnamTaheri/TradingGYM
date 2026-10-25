@@ -1,7 +1,7 @@
 import pytest
 import time
-from trading_gym.common.config import BreakerConfig
-from trading_gym.risk.circuit_breakers import CircuitBreaker, BreakerState
+from trading_gym.core.config import BreakerConfig
+from trading_gym.execution.risk.circuit_breakers import CircuitBreaker, BreakerState
 
 
 @pytest.fixture

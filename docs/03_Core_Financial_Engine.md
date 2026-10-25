@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # Core Financial Engine
 
 The `ExecutionEngine` is the simulation kernel of the Trading Gym. It is responsible for simulating the physics of the market with high fidelity. If the simulation is wrong, the Agent learns a fantasy. The system relies on a unified engine that powers both the simulation (backtesting) and production (live trading), ensuring strict parity.
@@ -150,12 +152,12 @@ slippage_cost = |trade_size| × price × (slip_vol + slip_liq)
 
 The system implements two trading loops:
 
-### 4.1 The Async Trade Loop (`apps/common/trade_loop.py`)
-Used by `apps/live` and `apps/paper`.
+### 4.1 The Async Trade Loop (`trading_gym/execution/trade_loop.py`)
+Used by `trading_gym/execution/live` and `trading_gym/execution/paper`.
 *   **Non-Blocking:** Uses `asyncio` for concurrency.
 *   **Robust Error Handling:** Handles transient errors (retry with backoff) and critical errors (trigger Panic Protocol).
 
-### 4.2 The Simulation Loop (`apps/simulator/main.py`)
+### 4.2 The Simulation Loop (`trading_gym/rl/simulator/main.py`)
 Used for backtesting.
 *   **Vectorized:** Iterates through historical DataFrame efficiently.
 *   **Zero Latency:** Assumes instant execution (verified by "Sim == Prod" logic).

@@ -15,7 +15,7 @@ NOW = datetime(2026, 8, 24, tzinfo=timezone.utc)
 
 
 def _engine_with(multiplier: float):
-    from trading_gym.common.config import (
+    from trading_gym.core.config import (
         BreakerConfig,
         CapacityConfig,
         CostConfig,

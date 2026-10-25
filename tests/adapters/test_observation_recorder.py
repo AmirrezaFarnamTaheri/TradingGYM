@@ -3,7 +3,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
-from trading_gym.adapters.observation_recorder import (
+from trading_gym.market.adapters.observation_recorder import (
     ObservationProfile,
     capture,
     persist,

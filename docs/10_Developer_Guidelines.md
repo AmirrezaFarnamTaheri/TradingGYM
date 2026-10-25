@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # Developer Guidelines
 
 ## 💻 Coding Standards
@@ -74,7 +76,7 @@ poetry run pytest --cov=trading_gym
     *   `execution/`: Financial engine.
     *   `features/`: Data pipeline.
     *   `adapters/`: Exchange connectors.
-*   `apps/`: CLI applications (Entry points).
+*   `trading_gym/cli.py`: Current native CLI entrypoint; the former `apps/` package was migrated into the domain package.
     *   `trainer/`: RL training.
     *   `simulator/`: Backtesting.
     *   `live/`: Live execution.

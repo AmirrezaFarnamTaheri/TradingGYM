@@ -4,7 +4,7 @@ from decimal import Decimal as D
 
 import pytest
 
-from trading_gym.production.pre_trade_gate import evaluate_pre_trade_gate
+from trading_gym.execution.production.pre_trade_gate import evaluate_pre_trade_gate
 
 
 def gate(**updates):

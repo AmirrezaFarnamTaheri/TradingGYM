@@ -5,7 +5,7 @@ from decimal import Decimal as D
 
 import pytest
 
-from trading_gym.accounting.order_fill_parity import (
+from trading_gym.execution.accounting.order_fill_parity import (
     BrokerReadback,
     FillEvidence,
     OrderIntent,
@@ -247,7 +247,7 @@ def test_mixed_custody_accounts_cannot_share_cash_and_position_readbacks():
 
 
 def test_accounting_public_api_exposes_read_only_parity_without_live_executor():
-    from trading_gym import accounting
+    from trading_gym.execution import accounting
 
     assert accounting.OrderIntent is OrderIntent
     assert accounting.FillEvidence is FillEvidence

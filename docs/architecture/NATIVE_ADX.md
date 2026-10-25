@@ -1,8 +1,10 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # Measured Rust ADX/DMI acceleration
 
 ## Scope and language choice
 
-The stateful Wilder ADX/DMI recurrence in `trading_gym.strategy_lab.adx.compute_adx` is now optionally executed by the existing Rust simulation library. This is a numerical research kernel, not an order router, credential service, risk-policy engine, or autonomous grant of trading authority.
+The stateful Wilder ADX/DMI recurrence in `trading_gym.agent.strategy_lab.adx.compute_adx` is now optionally executed by the existing Rust simulation library. This is a numerical research kernel, not an order router, credential service, risk-policy engine, or autonomous grant of trading authority.
 
 An initial profile of 100,000 bars measured a Python median of 0.371 seconds over five calls. In the instrumented profile, essentially all time was in the recurrence, per-bar finiteness checks, and Python scalar operations; Pandas selection was negligible. That establishes a useful native-port target rather than choosing a language first.
 
@@ -10,9 +12,9 @@ Rust was chosen because the project already has a dependency-free Rust cdylib, l
 
 ## Implementation
 
-- [`rust/axiom_kernel/src/adx.rs`](../../rust/axiom_kernel/src/adx.rs): safe slice-based recurrence, validation, native unit tests, and a documented C boundary.
-- [`trading_gym/playground/kernel.py`](../../trading_gym/playground/kernel.py): optional-symbol discovery, typed ctypes arguments, contiguous buffers, Python `math.fsum` seeds, and invalid-output rejection.
-- [`trading_gym/strategy_lab/adx.py`](../../trading_gym/strategy_lab/adx.py): selects the native result when available; retains the unchanged Python recurrence as the reference and fallback.
+- [`kernel/src/adx.rs`](../../kernel/src/adx.rs): safe slice-based recurrence, validation, native unit tests, and a documented C boundary.
+- [`trading_gym/agent/playground/kernel.py`](../../trading_gym/agent/playground/kernel.py): optional-symbol discovery, typed ctypes arguments, contiguous buffers, Python `math.fsum` seeds, and invalid-output rejection.
+- [`trading_gym/agent/strategy_lab/adx.py`](../../trading_gym/agent/strategy_lab/adx.py): selects the native result when available; retains the unchanged Python recurrence as the reference and fallback.
 - [`scripts/benchmark_adx.py`](../../scripts/benchmark_adx.py): bounded, deterministic offline benchmark; verifies bitwise equality before reporting timings and refuses to claim a native result when the ADX entry point is unavailable.
 
 `axiom_wilder_adx` is an additive ABI-1 symbol. Existing simulation entry points and signatures are unchanged. An old ABI-1 artifact without this symbol returns to the Python reference, as does an unavailable/disabled library. Native rejection is not an availability fallback: Python raises and does not publish partial outputs.
@@ -36,7 +38,7 @@ The initial profiling median and the later paired median differ with runtime loa
 Build using the existing locked crate:
 
 ```bash
-cargo build --release --locked --offline --manifest-path rust/axiom_kernel/Cargo.toml
+cargo build --release --locked --offline --manifest-path kernel/Cargo.toml
 ```
 
 Reproduce the measured synthetic workload in the same local test environment:
@@ -69,4 +71,4 @@ Raw local measurements: ignored `scratchpad/adx-benchmark-before.json`, `adx-pro
 
 ## Fusion qualification remains separate
 
-There is a real RL-proposal / LLM-governance backend and deterministic fusion arbitration. It supports veto/size adjustment and configured disagreement handling, but the current API still denies funded live operation unless intelligence is qualified RL-only. This port does not remove that restriction or resolve the previously recorded full-suite, credential/fallback, broker-settlement, multi-writer, and deployment qualification gaps. See [the earlier evidence](EVOLUTION_PASS.md) for the outstanding baseline rather than assuming native speed establishes trading safety or profitability.
+There is a real RL-proposal / LLM-governance backend and deterministic fusion arbitration. It supports veto/size adjustment and configured disagreement handling, but the current API still denies funded live operation unless intelligence is qualified RL-only. This port does not remove that restriction or resolve the previously recorded full-suite, credential/fallback, broker-settlement, multi-writer, and deployment qualification gaps. See [the earlier evidence](../DELETION_REVIEW.md) for the outstanding baseline rather than assuming native speed establishes trading safety or profitability.

@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # System-1 inference context and multi-key provider governance
 
 Updated: 2026-10-15. Applies to the advisory-plane integration on TradingGYM PR #2.

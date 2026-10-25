@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.strategy_lab.evaluator import validate_market_frame
+from trading_gym.agent.strategy_lab.evaluator import validate_market_frame
 
 
 def frame():

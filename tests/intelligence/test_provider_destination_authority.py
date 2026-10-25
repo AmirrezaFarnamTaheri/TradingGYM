@@ -9,8 +9,8 @@ from __future__ import annotations
 import pytest
 
 from trading_gym.agent.providers import ProviderConfig, ProviderKind
-from trading_gym.intelligence.llm_backend import httpx_transport
-from trading_gym.intelligence.systemone_native_backend import (
+from trading_gym.agent.intelligence.llm_backend import httpx_transport
+from trading_gym.agent.intelligence.systemone_native_backend import (
     httpx_systemone_transport,
 )
 
@@ -50,7 +50,7 @@ def test_chat_destination_revalidation_denies_without_network(
     monkeypatch: pytest.MonkeyPatch, local_chat: ProviderConfig
 ) -> None:
     import httpx
-    from trading_gym.common import security
+    from trading_gym.core import security
 
     monkeypatch.setattr(security, "validate_base_url", _reject_destination)
     monkeypatch.setattr(httpx, "Client", _forbid_http)
@@ -65,7 +65,7 @@ def test_chat_destination_revalidation_denies_without_network(
 def test_native_destination_revalidation_denies_without_network(
     monkeypatch: pytest.MonkeyPatch, local_native: ProviderConfig
 ) -> None:
-    from trading_gym.intelligence import systemone_native_backend as native
+    from trading_gym.agent.intelligence import systemone_native_backend as native
 
     monkeypatch.setattr(native, "validate_base_url", _reject_destination)
     monkeypatch.setattr(native.httpx, "Client", _forbid_http)
@@ -79,11 +79,11 @@ def test_chat_destination_failure_never_degrades_to_risk_on_rule(
 ) -> None:
     import numpy as np
 
-    from trading_gym.common import security
-    from trading_gym.intelligence.base import IntelligenceBackend
-    from trading_gym.intelligence.llm_backend import LLMDecisionBackend
-    from trading_gym.intelligence.policy_adapter import IntelligencePolicyAdapter
-    from trading_gym.intelligence.types import (
+    from trading_gym.core import security
+    from trading_gym.agent.intelligence.base import IntelligenceBackend
+    from trading_gym.agent.intelligence.llm_backend import LLMDecisionBackend
+    from trading_gym.agent.intelligence.policy_adapter import IntelligencePolicyAdapter
+    from trading_gym.agent.intelligence.types import (
         ActionKind,
         BackendHealth,
         DecisionSignal,

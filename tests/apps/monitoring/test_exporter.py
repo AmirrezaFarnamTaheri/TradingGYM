@@ -1,5 +1,5 @@
 from unittest.mock import Mock, patch, MagicMock
-from apps.monitoring.exporter import MetricsHandler, main
+from trading_gym.core.monitoring_app.exporter import MetricsHandler, main
 
 
 class TestMetricsHandler:
@@ -13,9 +13,9 @@ class TestMetricsHandler:
         mock_wfile = MagicMock()
 
         with patch(
-            "apps.monitoring.exporter.generate_latest", return_value=b"# HELP metrics"
+            "trading_gym.core.monitoring_app.exporter.generate_latest", return_value=b"# HELP metrics"
         ):
-            with patch("apps.monitoring.exporter.get_metrics_instance"):
+            with patch("trading_gym.core.monitoring_app.exporter.get_metrics_instance"):
                 # Patch BaseHTTPRequestHandler methods to intercept calls
                 with patch(
                     "http.server.BaseHTTPRequestHandler.send_response"
@@ -81,7 +81,7 @@ class TestMetricsHandler:
                 mock_send_response.assert_called_with(404)
 
 
-@patch("apps.monitoring.exporter.MetricsServer")
+@patch("trading_gym.core.monitoring_app.exporter.MetricsServer")
 def test_main(mock_server_cls):
     mock_server = Mock()
     mock_server_cls.return_value = mock_server

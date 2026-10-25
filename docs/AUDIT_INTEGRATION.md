@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # Audit integration — 23 October 2026
 
 ## Input identity and scope
@@ -10,7 +12,7 @@ The bundle's 40 patch hashes and 109 checksum entries were verified, the live
 repository matched the declared base, and the strict application helper admitted
 all 150 original file afterimages before the follow-up fixes below.
 
-The [source coverage register](reviews/2026-10-23/source-coverage.json) preserves
+The source coverage register (historical artifact `docs/reviews/2026-10-23/source-coverage.json`, retired; recover from Git history) preserves
 the supplied 234 outcomes, implementation locations, historical evidence and
 remaining conditions. Its evidence statements describe the supplied candidate;
 current integration checks are recorded separately below. Counts describe the
@@ -95,13 +97,13 @@ outcome; including its source does not close every qualification condition.
 > the original frozen implementation tree, not automatically to later PR
 > commits. Follow-up bug fixes, local regression evidence and blocked hosted
 > runs are separately recorded in
-> [post-publication verification](reviews/2026-10-23/post_publication_verification.md).
+> post-publication verification (historical artifact `docs/reviews/2026-10-23/post_publication_verification.md`, retired; recover from Git history).
 
 ## Current verification
 
 The validated source is commit `865beaf83ae067923aa293c1fc8b17b2f0fb8400`, tree
 `4afaffb779b0a5c25457faf031ba6ee48d3d602f`. The subsequent documentation commit changes
-only this audit summary and the [machine-readable validation record](reviews/2026-10-23/validation.json).
+only this audit summary and the machine-readable validation record (historical artifact `docs/reviews/2026-10-23/validation.json`, retired; recover from Git history).
 The complete Python suite and isolated contract suite retained the same source
 SHA-256 throughout execution:
 `5b16788cb0ea950565a6b318488367dfa1c385eb141ee2b25907cf00422ed32e`.

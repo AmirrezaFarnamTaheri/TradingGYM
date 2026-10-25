@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
 import numpy as np
-from trading_gym.common.config import EnvConfig
+from trading_gym.core.config import EnvConfig
 from trading_gym.execution.fill_models import (
     FillResult,
     LimitOrderBook,

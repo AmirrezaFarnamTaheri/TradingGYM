@@ -17,7 +17,7 @@ from __future__ import annotations
 import pytest
 
 from trading_gym.agent.arms.factory import StatisticsArmBackend
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     BackendHealth,
     MarketContext,

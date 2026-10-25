@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-from trading_gym.pipelines.feature_pipeline import (
+from trading_gym.rl.pipelines.feature_pipeline import (
     load_raw_data,
     run_feature_pipeline,
 )
@@ -104,9 +104,9 @@ class TestLoadRawData:
 
 
 class TestRunFeaturePipeline:
-    @patch("trading_gym.pipelines.feature_pipeline.FeatureAssembler")
-    @patch("trading_gym.pipelines.feature_pipeline.load_raw_data")
-    @patch("trading_gym.pipelines.feature_pipeline._publish_features")
+    @patch("trading_gym.rl.pipelines.feature_pipeline.FeatureAssembler")
+    @patch("trading_gym.rl.pipelines.feature_pipeline.load_raw_data")
+    @patch("trading_gym.rl.pipelines.feature_pipeline._publish_features")
     def test_successful_run(
         self, mock_publish, mock_load, MockAssembler, mock_config, sample_ohlcv
     ):

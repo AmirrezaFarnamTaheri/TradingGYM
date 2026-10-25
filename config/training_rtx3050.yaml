@@ -6,7 +6,7 @@
 # maintaining training stability.
 #
 # Usage:
-#   python -m apps.trainer.main train --config config/training_rtx3050.yaml
+#   python -m trading_gym.rl.trainer.main train --config config/training_rtx3050.yaml
 #
 # Memory Budget (RTX 3050 4GB):
 #   - PyTorch overhead: ~500MB

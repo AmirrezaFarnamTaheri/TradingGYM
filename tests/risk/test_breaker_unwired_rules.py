@@ -9,7 +9,7 @@ Status now reports them separately as ``unwired_rules``.
 
 from __future__ import annotations
 
-from trading_gym.risk.circuit_breakers import BreakerConfig, CircuitBreaker
+from trading_gym.execution.risk.circuit_breakers import BreakerConfig, CircuitBreaker
 
 _INERT = {
     "single_trade_loss",

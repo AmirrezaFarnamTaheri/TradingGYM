@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-044 — Paired holdout strategy evidence and indicator edge cases
 
 **Date:** 2026-10-15  
@@ -20,7 +22,7 @@ backend.
 
 ### Implemented research comparator
 
-`trading_gym/experiments/peer_strategy_comparison.py` adds:
+`trading_gym/rl/experiments/peer_strategy_comparison.py` adds:
 
 - `StrategyReplay`: immutable strategy identifier, canonical lowercase
   artifact SHA-256, market SHA-256, strictly ascending bar-close Unix times,
@@ -61,7 +63,7 @@ strategy-generating model was trained without leakage.
 
 ### Second-order execution-cost sensitivity
 
-`trading_gym/experiments/cost_sensitivity.py` adds
+`trading_gym/rl/experiments/cost_sensitivity.py` adds
 `compare_cost_scenarios(replays, *, baseline_id, train_end_unix,
 as_of_unix, scenarios)`. It reuses the same validated paired holdout
 and compares 2–16 distinct, bounded fee/slippage combinations.
@@ -87,7 +89,7 @@ against the locally executed versions.
 
 ### Method-level indicator defect repairs
 
-`trading_gym/strategy_lab/indicators.py` contained two separate
+`trading_gym/agent/strategy_lab/indicators.py` contained two separate
 correctness problems:
 
 1. Flat OHLC closes yield zero smoothed gains *and* zero losses. The

@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-023: Omni-Intelligence Backend Abstraction
 
 **Status:** Accepted
@@ -5,7 +7,7 @@
 
 ## Decision
 
-Introduce a pluggable intelligence layer (`trading_gym/intelligence/`) that decouples the *decision source* from the *execution path*. Five backend types cover every compute condition:
+Introduce a pluggable intelligence layer (`trading_gym/agent/intelligence/`) that decouples the *decision source* from the *execution path*. Five backend types cover every compute condition:
 
 | Mode | Source | Condition |
 |---|---|---|

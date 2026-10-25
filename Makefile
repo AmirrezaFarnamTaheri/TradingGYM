@@ -1,14 +1,22 @@
 PY?=python
 ARGS?=
 
-.PHONY: help setup doctor test lint typecheck typecheck-full train paper live smoke clean
+.PHONY: help serve paper train doctor test frontend lint
 
 help:
-	$(PY) scripts/project.py --help
+	$(PY) -m trading_gym.cli --help
 
-setup doctor test lint typecheck typecheck-full train paper live smoke:
-	$(PY) scripts/project.py $@ $(ARGS)
-
-clean:
-	@echo "Remove only project-generated caches deliberately; automatic recursive cleanup is disabled to protect virtual environments."
-	@exit 2
+serve:
+	$(PY) -m trading_gym.cli serve $(ARGS)
+paper:
+	$(PY) -m trading_gym.cli run-agent --source broker --mode paper $(ARGS)
+train:
+	$(PY) -m trading_gym.cli train $(ARGS)
+doctor:
+	$(PY) -m trading_gym.cli doctor
+test:
+	$(PY) -m pytest -q -m "not integration"
+frontend:
+	cd frontend && npm ci && npm run test:ci && npm run build
+lint:
+	$(PY) -m ruff check trading_gym/agent/daemon.py trading_gym/agent/strategy_planner.py trading_gym/agent/shadow_learning.py trading_gym/api trading_gym/cli.py

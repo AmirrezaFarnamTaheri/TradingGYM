@@ -5,7 +5,7 @@ from decimal import Decimal as D, localcontext
 
 import pytest
 
-from trading_gym.accounting.order_fill_parity import (
+from trading_gym.execution.accounting.order_fill_parity import (
     BrokerReadback,
     FillEvidence,
     OrderIntent,

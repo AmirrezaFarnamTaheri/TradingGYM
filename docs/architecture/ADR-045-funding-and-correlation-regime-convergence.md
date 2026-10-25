@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-045: Funding readback and causal correlation-regime convergence
 
 Date: 2026-10-15. Target: TradingGYM draft PR #2.
@@ -29,7 +31,7 @@ binance_tolerance_calibration}.py.
 
 TradingGYM's canonical accounting package now exports the read-only
 FundingDue, FundingReceipt and reconcile_funding API from
-trading_gym/accounting/funding_reconciliation.py.
+trading_gym/execution/accounting/funding_reconciliation.py.
 
 For positive funding, longs pay and shorts receive; the sign reverses
 when funding turns negative. Expected settlement obligations and
@@ -64,7 +66,7 @@ sentiment and position multipliers.
 
 TradingGYM's research package now exports correlation_regimes and
 classify_density_timeline from
-trading_gym/research/correlation_regimes.py.
+trading_gym/agent/research/correlation_regimes.py.
 
 The component accepts timezone-aware, strictly ordered, second-aligned
 asset close-return samples, never future returns. Rolling absolute

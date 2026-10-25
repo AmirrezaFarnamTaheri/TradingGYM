@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from trading_gym.institutional_os.portfolio_construction import (
+from trading_gym.core.institutional.portfolio_construction import (
     ConstructionMethod,
     PortfolioConstructionReport,
     PortfolioConstructionRequest,
@@ -13,13 +13,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_portfolio_optimization_method_enum_is_published():
-    document = json.loads((ROOT / "docs/contracts/openapi.json").read_text())
+    document = json.loads((ROOT / "docs/contracts/research-openapi.json").read_text())
     choices = document["components"]["schemas"]["ConstructionMethod"]["enum"]
     assert choices == [member.value for member in ConstructionMethod]
 
 
 def test_new_turnover_request_and_report_fields_match_runtime_schema():
-    document = json.loads((ROOT / "docs/contracts/openapi.json").read_text())
+    document = json.loads((ROOT / "docs/contracts/research-openapi.json").read_text())
     published = document["components"]["schemas"]
     fields = (
         (

@@ -8,12 +8,12 @@ from requests.exceptions import (
     ConnectionError as RequestsConnectionError,
 )
 
-from trading_gym.adapters.aban_transport import (
+from trading_gym.market.adapters.aban_transport import (
     AbanTransport,
     operation_is_idempotent,
 )
-from trading_gym.production.mutation_retry import MutationOutcomeUnknown
-from trading_gym.production.venues import VenueOrderIntent
+from trading_gym.execution.production.mutation_retry import MutationOutcomeUnknown
+from trading_gym.execution.production.venues import VenueOrderIntent
 
 
 def _intent(operation: str, key: str = "test-key-1") -> VenueOrderIntent:

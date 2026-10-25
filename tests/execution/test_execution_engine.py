@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from decimal import Decimal
 from hypothesis import HealthCheck, given, settings, strategies as st
-from trading_gym.common.config import (
+from trading_gym.core.config import (
     BreakerConfig,
     CostConfig,
     EnvConfig,

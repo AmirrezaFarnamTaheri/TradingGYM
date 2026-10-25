@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from apps.api.ui import mount_built_ui
+from trading_gym.core.legacy_api.ui import mount_built_ui
 
 
 def test_installed_ui_preserves_api_routes(tmp_path):

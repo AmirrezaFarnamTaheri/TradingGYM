@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 import numpy as np
 import pytest
 
-from trading_gym.research.dossier import build_dossier
-from trading_gym.research.models import EvidenceItem, EvidenceQuality
+from trading_gym.agent.research.dossier import build_dossier
+from trading_gym.agent.research.models import EvidenceItem, EvidenceQuality
 
 
 def _item(evidence_id: str, metadata: dict, section: str = "risk") -> EvidenceItem:

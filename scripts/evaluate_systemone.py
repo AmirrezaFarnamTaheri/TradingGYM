@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from trading_gym.intelligence.systemone_evaluation import evaluate_records  # noqa: E402
+from trading_gym.agent.intelligence.systemone_evaluation import evaluate_records  # noqa: E402
 
 
 def read_jsonl(path: Path) -> list[dict]:

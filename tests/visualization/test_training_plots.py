@@ -9,7 +9,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-from trading_gym.visualization.training_plots import TrainingVisualizer  # noqa: E402
+from trading_gym.rl.visualization.training_plots import TrainingVisualizer  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

@@ -1,0 +1,1 @@
+"""Local autonomous cockpit API."""

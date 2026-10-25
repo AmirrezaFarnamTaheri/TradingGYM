@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from trading_gym.accounting.models import (
+from trading_gym.execution.accounting.models import (
     AccountSnapshot,
     AccountingEvent,
     AccountingEventType,

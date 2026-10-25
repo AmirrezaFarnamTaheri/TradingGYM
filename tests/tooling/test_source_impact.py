@@ -18,16 +18,16 @@ def test_python_relative_imports_and_dependents(tmp_path):
     put(tmp_path, "trading_gym/core.py", "VALUE = 2\n")
     put(tmp_path, "trading_gym/market/__init__.py", "")
     put(tmp_path, "trading_gym/market/book.py", "from .. import core\n")
-    put(tmp_path, "apps/api.py", "from trading_gym.market import book\n")
+    put(tmp_path, "trading_gym/core/legacy_api.py", "from trading_gym.market import book\n")
     idx = build_source_index(tmp_path)
     report = evaluate_source_changes(idx, ["trading_gym/core.py"])
     assert report["changed"] == ["trading_gym/core.py"]
     assert "trading_gym/market/book.py" in report["impacted"]
-    assert "apps/api.py" in report["impacted"]
-    assert report["paths"]["apps/api.py"] == [
+    assert "trading_gym/core/legacy_api.py" in report["impacted"]
+    assert report["paths"]["trading_gym/core/legacy_api.py"] == [
         "trading_gym/core.py",
         "trading_gym/market/book.py",
-        "apps/api.py",
+        "trading_gym/core/legacy_api.py",
     ]
 
 

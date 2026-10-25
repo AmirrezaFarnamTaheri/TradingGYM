@@ -27,7 +27,7 @@ from unittest.mock import patch, MagicMock, AsyncMock  # noqa: E402
 from collections import deque  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from apps.api import main as main_module  # noqa: E402
+from trading_gym.core.legacy_api import main as main_module  # noqa: E402
 
 
 # We need to mock the psutil and subprocess functionality
@@ -260,7 +260,7 @@ class TestModelEndpoints:
         (model_dir / "metadata.json").write_text('{"reward": 100}')
 
         # Patch CHECKPOINTS_DIR
-        with patch("apps.api.main.CHECKPOINTS_DIR", checkpoints_dir):
+        with patch("trading_gym.core.legacy_api.main.CHECKPOINTS_DIR", checkpoints_dir):
             response = client.get("/api/v1/models", headers=auth_headers)
             assert response.status_code == 200
             data = response.json()
@@ -271,7 +271,7 @@ class TestModelEndpoints:
         checkpoints_dir = tmp_path / "checkpoints"
         checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
-        with patch("apps.api.main.CHECKPOINTS_DIR", checkpoints_dir):
+        with patch("trading_gym.core.legacy_api.main.CHECKPOINTS_DIR", checkpoints_dir):
             response = client.get("/api/v1/models/active", headers=auth_headers)
             assert response.status_code == 200
             data = response.json()
@@ -311,7 +311,7 @@ class TestTradingEndpoints:
 
     def test_panic_button(self, client, auth_headers, tmp_path, monkeypatch):
         """Should create panic signal file."""
-        from apps.api import main as api_main
+        from trading_gym.core.legacy_api import main as api_main
 
         panic_file = tmp_path / "panic.signal"
         monkeypatch.setattr(api_main, "PANIC_FILE", panic_file)
@@ -341,7 +341,7 @@ class TestEmergencyEndpoints:
         self, client, auth_headers, tmp_path, monkeypatch
     ):
         """Should succeed with correct confirmation."""
-        from apps.api import main as api_main
+        from trading_gym.core.legacy_api import main as api_main
 
         monkeypatch.setenv("EMERGENCY_API_KEY", "emergency-test-key")
         monkeypatch.setenv("EMERGENCY_FLATTEN_GRACE_SECONDS", "0")
@@ -396,15 +396,15 @@ class TestDataEndpoints:
 def client():
     """Create a test client for the API."""
     # Import the app with environment variables already set
-    from apps.api import main as api_main
+    from trading_gym.core.legacy_api import main as api_main
 
     api_main.API_KEY = "test-api-key-12345"
     api_main.API_KEY_CONFIGURED = True
     app = api_main.app
 
     # Skip environment validation for tests
-    with patch("apps.api.main.validate_environment"):
-        with patch("apps.api.main.prune_zombies"):
+    with patch("trading_gym.core.legacy_api.main.validate_environment"):
+        with patch("trading_gym.core.legacy_api.main.prune_zombies"):
             with TestClient(app) as client:
                 yield client
 
@@ -470,7 +470,7 @@ class TestAPIIntegration:
 def test_start_training(client, auth_headers):
     # Mock the bounded process supervisor rather than inventing an invalid PID.
     with patch(
-        "apps.api.main.start_managed_process",
+        "trading_gym.core.legacy_api.main.start_managed_process",
         new_callable=AsyncMock,
         return_value={"pid": 12345},
     ):
@@ -486,12 +486,12 @@ def test_start_training(client, auth_headers):
 
 def test_start_trading(client, auth_headers, tmp_path, monkeypatch):
     # Unregistered checkpoints must not acquire paper/live authority.
-    from apps.api import main as api_main
+    from trading_gym.core.legacy_api import main as api_main
 
     checkpoints = tmp_path / "checkpoints"
     checkpoints.mkdir()
     monkeypatch.setattr(api_main, "CHECKPOINTS_DIR", checkpoints)
-    with patch("apps.api.main.start_managed_process", new_callable=AsyncMock):
+    with patch("trading_gym.core.legacy_api.main.start_managed_process", new_callable=AsyncMock):
         response = client.post(
             "/api/v1/trading/start",
             headers=auth_headers,
@@ -504,7 +504,7 @@ def test_start_trading(client, auth_headers, tmp_path, monkeypatch):
 def test_stream_subprocess_logs_mock(client, auth_headers):
     # The API delegates log/process lifecycle to the bounded supervisor.
     with patch(
-        "apps.api.main.start_managed_process",
+        "trading_gym.core.legacy_api.main.start_managed_process",
         new_callable=AsyncMock,
         return_value={"pid": 12345},
     ) as mock_start:

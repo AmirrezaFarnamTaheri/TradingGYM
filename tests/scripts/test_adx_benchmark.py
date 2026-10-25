@@ -39,7 +39,7 @@ def test_benchmark_refuses_to_claim_native_performance_when_disabled():
 
 
 def test_benchmark_verifies_parity_and_reports_both_execution_times():
-    from trading_gym.playground import kernel
+    from trading_gym.agent.playground import kernel
 
     library = kernel.load_kernel()
     if library is None or not hasattr(library, "axiom_wilder_adx"):

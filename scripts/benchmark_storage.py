@@ -11,7 +11,7 @@ import statistics
 import tempfile
 import time
 
-from trading_gym.common.persistence import atomic_write_json, read_json
+from trading_gym.core.persistence import atomic_write_json, read_json
 
 
 def benchmark(counts: list[int], repeats: int = 5) -> dict:

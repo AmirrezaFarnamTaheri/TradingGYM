@@ -4,7 +4,7 @@ from threading import Event, Thread
 
 import pytest
 
-from apps.venue.router import RoutingPolicy, VenueRouter
+from trading_gym.market.router_app.router import RoutingPolicy, VenueRouter
 
 
 class Primary:
@@ -35,7 +35,7 @@ class Backup:
 
 
 def _setup(monkeypatch):
-    import apps.venue.router as module
+    import trading_gym.market.router_app.router as module
 
     clock = [100.0]
     monkeypatch.setattr(module.time, "monotonic", lambda: clock[0])

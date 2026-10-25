@@ -2,7 +2,7 @@ import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
-from apps.api.training_service import TrainingService, stop_outcome
+from trading_gym.core.legacy_api.training_service import TrainingService, stop_outcome
 
 
 def test_service_confines_config_and_preserves_supervisor_contract(tmp_path):
@@ -25,7 +25,7 @@ def test_service_confines_config_and_preserves_supervisor_contract(tmp_path):
         "model_version": "v1",
     }
     args, kwargs = start.call_args
-    assert args[0] == "training" and args[1][1:3] == ["-m", "apps.trainer.main"]
+    assert args[0] == "training" and args[1][1:3] == ["-m", "trading_gym.rl.trainer.main"]
     assert kwargs["source"] == "TRAIN"
     assert asyncio.run(service.stop())["status"] == "stopping"
     assert asyncio.run(service.status())["status"] == "running"

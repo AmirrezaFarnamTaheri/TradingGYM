@@ -4,15 +4,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.strategy_lab.evaluator import evaluate_strategy
-from trading_gym.strategy_lab.indicators import (
+from trading_gym.agent.strategy_lab.evaluator import evaluate_strategy
+from trading_gym.agent.strategy_lab.indicators import (
     compute_indicators,
     mfi,
     realized_volatility,
 )
-from trading_gym.strategy_lab.models import IndicatorSpec
-from trading_gym.strategy_lab.templates import template_catalogue
-from trading_gym.strategy_lab.validation import validate_strategy_spec
+from trading_gym.agent.strategy_lab.models import IndicatorSpec
+from trading_gym.agent.strategy_lab.templates import template_catalogue
+from trading_gym.agent.strategy_lab.validation import validate_strategy_spec
 
 
 def _bars(closes, volume=1.0):

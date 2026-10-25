@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from trading_gym.skills.capability_selection import catalogue_digest
+from trading_gym.agent.skills.capability_selection import catalogue_digest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "preview_skill_capabilities.py"

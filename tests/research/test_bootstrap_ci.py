@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from trading_gym.research.bootstrap_ci import bca_interval, sharpe_ratio
+from trading_gym.agent.research.bootstrap_ci import bca_interval, sharpe_ratio
 
 
 def _returns(n: int, mean: float, vol: float, seed: int) -> np.ndarray:

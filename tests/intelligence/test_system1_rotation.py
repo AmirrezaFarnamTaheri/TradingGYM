@@ -10,13 +10,13 @@ import httpx
 import pytest
 
 from trading_gym.agent.providers import ProviderConfig, ProviderKind
-from trading_gym.intelligence.llm_key_pool import (
+from trading_gym.agent.intelligence.llm_key_pool import (
     CredentialPool,
     CredentialsUnavailable,
     request_with_rotation,
 )
-from trading_gym.intelligence.system1_context import build_system1_packet
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.system1_context import build_system1_packet
+from trading_gym.agent.intelligence.types import (
     BackendUnavailable,
     MarketContext,
     UncertainDecision,
@@ -225,8 +225,8 @@ def test_memory_context_excludes_unsettled_and_historical_hindsight():
 
 
 def test_system1_rejects_low_confidence_instead_of_acting():
-    from trading_gym.intelligence.llm_backend import LLMTransportResponse
-    from trading_gym.intelligence.system1_backend import System1DecisionBackend
+    from trading_gym.agent.intelligence.llm_backend import LLMTransportResponse
+    from trading_gym.agent.intelligence.system1_backend import System1DecisionBackend
 
     cfg = ProviderConfig(
         provider_id="fast-one",
@@ -253,9 +253,9 @@ def test_system1_rejects_low_confidence_instead_of_acting():
 
 
 def test_system1_strict_json_and_leverage_cap():
-    from trading_gym.intelligence.llm_backend import LLMTransportResponse
-    from trading_gym.intelligence.system1_backend import System1DecisionBackend
-    from trading_gym.intelligence.types import ActionKind
+    from trading_gym.agent.intelligence.llm_backend import LLMTransportResponse
+    from trading_gym.agent.intelligence.system1_backend import System1DecisionBackend
+    from trading_gym.agent.intelligence.types import ActionKind
 
     cfg = ProviderConfig(
         provider_id="fast-one",
@@ -284,8 +284,8 @@ def test_system1_strict_json_and_leverage_cap():
 
 
 def test_factory_integrates_system1_without_a_trained_rl_model():
-    from trading_gym.common.intelligence_config import IntelligenceConfig
-    from trading_gym.intelligence.factory import build_intelligence_policy
+    from trading_gym.core.intelligence_config import IntelligenceConfig
+    from trading_gym.agent.intelligence.factory import build_intelligence_policy
 
     cfg = ProviderConfig(
         provider_id="fast-one",
@@ -313,8 +313,8 @@ def test_factory_integrates_system1_without_a_trained_rl_model():
 
 
 def test_system1_rejects_unadvertised_decision_fields():
-    from trading_gym.intelligence.llm_backend import LLMTransportResponse
-    from trading_gym.intelligence.system1_backend import System1DecisionBackend
+    from trading_gym.agent.intelligence.llm_backend import LLMTransportResponse
+    from trading_gym.agent.intelligence.system1_backend import System1DecisionBackend
 
     config = ProviderConfig(
         provider_id="fast-one",
@@ -342,9 +342,9 @@ def test_system1_rejects_unadvertised_decision_fields():
 
 
 def test_system1_working_memory_requires_separate_explicit_consent():
-    from trading_gym.common.intelligence_config import IntelligenceConfig
-    from trading_gym.intelligence.factory import build_intelligence_policy
-    from trading_gym.intelligence.llm_backend import LLMTransportResponse
+    from trading_gym.core.intelligence_config import IntelligenceConfig
+    from trading_gym.agent.intelligence.factory import build_intelligence_policy
+    from trading_gym.agent.intelligence.llm_backend import LLMTransportResponse
 
     provider = ProviderConfig(
         provider_id="fast-one",
@@ -409,9 +409,9 @@ def test_system1_working_memory_requires_separate_explicit_consent():
 
 
 def test_explicit_weak_system1_hold_does_not_cascade_to_risk_on_fallback():
-    from trading_gym.intelligence.llm_backend import LLMTransportResponse
-    from trading_gym.intelligence.system1_backend import System1DecisionBackend
-    from trading_gym.intelligence.types import ActionKind
+    from trading_gym.agent.intelligence.llm_backend import LLMTransportResponse
+    from trading_gym.agent.intelligence.system1_backend import System1DecisionBackend
+    from trading_gym.agent.intelligence.types import ActionKind
 
     config = ProviderConfig(
         provider_id="fast-hold",
@@ -469,8 +469,8 @@ def test_closed_bar_at_or_after_end_time_is_considered_fresh():
 
 
 def test_system1_opted_in_working_memory_must_be_connected_at_startup():
-    from trading_gym.common.intelligence_config import IntelligenceConfig
-    from trading_gym.intelligence.factory import build_intelligence_policy
+    from trading_gym.core.intelligence_config import IntelligenceConfig
+    from trading_gym.agent.intelligence.factory import build_intelligence_policy
 
     provider = ProviderConfig(
         provider_id="fast-local",
@@ -499,7 +499,7 @@ def test_system1_opted_in_working_memory_must_be_connected_at_startup():
 
 
 def test_provider_cooldown_survives_model_and_key_roster_changes(tmp_path: Path):
-    from trading_gym.intelligence.llm_key_pool import default_rotation_path
+    from trading_gym.agent.intelligence.llm_key_pool import default_rotation_path
 
     one = default_rotation_path(
         "provider-a", "https://api.example/v1", "small", ("MODEL_KEY_ONE",)
@@ -645,7 +645,7 @@ def test_hard_billing_429_never_rotates_even_with_opt_in(
 def test_broken_rotation_state_cannot_silently_exhaust_fallbacks(
     tmp_path: Path,
 ) -> None:
-    from trading_gym.intelligence.llm_key_pool import (
+    from trading_gym.agent.intelligence.llm_key_pool import (
         CredentialStateIntegrityError,
     )
 
@@ -670,8 +670,8 @@ def test_broken_rotation_state_cannot_silently_exhaust_fallbacks(
 def test_chat_transport_rejects_corrupt_credential_journal_as_authority(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from trading_gym.intelligence.llm_backend import httpx_transport
-    from trading_gym.intelligence.llm_key_pool import default_rotation_path
+    from trading_gym.agent.intelligence.llm_backend import httpx_transport
+    from trading_gym.agent.intelligence.llm_key_pool import default_rotation_path
 
     monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
     monkeypatch.setenv("MODEL_KEY_ONE", "a-nonproduction-test-key")
@@ -697,8 +697,8 @@ def test_chat_transport_rejects_corrupt_credential_journal_as_authority(
 def test_native_systemone_transport_rejects_corrupt_rotation_journal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from trading_gym.intelligence.llm_key_pool import default_rotation_path
-    from trading_gym.intelligence.systemone_native_backend import (
+    from trading_gym.agent.intelligence.llm_key_pool import default_rotation_path
+    from trading_gym.agent.intelligence.systemone_native_backend import (
         httpx_systemone_transport,
     )
 
@@ -745,7 +745,7 @@ def test_remote_protocol_disconnect_can_retry_on_another_key(tmp_path: Path):
 def test_invalid_rotation_clock_denies_key_lease(
     tmp_path: Path, bad_clock: float
 ) -> None:
-    from trading_gym.intelligence.llm_key_pool import (
+    from trading_gym.agent.intelligence.llm_key_pool import (
         CredentialStateIntegrityError,
     )
 
@@ -762,7 +762,7 @@ def test_invalid_rotation_clock_denies_key_lease(
 def test_rotation_lock_io_error_must_not_be_recoverable_provider_outage(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from trading_gym.intelligence.llm_key_pool import (
+    from trading_gym.agent.intelligence.llm_key_pool import (
         CredentialStateIntegrityError,
     )
 
@@ -795,8 +795,8 @@ def test_provider_hard_spend_limit_is_a_non_degradable_authority_denial(
     monkeypatch: pytest.MonkeyPatch,
     mock_httpx_client,
 ) -> None:
-    from trading_gym.intelligence.llm_backend import httpx_transport
-    from trading_gym.intelligence.systemone_native_backend import (
+    from trading_gym.agent.intelligence.llm_backend import httpx_transport
+    from trading_gym.agent.intelligence.systemone_native_backend import (
         httpx_systemone_transport,
     )
 
@@ -833,9 +833,9 @@ def test_auto_escalates_uncertain_system1_to_qualified_deep_review():
     """AUTO should consult its deep reviewer before allowing a risk-on floor."""
     import numpy as np
 
-    from trading_gym.common.intelligence_config import IntelligenceConfig
-    from trading_gym.intelligence.factory import build_intelligence_policy
-    from trading_gym.intelligence.llm_backend import LLMTransportResponse
+    from trading_gym.core.intelligence_config import IntelligenceConfig
+    from trading_gym.agent.intelligence.factory import build_intelligence_policy
+    from trading_gym.agent.intelligence.llm_backend import LLMTransportResponse
 
     fast = ProviderConfig(
         provider_id="fast-auto",
@@ -907,9 +907,9 @@ def test_auto_no_deep_reviewer_abstains_after_uncertain_system1():
     """Rules must never turn unreviewed model uncertainty into a new order."""
     import numpy as np
 
-    from trading_gym.common.intelligence_config import IntelligenceConfig
-    from trading_gym.intelligence.factory import build_intelligence_policy
-    from trading_gym.intelligence.llm_backend import LLMTransportResponse
+    from trading_gym.core.intelligence_config import IntelligenceConfig
+    from trading_gym.agent.intelligence.factory import build_intelligence_policy
+    from trading_gym.agent.intelligence.llm_backend import LLMTransportResponse
 
     fast = ProviderConfig(
         provider_id="fast-auto",
@@ -1025,7 +1025,7 @@ def test_rotation_rejects_fifo_without_reading_it(tmp_path: Path, monkeypatch):
 
     if not hasattr(os, "mkfifo"):
         pytest.skip("FIFO state test requires POSIX")
-    from trading_gym.intelligence.llm_key_pool import CredentialStateIntegrityError
+    from trading_gym.agent.intelligence.llm_key_pool import CredentialStateIntegrityError
 
     state_path = tmp_path / "rotation.json"
     os.mkfifo(state_path)

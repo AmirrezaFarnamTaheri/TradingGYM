@@ -15,9 +15,9 @@ from typing import Literal, Protocol
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from trading_gym.common.circuit_breaker import CircuitBreaker, CircuitOpenError
-from trading_gym.common.rate_limit import RateLimitExceeded, SlidingWindowLimiter
-from trading_gym.strategy_lab.evaluator import REQUIRED_COLUMNS, validate_market_frame
+from trading_gym.core.circuit_breaker import CircuitBreaker, CircuitOpenError
+from trading_gym.core.rate_limit import RateLimitExceeded, SlidingWindowLimiter
+from trading_gym.agent.strategy_lab.evaluator import REQUIRED_COLUMNS, validate_market_frame
 
 _TIMEFRAME_SECONDS = {
     "1m": 60,

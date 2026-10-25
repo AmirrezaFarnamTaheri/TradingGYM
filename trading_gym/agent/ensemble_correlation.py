@@ -21,7 +21,7 @@ from typing import Sequence
 import numpy as np
 
 from trading_gym.agent.arms.base import Arm, ArmRegistry
-from trading_gym.intelligence.types import MarketContext
+from trading_gym.agent.intelligence.types import MarketContext
 
 __all__ = ["ensemble_pairwise_correlation", "arm_exposure_series"]
 

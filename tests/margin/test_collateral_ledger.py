@@ -7,11 +7,11 @@ from hypothesis import strategies as st
 
 import pytest
 
-from trading_gym.margin.collateral_ledger import (
+from trading_gym.execution.margin.collateral_ledger import (
     CollateralLedger,
     CollateralLedgerError,
 )
-from trading_gym.margin.lot_positions import LotLedger
+from trading_gym.execution.margin.lot_positions import LotLedger
 
 D = Decimal
 ZERO = D("0")

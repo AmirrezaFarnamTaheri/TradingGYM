@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from trading_gym.agent.experience_memory import Experience, ExperienceMemory
-from trading_gym.common.persistence import (
+from trading_gym.core.persistence import (
     append_jsonl,
     atomic_write_json,
     atomic_write_text,

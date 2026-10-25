@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from trading_gym.margin.lot_positions import Lot
-from trading_gym.margin.stop_out import plan_stop_out
+from trading_gym.execution.margin.lot_positions import Lot
+from trading_gym.execution.margin.stop_out import plan_stop_out
 
 D = Decimal
 

@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-044 — Turnover-aware research portfolio construction
 
 **Date:** 2026-10-15. **Target:** TradingGYM draft PR #2.
@@ -87,14 +89,14 @@ complete-repository integration remain unverified.
 
 ## Test and published contract
 
-A focused isolated test suite (`tests/convergence/test_turnover_aware_solver.py`
+A focused isolated test suite (`tests/system/test_turnover_aware_solver.py`
 has a local mirror) passed **18/18** core cases, plus **9/9** group-cap cases: high/zero penalty,
 forced-cap turnover, covariance/risk preference, malformed input,
 infeasible bounds, permutation stability and input immutability.
 
 The GitHub PR additionally includes **canonical construction-layer
 integration tests** in
-`tests/convergence/test_turnover_aware_portfolio_construction.py`;
+`tests/system/test_turnover_aware_portfolio_construction.py`;
 these tests were *authored but not executed against the full
 TradingGYM checkout* because GitHub source is accessible through the
 connector while container GitHub DNS checkout was unavailable.

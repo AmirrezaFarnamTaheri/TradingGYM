@@ -14,19 +14,19 @@ import httpx
 from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from trading_gym.common.persistence import (
+from trading_gym.core.persistence import (
     atomic_write_json,
     read_json,
     resolve_data_home,
 )
-from trading_gym.common.audit_outbox import (
+from trading_gym.core.audit_outbox import (
     deliver_audit_events,
     ensure_audit_outbox,
     queue_audit_event,
     verify_outbox_digest,
 )
-from trading_gym.common.security import redact_secrets, validate_base_url
-from trading_gym.governance.ledger import AuditLedger
+from trading_gym.core.security import redact_secrets, validate_base_url
+from trading_gym.execution.governance.ledger import AuditLedger
 
 
 class ProviderKind(str, Enum):
@@ -85,7 +85,7 @@ class ProviderConfig(BaseModel):
         """Ordered env references, supporting both legacy and fleet config."""
         # Lazy import avoids importing the intelligence package while the
         # core provider repository itself is still initializing.
-        from trading_gym.intelligence.llm_key_pool import credential_references
+        from trading_gym.agent.intelligence.llm_key_pool import credential_references
 
         return credential_references(
             *((self.api_key_env,) if self.api_key_env else ()),
@@ -288,7 +288,7 @@ def selected_provider_credential_refs(
     Explicit fast/deep modes reject missing providers before spawning;
     optional AUTO capabilities may be unavailable without becoming grants.
     """
-    from trading_gym.common.intelligence_config import IntelligenceMode
+    from trading_gym.core.intelligence_config import IntelligenceMode
 
     if intelligence is None or intelligence.mode in (
         IntelligenceMode.RL,

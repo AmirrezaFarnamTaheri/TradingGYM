@@ -3,18 +3,18 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from trading_gym.common.intelligence_config import IntelligenceConfig, IntelligenceMode
-from trading_gym.intelligence.factory import build_intelligence_policy
-from trading_gym.intelligence.fusion_backend import FusionBackend
-from trading_gym.intelligence.operating_state import (
+from trading_gym.core.intelligence_config import IntelligenceConfig, IntelligenceMode
+from trading_gym.agent.intelligence.factory import build_intelligence_policy
+from trading_gym.agent.intelligence.fusion_backend import FusionBackend
+from trading_gym.agent.intelligence.operating_state import (
     OperatingPolicy,
     OperatingSnapshot,
     OperatingStatus,
     admit_target,
     fallback_guard,
 )
-from trading_gym.intelligence.policy_adapter import IntelligencePolicyAdapter
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.policy_adapter import IntelligencePolicyAdapter
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     BackendUnavailable,
     DecisionSignal,

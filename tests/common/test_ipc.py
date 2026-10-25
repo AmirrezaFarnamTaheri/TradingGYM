@@ -1,7 +1,7 @@
 import pytest
 import time
 import os
-from apps.common.ipc import MetricsWriter, MetricsReader
+from trading_gym.core.ipc import MetricsWriter, MetricsReader
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ def test_concurrent_update(metrics_file):
 
 
 def test_reader_rejects_oversized_metrics_without_unbounded_json_parse(metrics_file):
-    from apps.common.ipc import MAX_ENVELOPE_BYTES
+    from trading_gym.core.ipc import MAX_ENVELOPE_BYTES
 
     with open(metrics_file, "wb") as handle:
         handle.write(b"{" + b"x" * (MAX_ENVELOPE_BYTES + 10))

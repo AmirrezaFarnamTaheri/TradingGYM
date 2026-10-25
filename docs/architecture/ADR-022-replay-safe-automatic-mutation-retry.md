@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-022: Conservative Mutation Delivery with Unknown-Outcome Escalation
 
 **Status:** Accepted with a restricted live-venue implementation  

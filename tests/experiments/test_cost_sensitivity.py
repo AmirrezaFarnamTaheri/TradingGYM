@@ -2,8 +2,8 @@
 
 import pytest
 
-from trading_gym.experiments.cost_sensitivity import compare_cost_scenarios
-from trading_gym.experiments.peer_strategy_comparison import StrategyReplay
+from trading_gym.rl.experiments.cost_sensitivity import compare_cost_scenarios
+from trading_gym.rl.experiments.peer_strategy_comparison import StrategyReplay
 
 
 def _rows():

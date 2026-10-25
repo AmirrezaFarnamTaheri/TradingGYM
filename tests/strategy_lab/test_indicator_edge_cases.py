@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.strategy_lab.indicators import rsi, stochastic
+from trading_gym.agent.strategy_lab.indicators import rsi, stochastic
 
 
 def _bars(close):

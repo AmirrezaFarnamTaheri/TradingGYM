@@ -1,10 +1,10 @@
 import pytest
-from trading_gym.intelligence.context_intervention import (
+from trading_gym.agent.intelligence.context_intervention import (
     ContextAdvice,
     ContextAdviceCache,
 )
-from trading_gym.intelligence.decision_journal import DecisionJournal
-from trading_gym.intelligence.types import ActionKind, DecisionSignal, UncertainDecision
+from trading_gym.agent.intelligence.decision_journal import DecisionJournal
+from trading_gym.agent.intelligence.types import ActionKind, DecisionSignal, UncertainDecision
 
 SIGNAL = DecisionSignal(
     "local-rl", ActionKind.LONG, 2, 0.7, "baseline", source_id="rl-bundle"

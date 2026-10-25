@@ -3,12 +3,12 @@ from datetime import timedelta
 from unittest.mock import AsyncMock
 
 import pytest
-from apps.api.example_runs import ExampleRunService, KIND, run_directory
-from apps.example_worker import execute
-from trading_gym.common.persistence import atomic_write_json
-from trading_gym.experiments.models import ExperimentCreate, ExperimentState
-from trading_gym.experiments.repository import ExperimentRepository, ExperimentConflict
-from trading_gym.governance.ledger import AuditLedger
+from trading_gym.core.legacy_api.example_runs import ExampleRunService, KIND, run_directory
+from trading_gym.rl.reference_worker import execute
+from trading_gym.core.persistence import atomic_write_json
+from trading_gym.rl.experiments.models import ExperimentCreate, ExperimentState
+from trading_gym.rl.experiments.repository import ExperimentRepository, ExperimentConflict
+from trading_gym.execution.governance.ledger import AuditLedger
 
 
 def service(tmp_path, **overrides):
@@ -114,7 +114,7 @@ def test_artifact_corruption_fails_admission(tmp_path):
 
 
 def test_real_reference_replay_is_deterministic_and_scoped(tmp_path):
-    from apps.example_worker import reference_replay
+    from trading_gym.rl.reference_worker import reference_replay
 
     one, two = reference_replay(), reference_replay()
     assert one == two

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from trading_gym.common import persistence
+from trading_gym.core import persistence
 
 
 def test_read_json_rejects_symlinks_with_the_lock_held(

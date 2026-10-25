@@ -7,12 +7,12 @@ import json
 import pytest
 
 from trading_gym.agent.providers import ProviderConfig, ProviderKind
-from trading_gym.intelligence.llm_backend import LLMTransportResponse
-from trading_gym.intelligence.system1_backend import System1DecisionBackend
-from trading_gym.intelligence.systemone_native_backend import (
+from trading_gym.agent.intelligence.llm_backend import LLMTransportResponse
+from trading_gym.agent.intelligence.system1_backend import System1DecisionBackend
+from trading_gym.agent.intelligence.systemone_native_backend import (
     NativeSystemOneDecisionBackend,
 )
-from trading_gym.intelligence.types import ActionKind, MarketContext
+from trading_gym.agent.intelligence.types import ActionKind, MarketContext
 
 
 def context(**limits: float) -> MarketContext:

@@ -8,11 +8,11 @@ from pathlib import Path
 
 from stable_baselines3 import PPO
 
-from trading_gym.common.config import load_app_config
+from trading_gym.core.config import load_app_config
 from trading_gym.data.data_loader import load_data_from_lake
-from trading_gym.features.feature_assembler import FeatureAssembler
+from trading_gym.data.features.feature_assembler import FeatureAssembler
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
-from trading_gym.visualization.training_plots import TrainingVisualizer
+from trading_gym.rl.visualization.training_plots import TrainingVisualizer
 
 
 def main():

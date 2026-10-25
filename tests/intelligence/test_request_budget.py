@@ -1,16 +1,17 @@
 """Request budget authorization is shared across credentials and fail-closed."""
 
 from pathlib import Path
+import os
 
 import pytest
 
 from trading_gym.agent.providers import ProviderConfig, ProviderKind
-from trading_gym.intelligence.llm_request_budget import (
+from trading_gym.agent.intelligence.llm_request_budget import (
     ProviderRequestBudget,
     RequestBudgetExhausted,
     RequestBudgetUnavailable,
 )
-from trading_gym.intelligence.llm_backend import httpx_transport
+from trading_gym.agent.intelligence.llm_backend import httpx_transport
 
 
 def test_attempts_share_one_state_and_count_failures(tmp_path):
@@ -23,7 +24,8 @@ def test_attempts_share_one_state_and_count_failures(tmp_path):
         first.reserve()
     assert first.status()["used"] == 2
     assert first.status()["remaining"] == 0
-    assert path.stat().st_mode & 0o077 == 0
+    if os.name != 'nt':
+        assert path.stat().st_mode & 0o077 == 0
 
 
 def test_reset_and_rewind(tmp_path):
@@ -94,7 +96,7 @@ def test_transport_charges_each_attempt_and_blocks_second(
     monkeypatch, tmp_path, mock_httpx_client
 ):
     import httpx
-    import trading_gym.intelligence.llm_backend as backend
+    import trading_gym.agent.intelligence.llm_backend as backend
 
     monkeypatch.setattr(
         backend,

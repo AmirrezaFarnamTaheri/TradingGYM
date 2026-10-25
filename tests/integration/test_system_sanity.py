@@ -20,8 +20,8 @@ def test_env_model_handshake(app_config, tmp_path):
 
     # 2. Build an isolated base-timeframe training tape and freeze its stats.
     import pandas as pd
-    from trading_gym.pipelines.environment import load_environment_inputs
-    from trading_gym.pipelines.model_bundle import FrozenNormalizer
+    from trading_gym.rl.pipelines.environment import load_environment_inputs
+    from trading_gym.rl.pipelines.model_bundle import FrozenNormalizer
 
     cfg = app_config.model_copy(deep=True)
     cfg.features.attention.enabled = False

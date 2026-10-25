@@ -6,13 +6,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.strategy_lab.indicators import (
+from trading_gym.agent.strategy_lab.indicators import (
     compute_indicators,
     rsi,
     stochastic,
 )
-from trading_gym.strategy_lab.models import IndicatorSpec, StrategySpec
-from trading_gym.strategy_lab.templates import template_catalogue
+from trading_gym.agent.strategy_lab.models import IndicatorSpec, StrategySpec
+from trading_gym.agent.strategy_lab.templates import template_catalogue
 
 
 def _frame(prices: np.ndarray | list[float]) -> pd.DataFrame:

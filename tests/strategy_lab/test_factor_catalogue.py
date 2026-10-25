@@ -5,7 +5,7 @@ import random
 
 import pytest
 
-from trading_gym.strategy_lab.factor_catalogue import (
+from trading_gym.agent.strategy_lab.factor_catalogue import (
     FactorCandidate,
     build_factor_catalogue,
     options_at,
@@ -114,7 +114,7 @@ def test_fanout_must_be_bounded_integer_not_bool_or_float():
 
 
 def test_public_strategy_lab_exports_safe_factor_discovery_only():
-    import trading_gym.strategy_lab as public
+    import trading_gym.agent.strategy_lab as public
 
     assert public.FactorCandidate is FactorCandidate
     assert public.build_factor_catalogue is build_factor_catalogue

@@ -4,11 +4,11 @@ fill reconciliation, token bucket."""
 import numpy as np
 import pytest
 
-from trading_gym.common.operational_utils import (
+from trading_gym.core.operational_utils import (
     TokenBucketLimiter,
     reconcile_fill,
 )
-from trading_gym.research.validation_stats import (
+from trading_gym.agent.research.validation_stats import (
     composite_window_score,
     fragility_penalty,
     quintile_spread_ttest,
@@ -74,7 +74,7 @@ def test_composite_score_penalises_fragility():
 
 
 def breakthrough_ok(rel, sharpe, mdd, to):
-    from trading_gym.research.validation_stats import breakthrough_status
+    from trading_gym.agent.research.validation_stats import breakthrough_status
 
     return breakthrough_status(
         relative_return=rel, sharpe=sharpe, max_drawdown=mdd, turnover=to

@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # Disaster recovery and verified snapshot runbook
 
 This runbook covers local durable-state evidence introduced in 7.0.0. It does not authorise an automatic restore and does not replace infrastructure-level backup, encryption, replication, or incident-management procedures.

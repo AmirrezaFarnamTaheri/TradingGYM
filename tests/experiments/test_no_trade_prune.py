@@ -3,7 +3,7 @@
 import optuna
 import pytest
 
-from trading_gym.experiments.no_trade_prune import (
+from trading_gym.rl.experiments.no_trade_prune import (
     NoTradePrunePolicy,
     OptunaNoTradePruneGate,
     TrialPruned,

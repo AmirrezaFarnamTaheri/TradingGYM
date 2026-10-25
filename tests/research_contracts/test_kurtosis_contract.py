@@ -3,7 +3,7 @@
 import math
 import pytest
 from scipy.stats import norm
-from trading_gym.research.statistical_validation import (
+from trading_gym.agent.research.statistical_validation import (
     sharpe_std_error_factor,
     probabilistic_sharpe_ratio,
     deflated_sharpe_ratio,

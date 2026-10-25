@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from trading_gym.skills.capability_selection import (  # noqa: E402
+from trading_gym.agent.skills.capability_selection import (  # noqa: E402
     preview_capability_selection,
 )
 

@@ -3,13 +3,13 @@
 import json
 from pathlib import Path
 
-from trading_gym.risk.portfolio import PortfolioSnapshot, PositionExposure
+from trading_gym.execution.risk.portfolio import PortfolioSnapshot, PositionExposure
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_published_account_and_notional_bounds_match_runtime_schema():
-    doc = json.loads((ROOT / "docs/contracts/openapi.json").read_text())
+    doc = json.loads((ROOT / "docs/contracts/research-openapi.json").read_text())
     schemas = doc["components"]["schemas"]
     for model, properties in (
         (PortfolioSnapshot, ("equity", "peak_equity", "day_start_equity")),

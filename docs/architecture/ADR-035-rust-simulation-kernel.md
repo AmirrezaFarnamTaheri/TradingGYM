@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-035: Rust Simulation Kernel Behind an Optional, Parity-Tested Seam
 
 **Status:** Accepted
@@ -5,7 +7,7 @@
 
 ## Decision
 
-The playground's bar loop is reimplemented in Rust (`rust/axiom_kernel`, a `cdylib`) and loaded through `ctypes` (`trading_gym/playground/kernel.py`). Three rules make the acceleration non-negotiable rather than a convenience:
+The playground's bar loop is reimplemented in Rust (`kernel`, a `cdylib`) and loaded through `ctypes` (`trading_gym/agent/playground/kernel.py`). Three rules make the acceleration non-negotiable rather than a convenience:
 
 1. **Optional.** `load_kernel()` returns `None` when no artifact exists or its ABI version is unknown, and never raises. `run_playground` then uses the Python loop, so a machine with no Rust toolchain is a *supported deployment*, not a broken one. `AXIOM_KERNEL_DISABLE=1` forces the Python path; `AXIOM_KERNEL_PATH` points at a specific artifact.
 2. **Reference-defined semantics.** The Python loop in `runner.py::_run_reference` is the semantics of record. The Rust code is written in the *same expression association order*, statement for statement, so IEEE-754 doubles come out bit-identical rather than merely close. `tests/playground/test_kernel_parity.py` asserts equity curves with `np.array_equal` on raw doubles and compares trade ledgers field by field over randomised windows, both cost regimes, partial position fractions, and the force-close edge case. A discrepancy is a kernel bug, never a new behaviour. Reordering an expression in the kernel is a behaviour change even when algebraically equivalent.

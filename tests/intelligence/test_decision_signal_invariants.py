@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     DecisionSignal,
     InvalidDecisionSignal,

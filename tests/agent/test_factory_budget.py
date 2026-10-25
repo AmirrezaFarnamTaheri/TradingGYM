@@ -23,13 +23,13 @@ import pytest
 from trading_gym.agent.arms import ArmRegistry, ArmTier, BackendArm
 from trading_gym.agent.arms.factory import RiskGuardBackend, default_registry
 from trading_gym.agent.budget_gate import BudgetGate
-from trading_gym.budgets.ledger import (
+from trading_gym.core.budgets.ledger import (
     BudgetCreate,
     BudgetRepository,
     BudgetResource,
 )
-from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.rule_backend import DeterministicRuleBackend
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     DecisionSignal,
     MarketContext,
@@ -163,7 +163,7 @@ class TestDefaultRegistry:
         assert len(names) == len(set(names))
 
     def test_registry_validates_against_grants(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
-        from trading_gym.authz.grants import GrantLedger, GrantRequest
+        from trading_gym.core.authz.grants import GrantLedger, GrantRequest
 
         registry = default_registry(llm_backend=_StubLLM())
         ledger = GrantLedger.open(tmp_path / "grants.jsonl")
@@ -194,7 +194,7 @@ class _StubLLM:
         return True
 
     def health(self):  # type: ignore[no-untyped-def]
-        from trading_gym.intelligence.types import BackendHealth
+        from trading_gym.agent.intelligence.types import BackendHealth
 
         return BackendHealth(name=self.name, available=True, detail="stub")
 
@@ -211,7 +211,7 @@ class _StubLLM:
 
 class TestBudgetGate:
     def _repository(self, tmp_path, hard_limit: str) -> BudgetRepository:  # type: ignore[no-untyped-def]
-        from trading_gym.governance.ledger import AuditLedger
+        from trading_gym.execution.governance.ledger import AuditLedger
 
         repo = BudgetRepository(
             path=tmp_path / "budgets.json",
@@ -261,7 +261,7 @@ class TestBudgetGate:
     def test_planner_composes_with_gate(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
         from trading_gym.agent.planner import TierCascadePlanner
         from trading_gym.agent.fusion import FusionConfig
-        from trading_gym.authz.grants import GrantLedger, GrantRequest
+        from trading_gym.core.authz.grants import GrantLedger, GrantRequest
 
         repo = self._repository(tmp_path, "3")
         gate = BudgetGate(repo, "budget-arm-credits")
@@ -316,7 +316,7 @@ def _cost_arm(credits: float):  # type: ignore[no-untyped-def]
     class _Arm(BackendArm):
         pass
 
-    from trading_gym.intelligence.base import IntelligenceBackend
+    from trading_gym.agent.intelligence.base import IntelligenceBackend
 
     class _NullBackend(IntelligenceBackend):
         name = "null"
@@ -325,7 +325,7 @@ def _cost_arm(credits: float):  # type: ignore[no-untyped-def]
             return True
 
         def health(self):  # type: ignore[no-untyped-def]
-            from trading_gym.intelligence.types import BackendHealth
+            from trading_gym.agent.intelligence.types import BackendHealth
 
             return BackendHealth(name=self.name, available=True)
 

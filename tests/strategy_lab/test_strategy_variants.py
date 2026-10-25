@@ -30,8 +30,8 @@ from trading_gym.agent.strategy_variants import (
     propose_variants,
     validate_range,
 )
-from trading_gym.strategy_lab.evaluator import evaluate_strategy
-from trading_gym.strategy_lab.models import (
+from trading_gym.agent.strategy_lab.evaluator import evaluate_strategy
+from trading_gym.agent.strategy_lab.models import (
     Condition,
     ConditionGroup,
     IndicatorSpec,
@@ -39,8 +39,8 @@ from trading_gym.strategy_lab.models import (
     Operator,
     StrategySpec,
 )
-from trading_gym.strategy_lab.templates import template_catalogue
-from trading_gym.strategy_lab.validation import validate_strategy_spec
+from trading_gym.agent.strategy_lab.templates import template_catalogue
+from trading_gym.agent.strategy_lab.validation import validate_strategy_spec
 
 #: Families added in ADR-034 (the round-7 strategy development work).
 NEW_FAMILIES = (

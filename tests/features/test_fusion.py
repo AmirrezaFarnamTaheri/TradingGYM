@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from trading_gym.features.feature_fusion import fuse_features
+from trading_gym.data.features.feature_fusion import fuse_features
 
 
 def test_fuse_features_basic_functionality():

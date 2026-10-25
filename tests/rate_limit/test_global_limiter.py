@@ -1,6 +1,6 @@
 import pytest
 import time
-from trading_gym.rate_limit.global_limiter import GlobalRateLimiter
+from trading_gym.market.rate_limit.global_limiter import GlobalRateLimiter
 
 # Note: GlobalRateLimiter in global_limiter.py is a singleton and hardcodes 50/60.
 # It doesn't take config in init.

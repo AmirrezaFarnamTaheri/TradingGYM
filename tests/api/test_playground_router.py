@@ -21,8 +21,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from apps.api.playground_router import create_playground_router
-from trading_gym.authz.grants import GrantLedger, GrantRequest
+from trading_gym.core.legacy_api.playground_router import create_playground_router
+from trading_gym.core.authz.grants import GrantLedger, GrantRequest
 
 OPERATOR_SECRET = "operator-secret-0123456789abcdef0123"
 AGENT_SECRET = "agent-secret-0123456789abcdef0123456"

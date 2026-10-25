@@ -26,8 +26,8 @@ from trading_gym.agent.arms import (
     Blackboard,
     CostModel,
 )
-from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.rule_backend import DeterministicRuleBackend
+from trading_gym.agent.intelligence.types import (
     BackendUnavailable,
     DecisionSignal,
     MarketContext,
@@ -109,7 +109,7 @@ class TestBackendArm:
                 return False
 
             def health(self):  # type: ignore[no-untyped-def]
-                from trading_gym.intelligence.types import BackendHealth
+                from trading_gym.agent.intelligence.types import BackendHealth
 
                 return BackendHealth(name="flaky", available=False, detail="down")
 
@@ -204,7 +204,7 @@ class TestArmAuthzComposition:
     """The anti-stub consumer test: arms and the ADR-028 ledger compose."""
 
     def test_required_scopes_authorize_against_grant(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
-        from trading_gym.authz.grants import GrantLedger, GrantRequest
+        from trading_gym.core.authz.grants import GrantLedger, GrantRequest
 
         registry = ArmRegistry()
         registry.register(make_arm())

@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-042 — Signal invariants, typed health probes, and response admission
 
 **Date:** 2026-10-15  
@@ -32,7 +34,7 @@ nullable `ProviderConfig` fields `api_key_env`, `base_url`,
 
 ### Strict domain validation
 
-`trading_gym.intelligence.types.DecisionSignal` now requires an actual
+`trading_gym.agent.intelligence.types.DecisionSignal` now requires an actual
 `ActionKind` enum, a finite real-valued leverage scalar and a finite
 real-valued confidence in [0,1]. Booleans, numeric strings and non-finite
 values raise the new `InvalidDecisionSignal(ValueError)`.

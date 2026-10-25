@@ -11,13 +11,13 @@ from scripts.verify_feature_fixtures import verify_feature_fixtures
 
 
 def _fixture(root: Path, payload: bytes = b"fixture") -> Path:
-    data_dir = root / "trading_gym" / "data"
+    data_dir = root / "data" / "parquet"
     data_dir.mkdir(parents=True)
     path = data_dir / "BTCUSDT_5m_features.parquet"
     path.write_bytes(payload)
     expected = hashlib.sha256(payload).hexdigest()
-    (root / "SHA256SUMS").write_text(
-        f"{expected}  ./trading_gym/data/{path.name}\n", encoding="utf-8"
+    (root / "data" / "feature-fixtures.sha256").write_text(
+        f"{expected}  ./data/parquet/{path.name}\n", encoding="utf-8"
     )
     return path
 

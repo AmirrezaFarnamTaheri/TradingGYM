@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-046 — Venue-local settlement dates and as-of evidence integrity
 
 **Date:** 2026-10-15  
@@ -7,7 +9,7 @@ cash-posting, margin or execution authority added.
 
 ## Source-level finding
 
-TradingGYM's `trading_gym/accounting/settlement.py` computes each
+TradingGYM's `trading_gym/execution/accounting/settlement.py` computes each
 obligation's contractual settlement date in its market calendar timezone,
 but previously compared it with the *UTC calendar date* at report as-of.
 That mixes incompatible date bases and causes both false overdue

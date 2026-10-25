@@ -1,4 +1,4 @@
-from trading_gym.production.status import build_status
+from trading_gym.execution.production.status import build_status
 
 
 def test_status_is_read_only():

@@ -10,8 +10,8 @@ Synthetic-data sanity anchors, after Bailey & López de Prado:
 import numpy as np
 import pytest
 
-from trading_gym.research.cscv_pbo import cscv_pbo_analysis, pbo_summary
-from trading_gym.research.statistical_validation import (
+from trading_gym.agent.research.cscv_pbo import cscv_pbo_analysis, pbo_summary
+from trading_gym.agent.research.statistical_validation import (
     deflated_sharpe_ratio,
     expected_max_sharpe,
     full_statistical_report,

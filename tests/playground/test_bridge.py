@@ -24,11 +24,11 @@ from __future__ import annotations
 import pytest
 
 from trading_gym.agent.revision import RevisionCandidate, RevisionKind
-from trading_gym.playground.bridge import (
+from trading_gym.agent.playground.bridge import (
     build_revision_candidate,
     evaluate_sealed_windows,
 )
-from trading_gym.playground.runner import PlaygroundRunSpec
+from trading_gym.agent.playground.runner import PlaygroundRunSpec
 
 from test_runner import make_frame, momentum_strategy  # fixture reuse
 
@@ -144,7 +144,7 @@ class TestBuildRevisionCandidate:
             candidate=spec_for(window(31), fee_bps=9.0),
             windows=tampered,
         )
-        from trading_gym.playground.bridge import seal_window
+        from trading_gym.agent.playground.bridge import seal_window
 
         assert (
             seal_window(tampered["hold-a"]) != revision.seeded_holdout_seals["hold-a"]

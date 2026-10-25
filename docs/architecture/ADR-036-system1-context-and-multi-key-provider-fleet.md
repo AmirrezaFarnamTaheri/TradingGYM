@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-036 — System-1 contextual inference and multi-key provider fleet
 
 **Status:** Implemented for advisory/paper and non-mutating live dry runs;
@@ -240,7 +242,7 @@ evidence still denies a risk-on fallback under the existing
 
 Targeted repository regressions:
 `tests/intelligence/test_provider_destination_authority.py`,
-`tests/convergence/test_provider_hardening.py`, and
+`tests/system/test_provider_hardening.py`, and
 `tests/intelligence/test_llm_json_ambiguity.py`.
 
 **Verification limitation:** only isolated parser and provider-validator

@@ -1,6 +1,6 @@
 import pytest
 
-from trading_gym.models.promotion import PromotionRecord, promote
+from trading_gym.rl.models.promotion import PromotionRecord, promote
 
 
 def test_model_promotion_requires_evidence_revision_and_independent_approval() -> None:

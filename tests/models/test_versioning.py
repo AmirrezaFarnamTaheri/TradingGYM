@@ -1,5 +1,5 @@
 import pytest
-from trading_gym.models.versioning import ModelRegistry, AutoRollback
+from trading_gym.rl.models.versioning import ModelRegistry, AutoRollback
 
 
 @pytest.fixture

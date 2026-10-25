@@ -8,14 +8,14 @@ import numpy as np
 import pytest
 
 from trading_gym.agent.providers import ProviderConfig, ProviderKind
-from trading_gym.intelligence.llm_backend import LLMTransportResponse
-from trading_gym.intelligence.policy_adapter import IntelligencePolicyAdapter
-from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
-from trading_gym.intelligence.system1_backend import System1DecisionBackend
-from trading_gym.intelligence.systemone_native_backend import (
+from trading_gym.agent.intelligence.llm_backend import LLMTransportResponse
+from trading_gym.agent.intelligence.policy_adapter import IntelligencePolicyAdapter
+from trading_gym.agent.intelligence.rule_backend import DeterministicRuleBackend
+from trading_gym.agent.intelligence.system1_backend import System1DecisionBackend
+from trading_gym.agent.intelligence.systemone_native_backend import (
     NativeSystemOneDecisionBackend,
 )
-from trading_gym.intelligence.types import BackendUnavailable, UncertainDecision
+from trading_gym.agent.intelligence.types import BackendUnavailable, UncertainDecision
 
 
 def _market(_observation):
@@ -162,8 +162,8 @@ def test_bad_authorization_still_cannot_fallback_after_uncertainty():
 
 
 def test_deep_reviewer_must_be_strict_and_thresholded():
-    from trading_gym.common.intelligence_config import IntelligenceConfig
-    from trading_gym.intelligence.factory import build_intelligence_policy
+    from trading_gym.core.intelligence_config import IntelligenceConfig
+    from trading_gym.agent.intelligence.factory import build_intelligence_policy
 
     fast_config = _provider()
     deep_config = ProviderConfig(
@@ -232,7 +232,7 @@ def test_schema_break_in_fast_output_does_not_fallback_to_rules():
 
 
 def test_weak_strict_deep_review_abstains_without_rules_override():
-    from trading_gym.intelligence.llm_backend import LLMDecisionBackend
+    from trading_gym.agent.intelligence.llm_backend import LLMDecisionBackend
 
     deep = LLMDecisionBackend(
         _provider(),

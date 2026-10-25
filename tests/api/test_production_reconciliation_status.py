@@ -4,8 +4,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 import pytest
 
-from apps.api.production import create_production_router
-from trading_gym.production.mutation_retry import MutationOutbox
+from trading_gym.core.legacy_api.production import create_production_router
+from trading_gym.execution.production.mutation_retry import MutationOutbox
 
 
 @pytest.fixture

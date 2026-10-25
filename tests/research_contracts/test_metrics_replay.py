@@ -5,18 +5,18 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.common.config import load_app_config
-from trading_gym.common.timeframes import periods_per_year
-from trading_gym.pipelines.environment import create_environment
-from trading_gym.pipelines.metrics import (
+from trading_gym.core.config import load_app_config
+from trading_gym.core.timeframes import periods_per_year
+from trading_gym.rl.pipelines.environment import create_environment
+from trading_gym.rl.pipelines.metrics import (
     maximum_drawdown,
     performance_metrics,
     periodic_returns,
     sharpe_ratio,
     validate_regular_decisions,
 )
-from trading_gym.pipelines.model_bundle import fit_model_bundle
-from trading_gym.pipelines.replay import replay_episode
+from trading_gym.rl.pipelines.model_bundle import fit_model_bundle
+from trading_gym.rl.pipelines.replay import replay_episode
 
 
 def test_percentage_drawdown_indices_describe_same_episode():
@@ -95,7 +95,7 @@ def test_real_environment_trace_stops_at_terminal_without_reset(monkeypatch):
 
 
 def test_plot_helpers_require_same_explicit_factor_and_export_real_figure(tmp_path):
-    from apps.simulator.main import calculate_max_drawdown, plot_rolling_sharpe_ratio
+    from trading_gym.rl.simulator.main import calculate_max_drawdown, plot_rolling_sharpe_ratio
 
     assert calculate_max_drawdown([100.0, 80.0, 200.0, 170.0]) == (0.2, 0, 1)
     with pytest.raises(ValueError, match="annualization_factor"):

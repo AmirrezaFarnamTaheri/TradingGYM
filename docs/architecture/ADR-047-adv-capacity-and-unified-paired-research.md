@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-047 — ADV capacity evidence and unified paired research comparisons
 
 **Date:** 2026-10-15  
@@ -41,7 +43,7 @@ contracts and explicit labels to prevent invalid comparisons.
 `AdvSnapshot(instrument_id, traded_value_base, observed_at_unix,
 source_sha256, base_currency)` and
 `assess_rebalance_capacity(plan, observations, as_of_unix, ...)`.
-Both are exported by the existing `trading_gym.portfolio` package.
+Both are exported by the existing `trading_gym.execution.portfolio` package.
 
 - The original `RebalancePlan` is never rewritten, clipped, repriced,
   resettled, or granted execution authority.

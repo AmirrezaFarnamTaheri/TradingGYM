@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-045 — Fee-adjusted rebalance equity and concentration accounting
 
 **Date:** 2026-10-15  
@@ -10,7 +12,7 @@ The next integration review compared `Vibe-Trading`'s
 `agent/backtest/optimizers/turnover_aware.py`,
 `agent/src/portfolio/rebalance.py` and
 `agent/tests/test_rebalance_execution_evidence.py` against TradingGYM's
-existing `trading_gym/portfolio/rebalance.py`. The donor distinguishes
+existing `trading_gym/execution/portfolio/rebalance.py`. The donor distinguishes
 target changes from actual rebalance fills, includes turnover penalties
 in research, and refuses to represent stale or unpriced portfolio
 snapshots as complete. TradingGYM already owns non-authoritative

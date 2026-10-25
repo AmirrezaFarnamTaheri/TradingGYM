@@ -11,11 +11,8 @@ ENV TRADING_GYM_BUILD_REVISION=$SOURCE_REVISION
 WORKDIR /app
 COPY pyproject.toml poetry.lock README.md ./
 RUN pip install --no-cache-dir poetry==2.2.1 && POETRY_VIRTUALENVS_CREATE=false poetry install --only main --no-root
-COPY apps/ ./apps/
-COPY axiomforge/ ./axiomforge/
 COPY trading_gym/ ./trading_gym/
 COPY config/ ./config/
-COPY evidence/recovered/ ./evidence/recovered/
 RUN POETRY_VIRTUALENVS_CREATE=false poetry install --only main
 COPY --from=frontend /ui/dist ./frontend/dist
 RUN useradd --create-home --shell /usr/sbin/nologin appuser && mkdir -p /home/appuser/.trading-gym && chown -R appuser:appuser /app /home/appuser/.trading-gym
@@ -24,4 +21,4 @@ ENV TRADING_GYM_HOME=/home/appuser/.trading-gym
 VOLUME ["/home/appuser/.trading-gym", "/app/config"]
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"
-CMD ["python", "-m", "uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "trading_gym.cli", "serve"]

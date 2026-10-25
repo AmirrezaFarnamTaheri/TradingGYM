@@ -27,5 +27,5 @@ Keep context low: Grep before Read, targeted reads only.
 # Rules
 Concise responses. No overengineering. No unrequested extras.
 
-OpenAPI is published through apps/api/openapi.py and preserves Pydantic null defaults; scripts/export_openapi.py is authoritative.
+OpenAPI is published through trading_gym/core/legacy_api/openapi.py and preserves Pydantic null defaults; scripts/export_openapi.py is authoritative.
 The optional Rust kernel now exposes bit-identical ADX/DMI acceleration; Python remains the reference and fallback.

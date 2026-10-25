@@ -3,7 +3,7 @@
 from dataclasses import replace
 from decimal import Decimal
 import pytest
-from trading_gym.accounting.funding_reconciliation import (
+from trading_gym.execution.accounting.funding_reconciliation import (
     FundingDue,
     FundingReceipt,
     reconcile_funding,

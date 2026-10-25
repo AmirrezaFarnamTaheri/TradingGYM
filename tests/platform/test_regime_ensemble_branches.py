@@ -1,4 +1,4 @@
-from axiomforge.next_level.agent_lab import regime_votes
+from trading_gym.agent.lab import regime_votes
 
 
 def test_regime_votes_cover_trend_breadth_and_volatility_with_rationales() -> None:

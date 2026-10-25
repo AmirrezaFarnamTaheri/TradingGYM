@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from trading_gym.utils.config_validator import (
+from trading_gym.core.utils.config_validator import (
     validate_leverage_config,
     validate_training_config,
     validate_rate_limit_config,

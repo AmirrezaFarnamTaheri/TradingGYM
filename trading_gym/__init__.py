@@ -7,8 +7,10 @@ agent tooling remain usable in constrained operator and API environments.
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
-from trading_gym.common.config import AppConfig, load_app_config
-from trading_gym.common.logging import configure_logging, configure_logging_from_env
+__version__ = "32.0.0"
+
+from trading_gym.core.config import AppConfig, load_app_config
+from trading_gym.core.logging import configure_logging, configure_logging_from_env
 
 
 def make(
@@ -27,7 +29,7 @@ def make(
             "frozen training_stats required; use a model bundle or fit a designated training partition"
         )
 
-    from trading_gym.pipelines.environment import (
+    from trading_gym.rl.pipelines.environment import (
         create_environment,
         load_environment_inputs,
     )

@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # Converged Intelligence, Market, Research, and Governance Planes
 
 **Release:** 6.0.0 peer-converged  

@@ -1,7 +1,7 @@
 import pytest
 import unittest  # Fix: Import unittest
 from unittest.mock import Mock, AsyncMock, patch
-from trading_gym.venue.symbol_registry import SymbolRegistry, SymbolMetadata
+from trading_gym.market.venue.symbol_registry import SymbolRegistry, SymbolMetadata
 
 
 class TestSymbolRegistry:

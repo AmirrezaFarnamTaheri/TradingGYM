@@ -9,9 +9,9 @@ import pytest
 import typer
 from stable_baselines3 import PPO
 
-from trading_gym.common.config import load_app_config
-from trading_gym.pipelines import evaluation, environment
-from trading_gym.pipelines.model_bundle import BUNDLE_ATTRIBUTE, fit_model_bundle
+from trading_gym.core.config import load_app_config
+from trading_gym.rl.pipelines import evaluation, environment
+from trading_gym.rl.pipelines.model_bundle import BUNDLE_ATTRIBUTE, fit_model_bundle
 from test_model_manifest import sample_inputs
 
 
@@ -51,7 +51,7 @@ def test_cli_runtime_is_admitted_before_deserialization(
         with pytest.raises(ValueError, match="compatibility qualification"):
             evaluation.run_from_cli("config/app.yaml", "5m", path, digest)
     else:
-        from apps.simulator.main import run
+        from trading_gym.rl.simulator.main import run
 
         monkeypatch.setattr(
             environment, "load_environment_inputs", lambda *a, **k: inputs

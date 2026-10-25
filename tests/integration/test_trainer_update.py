@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import pytest
-from apps.trainer.update import update
+from trading_gym.rl.trainer.update import update
 
 
 @pytest.fixture
@@ -16,8 +16,8 @@ def mock_load_model():
     return MagicMock()
 
 
-@patch("apps.trainer.update.load_app_config")
-@patch("apps.trainer.update.run_walkforward")
+@patch("trading_gym.rl.trainer.update.load_app_config")
+@patch("trading_gym.rl.trainer.update.run_walkforward")
 def test_update_challenger_promoted(
     mock_run_walkforward, mock_load_app_config, mock_mlflow_client, mock_load_model
 ):
@@ -49,8 +49,8 @@ def test_update_challenger_promoted(
     )
 
 
-@patch("apps.trainer.update.load_app_config")
-@patch("apps.trainer.update.run_walkforward")
+@patch("trading_gym.rl.trainer.update.load_app_config")
+@patch("trading_gym.rl.trainer.update.run_walkforward")
 def test_update_champion_retained(
     mock_run_walkforward, mock_load_app_config, mock_mlflow_client, mock_load_model
 ):

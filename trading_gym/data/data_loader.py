@@ -17,7 +17,7 @@ from typing import Dict, Tuple
 import numpy as np
 import pandas as pd
 
-from trading_gym.common.security import confined_child
+from trading_gym.core.security import confined_child
 
 logger = logging.getLogger(__name__)
 

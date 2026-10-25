@@ -23,12 +23,12 @@ from decimal import Decimal
 
 import pytest
 
-from trading_gym.production.runtime import (
+from trading_gym.execution.production.runtime import (
     EmergencyController,
     LiveExecutionCoordinator,
 )
-from trading_gym.production.venues import VenueOrderIntent
-from trading_gym.production.paper_venue import PaperVenue
+from trading_gym.execution.production.venues import VenueOrderIntent
+from trading_gym.execution.production.paper_venue import PaperVenue
 
 
 def make_intent(
@@ -115,7 +115,7 @@ class TestPaperVenue:
 
 class TestCoordinatorWithPaperVenue:
     def _consent(self) -> object:
-        from axiomforge.live_trading import LiveConsent
+        from trading_gym.execution.live_trading import LiveConsent
 
         return LiveConsent(
             actor="agent-axiom1",

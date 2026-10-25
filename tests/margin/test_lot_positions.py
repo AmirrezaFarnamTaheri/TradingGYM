@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from trading_gym.margin.lot_positions import LotLedger, LotLedgerError
+from trading_gym.execution.margin.lot_positions import LotLedger, LotLedgerError
 
 D = Decimal
 

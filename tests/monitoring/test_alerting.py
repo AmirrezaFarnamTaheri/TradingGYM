@@ -7,7 +7,7 @@ Tests cover all alert channels (Telegram, Webhook, Desktop) and the alert manage
 import os
 import pytest
 from unittest.mock import patch, MagicMock
-from trading_gym.monitoring.alerting import (
+from trading_gym.core.monitoring.alerting import (
     Alert,
     AlertLevel,
     AlertManager,
@@ -149,7 +149,7 @@ class TestTelegramChannel:
         assert config.bot_token
         assert config.chat_id
 
-    @patch("trading_gym.monitoring.alerting._request_http")
+    @patch("trading_gym.core.monitoring.alerting._request_http")
     def test_telegram_send(self, mock_request_http):
         """Test sending Telegram alert."""
         config = TelegramConfig(enabled=True, bot_token="123:ABC", chat_id="123")
@@ -181,8 +181,8 @@ class TestWebhookChannel:
         assert config.url
         assert "Authorization" in config.headers
 
-    @patch("trading_gym.monitoring.alerting.validate_base_url")
-    @patch("trading_gym.monitoring.alerting._request_http")
+    @patch("trading_gym.core.monitoring.alerting.validate_base_url")
+    @patch("trading_gym.core.monitoring.alerting._request_http")
     def test_webhook_send(self, mock_request_http, mock_validate_base_url):
         """Test sending webhook alert."""
         config = WebhookConfig(enabled=True, url="https://example.com/webhook")
@@ -200,8 +200,8 @@ class TestWebhookChannel:
 
         assert result is True
 
-    @patch("trading_gym.monitoring.alerting.validate_base_url")
-    @patch("trading_gym.monitoring.alerting._request_http")
+    @patch("trading_gym.core.monitoring.alerting.validate_base_url")
+    @patch("trading_gym.core.monitoring.alerting._request_http")
     def test_webhook_revalidates_destination_and_disables_redirect_semantics(
         self, mock_request_http, mock_validate_base_url
     ):
@@ -285,8 +285,8 @@ class TestAlertManager:
         manager.add_channel(channel)
         assert len(manager.channels) == 1
 
-    @patch("trading_gym.monitoring.alerting.validate_base_url")
-    @patch("trading_gym.monitoring.alerting._request_http")
+    @patch("trading_gym.core.monitoring.alerting.validate_base_url")
+    @patch("trading_gym.core.monitoring.alerting._request_http")
     def test_send_alert(self, mock_request_http, mock_validate_base_url):
         """Test sending alert through manager."""
         # Mock successful response
@@ -400,7 +400,7 @@ class TestGlobalAlertManager:
     def test_get_alert_manager(self):
         """Test getting global alert manager."""
         # Reset global state
-        import trading_gym.monitoring.alerting as alerting_module
+        import trading_gym.core.monitoring.alerting as alerting_module
 
         alerting_module._global_manager = None
 
@@ -413,7 +413,7 @@ class TestGlobalAlertManager:
     def test_send_alert_global(self):
         """Test global send_alert function."""
         # Reset global state
-        import trading_gym.monitoring.alerting as alerting_module
+        import trading_gym.core.monitoring.alerting as alerting_module
 
         alerting_module._global_manager = None
 

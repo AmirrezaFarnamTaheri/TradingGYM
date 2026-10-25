@@ -11,7 +11,7 @@ pytest.importorskip(
     "pyarrow", reason="Parquet adapter tests require the declared pyarrow dependency"
 )
 
-from trading_gym.adapters.backup import LocalCacheAdapter  # noqa: E402
+from trading_gym.market.adapters.backup import LocalCacheAdapter  # noqa: E402
 
 
 def _write_snapshot(path: Path, rows: List[dict]) -> Path:

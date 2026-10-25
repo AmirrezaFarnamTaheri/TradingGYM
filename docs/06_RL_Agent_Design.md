@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # RL Agent Design
 
 The AI brain of the system is a Proximal Policy Optimization (PPO) agent. This document details the neural architecture and the Markov Decision Process (MDP) formulation.

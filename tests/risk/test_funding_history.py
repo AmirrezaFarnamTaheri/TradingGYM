@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from trading_gym.risk.funding_history import (
+from trading_gym.execution.risk.funding_history import (
     FundingObservation,
     funding_cashflow_estimate,
     resolve_funding_history,

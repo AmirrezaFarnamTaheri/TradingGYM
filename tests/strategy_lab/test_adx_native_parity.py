@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.playground import kernel
-from trading_gym.strategy_lab.adx import compute_adx
+from trading_gym.agent.playground import kernel
+from trading_gym.agent.strategy_lab.adx import compute_adx
 
 
 def frame(seed: int, rows: int) -> pd.DataFrame:
@@ -68,7 +68,7 @@ def test_old_library_and_missing_kernel_preserve_reference_fallback():
 
 def test_native_recurrence_accepts_noncontiguous_inputs_without_mutation():
     native_library()
-    from trading_gym.playground.kernel import wilder_adx
+    from trading_gym.agent.playground.kernel import wilder_adx
 
     values = np.arange(1.0, 40.0)[::2]
     before = values.copy()
@@ -89,7 +89,7 @@ def test_native_recurrence_accepts_noncontiguous_inputs_without_mutation():
 )
 def test_bridge_rejects_invalid_input_before_ffi(case):
     native_library()
-    from trading_gym.playground.kernel import KernelError, wilder_adx
+    from trading_gym.agent.playground.kernel import KernelError, wilder_adx
 
     values = np.ones(20)
     kwargs = dict(true_range=values, moves_plus=values, moves_minus=values, period=3)

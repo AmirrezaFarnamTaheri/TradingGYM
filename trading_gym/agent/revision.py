@@ -39,7 +39,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping
 
-from trading_gym.common.persistence import append_jsonl, atomic_write_json
+from trading_gym.core.persistence import append_jsonl, atomic_write_json
 
 __all__ = [
     "GateChain",

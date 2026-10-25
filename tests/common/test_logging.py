@@ -1,7 +1,7 @@
 import logging
 import os
 import time
-from trading_gym.common.logging import (
+from trading_gym.core.logging import (
     configure_logging,
     configure_logging_from_env,
     log_execution_time,
@@ -29,7 +29,7 @@ def test_configure_logging_from_env():
 
 def test_resolve_level():
     """Test that the log level is resolved correctly."""
-    from trading_gym.common.logging import _resolve_level
+    from trading_gym.core.logging import _resolve_level
 
     assert _resolve_level("INFO") == logging.INFO
     assert _resolve_level("DEBUG") == logging.DEBUG

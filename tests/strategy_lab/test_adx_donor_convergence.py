@@ -8,11 +8,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.strategy_lab.adx import compute_adx
-from trading_gym.strategy_lab.evaluator import evaluate_strategy
-from trading_gym.strategy_lab.models import IndicatorSpec, StrategySpec
-from trading_gym.strategy_lab.templates import template_catalogue
-from trading_gym.strategy_lab.validation import validate_strategy_spec
+from trading_gym.agent.strategy_lab.adx import compute_adx
+from trading_gym.agent.strategy_lab.evaluator import evaluate_strategy
+from trading_gym.agent.strategy_lab.models import IndicatorSpec, StrategySpec
+from trading_gym.agent.strategy_lab.templates import template_catalogue
+from trading_gym.agent.strategy_lab.validation import validate_strategy_spec
 
 
 def bars(close):
@@ -86,7 +86,7 @@ def test_nan_and_crossed_bars_are_rejected():
 
 
 def test_indicator_spec_and_registry_expose_bounded_adx_components():
-    from trading_gym.strategy_lab.indicators import compute_indicators
+    from trading_gym.agent.strategy_lab.indicators import compute_indicators
 
     specs = [
         IndicatorSpec(name="adx", alias="trend_strength", params={"period": 14}),

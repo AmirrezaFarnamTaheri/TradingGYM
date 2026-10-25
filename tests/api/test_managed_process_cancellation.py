@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from apps.api import main as api
+from trading_gym.core.legacy_api import main as api
 
 
 @pytest.mark.asyncio
@@ -19,7 +19,7 @@ async def test_cancelled_spawn_does_not_occupy_process_slot(monkeypatch):
 
     with pytest.raises(asyncio.CancelledError):
         await api.start_managed_process(
-            "training", ["python", "-m", "apps.trainer.main"], source="TEST"
+            "training", ["python", "-m", "trading_gym.rl.trainer.main"], source="TEST"
         )
 
     assert "training" not in api.PROCESSES
@@ -78,7 +78,7 @@ async def test_cancelled_process_registration_reaps_spawned_child(monkeypatch):
 
     with pytest.raises(asyncio.CancelledError):
         await api.start_managed_process(
-            "training", ["python", "-m", "apps.trainer.main"], source="TEST"
+            "training", ["python", "-m", "trading_gym.rl.trainer.main"], source="TEST"
         )
 
     assert spawned.killed is True

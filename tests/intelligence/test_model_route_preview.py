@@ -4,7 +4,7 @@ import copy
 
 import pytest
 
-from trading_gym.intelligence.model_route_preview import preview_route
+from trading_gym.agent.intelligence.model_route_preview import preview_route
 
 
 def _candidate(provider="fast-local", **overrides):
@@ -150,7 +150,7 @@ def test_unhashable_external_protocol_and_health_fail_as_validation_errors():
 
 
 def test_public_preview_export_is_the_same_pure_routing_function():
-    from trading_gym.intelligence import preview_model_route
+    from trading_gym.agent.intelligence import preview_model_route
 
     assert preview_model_route is preview_route
 

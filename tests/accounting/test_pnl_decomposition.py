@@ -5,9 +5,9 @@ from decimal import Decimal
 
 import pytest
 
-from trading_gym.accounting.ledger import PortfolioLedger
-from trading_gym.accounting.models import AccountingEvent, AccountingEventType, FillSide
-from trading_gym.accounting.pnl_decomposition import (
+from trading_gym.execution.accounting.ledger import PortfolioLedger
+from trading_gym.execution.accounting.models import AccountingEvent, AccountingEventType, FillSide
+from trading_gym.execution.accounting.pnl_decomposition import (
     COMPONENT_FEES,
     COMPONENT_FUNDING,
     COMPONENT_RESIDUAL,
@@ -127,7 +127,7 @@ def test_unexplained_money_lands_in_residual_and_flags_unbalanced(traded_ledger)
 
 
 def test_missing_currency_in_opening_treated_as_zero():
-    from trading_gym.accounting.models import AccountSnapshot
+    from trading_gym.execution.accounting.models import AccountSnapshot
 
     snapshot = AccountSnapshot(
         account_id="x",

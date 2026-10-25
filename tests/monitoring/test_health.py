@@ -1,4 +1,4 @@
-from trading_gym.monitoring.health import HealthCheck, HealthStatus
+from trading_gym.core.monitoring.health import HealthCheck, HealthStatus
 
 
 def test_health_check_registration():
@@ -118,7 +118,7 @@ def test_probe_error_does_not_expose_exception_message():
 
 
 def test_model_probe_requires_regular_nonsymlink_file(tmp_path):
-    from trading_gym.monitoring.health import check_model_loaded
+    from trading_gym.core.monitoring.health import check_model_loaded
 
     model = tmp_path / "model.zip"
     model.write_bytes(b"model")

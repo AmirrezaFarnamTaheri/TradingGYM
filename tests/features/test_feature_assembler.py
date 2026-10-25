@@ -1,8 +1,8 @@
 import pytest
 import pandas as pd
 import numpy as np
-from trading_gym.features.feature_assembler import FeatureAssembler
-from trading_gym.common.config import (
+from trading_gym.data.features.feature_assembler import FeatureAssembler
+from trading_gym.core.config import (
     FeatureConfig,
     TimeframeConfig,
     StandardizationConfig,

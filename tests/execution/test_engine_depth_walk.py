@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from trading_gym.common.config import (
+from trading_gym.core.config import (
     BreakerConfig,
     CapacityConfig,
     CostConfig,

@@ -26,8 +26,8 @@ from trading_gym.agent.ensemble_correlation import (
     ensemble_pairwise_correlation,
 )
 from trading_gym.agent.arms import ArmRegistry, ArmTier, BackendArm, CostModel
-from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.rule_backend import DeterministicRuleBackend
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     DecisionSignal,
     MarketContext,
@@ -158,9 +158,9 @@ class TestRevisionEvidenceBuilder:
     def test_builder_measures_real_correlation(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
 
         from trading_gym.agent.revision import RevisionKind, RevisionSurface
-        from trading_gym.playground.bridge import RevisionEvidenceBuilder
-        from trading_gym.playground.runner import PlaygroundRunSpec
-        from trading_gym.strategy_lab.models import (
+        from trading_gym.agent.playground.bridge import RevisionEvidenceBuilder
+        from trading_gym.agent.playground.runner import PlaygroundRunSpec
+        from trading_gym.agent.strategy_lab.models import (
             Condition,
             ConditionGroup,
             IndicatorSpec,
@@ -252,9 +252,9 @@ class TestMonocultureRejection:
     def test_correlated_roster_fails_diversity_gate(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
 
         from trading_gym.agent.revision import RevisionKind, RevisionSurface
-        from trading_gym.playground.bridge import RevisionEvidenceBuilder
-        from trading_gym.playground.runner import PlaygroundRunSpec
-        from trading_gym.strategy_lab.models import (
+        from trading_gym.agent.playground.bridge import RevisionEvidenceBuilder
+        from trading_gym.agent.playground.runner import PlaygroundRunSpec
+        from trading_gym.agent.strategy_lab.models import (
             Condition,
             ConditionGroup,
             IndicatorSpec,

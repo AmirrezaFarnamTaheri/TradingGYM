@@ -1,5 +1,5 @@
 import numpy as np
-from trading_gym.features.feature_assembler import (
+from trading_gym.data.features.feature_assembler import (
     calculate_rsi,
     calculate_log_returns,
     calculate_volatility,

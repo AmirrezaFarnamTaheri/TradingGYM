@@ -2,18 +2,18 @@ import json
 import httpx
 import numpy as np
 import pytest
-from trading_gym.intelligence.bounded_http import bounded_post, strict_response_json
-from trading_gym.intelligence.deadlines import DecisionDeadlineExceeded
-from trading_gym.intelligence.llm_key_pool import (
+from trading_gym.agent.intelligence.bounded_http import bounded_post, strict_response_json
+from trading_gym.agent.intelligence.deadlines import DecisionDeadlineExceeded
+from trading_gym.agent.intelligence.llm_key_pool import (
     CredentialPool,
     CredentialsUnavailable,
     ProviderAuthenticationError,
     ProviderHardQuotaError,
     request_with_rotation,
 )
-from trading_gym.intelligence.policy_adapter import IntelligencePolicyAdapter
-from trading_gym.intelligence.base import IntelligenceBackend
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.policy_adapter import IntelligencePolicyAdapter
+from trading_gym.agent.intelligence.base import IntelligenceBackend
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     BackendHealth,
     BackendUnavailable,
@@ -174,8 +174,8 @@ def test_actual_transport_uses_bounded_http_and_preserves_protocol(
     monkeypatch, protocol
 ):
     from trading_gym.agent.providers import ProviderConfig, ProviderKind
-    from trading_gym.intelligence.llm_backend import httpx_transport
-    from trading_gym.intelligence.systemone_native_backend import (
+    from trading_gym.agent.intelligence.llm_backend import httpx_transport
+    from trading_gym.agent.intelligence.systemone_native_backend import (
         httpx_systemone_transport,
     )
 

@@ -4,7 +4,7 @@ import pandas as pd
 from decimal import Decimal
 from unittest.mock import MagicMock
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
-from trading_gym.common.config import (
+from trading_gym.core.config import (
     EnvConfig,
     RewardConfig,
     VenueDecimals,

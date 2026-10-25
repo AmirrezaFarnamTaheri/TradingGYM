@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from trading_gym.strategy_lab.models import (
+from trading_gym.agent.strategy_lab.models import (
     Condition,
     ConditionGroup,
     IndicatorSpec,

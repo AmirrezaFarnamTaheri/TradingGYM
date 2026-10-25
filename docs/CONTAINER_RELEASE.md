@@ -1,11 +1,12 @@
-# Supported container candidate
+# Container candidate
 
-The first packaged deployment is one API supervisor plus the built frontend in one container. `Dockerfile` installs the existing locked runtime and embeds the frontend; Python wheels are not advertised as a complete application distribution. The base-image tags are explicit build inputs, not a claim of bit-reproducible rebuilding; retain the produced image/archive digest in the release receipt.
+The Dockerfile builds the Python package and production frontend. The release workflow verifies a candidate, builds an image, runs the installed `tgym doctor` command and archives the image plus generated checksums as a workflow artifact. It does not publish a public image registry release.
 
-Build with `docker build -t tradinggym:candidate .` and validate with `python scripts/smoke_container.py tradinggym:candidate`. The smoke sends only readiness, UI and authenticated status reads, uses disposable volumes and never submits a trade. The release workflow requires verification, builds/smokes an image, and exposes its archive plus SHA256 through an Actions artifact. It does not publish to a public registry or grant live authority.
+```sh
+docker build -t tradinggym:candidate .
+docker run --rm tradinggym:candidate python -m trading_gym.cli doctor
+```
 
-For use, provide `API_KEY` at runtime and persist **both** `/home/appuser/.trading-gym` (durable state) and `/app/config` (configuration) using named volumes. Fresh named volumes receive the image's config defaults; an empty bind mount must be seeded deliberately. Never build from a context that overrides the checked-in exclusion policy. Credentials and journals are runtime inputs; `.dockerignore` excludes them independently of Git's ignore rules.
+These are maintained commands, not a claim that the image was built locally. `doctor` checks dependencies; it does not exercise browser delivery, external connectors or funded execution. The server binds loopback. Ordinary Docker bridge port publishing does not make an in-container loopback listener available; use an appropriately isolated shared network namespace or in-container client and qualify that deployment separately. Do not weaken the local API boundary merely to expose it publicly.
 
-This image remains a release candidate until the installed journey, platform support, upgrade/rollback and isolated application recovery tests pass. A frontend build or the smoke alone does not qualify model outcomes, broker compatibility or financial recovery.
-
-References: https://docs.docker.com/build/concepts/context/ ; https://packaging.python.org/en/latest/tutorials/packaging-projects/ .
+Persist the entire cockpit account directory for durable state and protect credentials. A Windows DPAPI-protected master key is not a portable Linux container credential; enter keys in the target environment. See [first-run recovery](FIRST_RUN.md), [verification](VALIDATION_RUNBOOK.md) and [current limitations](REBUILD.md).

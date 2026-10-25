@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from trading_gym.risk.conformal_var import (
+from trading_gym.execution.risk.conformal_var import (
     ConformalVaRError,
     RegimeWeightedConformalVaR,
     SplitConformalVaR,

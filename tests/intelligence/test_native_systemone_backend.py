@@ -6,14 +6,14 @@ import httpx
 import pytest
 
 from trading_gym.agent.providers import ProviderConfig, ProviderKind
-from trading_gym.common.intelligence_config import IntelligenceConfig
-from trading_gym.intelligence.factory import build_intelligence_policy
-from trading_gym.intelligence.llm_backend import LLMDecisionBackend
-from trading_gym.intelligence.systemone_native_backend import (
+from trading_gym.core.intelligence_config import IntelligenceConfig
+from trading_gym.agent.intelligence.factory import build_intelligence_policy
+from trading_gym.agent.intelligence.llm_backend import LLMDecisionBackend
+from trading_gym.agent.intelligence.systemone_native_backend import (
     NativeSystemOneDecisionBackend,
     httpx_systemone_transport,
 )
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     BackendUnavailable,
     InvalidDecisionSignal,
@@ -146,7 +146,7 @@ def test_native_transport_uses_bounded_budget_and_disables_proxy_redirects(
     tmp_path,
     mock_httpx_client,
 ):
-    import trading_gym.intelligence.systemone_native_backend as module
+    import trading_gym.agent.intelligence.systemone_native_backend as module
 
     seen = []
 
@@ -238,7 +238,7 @@ def test_post_only_native_endpoint_reports_reachability_on_http_405(monkeypatch)
 
 
 def test_public_intelligence_exports_include_native_adapter_and_errors():
-    import trading_gym.intelligence as api
+    import trading_gym.agent.intelligence as api
 
     assert api.NativeSystemOneDecisionBackend is NativeSystemOneDecisionBackend
     assert api.httpx_systemone_transport is httpx_systemone_transport
@@ -341,7 +341,7 @@ def test_invalid_native_http_payload_is_not_a_recoverable_model_outage(
     error_type,
     denial,
 ):
-    import trading_gym.intelligence.systemone_native_backend as module
+    import trading_gym.agent.intelligence.systemone_native_backend as module
 
     monkeypatch.setattr(module, "validate_base_url", lambda url, **kw: url)
     mock_httpx_client(
@@ -404,7 +404,7 @@ def test_hosted_systemone_retries_reuse_one_idempotency_key(
     monkeypatch, tmp_path, mock_httpx_client
 ):
     """Billed hosted requests must not become two logical decisions on retry."""
-    import trading_gym.intelligence.systemone_native_backend as module
+    import trading_gym.agent.intelligence.systemone_native_backend as module
 
     monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
     monkeypatch.setenv("HOSTED_ONE_KEY", "first-credential")
@@ -449,7 +449,7 @@ def test_hosted_systemone_retries_reuse_one_idempotency_key(
 
 
 def test_fixed_engine_uses_no_hosted_idempotency_header(monkeypatch, mock_httpx_client):
-    import trading_gym.intelligence.systemone_native_backend as module
+    import trading_gym.agent.intelligence.systemone_native_backend as module
 
     monkeypatch.setattr(module, "validate_base_url", lambda url, **kw: url)
     headers_seen = []

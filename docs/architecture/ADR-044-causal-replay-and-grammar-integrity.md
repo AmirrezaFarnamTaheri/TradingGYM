@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-044 — Causal Strategy Research Replay and Strict Grammar Admission
 
 **Date:** 2026-10-15  
@@ -28,7 +30,7 @@ parallel execution system.
 
 ### Next-open replay
 
-`trading_gym.strategy_lab.causal_replay` now exports:
+`trading_gym.agent.strategy_lab.causal_replay` now exports:
 
 - `replay_evaluated_signals(frame, *, source_sha256,
   allocation_fraction=0.1, fee_bps=0, slippage_bps=0,

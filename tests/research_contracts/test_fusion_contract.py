@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from trading_gym.features.feature_fusion import fuse_features, preserve_base_context
+from trading_gym.data.features.feature_fusion import fuse_features, preserve_base_context
 
 
 def test_unit_conversion_changes_only_that_feature_not_routing():

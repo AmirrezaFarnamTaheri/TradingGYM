@@ -4,7 +4,7 @@ import copy
 
 import pytest
 
-from trading_gym.intelligence.systemone_evaluation import evaluate_records
+from trading_gym.agent.intelligence.systemone_evaluation import evaluate_records
 
 
 def _row(

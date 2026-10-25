@@ -1,26 +1,9 @@
-# Revision-bound validation
+# Local validation
 
-Use `python scripts/validation_receipt.py --source-sha <40-character-sha> --output <receipt.json> --scope <precise-path-or-suite> -- <test-command>` to record an actual command's exit code, environment, source/index/worktree identity and output digest. Preserve ordinary CI logs separately. Do not put secrets in test command arguments. A named command passing does not qualify other paths, profitability or a venue integration.
+Use the commands in [tests/README](../tests/README.md), or `bash scripts/run_full_suite.sh` in a Bash environment. Install locked dependencies first and set `TRADING_GYM_REQUIRE_REAL_DEPS=1` when verifying the complete ML runtime.
 
-To diagnose Actions, export the read-only jobs response for the exact run using GitHub's Actions jobs API, including every page, and pass it with `--jobs-json <export.json> --run-id <GitHub workflow run ID>` instead of a command. The explicit positive `--run-id` is required in metadata mode: an internally consistent green inventory from another run cannot qualify this run. The classifier verifies the complete required job-name inventory, all four Python/OS matrix cells, uniqueness, and that every executed success reached `completed`. All job records must also belong to the same positive GitHub `run_id`; jobs from separate workflow runs on the same SHA cannot be merged into an apparent success. GitHub jobs from different `run_attempt` values of one run remain valid after a partial rerun. Missing pages, duplicate jobs, or newly introduced unrecognized jobs fail closed and are reported explicitly; when CI is expanded, update `REQUIRED_CI_JOBS` and the corresponding inventory test together. A completed job with no steps and no assigned runner has no execution evidence; it is not a unit-test failure. Missing or mismatched SHAs fail admission.
+The supported checks cover Python non-integration tests, generated API contracts, original feature-fixture hashes, immutable workflow pins, frontend tests/build/audit and Rust tests. Native parity additionally requires the compiled kernel. Optional ONNX experiments require the experiments dependency group. Record command, date, working-tree state, exit status and exclusions with ordinary logs; do not include secrets.
 
-**External step:** inspect that run's job annotation and the repository/account's Actions status. Establish the actual admission cause, have the authorized administrator resolve it, then retain a started current-revision run and its logs. YAML edits or this receipt cannot resolve billing, organization policy or runner capacity. No automated rerun or account change is performed by the diagnostic tool.
+The old validation-receipt/report-inventory tooling has been retired. It is not a prerequisite for local operation. A successful subset does not certify a full release, external account, venue schema or model profitability. Skipped and unexecuted checks must remain visible. Current local results and limits are in [REBUILD](REBUILD.md).
 
-Generate current documentation from the scoped receipts. Historical counts remain historical; failed, skipped and not-run capabilities must remain visible. Official reference: https://docs.github.com/en/rest/actions/workflow-jobs .
-
-A pull-request CI run intentionally skips the job named `Dependency Scan (weekly, informational)` because `.github/workflows/ci.yml` runs it only on weekly schedules. The receipt classifies this *one exact completed skip* as `intentional_non_gating_skip`; it does not count as executed, and it cannot alone qualify a run. A skipped required job (such as Integration Tests), an incomplete/pending scan, or a failing scan still blocks `all_executed_successfully`. The caller must export **all job pages** and review each required job; passing the supplied jobs alone is not evidence that an omitted job ran.
-
-## Exact revision admission
-
-The receipt helper now fails closed if the supplied SHA differs from Git HEAD,
-Git is unavailable, the source root differs, the index or worktree is dirty,
-or the named command changes that source during execution. Keep disposable
-untracked logs and exported job metadata outside the checkout when generating
-an official revision-bound receipt. Existing historical receipts are not
-retroactively granted these stricter guarantees.
-
-Output paths inside the repository are rejected before the named command runs, including paths reached through external symlinks. This prevents a successful validation receipt from modifying or overwriting its own certified checkout. Use an external, access-controlled directory for JSON receipts and job metadata.
-
-## Verification-step evidence
-
-A completed successful GitHub job with an assigned runner does **not** prove its test gates executed. This receipt requires every named lint, type, unit/coverage, research, integration, frontend, security, Rust/parity and aggregate verification step to be present **exactly once** with `status=completed` and `conclusion=success`. Missing, failed, skipped, pending and duplicate proof steps are reported in `missing_or_unsuccessful_gate_steps` and fail qualification. A native test checks the proof-step inventory against `.github/workflows/ci.yml`; update both when changing CI. Legitimate partial reruns within the same selected `run_id` remain valid.
+For hosted CI, inspect the exact revision's jobs and all relevant pages of logs. A job waiting for a runner, a skipped gate or a workflow that never started is not a passing test. Resolve account/runner restrictions separately; local YAML changes cannot establish their cause. This task did not publish or trigger a remote release.

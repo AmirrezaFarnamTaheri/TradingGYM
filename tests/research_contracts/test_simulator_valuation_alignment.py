@@ -11,9 +11,9 @@ import pandas as pd
 import pytest
 import typer
 
-from apps.simulator import main as simulator
-from trading_gym.pipelines import environment
-from trading_gym.pipelines.model_bundle import BUNDLE_ATTRIBUTE, fit_model_bundle
+from trading_gym.rl.simulator import main as simulator
+from trading_gym.rl.pipelines import environment
+from trading_gym.rl.pipelines.model_bundle import BUNDLE_ATTRIBUTE, fit_model_bundle
 from test_settled_transitions import make_env
 
 

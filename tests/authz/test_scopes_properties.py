@@ -13,7 +13,7 @@ from hypothesis import given, settings
 import pytest
 from hypothesis import strategies as st
 
-from trading_gym.authz.scopes import (
+from trading_gym.core.authz.scopes import (
     RESERVED_FIRST_SEGMENTS,
     RESERVED_SCOPES,
     ScopeError,

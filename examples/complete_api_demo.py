@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from trading_gym.adapters.enhanced_aban_client import (  # noqa: E402
+from trading_gym.market.adapters.enhanced_aban_client import (  # noqa: E402
     EnhancedAbanClient,
     OrderSide,
     OrderStatus,

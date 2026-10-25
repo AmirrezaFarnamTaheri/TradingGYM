@@ -1,7 +1,7 @@
 from typing import List, Optional
 
-from apps.venue.adapters.base import Ticker, VenueAdapter
-from apps.venue.router import RoutingPolicy, VenueRouter
+from trading_gym.market.router_app.adapters.base import Ticker, VenueAdapter
+from trading_gym.market.router_app.router import RoutingPolicy, VenueRouter
 
 
 class FailingVenue(VenueAdapter):
@@ -101,7 +101,7 @@ def test_recovery_probes_primary_and_restores_best_data(monkeypatch) -> None:
             return [Ticker("BTCUSDT", 99, 101, 100, 10)]
 
     clock = [100.0]
-    monkeypatch.setattr("apps.venue.router.time.monotonic", lambda: clock[0])
+    monkeypatch.setattr("trading_gym.market.router_app.router.time.monotonic", lambda: clock[0])
     primary = Recovering()
     backup = DummyVenue()
     router = VenueRouter(
@@ -127,7 +127,7 @@ def test_recovery_probes_primary_and_restores_best_data(monkeypatch) -> None:
 
 def test_failed_recovery_probe_reopens_and_stays_on_backup(monkeypatch):
     clock = [10.0]
-    monkeypatch.setattr("apps.venue.router.time.monotonic", lambda: clock[0])
+    monkeypatch.setattr("trading_gym.market.router_app.router.time.monotonic", lambda: clock[0])
     primary, backup = FailingVenue(), DummyVenue()
     router = VenueRouter(
         RoutingPolicy(primary, backup),

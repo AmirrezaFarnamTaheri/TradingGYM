@@ -27,7 +27,7 @@ from trading_gym.agent.fusion import (
     FusionEngine,
     FusionWeights,
 )
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     DecisionSignal,
     MarketContext,

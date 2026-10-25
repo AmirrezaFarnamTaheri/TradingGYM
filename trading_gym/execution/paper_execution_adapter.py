@@ -17,16 +17,16 @@ import time
 
 from filelock import FileLock
 
-from trading_gym.accounting.ledger import AccountingConflict, PortfolioLedger
-from trading_gym.accounting.models import AccountingEvent, AccountingEventType
-from trading_gym.common.config import AppConfig
-from trading_gym.common.persistence import atomic_write_json, read_json
+from trading_gym.execution.accounting.ledger import AccountingConflict, PortfolioLedger
+from trading_gym.execution.accounting.models import AccountingEvent, AccountingEventType
+from trading_gym.core.config import AppConfig
+from trading_gym.core.persistence import atomic_write_json, read_json
 from trading_gym.execution.accounting_bridge import (
     execution_accounting_events,
     state_from_account,
 )
 from trading_gym.execution.execution_engine import ExecutionEngine, MarketSnapshot
-from trading_gym.governance.ledger import AuditLedger
+from trading_gym.execution.governance.ledger import AuditLedger
 from trading_gym.execution.rebalance_policy import admit_rebalance
 
 ZERO = Decimal("0")
@@ -107,7 +107,7 @@ class PaperExecutionAdapter:
                 {self.quote_asset: self.initial_equity}, actor="paper-account"
             )
         if market_client is None:
-            from trading_gym.adapters.enhanced_aban_client import EnhancedAbanClient
+            from trading_gym.market.adapters.enhanced_aban_client import EnhancedAbanClient
 
             market_client = EnhancedAbanClient(api_token)
         self.api = market_client

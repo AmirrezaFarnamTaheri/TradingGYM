@@ -27,9 +27,9 @@ from datetime import timedelta
 from enum import IntEnum
 from typing import Any, Sequence
 
-from trading_gym.authz.scopes import ScopePattern, ScopeToken
-from trading_gym.intelligence.base import IntelligenceBackend
-from trading_gym.intelligence.types import (
+from trading_gym.core.authz.scopes import ScopePattern, ScopeToken
+from trading_gym.agent.intelligence.base import IntelligenceBackend
+from trading_gym.agent.intelligence.types import (
     BackendHealth,
     DecisionSignal,
     MarketContext,
@@ -103,7 +103,7 @@ class Arm(ABC):
         """Produce one bounded advisory proposal for the current bar.
 
         Implementations must raise
-        :class:`~trading_gym.intelligence.types.BackendUnavailable`
+        :class:`~trading_gym.agent.intelligence.types.BackendUnavailable`
         rather than fabricate a signal when they cannot act honestly.
         """
 

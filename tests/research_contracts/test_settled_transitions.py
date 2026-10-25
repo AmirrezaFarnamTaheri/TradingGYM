@@ -7,12 +7,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.baselines.strategies import RandomStrategy
-from trading_gym.common.config import load_app_config
+from trading_gym.rl.baselines.strategies import RandomStrategy
+from trading_gym.core.config import load_app_config
 from trading_gym.execution.paper_execution_adapter import PaperExecutionAdapter
-from trading_gym.pipelines.evaluation import _run_strategy
-from trading_gym.pipelines.model_bundle import ModelBundle, fit_model_bundle
-from trading_gym.pipelines.replay import replay_episode
+from trading_gym.rl.pipelines.evaluation import _run_strategy
+from trading_gym.rl.pipelines.model_bundle import ModelBundle, fit_model_bundle
+from trading_gym.rl.pipelines.replay import replay_episode
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
 
 

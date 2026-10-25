@@ -4,14 +4,14 @@ import json
 import numpy as np
 import pytest
 from trading_gym.agent.providers import ProviderConfig, ProviderKind
-from trading_gym.intelligence.base import IntelligenceBackend
-from trading_gym.intelligence.llm_backend import (
+from trading_gym.agent.intelligence.base import IntelligenceBackend
+from trading_gym.agent.intelligence.llm_backend import (
     LLMDecisionBackend,
     LLMTransportResponse,
 )
-from trading_gym.intelligence.fusion_backend import FusionBackend
-from trading_gym.intelligence.policy_adapter import IntelligencePolicyAdapter
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.fusion_backend import FusionBackend
+from trading_gym.agent.intelligence.policy_adapter import IntelligencePolicyAdapter
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     BackendHealth,
     DecisionSignal,

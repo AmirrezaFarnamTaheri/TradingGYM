@@ -1,6 +1,6 @@
 import logging
 import pytest
-from trading_gym.common.logging import configure_logging
+from trading_gym.core.logging import configure_logging
 
 
 @pytest.fixture

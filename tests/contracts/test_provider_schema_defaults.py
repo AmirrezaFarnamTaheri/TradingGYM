@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_nullable_provider_defaults_match_validated_runtime_model():
-    document = json.loads((ROOT / "docs/contracts/openapi.json").read_text())
+    document = json.loads((ROOT / "docs/contracts/research-openapi.json").read_text())
     published = document["components"]["schemas"]["ProviderConfig"]["properties"]
     generated = ProviderConfig.model_json_schema()["properties"]
     for field in (

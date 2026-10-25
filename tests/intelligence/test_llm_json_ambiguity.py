@@ -5,13 +5,13 @@ from __future__ import annotations
 import pytest
 
 from trading_gym.agent.providers import ProviderConfig, ProviderKind
-from trading_gym.intelligence.llm_backend import (
+from trading_gym.agent.intelligence.llm_backend import (
     LLMTransportResponse,
     _lenient_json_parser,
     _strict_json_parser,
 )
-from trading_gym.intelligence.system1_backend import System1DecisionBackend
-from trading_gym.intelligence.types import MarketContext
+from trading_gym.agent.intelligence.system1_backend import System1DecisionBackend
+from trading_gym.agent.intelligence.types import MarketContext
 
 
 @pytest.mark.parametrize(

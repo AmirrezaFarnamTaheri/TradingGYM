@@ -8,9 +8,9 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from trading_gym.intelligence.system1_context import build_system1_packet
-from trading_gym.intelligence.types import MarketContext
-from trading_gym.intelligence.wiring import build_market_context
+from trading_gym.agent.intelligence.system1_context import build_system1_packet
+from trading_gym.agent.intelligence.types import MarketContext
+from trading_gym.agent.intelligence.wiring import build_market_context
 
 
 def _env(*, completed=None):

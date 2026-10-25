@@ -27,7 +27,7 @@ def make_app():
 
 
 def test_live_gateway_preserves_provider_null_defaults():
-    from apps.api.main import app
+    from trading_gym.core.legacy_api.main import app
     from trading_gym.agent.providers import ProviderConfig
 
     live = app.openapi()["components"]["schemas"]["ProviderConfig"]["properties"]
@@ -38,7 +38,7 @@ def test_live_gateway_preserves_provider_null_defaults():
 
 
 def test_publisher_preserves_required_nullable_and_factory_semantics():
-    from apps.api.openapi import build_openapi
+    from trading_gym.core.legacy_api.openapi import build_openapi
 
     app = make_app()
     app.openapi = partial(build_openapi, app)
@@ -60,7 +60,7 @@ def test_publisher_preserves_required_nullable_and_factory_semantics():
 
 
 def test_publisher_caches_document_without_regenerating_schema_definitions():
-    from apps.api import openapi
+    from trading_gym.core.legacy_api import openapi
 
     app = make_app()
     with patch.object(
@@ -74,7 +74,7 @@ def test_publisher_caches_document_without_regenerating_schema_definitions():
 
 
 def test_preexisting_custom_schema_is_respected():
-    from apps.api.openapi import build_openapi
+    from trading_gym.core.legacy_api.openapi import build_openapi
 
     app = make_app()
     custom = {"openapi": "3.1.0", "paths": {"/custom": {}}}
@@ -84,7 +84,7 @@ def test_preexisting_custom_schema_is_respected():
 
 def test_served_document_keeps_defaults_without_weakening_request_validation():
     from fastapi.testclient import TestClient
-    from apps.api.openapi import build_openapi
+    from trading_gym.core.legacy_api.openapi import build_openapi
 
     app = make_app()
     app.openapi = partial(build_openapi, app)
@@ -110,7 +110,7 @@ def test_served_document_keeps_defaults_without_weakening_request_validation():
 
 
 def test_empty_application_keeps_native_document_metadata():
-    from apps.api.openapi import build_openapi
+    from trading_gym.core.legacy_api.openapi import build_openapi
 
     app = FastAPI(title="Empty API", version="empty")
     schema = build_openapi(app)
@@ -122,7 +122,7 @@ def test_published_contract_includes_upstream_reconciliation_and_probe_budget():
     import json
     from pathlib import Path
 
-    document = json.loads(Path("docs/contracts/openapi.json").read_text())
+    document = json.loads(Path("docs/contracts/research-openapi.json").read_text())
     assert "/api/v1/production/reconciliation" in document["paths"]
     parameters = document["paths"]["/api/v1/intelligence/status"]["get"]["parameters"]
     assert any(

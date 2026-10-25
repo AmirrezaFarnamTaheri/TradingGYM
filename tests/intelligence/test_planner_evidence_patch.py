@@ -12,16 +12,16 @@ from trading_gym.agent.arms.base import (
 from trading_gym.agent.arms.factory import default_registry
 from trading_gym.agent.fusion import FusionEngine, FusionConfig, FusionWeights
 from trading_gym.agent.planner import TierCascadePlanner
-from trading_gym.authz.grants import GrantLedger
-from trading_gym.intelligence.rl_backend import RLPolicyBackend
-from trading_gym.intelligence.types import (
+from trading_gym.core.authz.grants import GrantLedger
+from trading_gym.agent.intelligence.rl_backend import RLPolicyBackend
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     DecisionSignal,
     MarketContext,
     InvalidDecisionSignal,
     BackendHealth,
 )
-from trading_gym.intelligence.base import IntelligenceBackend
+from trading_gym.agent.intelligence.base import IntelligenceBackend
 
 CTX = MarketContext("BTC", 0, 1000, None, 100, 99)
 COST = CostModel(1, 2)

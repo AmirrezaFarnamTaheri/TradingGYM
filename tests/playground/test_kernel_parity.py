@@ -18,15 +18,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.playground import kernel as kernel_module
-from trading_gym.playground.runner import (
+from trading_gym.agent.playground import kernel as kernel_module
+from trading_gym.agent.playground.runner import (
     PlaygroundRunSpec,
     _run_kernel,
     _run_reference,
     run_playground,
 )
-from trading_gym.strategy_lab.evaluator import evaluate_strategy
-from trading_gym.strategy_lab.models import (
+from trading_gym.agent.strategy_lab.evaluator import evaluate_strategy
+from trading_gym.agent.strategy_lab.models import (
     Condition,
     ConditionGroup,
     IndicatorSpec,
@@ -130,7 +130,7 @@ def _assert_bit_identical(spec: PlaygroundRunSpec) -> None:
 
 requires_kernel = pytest.mark.skipif(
     not kernel_module.kernel_available(),
-    reason="no compiled axiom_kernel artifact (build rust/axiom_kernel)",
+    reason="no compiled axiom_kernel artifact (build kernel)",
 )
 
 

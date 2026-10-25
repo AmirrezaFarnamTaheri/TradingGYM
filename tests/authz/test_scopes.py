@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from trading_gym.authz.scopes import (
+from trading_gym.core.authz.scopes import (
     ScopeError,
     ScopePattern,
     ScopeSet,

@@ -1,4 +1,4 @@
-from trading_gym.risk.analytics import tail_risk
+from trading_gym.execution.risk.analytics import tail_risk
 
 
 def test_tail_risk_advisory_and_provenanced():

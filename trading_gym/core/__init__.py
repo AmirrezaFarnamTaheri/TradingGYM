@@ -1,0 +1,1 @@
+"""Trading Gym core domain."""

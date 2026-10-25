@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from trading_gym.intelligence.residual_experiment import (
+from trading_gym.agent.intelligence.residual_experiment import (
     compose_residual,
     ResidualPolicy,
     residual_training_environment,

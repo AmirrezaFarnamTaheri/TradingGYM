@@ -1,7 +1,9 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # Read-only observation admission
 
 Inject an existing `EnhancedAbanClient`-compatible read adapter into
-`trading_gym.adapters.observation_recorder.capture`. No client, credential or
+`trading_gym.market.adapters.observation_recorder.capture`. No client, credential or
 network session is constructed by this module. Its only calls are one ticker
 read and a fee/limit read for each side. Tests use a client with no other
 capability; no actual venue request was made.

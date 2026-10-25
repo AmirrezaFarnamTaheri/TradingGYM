@@ -5,10 +5,10 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from trading_gym.strategy_lab.evaluator import evaluate_strategy
-from trading_gym.strategy_lab.indicators import compute_indicators
-from trading_gym.strategy_lab.models import IndicatorSpec, StrategySpec
-from trading_gym.strategy_lab.templates import template_catalogue
+from trading_gym.agent.strategy_lab.evaluator import evaluate_strategy
+from trading_gym.agent.strategy_lab.indicators import compute_indicators
+from trading_gym.agent.strategy_lab.models import IndicatorSpec, StrategySpec
+from trading_gym.agent.strategy_lab.templates import template_catalogue
 
 
 def _frame() -> pd.DataFrame:
@@ -115,7 +115,7 @@ def test_duplicate_market_column_labels_are_rejected_before_evaluation():
         "close" if column == "other" else column for column in frame.columns
     ]
     with pytest.raises(ValueError, match="market columns must be unique"):
-        from trading_gym.strategy_lab.evaluator import validate_market_frame
+        from trading_gym.agent.strategy_lab.evaluator import validate_market_frame
 
         validate_market_frame(frame)
     with pytest.raises(ValueError, match="market columns must be unique"):

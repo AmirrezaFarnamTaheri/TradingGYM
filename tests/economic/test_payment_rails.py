@@ -11,14 +11,14 @@ from decimal import Decimal
 
 import pytest
 
-from trading_gym.economic.payment_rails import (
+from trading_gym.execution.economic.payment_rails import (
     PaymentOperation,
     PaymentRailPolicy,
     evaluate_payment_rail,
     normalise_lightning_invoice,
     normalise_usdc_transfer,
 )
-from trading_gym.economic.x402 import (
+from trading_gym.execution.economic.x402 import (
     build_economic_action_plan,
     parse_payment_challenge,
 )

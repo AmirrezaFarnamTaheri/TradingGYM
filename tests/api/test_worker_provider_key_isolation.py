@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from apps.api.runtime import child_environment
+from trading_gym.core.legacy_api.runtime import child_environment
 from trading_gym.agent.providers import (
     ProviderConfig,
     ProviderKind,
     selected_provider_credential_refs,
 )
-from trading_gym.common.intelligence_config import IntelligenceConfig
+from trading_gym.core.intelligence_config import IntelligenceConfig
 
 
 def _config(provider_id: str, *refs: str) -> ProviderConfig:

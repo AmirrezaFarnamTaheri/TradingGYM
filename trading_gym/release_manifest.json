@@ -22,15 +22,15 @@
     {
       "acceptance_evidence": [
         "tests/execution/test_live_execution_adapter.py",
-        "tests/convergence/test_fifteenth_pass_production_runtime.py"
+        "tests/system/test_fifteenth_pass_production_runtime.py"
       ],
       "reconstruction_validation_status": "verified",
       "record_id": "F-002",
       "recovered_validation_status": "verified",
       "slug": "execution.single_live_authority",
       "source_nodes": [
-        "trading_gym/production/runtime.py",
-        "trading_gym/production/venues.py",
+        "trading_gym/execution/production/runtime.py",
+        "trading_gym/execution/production/venues.py",
         "trading_gym/execution/live_execution_adapter.py"
       ]
     },
@@ -57,7 +57,7 @@
       "recovered_validation_status": "verified",
       "slug": "agent.regime.ensemble",
       "source_nodes": [
-        "axiomforge/next_level/agent_lab.py"
+        "trading_gym/agent/lab.py"
       ]
     },
     {
@@ -82,8 +82,8 @@
       "recovered_validation_status": "verified",
       "slug": "configuration.identity",
       "source_nodes": [
-        "trading_gym/adapters/aban_tether_policy.json",
-        "trading_gym/venue/asset_registry.py"
+        "trading_gym/market/adapters/aban_tether_policy.json",
+        "trading_gym/market/venue/asset_registry.py"
       ]
     },
     {
@@ -96,8 +96,8 @@
       "recovered_validation_status": "verified",
       "slug": "venue.aban_tether",
       "source_nodes": [
-        "trading_gym/adapters/aban_transport.py",
-        "apps/common/trade_loop.py"
+        "trading_gym/market/adapters/aban_transport.py",
+        "trading_gym/execution/trade_loop.py"
       ]
     },
     {
@@ -109,7 +109,7 @@
       "recovered_validation_status": "verified",
       "slug": "venue.aban_tether",
       "source_nodes": [
-        "trading_gym/adapters/__init__.py"
+        "trading_gym/market/adapters/__init__.py"
       ]
     },
     {
@@ -122,7 +122,7 @@
       "recovered_validation_status": "verified",
       "slug": "venue.aban_tether",
       "source_nodes": [
-        "trading_gym/adapters/enhanced_aban_client.py"
+        "trading_gym/market/adapters/enhanced_aban_client.py"
       ]
     },
     {
@@ -134,8 +134,8 @@
       "recovered_validation_status": "verified",
       "slug": "governance.live_consent",
       "source_nodes": [
-        "axiomforge/live_trading.py",
-        "trading_gym/production/runtime.py"
+        "trading_gym/execution/live_trading.py",
+        "trading_gym/execution/production/runtime.py"
       ]
     },
     {
@@ -148,8 +148,8 @@
       "recovered_validation_status": "verified",
       "slug": "wallet.trust_wallet",
       "source_nodes": [
-        "trading_gym/production/wallets.py",
-        "trading_gym/production/chain.py",
+        "trading_gym/execution/production/wallets.py",
+        "trading_gym/execution/production/chain.py",
         "frontend/src/wallets/trustWallet.js"
       ]
     },
@@ -163,13 +163,13 @@
       "recovered_validation_status": "verified",
       "slug": "decision.lifecycle",
       "source_nodes": [
-        "axiomforge/decision_lifecycle.py",
-        "apps/api/next_level.py"
+        "trading_gym/execution/governance/decision_lifecycle.py",
+        "trading_gym/core/legacy_api/next_level.py"
       ]
     },
     {
       "acceptance_evidence": [
-        "tests/convergence/test_release_operability.py"
+        "tests/system/test_release_operability.py"
       ],
       "reconstruction_validation_status": "verified",
       "record_id": "F-013",
@@ -194,9 +194,9 @@
       "recovered_validation_status": "verified",
       "slug": "operations.emergency_control",
       "source_nodes": [
-        "trading_gym/production/emergency.py",
-        "apps/api/production.py",
-        "apps/api/main.py"
+        "trading_gym/execution/production/emergency.py",
+        "trading_gym/core/legacy_api/production.py",
+        "trading_gym/core/legacy_api/main.py"
       ]
     },
     {
@@ -208,8 +208,8 @@
       "recovered_validation_status": "verified",
       "slug": "models.governed_promotion",
       "source_nodes": [
-        "trading_gym/models/promotion.py",
-        "apps/api/main.py"
+        "trading_gym/rl/models/promotion.py",
+        "trading_gym/core/legacy_api/main.py"
       ]
     },
     {
@@ -221,13 +221,13 @@
       "recovered_validation_status": "verified",
       "slug": "configuration.identity",
       "source_nodes": [
-        "trading_gym/common/config_registry.py",
+        "trading_gym/core/config_registry.py",
         "scripts/export_config_projection.py"
       ]
     },
     {
       "acceptance_evidence": [
-        "tests/convergence/test_seventeenth_pass_production_authority.py",
+        "tests/system/test_seventeenth_pass_production_authority.py",
         "frontend/src/components/__tests__/ProductionPanel.test.jsx"
       ],
       "reconstruction_validation_status": "statically-validated",
@@ -285,7 +285,7 @@
       "authority": "advisory-only",
       "registered_assurances": 25,
       "status": "verified",
-      "test": "tests/convergence/test_late_wave_registry.py"
+      "test": "tests/system/test_late_wave_registry.py"
     },
     "manifest_acceptance_suite": {
       "duration_seconds": 4.32,

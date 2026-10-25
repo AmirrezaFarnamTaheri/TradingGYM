@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # Market Microstructure & Data
 
 Data is the fuel of any quantitative system. Trading Gym implements a rigorous "Data Lake" architecture to ensure data integrity, reproducibility, and zero lookahead bias.

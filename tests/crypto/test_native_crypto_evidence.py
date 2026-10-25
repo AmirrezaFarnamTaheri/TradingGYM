@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from trading_gym.crypto.assurance import (
+from trading_gym.core.crypto.assurance import (
     NativeCryptoManifest,
     evaluate_crypto_evidence,
 )

@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from trading_gym.intelligence.systemone_protocol import build_request, parse_decision
+from trading_gym.agent.intelligence.systemone_protocol import build_request, parse_decision
 
 
 def _result(*, selected="long", probabilities=None, confidence=0.9, risk_off=0.1):

@@ -2,7 +2,7 @@
 
 import pytest
 
-from trading_gym.strategy_lab.models import IndicatorSpec, Operand, RiskSpec
+from trading_gym.agent.strategy_lab.models import IndicatorSpec, Operand, RiskSpec
 
 
 @pytest.mark.parametrize(

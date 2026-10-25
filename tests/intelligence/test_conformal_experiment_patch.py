@@ -5,12 +5,12 @@ import math
 import numpy as np
 import pytest
 
-from trading_gym.intelligence.conformal_experiment import (
+from trading_gym.agent.intelligence.conformal_experiment import (
     TimedPrediction,
     TimedOutcome,
     TimedSplitConformal,
 )
-from trading_gym.risk.conformal_var import (
+from trading_gym.execution.risk.conformal_var import (
     SplitConformalVaR,
     ConformalVaRError,
     compute_conformal_position_scale,

@@ -2,7 +2,7 @@
 
 import pytest
 
-from trading_gym.pipelines.research_protocol import audit_evidence_roles
+from trading_gym.rl.pipelines.research_protocol import audit_evidence_roles
 
 
 def use(procedure, partition, role, start, end, *, scope="venue:BTC-USDT"):

@@ -1,6 +1,6 @@
 import pytest
-from trading_gym.risk.circuit_breakers import CircuitBreaker
-from trading_gym.common.config import BreakerConfig
+from trading_gym.execution.risk.circuit_breakers import CircuitBreaker
+from trading_gym.core.config import BreakerConfig
 
 
 @pytest.fixture

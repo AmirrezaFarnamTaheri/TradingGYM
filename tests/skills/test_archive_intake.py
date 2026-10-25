@@ -6,13 +6,24 @@ import zipfile
 
 import pytest
 
-from trading_gym.skills.archive_intake import inspect_skill_archive
+from trading_gym.agent.skills.archive_intake import inspect_skill_archive
 
 
 def make_archive(path: Path, files):
+    raw_names = []
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for name, content in files:
-            archive.writestr(name, content)
+            # Windows ZipInfo normalizes backslashes before writing. Preserve
+            # the malicious wire name so this test exercises the inspector.
+            encoded_name = name.replace('\\', '|')
+            archive.writestr(encoded_name, content)
+            if encoded_name != name:
+                raw_names.append((encoded_name.encode(), name.encode()))
+    if raw_names:
+        payload = path.read_bytes()
+        for encoded, original in raw_names:
+            payload = payload.replace(encoded, original)
+        path.write_bytes(payload)
     return path
 
 

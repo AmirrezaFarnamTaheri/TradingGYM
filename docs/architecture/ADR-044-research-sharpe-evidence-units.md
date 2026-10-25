@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-044 — Correct probabilistic/deflated Sharpe evidence and research unit safety
 
 **Date:** 2026-10-15. **Target:** existing TradingGYM PR #2,
@@ -7,7 +9,7 @@ or model-routing grant.
 
 ## Root cause: mismatched annualisation in probabilistic Sharpe
 
-`trading_gym/strategy_lab/overfitting.py` previously computed
+`trading_gym/agent/strategy_lab/overfitting.py` previously computed
 `sr = annualised_sharpe(values, periods_per_year)` and inserted that
 **annualised** ratio into the finite-sample non-normality correction:
 
@@ -129,13 +131,13 @@ read/write).
   pytest 9 and NumPy 2.3.5; `compileall` succeeded.
 
 The corresponding regression tests were committed to
-`tests/convergence/test_probabilistic_sharpe_units.py`,
-`tests/convergence/test_sharpe_evidence_integrity.py`, and
-`tests/convergence/test_permutation_evidence_integrity.py`,
-`tests/convergence/test_walk_forward_evidence_integrity.py`,
-`tests/convergence/test_walk_forward_policy_integrity.py`, and
-`tests/convergence/test_bootstrap_evidence_integrity.py`, and
-`tests/convergence/test_annualised_sharpe_evidence_integrity.py`.
+`tests/system/test_probabilistic_sharpe_units.py`,
+`tests/system/test_sharpe_evidence_integrity.py`, and
+`tests/system/test_permutation_evidence_integrity.py`,
+`tests/system/test_walk_forward_evidence_integrity.py`,
+`tests/system/test_walk_forward_policy_integrity.py`, and
+`tests/system/test_bootstrap_evidence_integrity.py`, and
+`tests/system/test_annualised_sharpe_evidence_integrity.py`.
 These are **not** full exact-branch test results. Real-world tape
 independence, autocorrelation adjustments, fees, serial dependence,
 multiple-trial recording and venue reconciliation still require their

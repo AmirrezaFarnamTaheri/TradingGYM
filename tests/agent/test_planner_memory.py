@@ -33,9 +33,9 @@ from trading_gym.agent.arms import (
 from trading_gym.agent.fusion import FusionConfig
 from trading_gym.agent.planner import TierCascadePlanner
 from trading_gym.agent.working_memory import CautionPolicy, WorkingMemory
-from trading_gym.authz.grants import GrantLedger, GrantRequest
-from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
-from trading_gym.intelligence.types import (
+from trading_gym.core.authz.grants import GrantLedger, GrantRequest
+from trading_gym.agent.intelligence.rule_backend import DeterministicRuleBackend
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     DecisionSignal,
     MarketContext,

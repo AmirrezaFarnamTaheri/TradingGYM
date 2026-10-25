@@ -1,6 +1,6 @@
 import pytest
 
-from axiomforge.decision_lifecycle import DecisionRecord, transition
+from trading_gym.execution.governance.decision_lifecycle import DecisionRecord, transition
 
 
 def test_decision_lifecycle_is_closed_revisioned_and_separation_of_duties() -> None:

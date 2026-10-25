@@ -1,30 +1,17 @@
-# Trading Gym
+# Trading Gym package
 
-This directory contains the core logic for the trading system, encapsulated in a library-like structure. It is designed to be imported and used by the various applications in the `/apps` directory.
+One Python namespace owns the supported local product and retained research components:
 
-## Core Principles
+| Domain | Responsibility |
+| --- | --- |
+| `core` | Configuration, persistence, encrypted local secrets and research compatibility |
+| `data` | Ingestion, features and lineage |
+| `market` | Abantether connectors, market rules and venue metadata |
+| `execution` | Decimal accounts, orders, risk and retained execution engines |
+| `rl` | Simulation, training and evaluation |
+| `agent` | Signal heads, fusion, model gateway, decision journal and daemon |
+| `api` | Current loopback cockpit API |
 
-- **Library, Not a Framework**: `trading_gym` is designed to be a collection of tools and components that can be imported and used by various applications. It does not impose a rigid structure on how the applications are built.
-- **Realism is Key**: The core components, especially the `MarginTradingEnv`, are designed to simulate real-world trading conditions as closely as possible, including costs, fees, slippage, and liquidation.
-- **Performance**: The environment is built on NumPy arrays for fast, vectorized operations, avoiding the overhead of pandas DataFrames in the critical `step` loop.
+Start with `python -m trading_gym.cli serve`. The React build must exist in the source checkout. Default mode observes actual connector records; paper execution is separate, and the cockpit does not submit funded orders. Retained `core/legacy_api` services are not mounted by this entrypoint.
 
-## Core Components
-
-### `/trading_gym/rl`
-- **Purpose**: This subdirectory contains the reinforcement learning environment.
-- **Key Components**:
-    - `environment.py`: This file defines the `MarginTradingEnv`, the heart of the simulation. It is a deterministic, array-based environment that simulates the mechanics of a margin trading account with a high degree of realism. It handles everything from financing and costs to leverage and liquidation.
-
-### `/trading_gym/venue`
-- **Purpose**: This subdirectory contains the logic for asset and symbol management.
-- **Key Components**:
-    - `asset_registry.py`: This file defines the universe of tradable assets, including which assets are shortable and which are available for credit trading.
-
-### `/trading_gym/margin`
-- **Purpose**: This subdirectory contains the logic for margin and borrowing.
-- **Key Components**:
-    - `borrow_caps.py`: This file enforces the borrow caps for short selling, ensuring that the agent cannot exceed the limits for BTC and ETH.
-
-## Design Philosophy
-
-The `trading_gym` library is the single source of truth for all trading logic. By centralizing the core components in this library, we ensure that all applications, from the simulator to the live trader, operate on the same set of rules and calculations. This is a critical aspect of the `sim == prod` design principle.
+The optional native crate is `../kernel/`. Engineered regression fixtures live in `../data/parquet/`, outside the package's code. See [current documentation](../docs/README.md) and [verification](../tests/README.md).

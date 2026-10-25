@@ -26,7 +26,7 @@ import pytest
 
 from trading_gym.agent.arms import ArmTier
 from trading_gym.agent.arms.factory import default_registry
-from trading_gym.intelligence.types import DecisionSignal, MarketContext
+from trading_gym.agent.intelligence.types import DecisionSignal, MarketContext
 
 
 def calm_context() -> MarketContext:

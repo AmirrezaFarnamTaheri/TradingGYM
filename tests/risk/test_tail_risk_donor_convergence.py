@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from trading_gym.risk.analytics import tail_risk
+from trading_gym.execution.risk.analytics import tail_risk
 
 
 @pytest.mark.parametrize(

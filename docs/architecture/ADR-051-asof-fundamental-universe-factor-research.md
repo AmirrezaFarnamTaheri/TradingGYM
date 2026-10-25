@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-051 — Point-in-time fundamentals, historical universe and factor research admission
 
 **Date:** 2026-10-16  
@@ -100,7 +102,7 @@ No separate currency precision/rounding policy is inferred.
 
 1. **As-of research data compiler:** bind issuer identities, actual SEC filing accessions/forms, published and observed timestamps, currency units, audited security-master history and source snapshots. Reject vendor mapping aliases that collapse distinct report frames.
 2. **Fundamental derivation plane:** field-aware trailing-twelve-month accumulation with true-quarter versus YTD frame handling and restatement replay; audited concept aliases rather than implicit zero fills.
-3. **Corporate-action/FX plane:** reuse existing `trading_gym.accounting.corporate_actions`, `market.calendar`, portfolio and derivatives contracts for historically effective splits, delistings, dividends, FX and funding. Do not copy a second execution/account ledger.
+3. **Corporate-action/FX plane:** reuse existing `trading_gym.execution.accounting.corporate_actions`, `market.calendar`, portfolio and derivatives contracts for historically effective splits, delistings, dividends, FX and funding. Do not copy a second execution/account ledger.
 4. **Factor research UI:** show fiscal age, document/version, universe-member state, survivorship source and explicit blockers for human review, separate from any live order interface.
 5. **Independent statistical admission:** combine point-in-time inputs with purged walk-forward folds, realistic spreads, turnover, ADV, fees, multiple-testing corrections and held-out comparison; prohibit same-model self-certification.
 6. **Production release evidence:** exact-Git-SHA CI, provider fixtures, source manifest, comprehensive broker readback/reconciliation and independently witnessed emergency gross-flat. The research-ready flag may never cross this authority boundary.

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from trading_gym.adapters.order_status_normalization import (
+from trading_gym.market.adapters.order_status_normalization import (
     STATUS_ALIASES,
     CanonicalOrderStatus,
     is_terminal,

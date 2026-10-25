@@ -3,7 +3,7 @@ import numpy as np
 from unittest.mock import Mock
 import gymnasium as gym
 from trading_gym.rl.borrow_cap_wrapper import BorrowCapEnvWrapper
-from trading_gym.common.config import BorrowCapConfig
+from trading_gym.core.config import BorrowCapConfig
 
 
 class TestBorrowCapEnvWrapper:

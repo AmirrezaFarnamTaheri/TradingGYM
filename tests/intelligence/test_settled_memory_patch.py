@@ -4,18 +4,18 @@ from types import SimpleNamespace
 
 import pytest
 
-from trading_gym.accounting.ledger import PortfolioLedger
-from trading_gym.accounting.models import AccountingEvent, AccountingEventType, FillSide
+from trading_gym.execution.accounting.ledger import PortfolioLedger
+from trading_gym.execution.accounting.models import AccountingEvent, AccountingEventType, FillSide
 from trading_gym.agent.experience_memory import ExperienceMemory
 from trading_gym.agent.persistent_experience import PersistentExperienceMemory
 from trading_gym.agent.working_memory import WorkingMemory
-from trading_gym.governance.ledger import AuditLedger
-from trading_gym.intelligence.decision_journal import DecisionJournal
-from trading_gym.intelligence.settled_memory import (
+from trading_gym.execution.governance.ledger import AuditLedger
+from trading_gym.agent.intelligence.decision_journal import DecisionJournal
+from trading_gym.agent.intelligence.settled_memory import (
     record_closed_paper_window,
     rebuild_settled_memory,
 )
-from trading_gym.intelligence.types import ActionKind, DecisionSignal, UncertainDecision
+from trading_gym.agent.intelligence.types import ActionKind, DecisionSignal, UncertainDecision
 
 
 def setup_account(

@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from trading_gym.research.correlation_regimes import (
+from trading_gym.agent.research.correlation_regimes import (
     correlation_regimes,
     classify_density_timeline,
 )

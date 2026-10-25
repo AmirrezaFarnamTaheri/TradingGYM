@@ -1,7 +1,7 @@
 import pytest
 
-from trading_gym.production.chain import normalize_chain
-from trading_gym.production.wallets import NonCustodialWalletRegistry
+from trading_gym.execution.production.chain import normalize_chain
+from trading_gym.execution.production.wallets import NonCustodialWalletRegistry
 
 
 def test_wallet_registry_is_non_custodial_and_chain_bounded() -> None:

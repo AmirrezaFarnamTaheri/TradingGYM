@@ -3,9 +3,9 @@ import numpy as np
 import pandas as pd
 import pytest
 import yaml
-from trading_gym.common.config import EnvConfig, FeatureConfig
+from trading_gym.core.config import EnvConfig, FeatureConfig
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
-from trading_gym.intelligence.shadow_specialists import (
+from trading_gym.agent.intelligence.shadow_specialists import (
     Specialist,
     MarketFrame,
     run_shadow_specialists,

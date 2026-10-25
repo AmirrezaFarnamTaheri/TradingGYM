@@ -4,7 +4,7 @@ import hashlib
 import json
 import math
 
-from trading_gym.risk.stress import (
+from trading_gym.execution.risk.stress import (
     StressPosition,
     StressScenario,
     evaluate_portfolio_stress,

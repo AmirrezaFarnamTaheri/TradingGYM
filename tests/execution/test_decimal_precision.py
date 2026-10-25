@@ -5,7 +5,7 @@ from trading_gym.execution.execution_engine import (
     ExecutionState,
     MarketSnapshot,
 )
-from trading_gym.common.config import (
+from trading_gym.core.config import (
     EnvConfig,
     VenueDecimals,
     LeverageConfig,

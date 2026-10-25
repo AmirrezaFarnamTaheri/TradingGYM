@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-050 — Skill intake, review integrity and capability preview convergence
 
 **Date:** 2026-10-15. **Target:** draft TradingGYM PR #2.  
@@ -11,7 +13,7 @@ size validation, safe import exclusions, and publication manifests.
 The TypeSafe Skill Router donor uses choice/fitness questions and explicit
 abstention, with a documented 255-choice limit for its remote scorer.
 
-TradingGYM already owned `trading_gym/skills/intake.py`,
+TradingGYM already owned `trading_gym/agent/skills/intake.py`,
 `quarantine.py` and `static_assurance.py`, so convergence strengthens
 those modules rather than creating a duplicate skill/runtime controller.
 Its existing hash-chained governance grants and tool registry retain their
@@ -45,7 +47,7 @@ respective responsibilities. Nothing imported grants authority.
 
 ## Non-authoritative capability selection
 
-The new `trading_gym.skills.capability_selection` is a pure, deterministic
+The new `trading_gym.agent.skills.capability_selection` is a pure, deterministic
 human-review *preview*. Given an operator-supplied catalogue and an
 independently supplied expected digest, it validates:
 

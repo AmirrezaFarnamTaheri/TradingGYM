@@ -2,15 +2,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.common.config import load_app_config
-from trading_gym.pipelines.environment import (
+from trading_gym.core.config import load_app_config
+from trading_gym.rl.pipelines.environment import (
     load_environment_inputs,
     create_environment,
     build_env_factory,
 )
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
-from trading_gym.pipelines.availability import feature_history_rows
-from trading_gym.pipelines.model_bundle import FrozenNormalizer
+from trading_gym.rl.pipelines.availability import feature_history_rows
+from trading_gym.rl.pipelines.model_bundle import FrozenNormalizer
 
 
 @pytest.fixture

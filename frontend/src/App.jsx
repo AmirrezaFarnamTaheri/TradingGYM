@@ -1,354 +1,296 @@
-/**
- * Trading Gym Application
- *
- * Main application component that provides:
- * - React Query for data fetching
- * - Toast notifications via ToastProvider
- * - Error boundaries for graceful error handling
- * - Tab-based navigation for different panels
- *
- * @module App
- * @see ../package.json (authoritative frontend release version)
- */
-
-import { lazy, Suspense, useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import appPackage from '../package.json';
-// Shell-critical providers stay eager: they must render before any panel loads.
-import ErrorBoundary from './components/ErrorBoundary';
-import { ToastProvider } from './components/Toast';
-import HelpModal, { useHelp } from './components/HelpModal';
-import { CardSkeleton } from './components/LoadingSkeleton';
-import SessionGate from './components/SessionGate';
-import FirstRunJourney from './components/FirstRunJourney';
-// Panels are code-split: only the active tab's chunk is downloaded.
-const ConfigPanel = lazy(() => import('./components/ConfigPanel'));
-const TrainingPanel = lazy(() => import('./components/TrainingPanel'));
-const ModelsPanel = lazy(() => import('./components/ModelsPanel'));
-const TradingPanel = lazy(() => import('./components/TradingPanel'));
-const DataPanel = lazy(() => import('./components/DataPanel'));
-const SystemPanel = lazy(() => import('./components/SystemPanel'));
-const ConvergencePanel = lazy(() => import('./components/ConvergencePanel'));
-const IntelligencePanel = lazy(() => import('./components/IntelligencePanel'));
-const InstitutionalOSPanel = lazy(() => import('./components/InstitutionalOSPanel'));
-const ProductionPanel = lazy(() => import('./components/ProductionPanel'));
-const AuthzPanel = lazy(() => import('./components/AuthzPanel'));
-const PlaygroundPanel = lazy(() => import('./components/PlaygroundPanel'));
-const ForgePanel = lazy(() => import('./components/ForgePanel'));
-import './App.css';
-
-// =============================================================================
-// Query Client Configuration
-// =============================================================================
-
-const queryClient = new QueryClient({
+import { useT, useLanguage, LanguageProvider } from "./i18n";
+import { useEffect, useRef, useState } from "react";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import ErrorBoundary from "./components/ErrorBoundary";
+import Icon, { Brand } from "./components/Icon";
+import "./App.css";
+const client = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 2,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      retry: 1,
       refetchOnWindowFocus: false,
-      staleTime: 5000, // Consider data stale after 5 seconds
     },
     mutations: {
-      // Network timeouts do not prove that a trade or approval was rejected.
-      // Automatic retries can duplicate non-idempotent POST operations.
       retry: false,
     },
   },
 });
-
-// =============================================================================
-// Tab Configuration
-// =============================================================================
-
-const tabs = [
-  {
-    key: 'production',
-    label: '🛡️ Production',
-    component: ProductionPanel,
-    helpTopic: 'trading',
-    description: 'Live authority, non-custodial wallet posture, and operation-specific controls',
-  },
-  {
-    key: 'institutional',
-    label: '🏛️ Institutional OS',
-    component: InstitutionalOSPanel,
-    helpTopic: 'general',
-    description: 'Twenty bounded intelligence, portfolio, execution, agent, data, risk, governance, and lab planes',
-  },
-  {
-    key: 'convergence',
-    label: '🧭 Intelligence',
-    component: ConvergencePanel,
-    helpTopic: 'general',
-    description: 'Safe strategy research, provider tools, and human-governed automation',
-  },
-  {
-    key: 'intelligence',
-    label: '🧠 Model Fleet',
-    component: IntelligencePanel,
-    helpTopic: 'models',
-    description: 'Read-only System-1 roster, provider availability and request admission',
-  },
-  {
-    key: 'forge',
-    label: '🧠 Forge & Memory',
-    component: ForgePanel,
-    helpTopic: 'general',
-    description:
-      'Agent memory digests, grammar-bounded strategy development, and the X-tier tool queue (ADR-034)',
-  },
-  {
-    key: 'playground',
-    label: '🎛️ Playground',
-    component: PlaygroundPanel,
-    helpTopic: 'general',
-    description:
-      'Deterministic strategy simulation under scenario stress, scope-gated (ADR-031)',
-  },
-  {
-    key: 'authz',
-    label: '🔑 Grants',
-    component: AuthzPanel,
-    helpTopic: 'general',
-    description:
-      'Wildcard capability grants: inspect, check a scope, revoke (ADR-028)',
-  },
-  {
-    key: 'system',
-    label: '🖥️ System',
-    component: SystemPanel,
-    helpTopic: 'general',
-    description: 'System health, processes, and API reference',
-  },
-  {
-    key: 'config',
-    label: '⚙️ Config',
-    component: ConfigPanel,
-    helpTopic: 'config',
-    description: 'View and edit system configuration',
-  },
-  {
-    key: 'data',
-    label: '📊 Data',
-    component: DataPanel,
-    helpTopic: 'data',
-    description: 'Download data and generate features',
-  },
-  {
-    key: 'training',
-    label: '🤖 Training',
-    component: TrainingPanel,
-    helpTopic: 'training',
-    description: 'Train RL agents with live monitoring',
-  },
-  {
-    key: 'models',
-    label: '📈 Models',
-    component: ModelsPanel,
-    helpTopic: 'models',
-    description: 'Manage trained models and run backtests',
-  },
-  {
-    key: 'trading',
-    label: '💱 Trading',
-    component: TradingPanel,
-    helpTopic: 'trading',
-    description: 'Paper and live trading control',
-  },
-];
-
-// =============================================================================
-// Four operator workspaces, preserving all existing tab/panel identities.
-// =============================================================================
-
-const workspaces = [
-  {
-    key: 'execution',
-    label: 'Execution & Risk',
-    tabKeys: ['production', 'trading'],
-  },
-  {
-    key: 'research',
-    label: 'Research & Playground',
-    tabKeys: ['institutional', 'convergence', 'intelligence', 'playground', 'data'],
-  },
-  {
-    key: 'models',
-    label: 'Agent & Model Forge',
-    tabKeys: ['forge', 'training', 'models'],
-  },
-  {
-    key: 'governance',
-    label: 'Governance & System',
-    tabKeys: ['authz', 'system', 'config'],
-  },
-];
-
-const workspaceTabs = workspaces.map((group) => ({
-  ...group,
-  tabs: group.tabKeys.map((key) => tabs.find((tab) => tab.key === key)),
-}));
-const navigationTabs = workspaceTabs.flatMap((group) => group.tabs);
-
-// =============================================================================
-// Main App Component
-// =============================================================================
-
-function AppContent() {
-  const [activeTab, setActiveTab] = useState('institutional');
-  const [showJourney, setShowJourney] = useState(true);
-  const { openHelp, HelpModal: HelpModalComponent } = useHelp();
-
-  const currentTab = tabs.find(tab => tab.key === activeTab);
-  const ActiveComponent = currentTab?.component || SystemPanel;
-
-  function handleTabKeyDown(event, currentKey) {
-    const currentIndex = navigationTabs.findIndex(tab => tab.key === currentKey);
-    const last = navigationTabs.length - 1;
-    let nextIndex;
-    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
-      nextIndex = (currentIndex + 1) % tabs.length;
-    } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
-      nextIndex = (currentIndex + last) % tabs.length;
-    } else if (event.key === 'Home') {
-      nextIndex = 0;
-    } else if (event.key === 'End') {
-      nextIndex = last;
-    } else {
-      return;
+import { request } from "./services";
+import Monitor from "./views/Monitor";
+import Experience from "./views/Experience";
+import Settings from "./views/Settings";
+function Cockpit() {
+  const t = useT();
+  const { language, setLanguage } = useLanguage();
+  const queries = useQueryClient();
+  const modalRef = useRef(null);
+  const [view, setView] = useState("monitor"),
+    [error, setError] = useState(""),
+    [flattenOpen, setFlattenOpen] = useState(false);
+  useEffect(() => {
+    if (!flattenOpen) return;
+    const previous = document.activeElement;
+    const modal = modalRef.current;
+    const buttons = () => [...modal.querySelectorAll("button:not(:disabled)")];
+    buttons()[0]?.focus();
+    function keydown(event) {
+      if (event.key === "Escape") setFlattenOpen(false);
+      if (event.key === "Tab") {
+        const items = buttons(),
+          first = items[0],
+          last = items.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
     }
-    event.preventDefault();
-    const nextKey = navigationTabs[nextIndex].key;
-    setActiveTab(nextKey);
-    event.currentTarget.closest('[role="tablist"]')
-      ?.querySelector(`#tab-${nextKey}`)?.focus();
-  }
-
+    modal.addEventListener("keydown", keydown);
+    return () => {
+      modal.removeEventListener("keydown", keydown);
+      previous?.focus();
+    };
+  }, [flattenOpen]);
+  const query = useQuery({
+    queryKey: ["agent"],
+    queryFn: () => request(""),
+    refetchInterval: 1500,
+  });
+  const mutation = useMutation({
+    mutationFn: ({ path, body }) =>
+      request("/" + path, {
+        method: "POST",
+        ...(body
+          ? {
+              body: JSON.stringify(body),
+            }
+          : {}),
+      }),
+    onSuccess: (d) => {
+      queries.setQueryData(["agent"], d);
+      queries.invalidateQueries({
+        queryKey: ["agent"],
+      });
+      setError("");
+      setFlattenOpen(false);
+    },
+    onError: (e) => {
+      setError(
+        e.message +
+          " Refresh account status before repeating an uncertain action.",
+      );
+      queries.invalidateQueries({
+        queryKey: ["agent"],
+      });
+    },
+  });
+  const act = (path, body) =>
+    mutation.mutate({
+      path,
+      body,
+    });
+  const data = query.data;
+  const live = data?.status === "running";
   return (
-    <>
-      <a className="skip-link" href="#main-content" onClick={(event) => {
-        event.preventDefault();
-        document.getElementById('main-content')?.focus();
-      }}>Skip to main content</a>
-      <div className="app">
-        {/* Sidebar Navigation */}
-        <aside className="sidebar" role="navigation" aria-label="Main navigation">
-          <div className="sidebar-header">
-            <h1 className="app-title">Trading Gym</h1>
-            <div className="app-subtitle">Professional RL Trading Platform</div>
-          </div>
-
-          <nav className="sidebar-nav" role="tablist" aria-orientation="vertical" aria-label="Panel navigation">
-            {workspaceTabs.map((workspace) => (
-              <div
-                key={workspace.key}
-                className="sidebar-workspace"
-                data-workspace={workspace.key}
-                role="presentation"
-              >
-                <div className="sidebar-workspace-label" role="presentation">
-                  {workspace.label}
-                </div>
-                {workspace.tabs.map(({ key, label, description }) => (
-                  <button
-                    key={key}
-                    id={`tab-${key}`}
-                    role="tab"
-                    aria-selected={activeTab === key}
-                    aria-controls={activeTab === key ? `panel-${key}` : undefined}
-                    tabIndex={activeTab === key ? 0 : -1}
-                    onClick={() => setActiveTab(key)}
-                    onKeyDown={(event) => handleTabKeyDown(event, key)}
-                    className={`nav-button ${activeTab === key ? 'active' : ''}`}
-                    title={description}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </nav>
-
-          <div className="sidebar-footer">
-            <button className="btn" onClick={() => {
-              setShowJourney(true);
-              document.getElementById('main-content')?.focus();
-            }}>First-run checklist</button>
-            <div className="footer-info">
-              <p className="footer-version">v{appPackage.version}</p>
-              <p className="footer-copyright">© 2026 Trading Gym</p>
-              <p className="footer-note" style={{ fontSize: '10px', marginTop: '5px', opacity: 0.7 }}>
-                Evidence-qualified; deployment qualification remains environment-specific
-              </p>
-            </div>
-          </div>
-        </aside>
-
-        {/* Main Content Area */}
-        <main id="main-content" className="main-content" role="main" tabIndex={-1}>
-          <header className="content-header">
+    <div className="cockpit">
+      <a className="skip-link" href="#main-content">
+        {t("Skip to main content")}
+      </a>
+      <aside className="cockpit-rail">
+        <Brand />
+        <span className="rail-caption">{t("MISSION CONTROL")}</span>
+        <nav aria-label={t("Main navigation")}>
+          {[
+            ["monitor", t("Live monitor"), "activity"],
+            ["experience", t("Experience"), "layers"],
+            ["settings", t("Settings"), "settings"],
+          ].map(([id, label, icon]) => (
+            <button
+              key={id}
+              aria-label={label}
+              aria-current={view === id ? "page" : undefined}
+              className={view === id ? "active" : ""}
+              onClick={() => setView(id)}
+            >
+              <Icon name={icon} size={19} />
+              <span>{label}</span>
+              {view === id && <span className="nav-active-dot" />}
+            </button>
+          ))}
+        </nav>
+        <div className="rail-bottom">
+          <div className="paper-mark">
+            <Icon name="shield" size={16} />
             <div>
-              <h2>{currentTab?.label || 'Trading Gym'}</h2>
-              {currentTab?.description && (
-                <p style={{ fontSize: '14px', color: '#7f8c8d', margin: '5px 0 0 0' }}>
-                  {currentTab.description}
-                </p>
-              )}
+              <strong>{t("Abantether connector")}</strong>
+              <small>{t("Market & account records")}</small>
             </div>
-            {currentTab && (
-              <button
-                onClick={() => openHelp(currentTab.helpTopic)}
-                className="btn btn-help-main"
-                title="Get help for this panel"
-                aria-label={`Open help for ${currentTab.label}`}
-              >
-                ❓ Help
-              </button>
-            )}
-          </header>
-
-          {showJourney && <FirstRunJourney onClose={() => setShowJourney(false)} onNavigate={(key) => {
-            setActiveTab(key);
-            setShowJourney(false);
-            document.getElementById(`tab-${key}`)?.focus();
-          }} />}
-
-          <div
-            className="content-wrapper"
-            role="tabpanel"
-            id={`panel-${currentTab?.key}`}
-            aria-labelledby={`tab-${currentTab?.key}`}
-          >
-            <ErrorBoundary>
-              <Suspense fallback={<CardSkeleton />}>
-                <ActiveComponent openHelp={openHelp} />
-              </Suspense>
-            </ErrorBoundary>
           </div>
+          <span className="rail-version">{t("TRADING GYM / 32")}</span>
+        </div>
+      </aside>
+      <div className="cockpit-body">
+        <header className="command-bar">
+          <label className="language-picker">
+            <span className="sr-only">{t("Language")}</span>
+            <select
+              aria-label={t("Language")}
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+            >
+              <option value="en">English</option>
+              <option value="fa">فارسی</option>
+            </select>
+          </label>
+          <div className="system-state">
+            <span
+              className={`status-dot ${live && !data.paused ? "" : "idle"}`}
+            />
+            <strong>
+              {query.isError
+                ? t("OFFLINE")
+                : live
+                  ? data.paused
+                    ? t("PAUSED")
+                    : t("AGENT RUNNING")
+                  : data?.status === "halted"
+                    ? t("RISK HALTED")
+                    : t("AGENT STANDBY")}
+            </strong>
+            <span className="command-divider" />
+            <span className="command-mode">
+              {data?.mode === "observe" ? t("OBSERVE") : t("PAPER")}
+            </span>
+          </div>
+          <div className="command-meta">
+            <Icon name="clock" size={14} />
+            <span>
+              {data?.heartbeat
+                ? "Heartbeat " +
+                  new Date(data.heartbeat * 1000).toLocaleTimeString()
+                : t("Awaiting first heartbeat")}
+            </span>
+          </div>
+          <button
+            className="btn btn-emergency"
+            disabled={!data || mutation.isPending}
+            onClick={() => setFlattenOpen(true)}
+          >
+            <Icon name="shield" size={15} />
+            {t("Flatten paper")}
+          </button>
+        </header>
+        <main id="main-content" tabIndex={-1}>
+          {error && (
+            <div className="alert" role="alert">
+              {error}
+              <button
+                className="icon-button"
+                aria-label="Dismiss error"
+                onClick={() => setError("")}
+              >
+                <Icon name="close" size={15} />
+              </button>
+            </div>
+          )}
+          {query.isError ? (
+            <div className="offline-state">
+              <Icon name="activity" size={40} />
+              <h1>{t("Backend is not connected.")}</h1>
+              <p>
+                {t(
+                  "The cockpit is ready. Start the local server to load your agent and account.",
+                )}
+              </p>
+              <button
+                className="btn btn-primary"
+                onClick={() => query.refetch()}
+              >
+                {t("Retry connection")}
+              </button>
+            </div>
+          ) : !data ? (
+            <div className="offline-state">
+              <div className="loading-ring" />
+              <h1>{t("Opening your workspace…")}</h1>
+              <p>{t("Reading local account state.")}</p>
+            </div>
+          ) : view === "monitor" ? (
+            <Monitor
+              data={data}
+              act={act}
+              pending={mutation.isPending}
+              onExperience={() => setView("experience")}
+            />
+          ) : view === "experience" ? (
+            <Experience data={data} />
+          ) : (
+            <Settings data={data} act={act} pending={mutation.isPending} />
+          )}
+          <footer className="cockpit-footer">
+            <span>
+              <span className="status-dot" />
+              {t("LOCAL WORKSPACE")}
+            </span>
+            <span>{t("Deterministic limits. Observable decisions.")}</span>
+            <span>{t("TRADING GYM")}</span>
+          </footer>
         </main>
       </div>
-
-      {/* Help Modal */}
-      <HelpModalComponent />
-    </>
+      {flattenOpen && (
+        <div className="modal-overlay" onClick={() => setFlattenOpen(false)}>
+          <section
+            className="confirm-modal"
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="flatten-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="confirm-icon">
+              <Icon name="shield" size={28} />
+            </span>
+            <h2 id="flatten-title">{t("Flatten the paper account?")}</h2>
+            <p>
+              {t(
+                "This closes simulated positions at their latest observed marks, applies modeled costs, and latches the risk halt. No broker orders are submitted.",
+              )}
+            </p>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setFlattenOpen(false)}>
+                {t("Keep running")}
+              </button>
+              <button
+                className="btn btn-emergency"
+                disabled={mutation.isPending}
+                onClick={() => act("flatten")}
+              >
+                {mutation.isPending ? t("Flattening…") : t("Flatten & halt")}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
   );
 }
-
-// =============================================================================
-// App with Providers
-// =============================================================================
-
-function App() {
+export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ToastProvider>
+    <LanguageProvider>
+      <QueryClientProvider client={client}>
         <ErrorBoundary>
-          <SessionGate><AppContent /></SessionGate>
+          <Cockpit />
         </ErrorBoundary>
-      </ToastProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </LanguageProvider>
   );
 }
-
-export default App;

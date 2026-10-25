@@ -6,8 +6,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
-from apps.api import convergence, convergence_models
-from apps.api.convergence_evaluations import create_evaluation_router
+from trading_gym.core.legacy_api import convergence, convergence_models
+from trading_gym.core.legacy_api.convergence_evaluations import create_evaluation_router
 
 
 def test_request_model_imports_remain_backward_compatible() -> None:

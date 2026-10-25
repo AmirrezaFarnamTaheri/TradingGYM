@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from trading_gym.accounting.settlement import evaluate_settlement
+from trading_gym.execution.accounting.settlement import evaluate_settlement
 
 
 NOW = datetime(2026, 10, 16, 12, 0, tzinfo=timezone.utc)

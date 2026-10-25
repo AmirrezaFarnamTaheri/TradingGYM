@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from apps.common.live_features import build_live_feature_snapshot
-from trading_gym.common.config import load_app_config
-from trading_gym.features.feature_assembler import FeatureAssembler
-from trading_gym.pipelines import environment
-from trading_gym.pipelines.availability import (
+from trading_gym.data.live_features import build_live_feature_snapshot
+from trading_gym.core.config import load_app_config
+from trading_gym.data.features.feature_assembler import FeatureAssembler
+from trading_gym.rl.pipelines import environment
+from trading_gym.rl.pipelines.availability import (
     SETTLEMENT_DELAY_SECONDS,
     align_available_frame,
     available_index,

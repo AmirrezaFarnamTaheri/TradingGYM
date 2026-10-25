@@ -5,10 +5,10 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 
-from trading_gym.common.config import load_app_config
-from trading_gym.pipelines.environment import create_environment
-from trading_gym.pipelines.evaluation import _run_model, _run_strategy
-from trading_gym.pipelines.model_bundle import attach_model_bundle, fit_model_bundle
+from trading_gym.core.config import load_app_config
+from trading_gym.rl.pipelines.environment import create_environment
+from trading_gym.rl.pipelines.evaluation import _run_model, _run_strategy
+from trading_gym.rl.pipelines.model_bundle import attach_model_bundle, fit_model_bundle
 
 
 def test_real_env_baseline_and_policy_use_same_nonzero_decision_rows():

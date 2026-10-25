@@ -1,3 +1,15 @@
+# Changelog
+
+## Local autonomy rebuild — 2026-10-25 (unreleased)
+
+- Unified Python modules under one package; native kernel and fixture paths migrated.
+- Rebuilt the cockpit with three views, English/Persian RTL, actual connector states, paginated broker/paper history and recorded decision explanations.
+- Added encrypted local credentials and separate multi-key rosters for planner and Decision-1, plus tools/head/route visibility.
+- Removed production synthetic replay; default mode is observe. Paper remains explicitly virtual. Funded order submission is not connected.
+- Preserved financial risk limits, persistent cooldowns and immutable decision/fill links.
+- Restored fixture-integrity and workflow-pin checks; finalized current guides and scoped retained research references.
+- Current evidence and external limitations are in [REBUILD](docs/REBUILD.md). Earlier entries below are historical and use their original paths and counts.
+
 ## [Unreleased]
 
 ### Deferred review tail: dead gate, batch reconciliation, and telemetry honesty
@@ -58,20 +70,20 @@ contract, and the frontend (Vitest 26/26, production build) all remain green.
   Sharpe range. These were never measured. Replaced with an honest description of
   what the wrapper does and a real warning about its observation-normalization
   data-leakage risk during training.
-- **Restating-the-code docstrings collapsed** — `trading_gym/adapters/enhanced_aban_client.py`
+- **Restating-the-code docstrings collapsed** — `trading_gym/market/adapters/enhanced_aban_client.py`
   carried 27 Google-style docstrings whose `Example:` blocks just re-iterated the
   method call. All are now one line each; the non-obvious facts (leverage ranges,
   per-coin shortable limits) are kept inline where they carry signal.
 - **Marketing filler cut** — "comprehensive", "enhanced", "extensive", and
   speculative version headers removed from `apps/validator/pretrade.py`,
-  `trading_gym/assurance/system_qualification.py`, and `trading_gym/common/logging.py`.
+  `trading_gym/core/assurance/system_qualification.py`, and `trading_gym/core/logging.py`.
 - **Decorative section banners condensed** — the three-line `# ===== Title =====`
-  boxes in `trading_gym/common/exceptions.py` (7), `trading_gym/research/validation_stats.py`
+  boxes in `trading_gym/core/exceptions.py` (7), `trading_gym/agent/research/validation_stats.py`
   (3), and `trading_gym/agent/working_memory.py` (1) are now single `# --- Title ---` lines.
-- **Dead code and speculative hedges removed in `apps/production/main.py`** —
+- **Dead code and speculative hedges removed in `trading_gym/execution/runtime/main.py`** —
   the unused `tail_risk` and `build_status` imports, the repeated
   `if app is not None` blocks, and a "maybe backward-compat" hedge in
-  `trading_gym/margin/__init__.py`.
+  `trading_gym/execution/margin/__init__.py`.
 - **Deliberately kept** — broad `except` blocks in `agent/budget_gate.py`,
   `agent/planner.py`, `agent/degradation_ladder.py`, and `common/persistence.py`
   are intentional fail-closed design with explanatory comments, not slop; and every
@@ -84,24 +96,24 @@ A sweep for orphaned code and unwired capabilities, plus the lint-gate errors
 the sweep surfaced. Suite grew from 1558 to **1586 passed, 12 skipped**; the
 module-accountability manifest (337 modules) and OpenAPI contract stay green.
 
-- **Two latent bugs fixed.** `trading_gym/intelligence/llm_backend.py::health()`
+- **Two latent bugs fixed.** `trading_gym/agent/intelligence/llm_backend.py::health()`
   read a `status` local that existed only inside `is_available()`, so every
   health() call raised `NameError` — latent because no test exercised it.
   `trading_gym/rl/margin_trading_environment.py` used `List` in an annotation
   without importing it (masked by `from __future__ import annotations`).
   Both fixed; two regression tests added in `tests/intelligence/test_omni_intelligence.py`.
 - **A third bug found by the new capability tests.**
-  `trading_gym/skills/static_assurance.py::assess_workflow_static` reported an
+  `trading_gym/agent/skills/static_assurance.py::assess_workflow_static` reported an
   unknown dependency but then raised `KeyError` looking it up in the DAG walk.
   The walk now skips unresolvable dependencies it already reported.
 - **Dead code removed** — the `AutonomyJournalIntegrityError` compat alias
   ("used in early drafts of the ADR"), the `load_config()` backward-compat
-  helper in `trading_gym/common/utils.py`, and seven unused imports across
-  `apps/api/convergence.py`, `apps/api/main.py`, `trading_gym/models/versioning.py`,
+  helper in `trading_gym/core/utils.py`, and seven unused imports across
+  `trading_gym/core/legacy_api/convergence.py`, `trading_gym/core/legacy_api/main.py`, `trading_gym/rl/models/versioning.py`,
   `trading_gym/agent/autonomy_ladder.py`, and `trading_gym/rl/margin_trading_environment.py`
   (including a vestigial empty `if TYPE_CHECKING: pass` guard).
-- **Hidden capabilities promoted, not wired.** `trading_gym/skills/` (federated
-  tool intake, quarantine, static assurance) and `trading_gym/economic/`
+- **Hidden capabilities promoted, not wired.** `trading_gym/agent/skills/` (federated
+  tool intake, quarantine, static assurance) and `trading_gym/execution/economic/`
   (payment-rails and x402 normalisation) were built and safety-gated but
   referenced by nothing. They are documented as evidence-only planes, so they
   are now indexed in the README responsibility-planes table with matching
@@ -113,7 +125,7 @@ module-accountability manifest (337 modules) and OpenAPI contract stay green.
 - **Known follow-up, not fixed here.** `ruff check .` runs with no configuration
   and was already red at baseline: 499 findings, of which 187 are intentional
   `__init__.py` re-exports and most of the rest are the codebase's deliberate
-  dense one-liner style (E701/E702) in vendored `axiomforge/oss_integrations/`,
+  dense one-liner style (E701/E702) in vendored `trading_gym/core/integrations/`,
   `scripts/`, and `tests/`. The flake8 correctness gate (E9/F63/F7/F82) is now
   clean. Adding a `[tool.ruff]` section that documents the intentional style is
   left as a separate decision.
@@ -162,7 +174,7 @@ fix was checked against the legitimate behaviour it must preserve. The batch
 methods from the section above were also re-verified for equivalence.
 
 - **Audit-ledger truncation is no longer silently "healed"**
-  (`trading_gym/governance/ledger.py`). `append` and `append_events` verified
+  (`trading_gym/execution/governance/ledger.py`). `append` and `append_events` verified
   the hash chain but not the *anchor*, so truncating a sealed ledger's tail was
   detected by `verify()` yet the next append re-pinned the anchor and destroyed
   the evidence. Both paths now refuse a mismatched anchor. Narrow by design: a
@@ -177,12 +189,12 @@ methods from the section above were also re-verified for equivalence.
   Confirmed from the installed `@tanstack/react-query` source. All 10 now use
   the `{ queryKey: [...] }` object form.
 - **The account namespace is recoverable after hitting the account limit**
-  (`trading_gym/accounting/ledger.py`). With `MAX_ACCOUNTS + 1` files present,
+  (`trading_gym/execution/accounting/ledger.py`). With `MAX_ACCOUNTS + 1` files present,
   `list_account_ids` raised a bare `ValueError` — and since `create`,
   `audit_pending`, and `reconcile_audit` all call it, the namespace became
   permanently unusable: listing is exactly what is broken. It now raises
   `AccountingConflict`, the documented conflict type callers already handle.
-- **The readiness probe fails closed** (`trading_gym/monitoring/health.py`). The
+- **The readiness probe fails closed** (`trading_gym/core/monitoring/health.py`). The
   memory probe's `except Exception: return True` let an unmeasurable host pass a
   readiness gate. It now returns `False`: a probe that cannot read must not
   certify the system ready.
@@ -213,14 +225,14 @@ Each was reproduced before changing anything; each fix is pinned by a test.
 - **[CRITICAL] Both apps crashed on startup in live mode**
   (`trading_gym/rl/margin_trading_environment.py`). The constructor read
   `self.T` to size the live-mode buffer *before* `self.T` was assigned, so
-  `live_mode=True` raised `AttributeError`. `apps/live` and `apps/paper` both
+  `live_mode=True` raised `AttributeError`. `trading_gym/execution/live` and `trading_gym/execution/paper` both
   construct that way, so both died on startup; the suite never caught it because
   the one test that touches live mode sets the flag *after* construction. A
   sibling gap surfaced immediately: `_raw_buffer` was never seeded with the
   historical window the way `feature_buffer` was, so the first live `step()`
   before a streaming bar arrived raised `IndexError`. Both fixed; pinned by
   `test_live_mode_constructs`.
-- **[HIGH] Expired grants still authorized** (`trading_gym/authz/grants.py`).
+- **[HIGH] Expired grants still authorized** (`trading_gym/core/authz/grants.py`).
   `is_active` defaulted the clock to `issued_at` when `now` was omitted, so the
   expiry check was `issued_at < expires_at` — tautologically true. Every
   production call path (`planner`, both routers) omits `now`, so TTL revocation
@@ -229,17 +241,17 @@ Each was reproduced before changing anything; each fix is pinned by a test.
   only passed because expiry was never enforced; all are now wall-clock
   relative, so they cannot decay into the same trap.
 - **[HIGH] A NaN position notional defeated every portfolio gate**
-  (`trading_gym/risk/portfolio.py`). `NaN > limit` is `False`, so one non-finite
+  (`trading_gym/execution/risk/portfolio.py`). `NaN > limit` is `False`, so one non-finite
   notional made gross-leverage, concentration, drawdown, and daily-loss checks
   all silently pass. `PositionExposure` now rejects non-finite notional at the
   boundary, mirroring the guard `risk/factor.py` already had.
 - **[HIGH] `api_secret`/`apisecret` were not redacted**
-  (`trading_gym/common/security.py`). The key set had `secret` and the suffix
+  (`trading_gym/core/security.py`). The key set had `secret` and the suffix
   `_secret_key`, but not these shapes, so venue credentials under those names
   flowed into logs and the audit ledger unmasked. Added to both the exact-match
   set and the suffix list.
 - **[HIGH] A budget read inflated unrelated budgets' revisions**
-  (`trading_gym/budgets/ledger.py`). `get_budget` bumped `revision` for *every*
+  (`trading_gym/core/budgets/ledger.py`). `get_budget` bumped `revision` for *every*
   budget in the document whenever any reservation expired — and `revision` is
   the field callers use for `expected_revision` optimistic locking, so an
   unrelated read invalidated it, plus an fsync'd write per read. It now bumps
@@ -298,15 +310,15 @@ ADR-034 (memory + tool revision + forge) and ADR-035 (simulation kernel).
   breakout, OBV trend confirmation, Bollinger squeeze expansion, MACD histogram
   pullback. Catalogue: 8 → 12 families, each validated, evaluable, and required
   by test to produce both entries and exits.
-- **Rust simulation kernel** — `rust/axiom_kernel` (cdylib, 7 unit tests, clippy
-  and rustfmt clean) plus `trading_gym/playground/kernel.py` (ctypes loader with
+- **Rust simulation kernel** — `kernel` (cdylib, 7 unit tests, clippy
+  and rustfmt clean) plus `trading_gym/agent/playground/kernel.py` (ctypes loader with
   ABI check) and a `runner.py` split into `_run_kernel` / `_run_reference`.
   Optional by design: no artifact means the Python reference runs and behaviour
   is identical. `tests/playground/test_kernel_parity.py` asserts bit-identical
   equity curves (`np.array_equal` on raw doubles) and trade ledgers over
   randomised windows, both cost regimes, partial fractions, and force-close.
-- **Forge API + operator surface** — `apps/api/forge_router.py` mounted in
-  `apps/api/main.py`: `GET/POST /forge/memory/{advice,records}`,
+- **Forge API + operator surface** — `trading_gym/core/legacy_api/forge_router.py` mounted in
+  `trading_gym/core/legacy_api/main.py`: `GET/POST /forge/memory/{advice,records}`,
   `GET /forge/strategies/templates`, `POST /forge/strategies/variants`,
   `GET/POST /forge/nominations`, `POST /forge/nominations/{tool}/resolve`,
   `GET /forge/kernel`. Each route is triple-gated (gateway key → actor
@@ -360,7 +372,7 @@ ADR-034 (memory + tool revision + forge) and ADR-035 (simulation kernel).
 
 ### AXIOM-1 round 5: lake-backed windows, regime arm, eye exam, evidence bridge
 
-- `trading_gym/playground/lake_windows.py`: `LakeWindowProvider` resolves
+- `trading_gym/agent/playground/lake_windows.py`: `LakeWindowProvider` resolves
   playground windows from the canonical lake via `data.data_loader` —
   tz-aware ordered slices, 60-bar minimum, full OHLCV validation, fail-closed
   on missing partitions. First piece of Phase-2 data fusion; window sha256
@@ -372,7 +384,7 @@ ADR-034 (memory + tool revision + forge) and ADR-035 (simulation kernel).
   rostered arm must produce well-formed signals on calm/stressed/crash
   contexts, be deterministic, declare valid scopes + costs, and leave an
   unconditionally-available T1 floor — 8 tests over the live registry.
-- `trading_gym/playground/bridge.py`: playground→revision evidence bridge —
+- `trading_gym/agent/playground/bridge.py`: playground→revision evidence bridge —
   revision candidates built from actual manifest-pinned runs over sealed
   holdout windows (scores = final-equity ratios, seals = sha256 of window
   content; swapped windows fail the seal). Closes the ADR-031→ADR-033 loop:
@@ -395,7 +407,7 @@ ADR-034 (memory + tool revision + forge) and ADR-035 (simulation kernel).
   (sealed holdout incl. leakage detection → regression floor → diversity floor
   vs monoculture → canary violation freezes the loop), hash-chained revision
   ledger, and a per-day apply cap — 13 tests.
-- `trading_gym/production/paper_venue.py`: a second venue behind the existing
+- `trading_gym/execution/production/paper_venue.py`: a second venue behind the existing
   `VenueAdapter` seam — deterministic local fills, provable idempotent replay
   (same key → identical receipt, no double-fill), halt/resume honoring, and
   coordinator integration (authorization, receipt caching, emergency stop) —
@@ -412,11 +424,11 @@ ADR-034 (memory + tool revision + forge) and ADR-035 (simulation kernel).
 ### AXIOM-1 round 3: gateway mounting, Monte-Carlo attribution, stats arm, E2E golden path, frontend panels
 
 - ADR-031 completion: `authz` and `playground` routers are mounted in the main
-  gateway app (`apps/api/main.py`) — the wildcard-grant lifecycle (issue → check →
+  gateway app (`trading_gym/core/legacy_api/main.py`) — the wildcard-grant lifecycle (issue → check →
   revoke) and the scope-gated playground run are live behind the standard API-key
   chain; module-level `API_KEY` import-time capture is handled in tests via
   module-state refresh (house pattern).
-- `trading_gym/playground/attribution.py`: `run_monte_carlo` (base + seeded
+- `trading_gym/agent/playground/attribution.py`: `run_monte_carlo` (base + seeded
   repetitions reduced to return distribution with worst-case drawdown envelope)
   and `attribute_overlays` (leave-one-in effects with exact additive interaction
   residual, machine-checked: base + Σ effects + interaction == combined) — 9 tests.
@@ -440,18 +452,18 @@ ADR-034 (memory + tool revision + forge) and ADR-035 (simulation kernel).
 
 ### AXIOM-1 round 2: playground, API composition, arms roster, budget gate
 
-- ADR-031 + `trading_gym/playground/`: deterministic scenario overlays
+- ADR-031 + `trading_gym/agent/playground/`: deterministic scenario overlays
   (`gap_injection`, `stale_feed`, `liquidity_drought`) with OHLCV invariants and
   seeded Monte-Carlo repetition (`SeedSequence.spawn`), plus a no-lookahead
   deterministic runner (fill at next open, explicit fee + half-spread costs,
   sha256 manifest of window/strategy/overlays) — 32 tests including machine-checked
   lookahead lag and determinism.
-- `apps/api/authz_router.py`: wildcard-grant API — scope check, grant issuance
+- `trading_gym/core/legacy_api/authz_router.py`: wildcard-grant API — scope check, grant issuance
   with the ADR-028 authority ceiling (issuers may only delegate scopes they hold),
   revocation, listing, health; composes the gateway auth dependency and the actor
   identity registry; fail-closed on ledger corruption (503) and wildcard check
   requests (422) — 13 tests.
-- `apps/api/playground_router.py`: `POST /playground/runs` — the first full-chain
+- `trading_gym/core/legacy_api/playground_router.py`: `POST /playground/runs` — the first full-chain
   consumer: gateway auth, actor auth, `playground.run` wildcard grant, frame
   validation, deterministic run — 5 tests.
 - `trading_gym/agent/arms/factory.py`: default roster builder — alpha rules (T1),
@@ -467,7 +479,7 @@ ADR-034 (memory + tool revision + forge) and ADR-035 (simulation kernel).
 
 ### AXIOM-1 round 1: wildcard grants, octopus arms, fusion, planner
 
-- ADR-028 + `trading_gym/authz/`: wildcard scope grammar (`*` matches one segment,
+- ADR-028 + `trading_gym/core/authz/`: wildcard scope grammar (`*` matches one segment,
   terminal `**` matches the remainder), grant model with numeric constraints and TTL,
   deny-by-default evaluator with breach latching, hash-chained JSONL grant ledger with
   an anchor file (tamper and truncation detection), and hypothesis property tests over
@@ -504,7 +516,7 @@ ADR-034 (memory + tool revision + forge) and ADR-035 (simulation kernel).
   `_get_current_raw_features()` accessors; `_should_skip_bar` uses them too.
 - Clarified volatility-hint contract: advisory values are clamped to zero by the
   engine instead of being rejected (the engine already clamped internally).
-- Implemented automatic mutation retry (`trading_gym/production/mutation_retry.py`):
+- Implemented automatic mutation retry (`trading_gym/execution/production/mutation_retry.py`):
   stable idempotency keys per logical mutation, bounded exponential backoff with
   jitter, explicit transient-vs-terminal failure classification, and a durable
   JSONL outbox journal with ambiguous-outcome scanning for reconciliation.
@@ -526,11 +538,11 @@ ADR-034 (memory + tool revision + forge) and ADR-035 (simulation kernel).
 - Modernised router-surface tests against Starlette >= 0.46 `_IncludedRouter`
   wrappers via OpenAPI-derived path sets; refreshed stale fixtures to the
   admitted-data loader contract (timezone-aware timestamps, OHLC envelope).
-- Added the statistical validation battery (`trading_gym/research/statistical_validation.py`):
+- Added the statistical validation battery (`trading_gym/agent/research/statistical_validation.py`):
   Probabilistic Sharpe Ratio, Deflated Sharpe Ratio with Euler–Mascheroni expected-max
   benchmark, Minimum Track Record Length, and a bundled machine-readable report —
   parameterised after Bailey & López de Prado, no exchange-specific constants.
-- Added CSCV/PBO overfitting detector (`trading_gym/research/cscv_pbo.py`) with
+- Added CSCV/PBO overfitting detector (`trading_gym/agent/research/cscv_pbo.py`) with
   enumerated-or-sampled symmetric splits, seeded determinism, early termination,
   NaN-rejecting input contract, and deterministic polarity probes in tests.
 - Second absorption wave (all target-native, tested):
@@ -672,7 +684,7 @@ All notable changes to TraderAgentReinforcedGym are documented here.
 
 - Added Decimal event-sourced portfolio accounting with anchored opening balances, semantic idempotency, full event replay, materialised-state verification, realised/unrealised/funding P&L, and non-mutating broker reconciliation.
 - Added deterministic fee, spread, impact, latency, liquidity, partial-fill, limit-order, adverse, and extreme execution simulation with no venue or live authority.
-- Added immutable run manifests binding the complete authoritative source surface—including `trading_gym/data` and `trading_gym/models` code—plus configuration, strategy/instrument/artifact hashes, deterministic seeds, selected dependency versions, environment fingerprint, and parent lineage.
+- Added immutable run manifests binding the complete authoritative source surface—including `trading_gym/data` and `trading_gym/rl/models` code—plus configuration, strategy/instrument/artifact hashes, deterministic seeds, selected dependency versions, environment fingerprint, and parent lineage.
 - Integrated run-manifest creation and execution-cost policy into the bounded strategy-to-backtest workflow with idempotent replay conflict detection.
 - Added persisted feature-drift baselines and PSI, mean-shift, missingness, warning, critical, and insufficient-evidence evaluation.
 - Added SLO/error-budget evaluation with complete latency-observation coverage and explicit insufficient-data semantics.
@@ -742,13 +754,13 @@ This release addresses all critical technical gaps identified in comprehensive c
 
 #### New Components Added
 
-- **Feature Pipeline CLI** (`apps/feature_pipe/main.py` - 85 lines)
+- **Feature Pipeline CLI** (`trading_gym/data/pipeline/main.py` - 85 lines)
   - Complete CLI wrapper around `build_feature_store()`
   - Supports config selection, timeframe options
   - Comprehensive error handling and logging
   - Impact: GUI feature generation endpoint now functional (was returning 503)
 
-- **Prometheus Metrics Exporter** (`apps/monitoring/exporter.py` - 140 lines)
+- **Prometheus Metrics Exporter** (`trading_gym/core/monitoring_app/exporter.py` - 140 lines)
   - Full HTTP server implementation for metrics scraping
   - Endpoints: `/metrics` (Prometheus format), `/health` (health check)
   - Configurable port/host bindings
@@ -836,7 +848,7 @@ This release delivers a major performance breakthrough in RL training with 3-4x 
 
 #### Production-Grade Alerting
 
-- **Multi-Channel Alert System** (`trading_gym/monitoring/alerting.py`)
+- **Multi-Channel Alert System** (`trading_gym/core/monitoring/alerting.py`)
   - Telegram bot alerts with Markdown formatting
   - Generic webhook integration (Slack, Discord, etc.)
   - Desktop notifications (Windows, macOS, Linux)
@@ -878,7 +890,7 @@ This release delivers a major performance breakthrough in RL training with 3-4x 
 This release adds a production-ready web-based graphical user interface for the trading system, providing real-time monitoring, control, and management capabilities.
 
 #### FastAPI Backend Server
-- **REST API** (`apps/api/main.py`) - 22 endpoints for complete system control
+- **REST API** (`trading_gym/core/legacy_api/main.py`) - 22 endpoints for complete system control
   - Configuration management (get, update, sections)
   - Training control (start, stop, status)
   - Data management (download, generate features)
@@ -920,7 +932,7 @@ This release adds a production-ready web-based graphical user interface for the 
   - Mobile-friendly layout
 
 #### Utilities & Automation
-- **MetricsExporter** (`apps/api/metrics_helper.py`) - Simple metrics export utility
+- **MetricsExporter** (`trading_gym/core/legacy_api/metrics_helper.py`) - Simple metrics export utility
   - Easy integration: `exporter.export(balance, pnl, positions, ...)`
   - Atomic file writes
   - Position tracking
@@ -939,7 +951,7 @@ This release adds a production-ready web-based graphical user interface for the 
 ### Documentation
 - `docs/gui/README.md` - Complete GUI guide with quick start, features, API reference, and troubleshooting
 - `docs/gui/TESTING_GUIDE.md` - Complete testing procedures (600+ lines, 60+ test cases)
-- `apps/api/README.md` - API documentation
+- `trading_gym/core/legacy_api/README.md` - API documentation
 - `frontend/README.md` - Frontend documentation
 
 ### Implementation Statistics
@@ -990,7 +1002,7 @@ This release adds a production-ready web-based graphical user interface for the 
 This release transforms the system into an institutional-grade trading platform with comprehensive enterprise features.
 
 #### Real-Time Data & Connectivity
-- **WebSocket Client** (`trading_gym/adapters/aban_websocket.py`)
+- **WebSocket Client** (`trading_gym/market/adapters/aban_websocket.py`)
   - Real-time market data streaming with <50ms latency (100x improvement over polling)
   - Support for ticker, orderbook L2, trade prints, and user data streams
   - Automatic reconnection with exponential backoff and jitter
@@ -999,7 +1011,7 @@ This release transforms the system into an institutional-grade trading platform 
   - Heartbeat monitoring with timeout detection
 
 #### Risk Management System
-- **Circuit Breakers** (`trading_gym/risk/circuit_breakers.py`)
+- **Circuit Breakers** (`trading_gym/execution/risk/circuit_breakers.py`)
   - 8 configurable safety rules (max loss, loss velocity, slippage breaches, etc.)
   - Automatic position flattening and order cancellation
   - State persistence across restarts
@@ -1011,14 +1023,14 @@ This release transforms the system into an institutional-grade trading platform 
   - Fat-finger protection, concentration limits, dust prevention
 
 #### Observability & Monitoring
-- **Prometheus Metrics** (`trading_gym/monitoring/metrics.py`) - 40+ metrics
-- **Health Checks** (`trading_gym/monitoring/health.py`) - Readiness/liveness probes
-- **Structured Error Taxonomy** (`trading_gym/common/exceptions.py`) - Rich error context
+- **Prometheus Metrics** (`trading_gym/core/monitoring/metrics.py`) - 40+ metrics
+- **Health Checks** (`trading_gym/core/monitoring/health.py`) - Readiness/liveness probes
+- **Structured Error Taxonomy** (`trading_gym/core/exceptions.py`) - Rich error context
 
 #### Configuration & Deployment
-- **Centralized Configuration** (`trading_gym/common/master_config.py`)
-- **Model Versioning & Rollback** (`trading_gym/models/versioning.py`)
-- **Memory-Efficient Structures** (`trading_gym/utils/memory.py`)
+- **Centralized Configuration** (`trading_gym/core/master_config.py`)
+- **Model Versioning & Rollback** (`trading_gym/rl/models/versioning.py`)
+- **Memory-Efficient Structures** (`trading_gym/core/utils/memory.py`)
 
 ### Performance Improvements
 

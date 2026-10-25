@@ -9,8 +9,8 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from apps.api.production import create_production_router
-from trading_gym.production.emergency import EmergencyController
+from trading_gym.core.legacy_api.production import create_production_router
+from trading_gym.execution.production.emergency import EmergencyController
 
 OPERATOR_KEY = "operator-principal-secret-00000000000001"
 APPROVER_KEY = "approver-principal-secret-00000000000002"

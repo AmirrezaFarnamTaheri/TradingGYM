@@ -47,9 +47,9 @@ from trading_gym.agent.working_memory import (
     CautionState,
     WorkingMemory,
 )
-from trading_gym.playground.bridge import RevisionEvidenceBuilder
-from trading_gym.playground.runner import PlaygroundRunSpec
-from trading_gym.strategy_lab.models import (
+from trading_gym.agent.playground.bridge import RevisionEvidenceBuilder
+from trading_gym.agent.playground.runner import PlaygroundRunSpec
+from trading_gym.agent.strategy_lab.models import (
     Condition,
     ConditionGroup,
     IndicatorSpec,

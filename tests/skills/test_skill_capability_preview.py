@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import pytest
 
-from trading_gym.skills.capability_selection import (
+from trading_gym.agent.skills.capability_selection import (
     catalogue_digest,
     preview_capability_selection,
 )
@@ -137,7 +137,7 @@ def test_candidate_count_budget_is_enforced():
 
 
 def test_registry_snapshot_matches_digest_pinned_selection():
-    from trading_gym.skills.quarantine import SkillQuarantineRepository
+    from trading_gym.agent.skills.quarantine import SkillQuarantineRepository
 
     quarantine = SkillQuarantineRepository()
     record = _skill()

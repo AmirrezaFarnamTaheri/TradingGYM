@@ -1,8 +1,8 @@
 import pytest
 import pandas as pd
 from unittest.mock import MagicMock
-from apps.poller.main import Poller
-from trading_gym.adapters.enhanced_aban_client import EnhancedAbanClient
+from trading_gym.data.poller.main import Poller
+from trading_gym.market.adapters.enhanced_aban_client import EnhancedAbanClient
 
 
 @pytest.fixture

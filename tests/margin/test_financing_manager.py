@@ -1,7 +1,7 @@
 import pytest
 import math
-from trading_gym.margin.financing_manager import FinancingRateManager
-from trading_gym.common.config import (
+from trading_gym.execution.margin.financing_manager import FinancingRateManager
+from trading_gym.core.config import (
     AppConfig,
     LeverageConfig,
     FinancingConfig,

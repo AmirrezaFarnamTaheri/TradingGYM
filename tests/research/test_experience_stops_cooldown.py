@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 
 from trading_gym.agent.experience_memory import ExperienceMemory
-from trading_gym.risk.dynamic_stops import atr_series, dynamic_stop, ratchet_take_profit
-from trading_gym.risk.reentry_cooldown import CooldownConfig, ReentryCooldown
+from trading_gym.execution.risk.dynamic_stops import atr_series, dynamic_stop, ratchet_take_profit
+from trading_gym.execution.risk.reentry_cooldown import CooldownConfig, ReentryCooldown
 
 # ---------------------------------------------------------------------------
 # Experience memory (ReasoningBank absorption)

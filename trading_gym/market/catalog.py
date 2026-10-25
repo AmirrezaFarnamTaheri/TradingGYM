@@ -11,18 +11,18 @@ from typing import Annotated, Any
 from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from trading_gym.common.audit_outbox import (
+from trading_gym.core.audit_outbox import (
     deliver_audit_events,
     ensure_audit_outbox,
     queue_audit_event,
 )
-from trading_gym.common.persistence import (
+from trading_gym.core.persistence import (
     atomic_write_json,
     read_json,
     resolve_data_home,
 )
-from trading_gym.common.security import bounded_json_dumps
-from trading_gym.governance.ledger import AuditLedger
+from trading_gym.core.security import bounded_json_dumps
+from trading_gym.execution.governance.ledger import AuditLedger
 
 
 class DatasetState(str, Enum):

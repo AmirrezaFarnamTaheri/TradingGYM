@@ -19,8 +19,8 @@ if str(ROOT) not in sys.path:
 def benchmark(bars: int, repeats: int, library: object) -> dict[str, object]:
     import numpy as np
     import pandas as pd
-    from trading_gym.playground import kernel
-    from trading_gym.strategy_lab.adx import compute_adx
+    from trading_gym.agent.playground import kernel
+    from trading_gym.agent.strategy_lab.adx import compute_adx
 
     rng = np.random.default_rng(917)
     close = 100 + np.cumsum(rng.normal(0, 0.05, bars))
@@ -70,11 +70,11 @@ def main() -> int:
         parser.error("bars must be 15..5000000 and repeat must be 1..20")
     if len(args.bars) > 10:
         parser.error("at most 10 workloads are supported per invocation")
-    from trading_gym.playground import kernel
+    from trading_gym.agent.playground import kernel
 
     library = kernel.load_kernel()
     if library is None or not hasattr(library, "axiom_wilder_adx"):
-        parser.error("ADX kernel unavailable; build rust/axiom_kernel in release mode")
+        parser.error("ADX kernel unavailable; build kernel in release mode")
     results = [benchmark(bars, args.repeat, library) for bars in args.bars]
     print(
         json.dumps(

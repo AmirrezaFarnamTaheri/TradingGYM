@@ -7,9 +7,9 @@ import optuna
 import pandas as pd
 import pytest
 
-from trading_gym.common.config import OptunaConfig, load_app_config
-from trading_gym.pipelines import evaluation, hpo, training
-from trading_gym.pipelines.model_bundle import attach_model_bundle, fit_model_bundle
+from trading_gym.core.config import OptunaConfig, load_app_config
+from trading_gym.rl.pipelines import evaluation, hpo, training
+from trading_gym.rl.pipelines.model_bundle import attach_model_bundle, fit_model_bundle
 
 
 def config():

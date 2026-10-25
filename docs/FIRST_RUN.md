@@ -1,30 +1,21 @@
-# First-run journey and its evidence boundary
+# First run
 
-1. Start the documented local bootstrap or smoke-qualified container candidate.
-   Enter the gateway key in the session screen. A protected read must succeed
-   before workspaces load. The key remains in memory and is cleared on disconnect.
-2. The checklist selects the included 96-bar synthetic example. Run it, follow
-   the durable record and inspect the completed artifact/provenance. A lost POST
-   response keeps the same idempotency key for a deliberate retry. Cancellation
-   shows requested versus confirmed state from the API.
-3. Reopen saved results after reconnecting; this does not launch them again.
-   Run another explicit example to compare the same fixture's results. These
-   figures test the workflow and are not market-performance evidence.
-4. Continue through the existing Data, Training and Models destinations for real
-   research. An empty model registry is a prerequisite to resolve, not a reason
-   to manufacture a model identifier or bypass artifact admission.
-5. The paper control handoff uses the existing trading worker contract. With M04
-   applied, its default per-symbol virtual account persists under the data home;
-   reopening with the same account/configuration resumes it. Model admission,
-   market-read configuration and matching account manifest remain required.
-   No new paper/live control API or automatic funded transition is added here.
-6. System controls expose actual process status. A stop response with remaining
-   children is not displayed as stopped. Panic submission is not a fill receipt.
+Follow the install and build commands in [README](../README.md), then open http://127.0.0.1:8000/.
 
-The installed session → fixture job → inspect/reopen/cancel flow is implemented.
-The complete fresh-install → trained admitted model → persistent paper session
-journey still needs its integrated model/configuration/account acceptance test.
-Container execution, Windows bootstrap behavior, screen-reader usability and
-measured user completion times are separate release evidence. All 13 existing
-panels and four workspaces remain reachable; the checklist supplies task entry
-points without deleting capabilities or claiming a tab count improves outcomes.
+1. Choose English or فارسی in the header. Persian uses right-to-left layout. The language preference persists in this browser.
+2. Open Settings. Enter the Abantether key and save. Existing values are never returned; blank fields retain the saved value. Refresh Abantether and inspect its actual connection status.
+3. Choose markets and risk limits. Observe is the default. Paper mode is a separately labeled virtual account; funded order submission is unavailable.
+4. Wait for observed complete five-minute bars. A new installation has no invented history and needs 14 complete bars for initial signals. Connection failures and missing credentials remain visible.
+5. Start the robot after the source is connected. Live monitor shows recorded head activity, tools and the decision route. Configured heads are distinguished from heads that actually contributed.
+6. Experience lists broker-confirmed executions separately from paper executions. Open a recorded decision to see its market inputs, signals, weights, planner rationale, risk limits and outcome. An imported order may have no matching robot decision.
+7. Optional model gateways are configured in Settings with endpoint, model, enable switch and a key roster. The LLM planner and Decision-1 each have their own roster. Saving a nonempty replacement roster replaces the old list; removing all saved rows clears that roster. No key belongs in a screenshot or issue report.
+
+## شروع فارسی
+
+پس از نصب و ساخت، صفحهٔ محلی را باز کنید و زبان «فارسی» را انتخاب کنید. در تنظیمات، کلید آبان‌تتر را ذخیره و اتصال را تازه‌سازی کنید. حالت پیش‌فرض فقط مشاهده است؛ حالت کاغذی حساب مجازی جداگانه دارد. ارسال سفارش واقعی در این نسخه متصل نیست. سوابق ساختگی نمایش داده نمی‌شود. برای مشاهدهٔ دلیل تصمیم، در بخش سوابق و تجربه، تصمیم ثبت‌شده را باز کنید.
+
+## Storage and recovery
+
+The default account directory is `~/.trading-gym/cockpit-v2`. `tgym serve --home PATH` uses `PATH/cockpit-v2`. Only one server or CLI agent may own this directory. Stop the server before making a consistent backup of the whole directory. SQLite decisions, execution records, observed bars, paper ledger and risk references belong together. Keep encrypted secrets and their protected master file together; Windows DPAPI ties decryption to its local user context. Cross-machine migration requires re-entering credentials. Do not hand-edit ledger or halt files.
+
+Pause blocks entries; Stop ends processing. Emergency flatten affects the paper account, not your exchange holdings. A halted account must be stopped and flat before resetting its risk reference. Review the recorded reason before restarting.

@@ -48,13 +48,13 @@ from trading_gym.agent.strategy_variants import (
     propose_variants,
     validate_range,
 )
-from trading_gym.playground.bridge import (
+from trading_gym.agent.playground.bridge import (
     RevisionEvidenceBuilder,
     evaluate_sealed_windows,
     seal_window,
 )
-from trading_gym.playground.runner import PlaygroundRunSpec
-from trading_gym.strategy_lab.models import StrategySpec
+from trading_gym.agent.playground.runner import PlaygroundRunSpec
+from trading_gym.agent.strategy_lab.models import StrategySpec
 
 __all__ = [
     "MEMORY_TAG",

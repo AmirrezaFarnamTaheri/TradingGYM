@@ -1,60 +1,55 @@
-import React from 'react';
-
+import { translate as t } from "../i18n";
+import React from "react";
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = {
+      hasError: false,
+    };
   }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true };
+  static getDerivedStateFromError() {
+    return {
+      hasError: true,
+    };
   }
-
   componentDidCatch(error, errorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
-    // CRITICAL FIX: Use setState instead of direct assignment
-    this.setState({ hasError: true, error, errorInfo });
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
   }
-
   render() {
     if (this.state.hasError) {
       return (
-        <div className="error-boundary">
-          <div className="error-boundary-content">
-            <h2>⚠️ Something went wrong</h2>
-            <p>An error occurred in this component. The application may not work correctly.</p>
-
-            {this.state.error && (
-              <details className="error-details">
-                <summary>Error Details</summary>
-                <pre>{this.state.error.toString()}</pre>
-                {this.state.errorInfo && (
-                  <pre>{this.state.errorInfo.componentStack}</pre>
-                )}
-              </details>
-            )}
+        <div className="connection-state" role="alert">
+          <div>
+            <h1>{t("The cockpit could not be displayed.")}</h1>
+            <p>
+              {t(
+                "Your agent runs independently. Reload to reconnect and check its status.",
+              )}
+            </p>
 
             <div className="error-actions">
               <button
                 onClick={() => window.location.reload()}
                 className="btn btn-primary"
               >
-                Reload Page
+                {t("Reload Page")}
               </button>
               <button
-                onClick={() => this.setState({ hasError: false, error: null, errorInfo: null })}
+                onClick={() =>
+                  this.setState({
+                    hasError: false,
+                  })
+                }
                 className="btn btn-secondary"
               >
-                Try Again
+                {t("Try Again")}
               </button>
             </div>
           </div>
         </div>
       );
     }
-
     return this.props.children;
   }
 }
-
 export default ErrorBoundary;

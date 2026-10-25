@@ -29,11 +29,11 @@ from trading_gym.agent.tools import (
     ToolRequest,
     ToolRetired,
 )
-from trading_gym.governance.ledger import AuditLedger
-from trading_gym.governance.service import GovernanceService
-from trading_gym.strategy_lab.models import StrategySpec
-from trading_gym.strategy_lab.repository import StrategyRepository
-from trading_gym.strategy_lab.templates import template_catalogue
+from trading_gym.execution.governance.ledger import AuditLedger
+from trading_gym.execution.governance.service import GovernanceService
+from trading_gym.agent.strategy_lab.models import StrategySpec
+from trading_gym.agent.strategy_lab.repository import StrategyRepository
+from trading_gym.agent.strategy_lab.templates import template_catalogue
 
 
 def build_registry(tmp_path: Path) -> SafeToolRegistry:

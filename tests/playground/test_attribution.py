@@ -24,15 +24,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.playground.attribution import (
+from trading_gym.agent.playground.attribution import (
     AttributionBreakdown,
     MonteCarloReport,
     attribute_overlays,
     run_monte_carlo,
 )
-from trading_gym.playground.runner import PlaygroundRunSpec
-from trading_gym.playground.scenarios import Scenario
-from trading_gym.strategy_lab.models import (
+from trading_gym.agent.playground.runner import PlaygroundRunSpec
+from trading_gym.agent.playground.scenarios import Scenario
+from trading_gym.agent.strategy_lab.models import (
     Condition,
     ConditionGroup,
     IndicatorSpec,

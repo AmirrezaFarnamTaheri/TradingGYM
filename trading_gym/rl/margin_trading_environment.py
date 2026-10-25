@@ -9,15 +9,15 @@ import gymnasium as gym
 import numpy as np
 import pandas as pd
 
-from trading_gym.common.config import EnvConfig, FeatureConfig
+from trading_gym.core.config import EnvConfig, FeatureConfig
 from trading_gym.execution.execution_engine import (
     ExecutionEngine,
     ExecutionState,
     MarketSnapshot,
 )
-from trading_gym.margin.lot_positions import LotLedger
-from trading_gym.margin.stop_out import plan_stop_out
-from trading_gym.risk.circuit_breakers import CircuitBreaker
+from trading_gym.execution.margin.lot_positions import LotLedger
+from trading_gym.execution.margin.stop_out import plan_stop_out
+from trading_gym.execution.risk.circuit_breakers import CircuitBreaker
 from trading_gym.execution.rebalance_policy import (
     admit_rebalance,
     net_equity_log_reward,

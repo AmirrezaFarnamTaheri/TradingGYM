@@ -1,5 +1,5 @@
-from axiomforge.decision_lifecycle import DecisionRecord
-from axiomforge.next_level.agent_lab import regime_votes
+from trading_gym.execution.governance.decision_lifecycle import DecisionRecord
+from trading_gym.agent.lab import regime_votes
 
 
 def test_next_level_primitives_are_constructible_and_explainable() -> None:

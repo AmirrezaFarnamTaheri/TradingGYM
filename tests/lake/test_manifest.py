@@ -4,7 +4,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from apps.lake.manifest import write_daily_merkle, write_partition_manifest, verify_lake
+from trading_gym.data.lake_cli.manifest import write_daily_merkle, write_partition_manifest, verify_lake
 
 
 def test_manifest_and_merkle_roundtrip(tmp_path) -> None:

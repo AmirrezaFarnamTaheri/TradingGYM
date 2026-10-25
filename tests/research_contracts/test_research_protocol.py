@@ -4,15 +4,15 @@ import pandas as pd
 import pytest
 import torch
 
-from trading_gym.common.config import OptunaConfig, load_app_config
-from trading_gym.experiments.reproducibility import verify_manifest
-from trading_gym.pipelines import evaluation, hpo
-from trading_gym.pipelines.model_bundle import (
+from trading_gym.core.config import OptunaConfig, load_app_config
+from trading_gym.rl.experiments.reproducibility import verify_manifest
+from trading_gym.rl.pipelines import evaluation, hpo
+from trading_gym.rl.pipelines.model_bundle import (
     FrozenNormalizer,
     attach_model_bundle,
     fit_model_bundle,
 )
-from trading_gym.pipelines.research_protocol import (
+from trading_gym.rl.pipelines.research_protocol import (
     assert_causal_prefix,
     audit_evidence_roles,
     fold_manifest,

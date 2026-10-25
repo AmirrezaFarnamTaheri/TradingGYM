@@ -4,7 +4,7 @@ from dataclasses import replace
 import math
 import pytest
 
-from trading_gym.experiments.peer_strategy_comparison import (
+from trading_gym.rl.experiments.peer_strategy_comparison import (
     StrategyReplay,
     compare_strategy_replays,
 )

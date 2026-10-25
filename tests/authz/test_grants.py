@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from trading_gym.authz.grants import (
+from trading_gym.core.authz.grants import (
     ConstraintViolation,
     GrantLedger,
     GrantLedgerIntegrityError,
@@ -26,7 +26,7 @@ from trading_gym.authz.grants import (
     GrantState,
     ScopeDenied,
 )
-from trading_gym.authz.scopes import ScopeError
+from trading_gym.core.authz.scopes import ScopeError
 
 TEST_WINDOW = "2026-09-01T00:00:00Z"
 # Deliberate, fixed decision clock: these grants expire on 2026-10-01.
@@ -197,7 +197,7 @@ class TestEvaluation:
     ) -> None:
         # Signed historical records must remain parseable for revocation and
         # forensic review, despite being forbidden on new issuance.
-        from trading_gym.authz.grants import Grant
+        from trading_gym.core.authz.grants import Grant
 
         legacy = Grant.from_record(
             {
@@ -281,7 +281,7 @@ def test_new_high_risk_wildcard_grants_are_rejected_without_writing_journal(
 
 
 def test_existing_legacy_grant_record_can_still_be_parsed() -> None:
-    from trading_gym.authz.grants import Grant
+    from trading_gym.core.authz.grants import Grant
 
     legacy = {
         "grant_id": "gw-111111111111",
@@ -622,7 +622,7 @@ class TestConcurrentGrantJournalTransitions:
         first = GrantLedger.open(journal)
         second = GrantLedger.open(journal)
         monkeypatch.setattr(
-            "trading_gym.authz.grants.uuid.uuid4",
+            "trading_gym.core.authz.grants.uuid.uuid4",
             lambda: SimpleNamespace(hex="f" * 32),
         )
 

@@ -4,7 +4,7 @@ from decimal import Decimal as D
 
 import pytest
 
-from trading_gym.risk.derivatives import (
+from trading_gym.execution.risk.derivatives import (
     DerivativePosition,
     DerivativeRiskPolicy,
     analyze_derivative_risk,

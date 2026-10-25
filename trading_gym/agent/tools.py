@@ -28,26 +28,26 @@ from typing import Any, Callable
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from trading_gym.common.security import bounded_json_dumps, redact_secrets
-from trading_gym.convergence import BacktestWorkflowRequest, ConvergenceWorkflowService
-from trading_gym.experiments import ExperimentCreate, ExperimentRepository
-from trading_gym.governance.models import ProposalCreate, RiskTier
-from trading_gym.governance.service import GovernanceService
+from trading_gym.core.security import bounded_json_dumps, redact_secrets
+from trading_gym.core.control_planes import BacktestWorkflowRequest, ConvergenceWorkflowService
+from trading_gym.rl.experiments import ExperimentCreate, ExperimentRepository
+from trading_gym.execution.governance.models import ProposalCreate, RiskTier
+from trading_gym.execution.governance.service import GovernanceService
 from trading_gym.market import InstrumentRegistry
-from trading_gym.research.dossier import build_dossier
-from trading_gym.research.models import EvidenceItem, ResearchDossier
-from trading_gym.research.quality import assess_dossier
-from trading_gym.research.workspace import ResearchWorkspace
-from trading_gym.risk.portfolio import (
+from trading_gym.agent.research.dossier import build_dossier
+from trading_gym.agent.research.models import EvidenceItem, ResearchDossier
+from trading_gym.agent.research.quality import assess_dossier
+from trading_gym.agent.research.workspace import ResearchWorkspace
+from trading_gym.execution.risk.portfolio import (
     PortfolioRiskLimits,
     PortfolioSnapshot,
     evaluate_portfolio_risk,
 )
-from trading_gym.risk.sizing import PositionSizingRequest, size_position
-from trading_gym.strategy_lab.models import StrategySpec
-from trading_gym.strategy_lab.repository import StrategyRepository
-from trading_gym.strategy_lab.templates import template_catalogue
-from trading_gym.strategy_lab.validation import validate_strategy_spec
+from trading_gym.execution.risk.sizing import PositionSizingRequest, size_position
+from trading_gym.agent.strategy_lab.models import StrategySpec
+from trading_gym.agent.strategy_lab.repository import StrategyRepository
+from trading_gym.agent.strategy_lab.templates import template_catalogue
+from trading_gym.agent.strategy_lab.validation import validate_strategy_spec
 
 __all__ = [
     "SafeToolRegistry",

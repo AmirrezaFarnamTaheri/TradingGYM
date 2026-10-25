@@ -2,7 +2,7 @@
 
 import pytest
 
-from apps.api import main as api
+from trading_gym.core.legacy_api import main as api
 
 
 @pytest.mark.asyncio

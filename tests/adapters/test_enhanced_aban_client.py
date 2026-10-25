@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 from decimal import Decimal
-from trading_gym.adapters.enhanced_aban_client import (
+from trading_gym.market.adapters.enhanced_aban_client import (
     EnhancedAbanClient,
     OrderSide,
 )
@@ -14,14 +14,14 @@ class TestEnhancedAbanClient(unittest.TestCase):
 
         # Mock the SDK client class to return our mock instance
         self.patcher = patch(
-            "trading_gym.adapters.enhanced_aban_client.AbantetherClient",
+            "trading_gym.market.adapters.enhanced_aban_client.AbantetherClient",
             return_value=self.mock_sdk_client,
         )
         self.patcher.start()
 
         # We also need to mock GlobalRateLimiter to avoid sleeps
         self.limiter_patcher = patch(
-            "trading_gym.adapters.enhanced_aban_client.GlobalRateLimiter"
+            "trading_gym.market.adapters.enhanced_aban_client.GlobalRateLimiter"
         )
         self.mock_limiter_cls = self.limiter_patcher.start()
         self.mock_limiter = self.mock_limiter_cls.get_instance.return_value
@@ -165,7 +165,7 @@ class TestEnhancedAbanClient(unittest.TestCase):
         klines = self.client.get_klines("BTC", "1m")
         self.assertEqual(len(klines), 2)
 
-    @patch("trading_gym.adapters.enhanced_aban_client.time.sleep", return_value=None)
+    @patch("trading_gym.market.adapters.enhanced_aban_client.time.sleep", return_value=None)
     def test_get_request_retries_transient_failure(self, _sleep):
         self.mock_sdk_client.balance = Mock(
             side_effect=[TimeoutError("temporary"), {"data": []}]
@@ -176,7 +176,7 @@ class TestEnhancedAbanClient(unittest.TestCase):
         self.assertEqual(result, {"data": []})
         self.assertEqual(self.mock_sdk_client.balance.call_count, 2)
 
-    @patch("trading_gym.adapters.enhanced_aban_client.time.sleep", return_value=None)
+    @patch("trading_gym.market.adapters.enhanced_aban_client.time.sleep", return_value=None)
     def test_post_request_is_never_automatically_retried(self, _sleep):
         self.mock_sdk_client.place_market_order = Mock(
             side_effect=TimeoutError("ambiguous order result")
@@ -189,13 +189,13 @@ class TestEnhancedAbanClient(unittest.TestCase):
 
         self.assertEqual(self.mock_sdk_client.place_market_order.call_count, 1)
 
-    @patch("trading_gym.adapters.enhanced_aban_client.time.sleep", return_value=None)
+    @patch("trading_gym.market.adapters.enhanced_aban_client.time.sleep", return_value=None)
     def test_exception_content_is_not_logged(self, _sleep):
         self.mock_sdk_client.balance = Mock(
             side_effect=RuntimeError("authorization=super-secret-token")
         )
         with self.assertLogs(
-            "trading_gym.adapters.enhanced_aban_client", level="WARNING"
+            "trading_gym.market.adapters.enhanced_aban_client", level="WARNING"
         ) as captured:
             with self.assertRaises(RuntimeError):
                 self.client._make_request("GET", "balance")

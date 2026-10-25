@@ -13,7 +13,7 @@ import json
 import httpx
 import pytest
 
-from trading_gym.intelligence.llm_key_pool import (
+from trading_gym.agent.intelligence.llm_key_pool import (
     CredentialPool,
     CredentialsUnavailable,
     ProviderAuthenticationError,
@@ -158,7 +158,7 @@ def test_transient_429_still_honors_shared_provider_retry_cooldown(
 
 
 def test_all_invalid_keys_remain_auth_denied_after_restart(tmp_path: Path) -> None:
-    from trading_gym.intelligence.llm_key_pool import (
+    from trading_gym.agent.intelligence.llm_key_pool import (
         ProviderAuthenticationError,
     )
 
@@ -182,10 +182,10 @@ def test_authentication_denial_is_non_degradable_at_transport_boundary(
     monkeypatch: pytest.MonkeyPatch, transport_name: str
 ) -> None:
     from trading_gym.agent.providers import ProviderConfig, ProviderKind
-    from trading_gym.intelligence.llm_key_pool import (
+    from trading_gym.agent.intelligence.llm_key_pool import (
         ProviderAuthenticationError,
     )
-    from trading_gym.intelligence import llm_backend, systemone_native_backend
+    from trading_gym.agent.intelligence import llm_backend, systemone_native_backend
 
     config = ProviderConfig(
         provider_id="owned-fast-model",
@@ -240,8 +240,8 @@ def test_unpooled_direct_http_status_cannot_authorize_rules_fallback(
 ) -> None:
     """Local/proxy HTTP paths need the same non-degradable 4xx semantics."""
     from trading_gym.agent.providers import ProviderConfig, ProviderKind
-    from trading_gym.intelligence.llm_backend import httpx_transport
-    from trading_gym.intelligence.systemone_native_backend import (
+    from trading_gym.agent.intelligence.llm_backend import httpx_transport
+    from trading_gym.agent.intelligence.systemone_native_backend import (
         httpx_systemone_transport,
     )
 
@@ -284,11 +284,11 @@ def test_unpooled_transient_rate_limit_is_still_provider_unavailable(
     monkeypatch: pytest.MonkeyPatch, mock_httpx_client, protocol: str
 ) -> None:
     from trading_gym.agent.providers import ProviderConfig, ProviderKind
-    from trading_gym.intelligence.llm_backend import httpx_transport
-    from trading_gym.intelligence.systemone_native_backend import (
+    from trading_gym.agent.intelligence.llm_backend import httpx_transport
+    from trading_gym.agent.intelligence.systemone_native_backend import (
         httpx_systemone_transport,
     )
-    from trading_gym.intelligence.types import BackendUnavailable
+    from trading_gym.agent.intelligence.types import BackendUnavailable
 
     attempted = []
 

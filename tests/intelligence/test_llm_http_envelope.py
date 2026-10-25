@@ -8,12 +8,12 @@ import httpx
 import pytest
 
 from trading_gym.agent.providers import ProviderConfig, ProviderKind
-from trading_gym.intelligence.llm_backend import (
+from trading_gym.agent.intelligence.llm_backend import (
     LLMTransportResponse,
     httpx_transport,
 )
-from trading_gym.intelligence.system1_backend import System1DecisionBackend
-from trading_gym.intelligence.types import InvalidDecisionSignal, MarketContext
+from trading_gym.agent.intelligence.system1_backend import System1DecisionBackend
+from trading_gym.agent.intelligence.types import InvalidDecisionSignal, MarketContext
 
 
 def _config() -> ProviderConfig:
@@ -58,7 +58,7 @@ def test_successful_http_with_invalid_evidence_is_terminal_not_provider_outage(
     error_type,
     expected_error: str,
 ) -> None:
-    from trading_gym.common import security
+    from trading_gym.core import security
 
     seen = []
 
@@ -83,7 +83,7 @@ def test_valid_success_envelope_keeps_normal_transport_behavior(
     monkeypatch: pytest.MonkeyPatch,
     mock_httpx_client,
 ) -> None:
-    from trading_gym.common import security
+    from trading_gym.core import security
 
     body = json.dumps({"choices": [{"message": {"content": "hello"}}]}).encode()
 

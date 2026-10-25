@@ -8,13 +8,13 @@ import numpy as np
 import pandas as pd
 from stable_baselines3.common.base_class import BaseAlgorithm
 
-from apps.common.live_features import LiveFeatureSnapshot
-from apps.common.trade_loop import trade_loop
-from trading_gym.adapters.enhanced_aban_client import EnhancedAbanClient
-from trading_gym.common.config import load_app_config, PaperTraderConfig
+from trading_gym.data.live_features import LiveFeatureSnapshot
+from trading_gym.execution.trade_loop import trade_loop
+from trading_gym.market.adapters.enhanced_aban_client import EnhancedAbanClient
+from trading_gym.core.config import load_app_config, PaperTraderConfig
 from trading_gym.execution.live_execution_adapter import LiveExecutionAdapter
 from trading_gym.execution.paper_execution_adapter import PaperExecutionAdapter
-from trading_gym.intelligence.decision_journal import DecisionJournal
+from trading_gym.agent.intelligence.decision_journal import DecisionJournal
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
 
 
@@ -94,14 +94,14 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
             ("write_heartbeat", None),
             ("panic_requested", False),
         ):
-            patcher = patch(f"apps.common.trade_loop.{name}", return_value=value)
+            patcher = patch(f"trading_gym.execution.trade_loop.{name}", return_value=value)
             patcher.start()
             self.addCleanup(patcher.stop)
 
     def decision_journal(self):
         return DecisionJournal(self.data_home / "intelligence" / "decisions.sqlite3")
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_panic_arriving_during_model_inference_prevents_live_reconciliation(
         self, mock_sleep, mock_writer
@@ -117,11 +117,11 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.model.predict.side_effect = infer_then_request_panic
         with (
             patch(
-                "apps.common.trade_loop.panic_requested",
+                "trading_gym.execution.trade_loop.panic_requested",
                 side_effect=lambda: pending["raised"],
             ),
             patch(
-                "apps.common.trade_loop.handle_panic_request",
+                "trading_gym.execution.trade_loop.handle_panic_request",
                 new_callable=AsyncMock,
                 return_value=True,
             ) as flatten,
@@ -139,7 +139,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.env.step.assert_not_called()
         mock_writer.return_value.write.assert_not_called()
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_trade_loop_simulation_basic(self, mock_sleep, MockMetricsWriter):
         mock_sleep.side_effect = [None, RuntimeError("Stop Loop")]
@@ -171,7 +171,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         )
         self.assertGreater(args["positions"][0]["entry_price"], 0)
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_trade_loop_live_adapter(self, mock_sleep, MockMetricsWriter):
         self.use_environment(live=True)
@@ -207,7 +207,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(journal.events(kind="fill"), ())
         self.assertEqual(journal.events(kind="settlement"), ())
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_paper_account_owns_settlement_without_environment_stepping(
         self, mock_sleep, mock_writer
@@ -250,7 +250,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
             metrics["positions"][0]["size"], float(paper._get_net_position())
         )
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_trade_loop_error_handling(self, mock_sleep, MockMetricsWriter):
         self.model.predict.side_effect = ValueError("Data Error")
@@ -260,7 +260,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(self.model.predict.call_count, 5)
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_unknown_adapter_status_does_not_publish_success(
         self, mock_sleep, mock_writer
@@ -279,7 +279,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.env.step.assert_not_called()
         mock_writer.return_value.write.assert_not_called()
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_rejected_short_entry_is_not_reported_as_success(
         self, mock_sleep, mock_writer
@@ -305,7 +305,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.env.step.assert_not_called()
         mock_writer.return_value.write.assert_not_called()
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_optional_metrics_failure_does_not_stop_healthy_trading(
         self, mock_sleep, mock_writer
@@ -318,7 +318,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.model.predict.call_count, 2)
         self.assertEqual(output.write.call_count, 2)
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_optional_metrics_writer_initialization_recovers(
         self, mock_sleep, mock_writer
@@ -332,7 +332,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(mock_writer.call_count, 2)
         writer.write.assert_called_once()
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_provider_failure_backoff_restores_healthy_fast_cadence(
         self, mock_sleep, mock_writer
@@ -347,7 +347,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         intervals = [call.args[0] for call in mock_sleep.await_args_list]
         self.assertEqual(intervals, [2.0, 1.0])
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_subminimum_execution_skip_preserves_real_position_and_telemetry(
         self, mock_sleep, mock_writer
@@ -373,9 +373,9 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         metrics = mock_writer.return_value.write.call_args.args[0]
         self.assertEqual(metrics["positions"][0]["size"], 0.05)
 
-    @patch("apps.common.trade_loop.panic_requested", return_value=True)
-    @patch("apps.common.trade_loop.handle_panic_request", new_callable=AsyncMock)
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.panic_requested", return_value=True)
+    @patch("trading_gym.execution.trade_loop.handle_panic_request", new_callable=AsyncMock)
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     async def test_failed_panic_flatten_halts_worker_without_repeating(
         self, mock_writer, mock_handle_panic, mock_panic_requested
     ):
@@ -393,7 +393,7 @@ class TestTradeLoop(unittest.IsolatedAsyncioTestCase):
         self.live_adapter.reconcile.assert_not_called()
         mock_writer.return_value.write.assert_not_called()
 
-    @patch("apps.common.trade_loop.MetricsWriter")
+    @patch("trading_gym.execution.trade_loop.MetricsWriter")
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_failed_live_reconciliation_halts_without_retrying_next_bar(
         self, mock_sleep, mock_writer

@@ -25,8 +25,8 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from apps.api.authz_router import create_authz_router
-from trading_gym.authz.grants import GrantLedger, GrantRequest
+from trading_gym.core.legacy_api.authz_router import create_authz_router
+from trading_gym.core.authz.grants import GrantLedger, GrantRequest
 
 OPERATOR_SECRET = "operator-secret-0123456789abcdef0123"
 AGENT_SECRET = "agent-secret-0123456789abcdef0123456"

@@ -1,10 +1,12 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # Training & Simulation
 
 This section covers the lifecycle of creating, training, and validating a model. It includes high-level workflows as well as deep dives into the PPO algorithm, optimization techniques, and monitoring.
 
 ## 1. The Training Pipeline
 
-Training is managed by `apps/trainer/main.py` and orchestrated by `trading_gym/pipelines/training.py`. The pipeline handles:
+Training is managed by `trading_gym/rl/trainer/main.py` and orchestrated by `trading_gym/rl/pipelines/training.py`. The pipeline handles:
 1. Data loading and normalization statistics calculation
 2. Environment creation with vectorization
 3. PPO agent initialization with configurable hyperparameters
@@ -72,7 +74,7 @@ Key hyperparameters to tune in `config/app.yaml`:
 
 ## 3. Simulation (Backtesting)
 
-Once a model is trained, we must rigorously validate it using the Simulator (`apps/simulator`).
+Once a model is trained, we must rigorously validate it using the Simulator (`trading_gym/rl/simulator`).
 
 ### Methodology
 *   **In-Sample (IS):** Data used during training. Confirms the model *learned*.
@@ -89,10 +91,10 @@ The simulator produces a PDF report containing:
 
 **Training:**
 ```bash
-python -m apps.trainer.main train --config config/training_t4.yaml
+python -m trading_gym.rl.trainer.main train --config config/training_t4.yaml
 ```
 
 **Backtesting:**
 ```bash
-python -m apps.simulator.main run --model-path checkpoints/my_run/best_model.zip
+python -m trading_gym.rl.simulator.main run --model-path checkpoints/my_run/best_model.zip
 ```

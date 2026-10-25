@@ -26,9 +26,9 @@ from typing import Any, Sequence, SupportsFloat, SupportsIndex, cast
 import numpy as np
 
 from trading_gym.agent.arms.base import ArmRegistry, ArmTier, BackendArm, CostModel
-from trading_gym.intelligence.base import IntelligenceBackend
-from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.base import IntelligenceBackend
+from trading_gym.agent.intelligence.rule_backend import DeterministicRuleBackend
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     BackendHealth,
     DecisionSignal,
@@ -192,7 +192,7 @@ class StatisticsArmBackend(IntelligenceBackend):
         return BackendHealth(name=self.name, available=True, detail="psr-battery")
 
     def decide(self, context: MarketContext) -> DecisionSignal:
-        from trading_gym.research.statistical_validation import (
+        from trading_gym.agent.research.statistical_validation import (
             min_track_record_length,
             probabilistic_sharpe_ratio,
         )
@@ -341,17 +341,18 @@ def default_registry(
     rl_model: Any | None = None,
     llm_backend: IntelligenceBackend | None = None,
     system1_backends: Sequence[IntelligenceBackend] = (),
+    max_position_units: float = 10.0,
 ) -> ArmRegistry:
     """Build the default octopus roster from the available capability set."""
 
-    from trading_gym.intelligence.rl_backend import RLPolicyBackend
+    from trading_gym.agent.intelligence.rl_backend import RLPolicyBackend
 
     registry = ArmRegistry()
     rules = rule_backend or DeterministicRuleBackend()
 
     # One guarded rules channel: the guard constrains the vote rather than
     # presenting a second alias as independent evidence.
-    guarded = RiskGuardBackend(rules)
+    guarded = RiskGuardBackend(rules, max_position_units=max_position_units)
     registry.register(
         BackendArm(
             backend=guarded,

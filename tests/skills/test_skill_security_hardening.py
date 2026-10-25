@@ -2,9 +2,9 @@
 
 import pytest
 
-from trading_gym.skills.intake import inspect_skill_package
-from trading_gym.skills.quarantine import SkillQuarantineRepository
-from trading_gym.skills.static_assurance import (
+from trading_gym.agent.skills.intake import inspect_skill_package
+from trading_gym.agent.skills.quarantine import SkillQuarantineRepository
+from trading_gym.agent.skills.static_assurance import (
     assess_skill_static,
     assess_workflow_static,
 )

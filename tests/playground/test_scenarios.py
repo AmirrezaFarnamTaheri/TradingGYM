@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.playground.scenarios import (
+from trading_gym.agent.playground.scenarios import (
     OverlayError,
     Scenario,
     ScenarioWindow,
@@ -29,7 +29,7 @@ from trading_gym.playground.scenarios import (
     gap_injection,
     stale_feed,
 )
-from trading_gym.strategy_lab.evaluator import validate_market_frame
+from trading_gym.agent.strategy_lab.evaluator import validate_market_frame
 
 
 def make_frame(n: int = 120, seed: int = 7) -> pd.DataFrame:

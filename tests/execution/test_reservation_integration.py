@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from trading_gym.adapters.enhanced_aban_client import (
+from trading_gym.market.adapters.enhanced_aban_client import (
     Balance,
     EnhancedAbanClient,
     OrderResponse,
@@ -20,12 +20,12 @@ from trading_gym.adapters.enhanced_aban_client import (
     OrderStatus,
 )
 from trading_gym.execution.live_execution_adapter import LiveExecutionAdapter
-from trading_gym.production.mutation_retry import (
+from trading_gym.execution.production.mutation_retry import (
     MutationOutbox,
     MutationOutcomeUnknown,
     MutationRetryPolicy,
 )
-from axiomforge.live_trading import LiveConsent
+from trading_gym.execution.live_trading import LiveConsent
 
 D = Decimal
 
@@ -325,7 +325,7 @@ def test_broker_blocked_funds_are_not_available_for_new_order(config, client):
     ]
     ledger = adapter._ensure_reservation_ledger()
     assert ledger.available_balance("USDT") == D("100")
-    from trading_gym.treasury.reservations import ReservationError
+    from trading_gym.execution.treasury.reservations import ReservationError
 
     with pytest.raises(ReservationError, match="insufficient"):
         ledger.reserve(order_id="over", currency="USDT", amount=D("200"))
@@ -334,7 +334,7 @@ def test_broker_blocked_funds_are_not_available_for_new_order(config, client):
 
 @pytest.mark.asyncio
 async def test_commit_bookkeeping_failure_never_reports_order_success(config, client):
-    from trading_gym.treasury.reservations import ReservationLedger
+    from trading_gym.execution.treasury.reservations import ReservationLedger
 
     adapter = _adapter(config, client)
     adapter._get_net_position = MagicMock(return_value=D("0"))

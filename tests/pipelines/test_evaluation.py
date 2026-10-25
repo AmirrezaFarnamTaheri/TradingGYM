@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.baselines.strategies import BuyAndHoldStrategy
-from trading_gym.pipelines import evaluation
+from trading_gym.rl.baselines.strategies import BuyAndHoldStrategy
+from trading_gym.rl.pipelines import evaluation
 
 
 @pytest.fixture

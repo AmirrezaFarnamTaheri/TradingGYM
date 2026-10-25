@@ -24,9 +24,9 @@ from trading_gym.agent.arms import ArmRegistry, ArmTier, BackendArm, CostModel
 from trading_gym.agent.arms.factory import RiskGuardBackend
 from trading_gym.agent.fusion import DisagreementEscalated, FusionConfig
 from trading_gym.agent.planner import TierCascadePlanner
-from trading_gym.authz.grants import GrantLedger, GrantRequest
-from trading_gym.intelligence.rule_backend import DeterministicRuleBackend
-from trading_gym.intelligence.types import (
+from trading_gym.core.authz.grants import GrantLedger, GrantRequest
+from trading_gym.agent.intelligence.rule_backend import DeterministicRuleBackend
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     DecisionSignal,
     MarketContext,
@@ -143,7 +143,7 @@ def make_grants(tmp_path) -> GrantLedger:  # type: ignore[no-untyped-def]
 
 
 def test_golden_path_regime_shift_to_approved_flatten(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    from axiomforge.decision_lifecycle import DecisionRecord, transition
+    from trading_gym.execution.governance.decision_lifecycle import DecisionRecord, transition
 
     planner = TierCascadePlanner(
         build_registry(),

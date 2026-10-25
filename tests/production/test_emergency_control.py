@@ -1,6 +1,6 @@
 import pytest
 
-from trading_gym.production.emergency import (
+from trading_gym.execution.production.emergency import (
     EmergencyController,
     EmergencyState,
     apply_emergency,

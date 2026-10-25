@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from apps.trainer import update
+from trading_gym.rl.trainer import update
 
 
 class DummyModel:

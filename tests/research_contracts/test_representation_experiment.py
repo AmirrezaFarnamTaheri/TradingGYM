@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.research.representation_experiment import (
+from trading_gym.agent.research.representation_experiment import (
     _legacy_weights,
     fit_representation,
     local_account_vector,

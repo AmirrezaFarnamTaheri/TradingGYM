@@ -5,7 +5,7 @@ import math
 import pytest
 from pydantic import ValidationError
 
-from trading_gym.risk.portfolio import (
+from trading_gym.execution.risk.portfolio import (
     PortfolioRiskLimits,
     PortfolioSnapshot,
     PositionExposure,

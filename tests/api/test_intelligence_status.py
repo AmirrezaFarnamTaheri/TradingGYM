@@ -9,12 +9,12 @@ import numpy as np  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
 
-from apps.api.intelligence import create_intelligence_router  # noqa: E402
-from trading_gym.common.intelligence_config import (  # noqa: E402
+from trading_gym.core.legacy_api.intelligence import create_intelligence_router  # noqa: E402
+from trading_gym.core.intelligence_config import (  # noqa: E402
     IntelligenceConfig,
     IntelligenceMode,
 )
-from trading_gym.intelligence.wiring import (  # noqa: E402
+from trading_gym.agent.intelligence.wiring import (  # noqa: E402
     build_trading_policy,
     mode_requires_model,
 )
@@ -190,7 +190,7 @@ def test_build_trading_policy_rules_mode_returns_adapter():
 def test_optional_provider_probe_failure_does_not_take_down_backend_status(
     tmp_path, monkeypatch
 ):
-    import apps.api.intelligence as intelligence
+    import trading_gym.core.legacy_api.intelligence as intelligence
 
     def probe(cfg, timeout_seconds):
         if cfg.provider_id == "local-ollama":
@@ -240,7 +240,7 @@ def test_optional_provider_inventory_corruption_preserves_rules_status(tmp_path)
 def test_auto_status_prefers_healthy_llm_and_probes_with_bounded_budget(
     tmp_path, monkeypatch
 ):
-    import apps.api.intelligence as intelligence
+    import trading_gym.core.legacy_api.intelligence as intelligence
     import json
 
     calls = []
@@ -273,7 +273,7 @@ def test_status_validates_operator_probe_budget(tmp_path):
 
 
 def test_status_exposes_system1_fleet_without_credential_values(tmp_path, monkeypatch):
-    import apps.api.intelligence as intelligence
+    import trading_gym.core.legacy_api.intelligence as intelligence
 
     monkeypatch.setattr(
         intelligence,
@@ -305,7 +305,7 @@ def test_status_exposes_system1_fleet_without_credential_values(tmp_path, monkey
 def test_status_does_not_fabricate_healthy_system1_when_probe_fails(
     tmp_path, monkeypatch
 ):
-    import apps.api.intelligence as intelligence
+    import trading_gym.core.legacy_api.intelligence as intelligence
 
     monkeypatch.setattr(
         intelligence,
@@ -333,11 +333,11 @@ def test_status_does_not_fabricate_healthy_system1_when_probe_fails(
 def test_status_exposes_read_only_request_budget_and_depleted_model(
     tmp_path, monkeypatch
 ):
-    import apps.api.intelligence as intelligence
+    import trading_gym.core.legacy_api.intelligence as intelligence
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from trading_gym.agent.providers import ProviderConfig, ProviderKind
-    from trading_gym.intelligence.llm_request_budget import ProviderRequestBudget
+    from trading_gym.agent.intelligence.llm_request_budget import ProviderRequestBudget
 
     class CappedRepo:
         def list(self):
@@ -384,7 +384,7 @@ def test_status_exposes_read_only_request_budget_and_depleted_model(
 
 
 def test_status_does_not_expose_corrupt_request_budget_details(tmp_path, monkeypatch):
-    import apps.api.intelligence as intelligence
+    import trading_gym.core.legacy_api.intelligence as intelligence
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
     from trading_gym.agent.providers import ProviderConfig, ProviderKind

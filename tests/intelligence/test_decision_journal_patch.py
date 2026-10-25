@@ -1,10 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
 import pytest
-from trading_gym.intelligence.decision_journal import (
+from trading_gym.agent.intelligence.decision_journal import (
     DecisionJournal,
     DecisionJournalConflict,
 )
-from trading_gym.intelligence.types import DecisionSignal, ActionKind
+from trading_gym.agent.intelligence.types import DecisionSignal, ActionKind
 
 
 def record(journal, **updates):
@@ -138,8 +138,8 @@ def test_late_import_cannot_rewrite_historical_availability(tmp_path):
 def test_fusion_contributors_survive_every_branch_and_journal(
     tmp_path, kind, target, confidence
 ):
-    from trading_gym.intelligence.fusion_backend import FusionBackend
-    from trading_gym.intelligence.types import MarketContext
+    from trading_gym.agent.intelligence.fusion_backend import FusionBackend
+    from trading_gym.agent.intelligence.types import MarketContext
 
     class Governor:
         def __init__(self, identity):

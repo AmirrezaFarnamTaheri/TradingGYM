@@ -9,8 +9,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.common.config import load_app_config
-from trading_gym.pipelines.model_bundle import (
+from trading_gym.core.config import load_app_config
+from trading_gym.rl.pipelines.model_bundle import (
     BUNDLE_ATTRIBUTE,
     FrozenNormalizer,
     ModelBundle,
@@ -135,7 +135,7 @@ def test_duplicate_or_nonfinite_metadata_is_rejected(tmp_path):
 
 def test_environment_factory_requires_explicit_fitted_statistics():
     # This check precedes importing the optional Gym implementation.
-    from trading_gym.pipelines.environment import create_environment
+    from trading_gym.rl.pipelines.environment import create_environment
 
     with pytest.raises(ValueError, match="frozen training_stats required"):
         create_environment(cfg(), {"features": frame()})

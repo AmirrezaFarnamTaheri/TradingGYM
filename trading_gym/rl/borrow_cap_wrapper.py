@@ -15,8 +15,8 @@ import logging
 
 # Change import to avoid circular dependency or missing import from __init__
 # We import directly from the implementation files
-from trading_gym.common.config import BorrowCapConfig
-from trading_gym.margin.borrow_caps import clip_short_quantity
+from trading_gym.core.config import BorrowCapConfig
+from trading_gym.execution.margin.borrow_caps import clip_short_quantity
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class BorrowCapEnvWrapper(gym.Wrapper):
 
     Usage:
         >>> from trading_gym.rl import BorrowCapEnvWrapper
-        >>> from trading_gym.margin import BorrowCapConfig
+        >>> from trading_gym.execution.margin import BorrowCapConfig
         >>>
         >>> # Your base environment
         >>> env = YourTradingEnv()

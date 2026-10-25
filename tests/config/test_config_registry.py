@@ -1,4 +1,4 @@
-from trading_gym.common.config_registry import ConfigRegistry
+from trading_gym.core.config_registry import ConfigRegistry
 
 
 def test_config_registry_deep_composes_layers_and_hashes_snapshot() -> None:

@@ -27,9 +27,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from apps.api.forge_router import create_forge_router
-from trading_gym.authz.grants import GrantLedger, GrantRequest
-from trading_gym.strategy_lab.templates import template_catalogue
+from trading_gym.core.legacy_api.forge_router import create_forge_router
+from trading_gym.core.authz.grants import GrantLedger, GrantRequest
+from trading_gym.agent.strategy_lab.templates import template_catalogue
 
 OPERATOR_SECRET = "operator-secret-0123456789abcdef0123"
 AGENT_SECRET = "agent-secret-0123456789abcdef0123456"
@@ -218,7 +218,7 @@ class TestStrategyEndpoints:
             )
             .json()
         )
-        from trading_gym.strategy_lab.models import StrategySpec
+        from trading_gym.agent.strategy_lab.models import StrategySpec
 
         StrategySpec.model_validate(body["templates"]["sma_crossover"])
 

@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from trading_gym.strategy_lab.factor_catalogue import (  # noqa: E402
+from trading_gym.agent.strategy_lab.factor_catalogue import (  # noqa: E402
     FactorCandidate,
     build_factor_catalogue,
 )

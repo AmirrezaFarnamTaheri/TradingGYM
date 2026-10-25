@@ -9,15 +9,15 @@ import pandas as pd
 import pytest
 import yaml
 
-from trading_gym.common.config import EnvConfig, FeatureConfig, TrainingConfig
-from trading_gym.intelligence.deployment_experiment import (
+from trading_gym.core.config import EnvConfig, FeatureConfig, TrainingConfig
+from trading_gym.agent.intelligence.deployment_experiment import (
     ONNXStudent,
     export_linear_student,
     fit_linear_student,
     measure_student_parity,
     prepare_observations,
 )
-from trading_gym.pipelines.model_bundle import fit_model_bundle
+from trading_gym.rl.pipelines.model_bundle import fit_model_bundle
 
 pytest.importorskip(
     "onnx",

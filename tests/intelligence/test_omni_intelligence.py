@@ -6,7 +6,7 @@ from dataclasses import asdict
 import numpy as np
 import pytest
 
-from trading_gym.intelligence import (
+from trading_gym.agent.intelligence import (
     IntelligenceBackend,
     BackendRegistry,
     DecisionSignal,
@@ -18,13 +18,13 @@ from trading_gym.intelligence import (
     RLPolicyBackend,
     build_intelligence_policy,
 )
-from trading_gym.intelligence.llm_backend import LLMTransportResponse
-from trading_gym.intelligence.operating_state import (
+from trading_gym.agent.intelligence.llm_backend import LLMTransportResponse
+from trading_gym.agent.intelligence.operating_state import (
     OperatingPolicy,
     OperatingSnapshot,
     fallback_guard,
 )
-from trading_gym.intelligence.types import ActionKind, BackendUnavailable
+from trading_gym.agent.intelligence.types import ActionKind, BackendUnavailable
 
 
 def _ctx(**over):
@@ -250,7 +250,7 @@ class _Scripted(IntelligenceBackend):
         return not self.error
 
     def health(self):
-        from trading_gym.intelligence.types import BackendHealth
+        from trading_gym.agent.intelligence.types import BackendHealth
 
         return BackendHealth(name=self.name, available=self.is_available())
 
@@ -340,7 +340,7 @@ def test_registry_walks_priority_then_exhausts():
 
 
 def test_factory_rl_mode_returns_none_legacy_safe():
-    from trading_gym.common.intelligence_config import (
+    from trading_gym.core.intelligence_config import (
         IntelligenceConfig,
         IntelligenceMode,
     )
@@ -357,7 +357,7 @@ def test_factory_rl_mode_returns_none_legacy_safe():
 
 
 def test_factory_rules_mode_builds_working_policy():
-    from trading_gym.common.intelligence_config import (
+    from trading_gym.core.intelligence_config import (
         IntelligenceConfig,
         IntelligenceMode,
     )
@@ -373,8 +373,8 @@ def test_factory_rules_mode_builds_working_policy():
 
 
 def test_app_config_accepts_optional_intelligence_section():
-    from trading_gym.common.config import AppConfig
-    from trading_gym.common.intelligence_config import (
+    from trading_gym.core.config import AppConfig
+    from trading_gym.core.intelligence_config import (
         IntelligenceConfig as IC,
         IntelligenceMode,
     )
@@ -397,7 +397,7 @@ def test_llm_health_with_injected_transport_never_probes():
 
 
 def test_llm_health_reports_provider_status_without_name_error(monkeypatch):
-    import trading_gym.intelligence.llm_backend as mod
+    import trading_gym.agent.intelligence.llm_backend as mod
     from trading_gym.agent.providers import ProviderConfig, ProviderKind
 
     probes = []
@@ -473,7 +473,7 @@ def test_fusion_executor_outage_uses_explicit_rules_fallback():
 
 
 def test_llm_inference_does_not_depend_on_an_unrelated_health_endpoint(monkeypatch):
-    import trading_gym.intelligence.llm_backend as mod
+    import trading_gym.agent.intelligence.llm_backend as mod
 
     llm, transport = _llm_with(
         '{"action":"long","target_leverage":1,"confidence":0.8,"rationale":"fixture"}'
@@ -490,7 +490,7 @@ def test_llm_inference_does_not_depend_on_an_unrelated_health_endpoint(monkeypat
 
 
 def test_llm_health_probe_exception_isolated_without_secret_leak(monkeypatch):
-    import trading_gym.intelligence.llm_backend as mod
+    import trading_gym.agent.intelligence.llm_backend as mod
     from trading_gym.agent.providers import ProviderConfig, ProviderKind
 
     cfg = ProviderConfig(
@@ -526,11 +526,11 @@ def test_llm_rejects_oversized_response_without_parser_work():
 
 def test_model_free_auto_uses_healthy_llm_instead_of_rules(monkeypatch):
     from trading_gym.agent.providers import ProviderConfig, ProviderKind
-    from trading_gym.common.intelligence_config import (
+    from trading_gym.core.intelligence_config import (
         IntelligenceConfig,
         IntelligenceMode,
     )
-    from trading_gym.intelligence.llm_backend import LLMDecisionBackend
+    from trading_gym.agent.intelligence.llm_backend import LLMDecisionBackend
 
     config = ProviderConfig(
         provider_id="local-model",
@@ -558,7 +558,7 @@ def test_model_free_auto_uses_healthy_llm_instead_of_rules(monkeypatch):
 
 
 def test_model_free_auto_degrades_to_rules_without_provider():
-    from trading_gym.common.intelligence_config import (
+    from trading_gym.core.intelligence_config import (
         IntelligenceConfig,
         IntelligenceMode,
     )
@@ -575,7 +575,7 @@ def test_model_free_auto_degrades_to_rules_without_provider():
 def test_market_context_builder_uses_true_equity_prices_and_returns():
     from types import SimpleNamespace
 
-    from trading_gym.intelligence.wiring import build_market_context
+    from trading_gym.agent.intelligence.wiring import build_market_context
 
     state = SimpleNamespace(
         live_mode=True,
@@ -601,11 +601,11 @@ def test_market_context_builder_uses_true_equity_prices_and_returns():
 def test_rules_mode_exploits_real_environment_momentum_instead_of_holding():
     from types import SimpleNamespace
 
-    from trading_gym.common.intelligence_config import (
+    from trading_gym.core.intelligence_config import (
         IntelligenceConfig,
         IntelligenceMode,
     )
-    from trading_gym.intelligence.wiring import build_trading_policy
+    from trading_gym.agent.intelligence.wiring import build_trading_policy
 
     state = SimpleNamespace(
         live_mode=True,
@@ -631,7 +631,7 @@ def test_rules_mode_exploits_real_environment_momentum_instead_of_holding():
 def test_real_context_failure_prevents_fabricated_rules_execution():
     from types import SimpleNamespace
 
-    from trading_gym.intelligence.wiring import build_market_context
+    from trading_gym.agent.intelligence.wiring import build_market_context
 
     state = SimpleNamespace(
         live_mode=True,
@@ -648,7 +648,7 @@ def test_real_context_failure_prevents_fabricated_rules_execution():
 def test_fusion_governor_receives_actual_account_context():
     from types import SimpleNamespace
 
-    from trading_gym.intelligence.wiring import build_market_context
+    from trading_gym.agent.intelligence.wiring import build_market_context
 
     class CapturingGovernor(_Scripted):
         def decide(self, context):

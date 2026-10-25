@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from trading_gym.common.persistence import _fsync_directory
+from trading_gym.core.persistence import _fsync_directory
 
 
 def test_directory_sync_is_a_noop_off_posix(tmp_path: Path) -> None:

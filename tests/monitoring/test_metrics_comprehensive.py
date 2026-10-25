@@ -1,5 +1,5 @@
 import pytest
-from trading_gym.monitoring.metrics import get_metrics, reset_metrics
+from trading_gym.core.monitoring.metrics import get_metrics, reset_metrics
 
 
 @pytest.fixture(autouse=True)

@@ -1,4 +1,4 @@
-from trading_gym.venue.asset_registry import (
+from trading_gym.market.venue.asset_registry import (
     is_shortable,
     is_credit_tradable,
     is_tokenized_asset,

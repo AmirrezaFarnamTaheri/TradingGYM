@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-052 — Lossless accounting, safe skill-archive intake, and contradictory bar admission
 
 **Date:** 2026-10-16. **Status:** implemented on draft TradingGYM PR #2;
@@ -8,10 +10,10 @@ verified. This is a continuation of the 39 donor-archive convergence work
 ## Existing owners retained
 
 The repository already contained
-`trading_gym/accounting/order_fill_parity.py`,
-`trading_gym/convergence/peer_execution_parity.py`,
-`trading_gym/experiments/peer_strategy_comparison.py`,
-`trading_gym/skills/intake.py`, and
+`trading_gym/execution/accounting/order_fill_parity.py`,
+`trading_gym/core/control_planes/peer_execution_parity.py`,
+`trading_gym/rl/experiments/peer_strategy_comparison.py`,
+`trading_gym/agent/skills/intake.py`, and
 `trading_gym/market/data_router.py`.
 The donor feature comparison **did not** justify adding another broker,
 reconciliation engine, live trading agent, or independent portfolio selector.
@@ -52,7 +54,7 @@ input scale and receipt serialization.
 
 ## 2. Complete but inert skill-ZIP inspection
 
-`trading_gym/skills/archive_intake.py` is a new self-contained read-only
+`trading_gym/agent/skills/archive_intake.py` is a new self-contained read-only
 inspect-only helper; `scripts/inspect_skill_archive.py` provides a
 sanitized CLI:
 
@@ -115,7 +117,7 @@ separate source authentication.
   helper, without extraction or activation.
 - `docs/contracts/module_accountability.json` was synchronized with
   changed source SHA-256 digests. A Git-tree enumeration revealed one
-  unrelated preexisting omission `trading_gym/risk/funding_history.py`;
+  unrelated preexisting omission `trading_gym/execution/risk/funding_history.py`;
   its digest was registered. The source-tree/manifest path count should now
   be **365 / 365**, pending final exact-head recheck.
 - The GitHub-hosted CI runner previously failed **before executing job

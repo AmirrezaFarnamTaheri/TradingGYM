@@ -2,7 +2,7 @@
 
 import pytest
 
-from trading_gym.operations.validation_orchestrator import (
+from trading_gym.core.operations.validation_orchestrator import (
     Criterion,
     ValidationPhase,
     format_verdict,
@@ -11,7 +11,7 @@ from trading_gym.operations.validation_orchestrator import (
     VERDICT_GO,
     VERDICT_NO_GO,
 )
-from trading_gym.experiments.sealed_spec import (
+from trading_gym.rl.experiments.sealed_spec import (
     SealMismatch,
     seal_experiment,
     verify_seal,

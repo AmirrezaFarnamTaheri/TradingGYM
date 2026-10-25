@@ -144,7 +144,7 @@ frontend/dist/
 # Rust kernel build artifacts (ADR-035). The crate source is tracked; the
 # compiled cdylib is a per-platform build product, and the Python loader
 # treats an absent artifact as a supported state.
-rust/*/target/
+kernel/target/
 
 # Lockfile from the uv venv used for verification; the
 # project and CI resolve dependencies through poetry.lock.
@@ -154,4 +154,12 @@ scratchpad/
 # Generated process state and local Rust checks, never source evidence.
 # Do not ignore tracked dependency locks (poetry.lock / Cargo.lock).
 /trading_gym/data/manifests/*.lock
-/rust/axiom_kernel/*.exit
+/kernel/*.exit
+
+# Private assistant/session state and retired generated evidence
+.claude/.pilot-session-start
+.claude/.session-count
+.gemini-tasks/
+.statamcp/
+evidence/
+VALIDATION_RECEIPT.json

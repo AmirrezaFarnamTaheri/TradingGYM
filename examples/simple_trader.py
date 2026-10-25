@@ -11,12 +11,12 @@ from pathlib import Path
 from stable_baselines3 import PPO
 import typer
 
-from trading_gym.common.config import load_app_config
-from trading_gym.pipelines.environment import (
+from trading_gym.core.config import load_app_config
+from trading_gym.rl.pipelines.environment import (
     create_environment,
     load_environment_inputs,
 )
-from trading_gym.rate_limit import GlobalRateLimiter
+from trading_gym.market.rate_limit import GlobalRateLimiter
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

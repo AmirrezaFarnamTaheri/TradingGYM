@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 OUT = ROOT / "docs" / "contracts" / "openapi.json"
 OUT.parent.mkdir(parents=True, exist_ok=True)
 
-from apps.api.main import (  # noqa: E402  (root path is deliberately established first)
+from trading_gym.api.main import (  # noqa: E402  (root path is deliberately established first)
     app,
 )
 
@@ -27,3 +27,18 @@ if "--check" in sys.argv:
 else:
     OUT.write_text(text, encoding="utf-8")
     print(OUT)
+
+# The retained research API is an internal compatibility surface, not the
+# cockpit server. Keep its schema separate so its consumers remain testable.
+from trading_gym.core.legacy_api.main import app as research_app  # noqa: E402
+
+research_out = OUT.with_name("research-openapi.json")
+research_text = json.dumps(research_app.openapi(), sort_keys=True, indent=2) + "\n"
+if "--check" in sys.argv:
+    if (
+        not research_out.exists()
+        or research_out.read_text(encoding="utf-8") != research_text
+    ):
+        raise SystemExit(1)
+else:
+    research_out.write_text(research_text, encoding="utf-8")

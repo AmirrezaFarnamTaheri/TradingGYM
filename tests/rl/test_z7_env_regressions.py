@@ -30,7 +30,7 @@ import pandas as pd
 import pytest
 from gymnasium import spaces
 
-from trading_gym.common.config import (
+from trading_gym.core.config import (
     AttentionConfig,
     BreakerConfig,
     CapacityConfig,

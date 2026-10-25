@@ -2,7 +2,7 @@
 
 import pytest
 
-from trading_gym.production.chain import normalize_chain
+from trading_gym.execution.production.chain import normalize_chain
 
 
 @pytest.mark.parametrize("chain_id", [1, 56, 137, 42161, "1", "56", "137"])

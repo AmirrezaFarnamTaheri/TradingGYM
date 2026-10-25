@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-054 — Strategy source integrity and settlement cash canonicalization
 
 **Date:** 2026-10-16  
@@ -46,7 +48,7 @@ not evidence of settlement authority or a real custody ledger.
 
 - `tests/strategy_lab/test_alias_and_exit_integrity.py`: raw/derived alias collisions; direct lower-level API; duplicate market columns; exit-over-entry precedence.
 - `tests/accounting/test_settlement_cash_canonicalization.py`: canonical currency collisions; non-ASCII alias spoofing; invalid input types and finite amounts; lossless single-key normalization.
-- `tests/convergence/test_settlement_plane.py`: multi-account cash netting refusal and existing negative-balance blocker.
+- `tests/system/test_settlement_plane.py`: multi-account cash netting refusal and existing negative-balance blocker.
 
 **Verification limitation:** These tests are committed with the implementation, but the available environment cannot clone the complete authenticated PR checkout, and GitHub Actions jobs have continued to fail **before executing any steps** (the earlier inspected run `38878980999` reported zero steps across all failed jobs and no downloadable job log). Do not describe them as passing exact-head CI until a runner successfully executes the pinned tests.
 

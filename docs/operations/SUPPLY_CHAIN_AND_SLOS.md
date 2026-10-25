@@ -1,14 +1,10 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # Supply-chain inventory and SLO operations
 
 ## Dependency inventory
 
-Generate the deterministic inventory with:
-
-```bash
-poetry run python scripts/generate_sbom.py --output evidence/dependency-inventory.json
-```
-
-The command validates version coherence and produces hashes for the authoritative dependency files. A valid result means the local policy found no critical structural issue. It does **not** establish that packages are vulnerability-free, signatures are valid, maintainers are trustworthy, or builds are reproducible.
+The former custom SBOM wrapper has been retired. The authoritative dependency inputs are `poetry.lock` and `frontend/package-lock.json`; current commands are in [the validation runbook](../VALIDATION_RUNBOOK.md). Run `npm audit --prefix frontend --audit-level=high` and an available current Python advisory scanner when qualifying a release. A lockfile and immutable action pins do not establish vulnerability freedom, package signatures or reproducibility. No historical generated inventory certifies this working tree.
 
 Production release gates should additionally include:
 

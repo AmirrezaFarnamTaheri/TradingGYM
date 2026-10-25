@@ -6,12 +6,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from trading_gym.strategy_lab.causal_replay import (
+from trading_gym.agent.strategy_lab.causal_replay import (
     replay_evaluated_signals,
     replay_strategy,
 )
-from trading_gym.strategy_lab.evaluator import evaluate_strategy
-from trading_gym.strategy_lab.templates import template_catalogue
+from trading_gym.agent.strategy_lab.evaluator import evaluate_strategy
+from trading_gym.agent.strategy_lab.templates import template_catalogue
 
 SOURCE = "a" * 64
 

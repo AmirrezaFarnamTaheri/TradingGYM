@@ -31,7 +31,7 @@ from types import MappingProxyType
 from typing import Iterator, Mapping, Sequence
 
 from trading_gym.agent.arms.base import ArmProposal
-from trading_gym.intelligence.types import (
+from trading_gym.agent.intelligence.types import (
     ActionKind,
     MarketContext,
 )

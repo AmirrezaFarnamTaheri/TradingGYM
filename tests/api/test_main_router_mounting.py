@@ -25,11 +25,11 @@ def test_main_app_mounts_authz_and_playground_routers(
             }
         ),
     )
-    from apps.api.main import app
+    from trading_gym.core.legacy_api.main import app
 
-    # apps.api.main captures API_KEY at import time; earlier tests may
+    # trading_gym.core.legacy_api.main captures API_KEY at import time; earlier tests may
     # have imported it first without API_KEY set, so refresh module state
-    import apps.api.main as api_main
+    import trading_gym.core.legacy_api.main as api_main
 
     monkeypatch.setattr(api_main, "API_KEY", "test-gateway-key-0123456789abcdef")
     monkeypatch.setattr(api_main, "API_KEY_CONFIGURED", True)
@@ -104,11 +104,11 @@ def test_main_app_grant_lifecycle_end_to_end(
             }
         ),
     )
-    from apps.api.main import app
+    from trading_gym.core.legacy_api.main import app
 
-    # apps.api.main captures API_KEY at import time; earlier tests may
+    # trading_gym.core.legacy_api.main captures API_KEY at import time; earlier tests may
     # have imported it first without API_KEY set, so refresh module state
-    import apps.api.main as api_main
+    import trading_gym.core.legacy_api.main as api_main
 
     monkeypatch.setattr(api_main, "API_KEY", "test-gateway-key-0123456789abcdef")
     monkeypatch.setattr(api_main, "API_KEY_CONFIGURED", True)

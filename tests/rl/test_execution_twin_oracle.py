@@ -21,7 +21,7 @@ from trading_gym.execution.execution_engine import (  # noqa: E402
     ExecutionState,
     MarketSnapshot,
 )
-from trading_gym.common.config import (  # noqa: E402
+from trading_gym.core.config import (  # noqa: E402
     BreakerConfig,
     CapacityConfig,
     CostConfig,

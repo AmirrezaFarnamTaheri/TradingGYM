@@ -13,13 +13,13 @@ from decimal import Decimal, ROUND_DOWN, ROUND_UP
 from pathlib import Path
 from typing import Dict, Any
 
-from trading_gym.common.config import AppConfig
-from trading_gym.adapters.enhanced_aban_client import (
+from trading_gym.core.config import AppConfig
+from trading_gym.market.adapters.enhanced_aban_client import (
     EnhancedAbanClient,
     OrderStatus,
 )
-from trading_gym.adapters.aban_transport import AbanTransport
-from trading_gym.production.mutation_retry import (
+from trading_gym.market.adapters.aban_transport import AbanTransport
+from trading_gym.execution.production.mutation_retry import (
     MutationOutcomeUnknown,
     MutationOutbox,
     MutationRetryPolicy,
@@ -27,16 +27,16 @@ from trading_gym.production.mutation_retry import (
     new_mutation_idempotency_key,
     scan_outbox,
 )
-from trading_gym.production.pre_trade_gate import evaluate_pre_trade_gate
-from trading_gym.production.runtime import (
+from trading_gym.execution.production.pre_trade_gate import evaluate_pre_trade_gate
+from trading_gym.execution.production.runtime import (
     LiveExecutionCoordinator,
     intent_sha256,
 )
-from trading_gym.production.emergency import EmergencyController
-from trading_gym.production.venues import AbanTetherVenue, VenueOrderIntent
-from trading_gym.treasury.reservations import ReservationLedger
-from trading_gym.venue.asset_registry import is_shortable
-from axiomforge.live_trading import LiveConsent
+from trading_gym.execution.production.emergency import EmergencyController
+from trading_gym.execution.production.venues import AbanTetherVenue, VenueOrderIntent
+from trading_gym.execution.treasury.reservations import ReservationLedger
+from trading_gym.market.venue.asset_registry import is_shortable
+from trading_gym.execution.live_trading import LiveConsent
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class LiveExecutionAdapter:
     ):
         self.cfg = config
         policy_path = (
-            Path(__file__).resolve().parents[1] / "adapters" / "aban_tether_policy.json"
+            Path(__file__).resolve().parents[1] / "market" / "adapters" / "aban_tether_policy.json"
         )
         policy = json.loads(policy_path.read_text(encoding="utf-8"))
         self.api = EnhancedAbanClient(

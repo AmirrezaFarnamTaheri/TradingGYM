@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from trading_gym.experiments.peer_strategy_comparison import (  # noqa: E402
+from trading_gym.rl.experiments.peer_strategy_comparison import (  # noqa: E402
     StrategyReplay,
     compare_strategy_replays,
 )

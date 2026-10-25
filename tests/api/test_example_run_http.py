@@ -9,7 +9,7 @@ def test_reference_run_http_to_actual_worker(tmp_path, monkeypatch):
     monkeypatch.setenv("TRADING_GYM_HOME", str(tmp_path))
     monkeypatch.setenv("API_KEY", "fixture-gateway-key-not-a-real-secret")
     monkeypatch.setenv("AUDIT_HMAC_KEY", "fixture-audit-key-01234567890123456789")
-    api = importlib.import_module("apps.api.main")
+    api = importlib.import_module("trading_gym.core.legacy_api.main")
     monkeypatch.setattr(api, "API_KEY", "fixture-gateway-key-not-a-real-secret")
     monkeypatch.setattr(api, "API_KEY_CONFIGURED", True)
     monkeypatch.setattr(api, "PROCESSES", {})

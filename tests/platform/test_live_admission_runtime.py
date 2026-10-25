@@ -5,10 +5,10 @@ from decimal import Decimal
 
 import pytest
 
-from axiomforge.live_trading import LiveConsent
-from trading_gym.production.emergency import EmergencyController
-from trading_gym.production.runtime import LiveExecutionCoordinator
-from trading_gym.production.venues import VenueOrderIntent
+from trading_gym.execution.live_trading import LiveConsent
+from trading_gym.execution.production.emergency import EmergencyController
+from trading_gym.execution.production.runtime import LiveExecutionCoordinator
+from trading_gym.execution.production.venues import VenueOrderIntent
 
 
 class FakeVenue:
@@ -94,9 +94,9 @@ async def test_model_free_system1_runs_only_in_non_mutating_live_dry_run(
     import numpy as np
     import pandas as pd
 
-    from apps.live import main as live
-    from trading_gym.common.config import load_app_config
-    from trading_gym.common.intelligence_config import IntelligenceConfig
+    from trading_gym.execution.live import main as live
+    from trading_gym.core.config import load_app_config
+    from trading_gym.core.intelligence_config import IntelligenceConfig
 
     cfg = load_app_config("config/app.yaml")
     cfg.intelligence = IntelligenceConfig(
@@ -148,8 +148,8 @@ async def test_unqualified_system1_never_enters_funded_live_execution(
     monkeypatch,
 ) -> None:
     from types import SimpleNamespace
-    from apps.live import main as live
-    from trading_gym.common.intelligence_config import IntelligenceConfig
+    from trading_gym.execution.live import main as live
+    from trading_gym.core.intelligence_config import IntelligenceConfig
 
     cfg = SimpleNamespace(
         intelligence=IntelligenceConfig(

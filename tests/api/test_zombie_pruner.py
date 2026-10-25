@@ -1,7 +1,7 @@
 import os
 from unittest.mock import patch, MagicMock
 from pathlib import Path
-from apps.api.main import prune_zombies
+from trading_gym.core.legacy_api.main import prune_zombies
 
 
 def test_prune_zombies():
@@ -9,13 +9,13 @@ def test_prune_zombies():
 
     # Mock psutil.process_iter
     p1 = MagicMock()
-    p1.info = {"pid": 1234, "cmdline": ["python", "-m", "apps.live.main"]}
+    p1.info = {"pid": 1234, "cmdline": ["python", "-m", "trading_gym.execution.live.main"]}
     p1.terminate = MagicMock()
 
     p2 = MagicMock()
     p2.info = {
         "pid": my_pid,
-        "cmdline": ["python", "-m", "apps.api.main"],
+        "cmdline": ["python", "-m", "trading_gym.core.legacy_api.main"],
     }  # Should ignore self
     p2.terminate = MagicMock()
 
@@ -27,12 +27,12 @@ def test_prune_zombies():
     # We mock the constructor psutil.Process(pid) -> mock_proc
     # mock_proc.cwd() -> returns a path that starts with PROJECT_ROOT
     with patch("psutil.process_iter", return_value=[p1, p2, p3]), patch(
-        "apps.api.main.psutil.Process"
-    ) as MockProcess, patch("apps.api.main.PROJECT_ROOT", new=Path(os.getcwd())), patch(
-        "apps.api.main.capture_process_identity",
+        "trading_gym.core.legacy_api.main.psutil.Process"
+    ) as MockProcess, patch("trading_gym.core.legacy_api.main.PROJECT_ROOT", new=Path(os.getcwd())), patch(
+        "trading_gym.core.legacy_api.main.capture_process_identity",
         return_value={"pid": 1234, "create_time": 1.0, "command_sha256": "a" * 64},
     ), patch(
-        "apps.api.main.terminate_process_tree",
+        "trading_gym.core.legacy_api.main.terminate_process_tree",
         return_value={"terminated": 1, "remaining": 0},
     ) as terminate:
 

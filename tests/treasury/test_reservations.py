@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from trading_gym.treasury.reservations import ReservationError, ReservationLedger
+from trading_gym.execution.treasury.reservations import ReservationError, ReservationLedger
 
 D = Decimal
 

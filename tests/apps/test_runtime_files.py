@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from apps.common.runtime_files import handle_panic_request, panic_requested
-from trading_gym.common.persistence import atomic_write_text
+from trading_gym.core.runtime_files import handle_panic_request, panic_requested
+from trading_gym.core.persistence import atomic_write_text
 
 
 def _signal(path: Path, content: str = "PANIC_TRIGGERED_AT_1\n") -> None:

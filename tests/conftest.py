@@ -8,6 +8,22 @@ import os
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Identify unavailable OS privileges without patching production calls."""
+    outcome = yield
+    report = outcome.get_result()
+    if call.excinfo and isinstance(call.excinfo.value, OSError):
+        if os.name == "nt" and getattr(call.excinfo.value, "winerror", None) == 1314:
+            report.outcome = "skipped"
+            report.longrepr = (
+                str(item.path),
+                item.location[1],
+                "Skipped: Windows symlink creation privilege unavailable",
+            )
+
+
 if os.environ.get("TRADING_GYM_REQUIRE_REAL_DEPS") == "1":
     for dependency in ("torch", "stable_baselines3", "typer"):
         try:
@@ -189,7 +205,7 @@ if "typer" not in sys.modules:
 def app_config():
     """Load the project configuration once for the test suite."""
     config_module = pytest.importorskip(
-        "trading_gym.common.config",
+        "trading_gym.core.config",
         reason="Trading Gym config helpers are required for integration tests",
     )
     return config_module.load_app_config(os.path.abspath("config/app.yaml"))

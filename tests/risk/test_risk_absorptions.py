@@ -5,11 +5,11 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pytest
 
-from trading_gym.risk.conformal_var import (
+from trading_gym.execution.risk.conformal_var import (
     SplitConformalVaR,
     compute_conformal_position_scale,
 )
-from trading_gym.risk.latching_kill_switch import (
+from trading_gym.execution.risk.latching_kill_switch import (
     LatchingConfig,
     LatchingKillSwitch,
     REASON_CONSECUTIVE_LOSSES,

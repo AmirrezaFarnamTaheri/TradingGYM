@@ -4,8 +4,8 @@ from trading_gym.agent.strategy_variants import (
     mutation_material,
     propose_variants,
 )
-from trading_gym.strategy_lab.templates import template_catalogue
-from trading_gym.strategy_lab.validation import validate_strategy_spec
+from trading_gym.agent.strategy_lab.templates import template_catalogue
+from trading_gym.agent.strategy_lab.validation import validate_strategy_spec
 
 
 def _volatility_lookback(strategy):

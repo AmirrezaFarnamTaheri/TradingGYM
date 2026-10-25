@@ -58,7 +58,7 @@ python examples/run_local_demo.py
 **Run:**
 ```bash
 # Requires API server running (bound to localhost for security)
-python -m uvicorn apps.api.main:app --host 127.0.0.1 --port 8000 &
+python -m uvicorn trading_gym.core.legacy_api.main:app --host 127.0.0.1 --port 8000 &
 python examples/complete_api_demo.py
 ```
 
@@ -223,7 +223,7 @@ poetry install
 ### API Connection Errors
 ```bash
 # Start API server first
-python apps/api/main.py
+python trading_gym/core/legacy_api/main.py
 
 # In another terminal
 python examples/complete_api_demo.py
@@ -250,7 +250,7 @@ Brief description of what this example demonstrates.
 
 import logging
 from trading_gym.rl.margin_trading_environment import MarginTradingEnv
-from trading_gym.common.config import load_app_config
+from trading_gym.core.config import load_app_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

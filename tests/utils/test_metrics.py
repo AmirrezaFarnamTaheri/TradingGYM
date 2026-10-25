@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from trading_gym.utils.metrics import (
+from trading_gym.core.utils.metrics import (
     PerformanceMetrics,
     calculate_returns,
     sharpe_ratio,

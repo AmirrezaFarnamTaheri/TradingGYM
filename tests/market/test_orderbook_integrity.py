@@ -1,5 +1,5 @@
 import pytest
-from trading_gym.adapters.orderbook_integrity import OrderBookIntegrityGate
+from trading_gym.market.adapters.orderbook_integrity import OrderBookIntegrityGate
 
 
 def test_crossed_book_rejected():

@@ -1,4 +1,4 @@
-from trading_gym.utils.memory import (
+from trading_gym.core.utils.memory import (
     get_memory_usage_mb,
     check_memory_growth,
     RingBuffer,

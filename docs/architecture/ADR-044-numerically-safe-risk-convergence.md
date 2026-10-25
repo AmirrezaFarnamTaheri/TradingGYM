@@ -1,3 +1,5 @@
+> Scope: retained research/compatibility documentation. It does not describe the current three-view cockpit or qualify an external service. For current setup and operation, see [the documentation index](../README.md). Historical commands, endpoints and verification counts below apply to that component only.
+
 # ADR-044 — Bounded portfolio risk, empirical tail losses, and insolvency evidence
 
 **Date:** 2026-10-16 · **Status:** implemented on draft PR #2; release qualification remains incomplete.  

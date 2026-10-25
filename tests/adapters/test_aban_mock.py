@@ -1,14 +1,14 @@
 import pytest
 from unittest.mock import patch
-from trading_gym.adapters.enhanced_aban_client import EnhancedAbanClient, OrderSide
+from trading_gym.market.adapters.enhanced_aban_client import EnhancedAbanClient, OrderSide
 
 
 @pytest.fixture
 def mock_client():
     with (
-        patch("trading_gym.adapters.enhanced_aban_client.AbantetherClient"),
+        patch("trading_gym.market.adapters.enhanced_aban_client.AbantetherClient"),
         patch(
-            "trading_gym.adapters.enhanced_aban_client.EnhancedAbanClient._make_request"
+            "trading_gym.market.adapters.enhanced_aban_client.EnhancedAbanClient._make_request"
         ) as mock_req,
     ):
         client = EnhancedAbanClient(api_key="test_key")

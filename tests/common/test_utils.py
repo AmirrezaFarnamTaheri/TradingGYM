@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from trading_gym.common.utils import TimeSeriesSplit
+from trading_gym.core.utils import TimeSeriesSplit
 
 
 def test_time_series_split():

@@ -4,7 +4,7 @@ import threading
 
 import pytest
 
-from trading_gym.common.circuit_breaker import (
+from trading_gym.core.circuit_breaker import (
     CircuitBreaker,
     CircuitOpenError,
     CircuitState,
@@ -51,7 +51,7 @@ def test_stale_success_does_not_close_newly_open_circuit():
 
 
 def test_old_failure_cannot_reopen_after_a_successful_recovery(monkeypatch):
-    import trading_gym.common.circuit_breaker as source
+    import trading_gym.core.circuit_breaker as source
 
     clock = [10.0]
     monkeypatch.setattr(source.time, "monotonic", lambda: clock[0])
@@ -79,7 +79,7 @@ def test_old_failure_cannot_reopen_after_a_successful_recovery(monkeypatch):
 
 
 def test_only_one_half_open_probe_is_admitted(monkeypatch):
-    import trading_gym.common.circuit_breaker as source
+    import trading_gym.core.circuit_breaker as source
 
     clock = [10.0]
     monkeypatch.setattr(source.time, "monotonic", lambda: clock[0])

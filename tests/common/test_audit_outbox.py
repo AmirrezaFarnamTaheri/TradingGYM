@@ -16,15 +16,15 @@ from pathlib import Path
 
 import pytest
 
-from trading_gym.budgets.ledger import BudgetCreate, BudgetRepository, BudgetResource
-from trading_gym.common.audit_outbox import (
+from trading_gym.core.budgets.ledger import BudgetCreate, BudgetRepository, BudgetResource
+from trading_gym.core.audit_outbox import (
     AUDIT_OUTBOX_DIGEST_KEY,
     deliver_audit_events,
     queue_audit_event,
     stamp_outbox_digest,
     verify_outbox_digest,
 )
-from trading_gym.governance.ledger import AuditLedger
+from trading_gym.execution.governance.ledger import AuditLedger
 
 
 class FlakyLedger(AuditLedger):
